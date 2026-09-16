@@ -23,8 +23,10 @@ data/processed/*
 !data/processed/.gitkeep
 
 # Executables & Stockfish binaries (Streamlit Cloud uses packages.txt)
-stockfish/
+/stockfish/
 *.exe
+!lib/stockfish/
+!public/stockfish/
 
 # IDE configs
 .vscode/

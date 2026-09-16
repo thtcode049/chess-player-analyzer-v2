@@ -1,0 +1,110 @@
+"""
+Unit Tests for FastAPI Resource-Oriented Endpoints
+"""
+import pytest
+from fastapi.testclient import TestClient
+import io
+
+from api.index import app
+
+client = TestClient(app)
+
+SAMPLE_PGN = """[Event "Live Chess"]
+[Site "Chess.com"]
+[Date "2024.03.15"]
+[White "HeroPlayer"]
+[Black "OpponentMaster"]
+[Result "1-0"]
+[ECO "B90"]
+[WhiteElo "2400"]
+[BlackElo "2350"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 6. Be3 e5 7. Nb3 Be6 8. f3 1-0
+"""
+
+def test_health_check():
+    response = client.get("/api/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "healthy"
+    assert data["version"] == "2.0.0"
+
+def test_import_pgn_file():
+    file_bytes = io.BytesIO(SAMPLE_PGN.encode("utf-8"))
+    response = client.post(
+        "/api/import/pgn-file",
+        files={"file": ("sample.pgn", file_bytes, "application/x-chess-pgn")},
+        data={"max_games": 10}
+    )
+    assert response.status_code == 200
+    res_data = response.json()
+    assert res_data["success"] is True
+    data = res_data["data"]
+    assert data["total_found"] == 1
+    assert data["imported_count"] == 1
+    assert data["primary_player"] == "HeroPlayer"
+
+def test_create_and_query_analysis_run():
+    # 1. Create Analysis Run
+    payload = {
+        "player_id": "test-player-123",
+        "run_label": "Automated Test Run",
+        "scope_filter": {"color": "all"},
+        "raw_pgn_text": SAMPLE_PGN
+    }
+    response = client.post("/api/analysis/runs", json=payload)
+    assert response.status_code == 200
+    res_data = response.json()
+    assert res_data["success"] is True
+    run = res_data["data"]
+    assert run["games_analyzed_count"] == 1
+    assert run["overall_win_rate"] == 100.0
+    assert run["status"] == "completed"
+    
+    run_id = run["id"]
+
+    # 2. Get Analysis Run by ID
+    get_res = client.get(f"/api/analysis/runs/{run_id}")
+    assert get_res.status_code == 200
+    assert get_res.json()["data"]["id"] == run_id
+
+    # 3. Query Opening Tree Branch for root FEN
+    root_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -"
+    tree_res = client.get(f"/api/analysis/runs/{run_id}/tree?fen={root_fen}")
+    assert tree_res.status_code == 200
+    tree_data = tree_res.json()["data"]
+    assert len(tree_data["continuations"]) >= 1
+    first_move = tree_data["continuations"][0]
+    assert first_move["san"] == "e4"
+    assert first_move["win_pct"] == 100.0
+
+def test_ai_briefing_endpoint():
+    payload = {
+        "run_id": "mock-run-id",
+        "perspective_mode": "self"
+    }
+    response = client.post("/api/ai/briefing", json=payload)
+    assert response.status_code == 200
+    res_data = response.json()
+    assert res_data["success"] is True
+    data = res_data["data"]
+    assert "strategic_briefing" in data
+    assert len(data["suggested_questions"]) >= 1
+
+def test_players_crud_endpoints():
+    # Create player
+    create_res = client.post("/api/players", json={"canonical_name": "Hikaru Nakamura", "title": "GM"})
+    assert create_res.status_code == 200
+    player = create_res.json()["data"]
+    player_id = player["id"]
+    assert player["canonical_name"] == "Hikaru Nakamura"
+
+    # Get player
+    get_res = client.get(f"/api/players/{player_id}")
+    assert get_res.status_code == 200
+    assert get_res.json()["data"]["id"] == player_id
+
+    # List players
+    list_res = client.get("/api/players")
+    assert list_res.status_code == 200
+    assert len(list_res.json()["data"]) >= 1

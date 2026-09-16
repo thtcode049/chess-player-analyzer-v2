@@ -1,97 +1,118 @@
-# Chess Player Analyzer
+# ♟️ Chess Player Analyzer V2
 
-> Systems for Analyzing Game Data & AI Strategic Coaching  
-> *Hệ thống phân tích dữ liệu ván đấu và Trợ lí AI Huấn luyện & Chuẩn bị chiến thuật cờ vua*
+> **Production-Oriented Web Application for Chess Player Scouting, Repertoire Analysis, and AI Strategic Coaching**  
+> *Hệ thống Phân tích Hồ sơ Kỳ thủ, Cây Khai cuộc Bayesian & Trợ lí AI Đại kiện tướng*
 
----
-
-## 📌 Tổng quan dự án (Overview)
-**Chess Player Analyzer** là ứng dụng Web giúp phân tích toàn diện dữ liệu lịch sử thi đấu cờ vua từ file PGN hoặc Lichess/Chess.com. Hệ thống phục vụ đa mục đích: **Tự phân tích bản thân (Self-Improvement)**, **Huấn luyện học viên (Coaching)**, hoặc **Chuẩn bị đối đầu với đối thủ (Match Prep)**. Hệ thống tự động trích xuất Repertoire khai cuộc, cây nước đi (Opening Tree), độ chính xác từng giai đoạn theo chuẩn Stockfish, cấu trúc Tốt, phong cách thi đấu và đồng hành cùng **Trợ lí AI Đại kiện tướng** đưa ra bản tóm tắt chiến lược mở đầu chủ động.
-
----
-
-## 🛠 Công nghệ sử dụng (Tech Stack)
-- **Ngôn ngữ chính**: Python 3.11+
-- **Giao diện Web**: Streamlit
-- **Xử lý cờ vua (PGN/FEN/Moves)**: `python-chess` (`chess`)
-- **Xử lý & Thống kê Dữ liệu**: Pandas
-- **Trực quan hóa**: Plotly
-- **Kiểm thử (Testing)**: Pytest
+[![Next.js](https://img.shields.io/badge/Next.js-14%20App%20Router-black?style=flat-square&logo=next.js)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python)](https://python.org/)
+[![Stockfish WASM](https://img.shields.io/badge/Stockfish-WASM%20Web%20Worker-red?style=flat-square)](https://stockfishchess.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL%20%2B%20Auth-3ECF8E?style=flat-square&logo=supabase)](https://supabase.com/)
+[![Tests](https://img.shields.io/badge/Tests-100%2F100%20Passing-brightgreen?style=flat-square&logo=pytest)](https://docs.pytest.org/)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)]()
 
 ---
 
-## 🚀 Hướng dẫn cài đặt & Chạy ứng dụng (Installation & Usage)
+## 🚀 Điểm Đột Phá Ở Phiên Bản V2 (What's New in V2)
 
-### 1. Khởi tạo môi trường ảo (Virtual Environment)
+**Chess Player Analyzer V2** được tái kiến trúc toàn diện từ phiên bản Streamlit nguyên khối (monolith) thành hệ thống web hiện đại, phân tán, tối ưu hóa để vận hành **100% Miễn phí vĩnh viễn (Free Tier)** trên Vercel và Supabase:
+
+1. **Frontend Đỉnh Cao (Next.js 14 App Router + TailwindCSS)**:
+   - Giao diện Dark Mode cao cấp với hiệu ứng kính mờ (Glassmorphism), biểu đồ SVG mượt mà và chuyển trang tức thì.
+   - Thư viện Kỳ thủ (`/players`), Bảng điều khiển (`/dashboard`), Phòng Phân tích Thế cờ tương tác (`/analyze`), và Trung tâm Huấn luyện AI (`/ai-coach`).
+2. **Stockfish WASM trong Trình Duyệt (Zero Server Load)**:
+   - Phân tích tương tác trực tiếp từng thế cờ chạy bằng Web Worker WebAssembly ngay trên máy người dùng.
+   - Không gây quá tải hay timeout 10s cho serverless runtime.
+3. **Bảo toàn 100% Thuật toán Cờ Vua Cốt Lõi (`src/`)**:
+   - Cây khai cuộc EPD và hiệu chuẩn Bayesian Shrinkage ($K=6.0$).
+   - Nhận diện cấu trúc Tốt (Isolani, Carlsbad, Hedgehog, v.v.).
+   - Phân tích chân dung phong cách 8 trục (Style Radar Polygon).
+   - Đánh giá sai số Centipawn Loss (ACPL) từng giai đoạn (Khai cuộc, Trung cuộc, Cờ tàn).
+4. **Cơ Sở Dữ Liệu Quan Hệ Chuẩn Hóa (Supabase PostgreSQL + RLS)**:
+   - 8 bảng quan hệ có khóa ngoại, chỉ mục hiệu năng và ràng buộc duy nhất `UNIQUE(run_id, game_id)`.
+   - Bảo mật đa người dùng với Supabase Row Level Security (RLS).
+   - Quản lý tệp PGN dung lượng lớn qua Supabase Storage (`pgn-vault`), bảo vệ hạn mức 500MB DB.
+5. **Trợ Lý AI Đại Kiện Tướng (Gemini AI + Fallback Chuyên gia Cục bộ)**:
+   - Tham mưu chiến lược chủ động 2 chiều (*Tự đánh giá bản thân* hoặc *Chuẩn bị đối đầu đối thủ*).
+   - Truyền phát câu trả lời thời gian thực qua Server-Sent Events (SSE).
+
+---
+
+## 🏛 Kiến Trúc Hệ Thống (Architecture)
+
+```
+[Browser Client]
+  ├── Next.js 14 (UI, Dashboard, Visualizations)
+  └── Stockfish WASM Web Worker (Interactive Evaluation, Zero Server CPU)
+           │
+           │ HTTP API / SSE
+           ▼
+[Vercel Serverless]
+  └── FastAPI Python Runtime (/api/*)
+        ├── src.opening_tree (EPD Tree, Bayesian K=6.0)
+        ├── src.player_profile (Pawn Structures, 8-Axis Radar)
+        ├── src.accuracy (ACPL by Phase)
+        └── src.ai_assistant (Gemini Flash + Local Heuristic Fallback)
+           │
+           │ SQL / JWT / S3 API
+           ▼
+[Supabase Infrastructure]
+  ├── PostgreSQL Database (8 Tables with RLS)
+  ├── Supabase Auth (JWT tenancy)
+  └── Supabase Storage Bucket ('pgn-vault')
+```
+
+---
+
+## 🛠 Hướng Dẫn Cài Đặt & Chạy Cục Bộ (Local Quickstart)
+
+### 1. Yêu cầu Tiên quyết
+- Python 3.11+
+- Node.js 18+ hoặc 20+
+
+### 2. Cài đặt Môi trường Python (Backend API)
 ```bash
-# Trên Windows PowerShell
-python -m venv .venv
+# 1. Kích hoạt virtualenv
 .\.venv\Scripts\Activate.ps1
-```
 
-### 2. Cài đặt các thư viện cần thiết
-```bash
+# 2. Cài đặt phụ thuộc
 pip install -r requirements.txt
-```
 
-### 3. Chạy ứng dụng Streamlit
-```bash
-streamlit run app.py
-```
-
-### 4. Chạy kiểm thử tự động (Unit Tests)
-```bash
+# 3. Chạy kiểm thử tự động (100/100 tests)
 pytest
 ```
 
+### 3. Cài đặt Môi trường Frontend (Next.js)
+```bash
+# Cài đặt node modules
+npm install
+
+# Kiểm tra kiểu dữ liệu TypeScript
+npm run typecheck
+
+# Khởi chạy máy chủ phát triển
+npm run dev
+```
+Truy cập ứng dụng tại: `http://localhost:3000`.
+
 ---
 
-## 📂 Cấu trúc dự án (Project Structure)
-```text
-chess-player-analyzer/
-│
-├── app.py                      # Giao diện Web Streamlit chính
-├── requirements.txt            # Danh sách thư viện phụ thuộc
-├── README.md                   # Tài liệu hướng dẫn dự án
-│
-├── data/                       # Dữ liệu ván đấu mẫu
-│   └── sample.pgn
-│
-├── src/                        # Các module xử lý nghiệp vụ chính
-│   ├── ai_assistant/           # Trợ lí AI Chiến lược & Huấn luyện (Gemini & Offline Engine)
-│   │   ├── briefing.py         # Bản tóm tắt chiến lược mở đầu chủ động
-│   │   ├── context_builder.py  # Xây dựng ngữ cảnh phân tích cho AI
-│   │   ├── gemini_client.py    # Kết nối API Google Gemini
-│   │   └── local_expert.py     # Bộ máy phân tích cờ vua offline
-│   ├── analysis/               # Phân tích cờ vua nâng cao
-│   │   ├── confidence.py       # Co ngót Bayes (Bayesian Shrinkage) & Đánh giá mức độ tin cậy
-│   │   ├── game_dynamics.py    # Động lực học ván đấu & Tâm lý thời gian
-│   │   ├── pawn_structure.py   # Phân loại & hiệu suất cấu trúc Tốt (Carlsbad, Isolani...)
-│   │   ├── phase_analysis.py   # Phân tích sai số ACPL theo 3 giai đoạn cờ
-│   │   ├── simplification.py   # Xu hướng đổi quân & đơn giản hóa thế trận
-│   │   └── style_metrics.py    # Đo lường phong cách (Tấn công, Chiến thuật, Rủi ro...)
-│   ├── engine/                 # Động cơ Stockfish & Hệ thống đánh giá nước đi
-│   ├── pgn_parser.py           # Module đọc & chuẩn hóa dữ liệu PGN
-│   ├── opening_tree.py         # Module xây dựng cây khai cuộc (Opening Tree)
-│   ├── statistics.py           # Module tính toán thống kê cơ bản (Win rate, Score)
-│   ├── player_profile.py       # Module tổng hợp hồ sơ kỳ thủ chuyên sâu
-│   ├── strategy.py             # Module xếp hạng điểm mạnh / điểm yếu & chiến lược thi đấu
-│   ├── game_fetcher.py         # Module nạp ván đấu từ Lichess & Chess.com API
-│   ├── ui_components.py        # Các thành phần UI dùng chung (MetricCard, InsightCard...)
-│   └── utils.py                # Tiện ích bổ trợ dùng chung
-│
-└── tests/                      # Bộ kiểm thử tự động (Unit Tests)
-    ├── test_accuracy_system.py
-    ├── test_ai_assistant.py
-    ├── test_analysis.py
-    ├── test_confidence.py
-    ├── test_engine.py
-    ├── test_game_fetcher.py
-    ├── test_lichess_oauth.py
-    ├── test_opening_tree.py
-    ├── test_pgn_parser.py
-    ├── test_player_profile.py
-    ├── test_statistics.py
-    ├── test_strategy.py
-    └── test_style_profile.py
-```
+## 📦 Triển Khai Lên Vercel & Supabase (Free Tier)
+
+Chi tiết từng bước cấu hình tài khoản miễn phí, chạy migration schema và khai báo biến môi trường xem tại:  
+👉 [**Tài Liệu Triển Khai Vercel & Supabase (docs/DEPLOYMENT.md)**](docs/DEPLOYMENT.md)
+
+---
+
+## 📚 Bộ Tài Liệu Kỹ Thuật Dự Án (Documentation Suite)
+
+- [**MIGRATION_AUDIT.md**](docs/MIGRATION_AUDIT.md): Phân tích phân rã mã nguồn cũ và đánh giá phụ thuộc.
+- [**ARCHITECTURE.md**](docs/ARCHITECTURE.md): Đặc tả kiến trúc phân tầng 4 lớp và luồng dữ liệu.
+- [**DATABASE.md**](docs/DATABASE.md): Chi tiết 8 bảng CSDL, quan hệ ERD, chỉ mục và chính sách RLS.
+- [**API.md**](docs/API.md): Tài liệu đặc tả toàn bộ REST API endpoints và SSE streaming.
+- [**MIGRATION_FINAL_REPORT.md**](docs/MIGRATION_FINAL_REPORT.md): Báo cáo nghiệm thu hoàn tất di chuyển dự án.
+
+---
+
+## 📄 Bản Quyền (License)
+Dự án được phân phối dưới giấy phép MIT License.

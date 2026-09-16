@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --border: #e2e8f0;
+  --primary: #10b981;
+  --primary-hover: #059669;
+  --primary-foreground: #ffffff;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --win: #22c55e;
+  --draw: #94a3b8;
+  --loss: #ef4444;
+}
+
+.dark {
+  --background: #090d16;
+  --foreground: #f8fafc;
+  --card: #111827;
+  --card-foreground: #f8fafc;
+  --border: #1f2937;
+  --primary: #10b981;
+  --primary-hover: #34d399;
+  --primary-foreground: #ffffff;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --win: #22c55e;
+  --draw: #64748b;
+  --loss: #ef4444;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+/* Win / Draw / Loss Bar Component */
+.wdl-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--muted);
+  width: 100%;
+}
+.wdl-bar-win {
+  background: var(--win);
+  transition: width 0.3s ease;
+}
+.wdl-bar-draw {
+  background: var(--draw);
+  transition: width 0.3s ease;
+}
+.wdl-bar-loss {
+  background: var(--loss);
+  transition: width 0.3s ease;
+}
+
+/* Chess Evaluation Bar */
+.eval-bar-container {
+  width: 24px;
+  background: #1e293b;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column-reverse;
+  position: relative;
+}
+.eval-bar-fill {
+  background: #ffffff;
+  transition: height 0.3s ease;
+  width: 100%;
+}

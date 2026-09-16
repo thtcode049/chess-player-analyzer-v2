@@ -1,0 +1,39 @@
+[Event "FIDE World Championship 2023"]
+[Site "Astana KAZ"]
+[Date "2023.04.09"]
+[Round "1"]
+[White "Nepomniachtchi, Ian"]
+[Black "Ding, Liren"]
+[Result "1/2-1/2"]
+[WhiteElo "2795"]
+[BlackElo "2788"]
+[ECO "C84"]
+[Opening "Ruy Lopez: Closed"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. d3 b5 7. Bb3 d6 8. c3 O-O 9. h3 Na5 10. Bc2 c5 11. d4 1/2-1/2
+
+[Event "FIDE World Championship 2023"]
+[Site "Astana KAZ"]
+[Date "2023.04.12"]
+[Round "2"]
+[White "Ding, Liren"]
+[Black "Nepomniachtchi, Ian"]
+[Result "0-1"]
+[WhiteElo "2788"]
+[BlackElo "2795"]
+[ECO "D02"]
+[Opening "Queen's Pawn Game"]
+
+1. d4 Nf6 2. Nf3 d5 3. h3 c5 4. e3 g6 5. c4 Bg7 6. Nc3 O-O 7. dxc5 dxc4 8. Qxd8 Rxd8 9. Bxc4 Nbd7 10. c6 bxc6 11. O-O Nb6 12. Be2 c5 13. Bd2 Bb7 14. Rfd1 Nfd5 15. Rac1 Rac8 16. b3 Nb4 17. Be1 Rxd1 18. Rxd1 Nc2 19. Bd2 Rd8 20. Nb1 Nb4 21. Nc3 Nb4 22. Nb1 Nxa2 0-1
+
+[Event "Online Blitz Match"]
+[Site "Chess.com"]
+[Date "2024.01.15"]
+[Round "-"]
+[White "PlayerA"]
+[Black "PlayerB"]
+[Result "1-0"]
+[WhiteElo "?"]
+[BlackElo "1500"]
+
+1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0

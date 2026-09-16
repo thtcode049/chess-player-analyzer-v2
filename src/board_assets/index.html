@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Chessboard Component</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .chess-outer-wrapper {
+            background-color: transparent;
+            padding: 2px;
+            border-radius: 0;
+            box-shadow: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .board-with-ranks {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+        }
+        #board {
+            width: 380px;
+            max-width: 85vw;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e2e8f0;
+        }
+        .rank-labels {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            height: 380px;
+            padding-left: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #64748b;
+            user-select: none;
+        }
+        .rank-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 47.5px;
+        }
+        .file-labels {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-around;
+            width: 380px;
+            padding-top: 4px;
+            padding-right: 18px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #64748b;
+            user-select: none;
+        }
+        .file-item {
+            width: 47.5px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="chess-outer-wrapper">
+        <div class="board-with-ranks">
+            <div id="board"></div>
+            <div id="rank-labels" class="rank-labels"></div>
+        </div>
+        <div id="file-labels" class="file-labels"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+
+    <script>
+        function sendToStreamlit(type, data) {
+            var payload = Object.assign({
+                isStreamlitMessage: true,
+                type: type,
+                apiVersion: 1
+            }, data || {});
+            window.parent.postMessage(payload, "*");
+        }
+
+        function setFrameHeight(height) {
+            sendToStreamlit("streamlit:setFrameHeight", { height: height });
+        }
+
+        var board = null;
+        var game = new Chess();
+        var currentFen = "";
+        var currentOrientation = "white";
+
+        function updateCoordinates(orientation) {
+            var ranksContainer = document.getElementById("rank-labels");
+            var filesContainer = document.getElementById("file-labels");
+            
+            var ranks = orientation === "black" ? ["1","2","3","4","5","6","7","8"] : ["8","7","6","5","4","3","2","1"];
+            var files = orientation === "black" ? ["H","G","F","E","D","C","B","A"] : ["A","B","C","D","E","F","G","H"];
+
+            ranksContainer.innerHTML = ranks.map(function(r) {
+                return '<div class="rank-item">' + r + '</div>';
+            }).join("");
+
+            filesContainer.innerHTML = files.map(function(f) {
+                return '<div class="file-item">' + f + '</div>';
+            }).join("");
+        }
+
+        // Lắng nghe thông điệp render từ Streamlit để cập nhật thế cờ mượt mà
+        window.addEventListener("message", function(event) {
+            if (event.data && event.data.type === "streamlit:render") {
+                var args = event.data.args || {};
+                var fen = args.fen;
+                var orientation = args.orientation || "white";
+                
+                setFrameHeight(412);
+
+                if (orientation !== currentOrientation) {
+                    currentOrientation = orientation;
+                    updateCoordinates(orientation);
+                    if (board) {
+                        board.orientation(orientation);
+                    }
+                }
+
+                if (fen !== currentFen) {
+                    currentFen = fen;
+                    game.load(fen);
+                    if (board) {
+                        board.position(fen, true);
+                    } else {
+                        initBoard(fen, orientation);
+                    }
+                }
+            }
+        });
+
+        function initBoard(fen, orientation) {
+            var config = {
+                draggable: true,
+                position: fen,
+                orientation: orientation,
+                showNotation: false,
+                onDragStart: onDragStart,
+                onDrop: onDrop,
+                onSnapEnd: onSnapEnd,
+                pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+            };
+            board = Chessboard('board', config);
+            updateCoordinates(orientation);
+            $(window).resize(board.resize);
+        }
+
+        function onDragStart (source, piece, position, orientation) {
+            if (game.game_over()) return false;
+            if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+                (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+                return false;
+            }
+        }
+
+        function onDrop (source, target) {
+            var move = game.move({
+                from: source,
+                to: target,
+                promotion: 'q'
+            });
+
+            if (move === null) return 'snapback';
+
+            sendToStreamlit("streamlit:setComponentValue", {
+                value: {
+                    san: move.san,
+                    uci: move.from + move.to,
+                    target_fen: game.fen(),
+                    timestamp: Date.now()
+                }
+            });
+        }
+
+        function onSnapEnd () {
+            board.position(game.fen());
+        }
+
+        function handleKeyDown(e) {
+            var activeEl = document.activeElement;
+            if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA")) return;
+
+            if (window.parent && window.parent.document) {
+                var pActive = window.parent.document.activeElement;
+                if (pActive && (pActive.tagName === "INPUT" || pActive.tagName === "TEXTAREA")) return;
+            }
+
+            if (e.key === "ArrowLeft" || e.keyCode === 37) {
+                e.preventDefault();
+                sendToStreamlit("streamlit:setComponentValue", {
+                    value: { key_action: "prev", timestamp: Date.now() }
+                });
+            } else if (e.key === "ArrowRight" || e.keyCode === 39) {
+                e.preventDefault();
+                sendToStreamlit("streamlit:setComponentValue", {
+                    value: { key_action: "next", timestamp: Date.now() }
+                });
+            } else if (e.key === "ArrowUp" || e.keyCode === 38) {
+                e.preventDefault();
+                sendToStreamlit("streamlit:setComponentValue", {
+                    value: { key_action: "first", timestamp: Date.now() }
+                });
+            } else if (e.key === "ArrowDown" || e.keyCode === 40) {
+                e.preventDefault();
+                sendToStreamlit("streamlit:setComponentValue", {
+                    value: { key_action: "last", timestamp: Date.now() }
+                });
+            }
+        }
+
+        document.addEventListener("keydown", handleKeyDown);
+        try {
+            if (window.parent && window.parent.document) {
+                window.parent.document.addEventListener("keydown", handleKeyDown);
+            }
+        } catch(err) {}
+
+        sendToStreamlit("streamlit:componentReady", { apiVersion: 1 });
+    </script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        html, body {
+            height: 100%;
+            max-height: 100vh;
+            overflow-y: auto !important;
+            scrollbar-width: thin;
+            scrollbar-color: #5B5BD6 #EAECF0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #F8F9FC;
+            color: #172033;
+            padding: 8px 12px;
+            font-size: 14px;
+            line-height: 1.85;
+            border-radius: 8px;
+            border: 1px solid #EAECF0;
+            user-select: none;
+        }
+        body::-webkit-scrollbar {
+            width: 6px;
+        }
+        body::-webkit-scrollbar-track {
+            background: #F8F9FC;
+            border-radius: 4px;
+        }
+        body::-webkit-scrollbar-thumb {
+            background: #5B5BD6;
+            border-radius: 4px;
+        }
+        #pgn-container {
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+        .pgn-num {
+            font-weight: 700;
+            color: #172033;
+            margin-right: 2px;
+            margin-left: 4px;
+        }
+        .pgn-move {
+            color: #5B5BD6;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 1px 5px;
+            border-radius: 4px;
+            display: inline-block;
+            transition: background-color 0.1s ease;
+        }
+        .pgn-move:hover {
+            background-color: rgba(91, 91, 214, 0.15);
+            text-decoration: underline;
+        }
+        .pgn-move.active {
+            background-color: #5B5BD6 !important;
+            color: #FFFFFF !important;
+            text-decoration: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="pgn-container"></div>
+    <script>
+        function sendToStreamlit(type, data) {
+            var payload = Object.assign({
+                isStreamlitMessage: true,
+                type: type,
+                apiVersion: 1
+            }, data || {});
+            window.parent.postMessage(payload, "*");
+        }
+
+        function setFrameHeight(height) {
+            sendToStreamlit("streamlit:setFrameHeight", { height: height });
+        }
+
+        window.addEventListener("message", function(event) {
+            if (event.data && event.data.type === "streamlit:render") {
+                var args = event.data.args || {};
+                var moves = args.moves || [];
+                var currentPly = args.current_ply !== undefined ? args.current_ply : (args.currentPly !== undefined ? args.currentPly : -1);
+                var height = args.height || 160;
+
+                setFrameHeight(height);
+
+                var container = document.getElementById("pgn-container");
+                if (!moves || moves.length === 0) {
+                    container.innerHTML = '<span style="color:#667085; font-style:italic;">Vị trí ban đầu</span>';
+                    return;
+                }
+
+                var htmlParts = [];
+                for (var i = 0; i < moves.length; i += 2) {
+                    var moveNum = Math.floor(i / 2) + 1;
+                    var wPly = i;
+                    var wSan = moves[i];
+                    var bPly = (i + 1 < moves.length) ? (i + 1) : null;
+                    var bSan = bPly !== null ? moves[i + 1] : null;
+
+                    var wCls = "pgn-move" + (wPly === currentPly ? " active" : "");
+                    var item = '<span class="pgn-num">' + moveNum + '.</span><span class="' + wCls + '" data-ply="' + wPly + '">' + wSan + '</span>';
+
+                    if (bSan !== null) {
+                        var bCls = "pgn-move" + (bPly === currentPly ? " active" : "");
+                        item += ' <span class="' + bCls + '" data-ply="' + bPly + '">' + bSan + '</span>';
+                    }
+
+                    htmlParts.push(item);
+                }
+
+                container.innerHTML = htmlParts.join(" ");
+
+                var moveEls = container.querySelectorAll(".pgn-move");
+                moveEls.forEach(function(el) {
+                    el.addEventListener("click", function() {
+                        var ply = parseInt(this.getAttribute("data-ply"));
+                        sendToStreamlit("streamlit:setComponentValue", {
+                            value: {
+                                ply: ply,
+                                timestamp: Date.now()
+                            }
+                        });
+                    });
+                });
+
+                var activeEl = container.querySelector(".pgn-move.active");
+                if (activeEl) {
+                    activeEl.scrollIntoView({ block: "nearest", inline: "nearest" });
+                }
+            }
+        });
+
+        sendToStreamlit("streamlit:componentReady", { apiVersion: 1 });
+    </script>
+</body>
+</html>

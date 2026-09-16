@@ -1,0 +1,31 @@
+# Virtual environment
+.venv/
+env/
+venv/
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Streamlit config / state / secrets
+.streamlit/secrets.toml
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data files (processed output / temporary files)
+data/processed/*
+!data/processed/.gitkeep
+
+# Executables & Stockfish binaries (Streamlit Cloud uses packages.txt)
+stockfish/
+*.exe
+
+# IDE configs
+.vscode/
+.idea/

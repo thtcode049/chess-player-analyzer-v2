@@ -23,8 +23,10 @@ GAMES_STORE: Dict[str, List[Dict[str, Any]]] = {}
 async def list_players(x_user_id: Optional[str] = Header(None)):
     """
     Returns list of players for current user or all players in DB, merged with in-memory session.
+    Strictly deduplicates by canonical_name (case-insensitive) to prevent multiple duplicate cards.
     """
     players_dict: Dict[str, PlayerResponse] = {}
+    seen_canonical_names: Dict[str, str] = {}  # name_lower -> player_id
 
     # 1. Fetch from Supabase DB
     try:
@@ -35,8 +37,19 @@ async def list_players(x_user_id: Optional[str] = Header(None)):
 
         for p in db_players:
             p_id = p["id"]
+            name_key = p["canonical_name"].strip().lower()
             datasets = p.get("datasets", [])
             total_g = sum(d.get("games_count", 0) for d in datasets) if datasets else len(GAMES_STORE.get(p_id, []))
+
+            # If name already seen from DB, keep the one with more games
+            if name_key in seen_canonical_names:
+                existing_id = seen_canonical_names[name_key]
+                if total_g > players_dict[existing_id].total_games:
+                    del players_dict[existing_id]
+                    seen_canonical_names[name_key] = p_id
+                else:
+                    continue
+
             players_dict[p_id] = PlayerResponse(
                 id=p_id,
                 user_id=p.get("user_id", "local_user"),
@@ -49,24 +62,46 @@ async def list_players(x_user_id: Optional[str] = Header(None)):
                 updated_at=p.get("updated_at") or datetime.now(),
                 datasets=datasets
             )
+            seen_canonical_names[name_key] = p_id
     except Exception as e:
         logger.warning(f"Error fetching players from DB: {e}")
 
-    # 2. Merge with in-memory PLAYERS_STORE
-    for p_id, p in PLAYERS_STORE.items():
-        if p_id not in players_dict:
-            players_dict[p_id] = PlayerResponse(
-                id=p_id,
-                user_id=p.get("user_id", "local_user"),
-                canonical_name=p["canonical_name"],
-                fide_id=p.get("fide_id"),
-                title=p.get("title"),
-                notes=p.get("notes"),
-                total_games=len(GAMES_STORE.get(p_id, [])),
-                created_at=p.get("created_at", datetime.now()),
-                updated_at=p.get("updated_at", datetime.now()),
-                datasets=[]
-            )
+    # 2. Merge with in-memory PLAYERS_STORE (deduplicated by ID and canonical_name)
+    for p_id, p in list(PLAYERS_STORE.items()):
+        name_key = p.get("canonical_name", "").strip().lower()
+        if not name_key:
+            continue
+
+        # In logged-in mode, only show matching user or guest/local
+        p_user = p.get("user_id")
+        if x_user_id and p_user and p_user not in (x_user_id, "guest", "local_user"):
+            continue
+
+        # If player already exists in DB or earlier in memory by canonical name:
+        # DO NOT add another duplicate card!
+        if name_key in seen_canonical_names:
+            existing_id = seen_canonical_names[name_key]
+            # If in-memory store has games but DB had 0 games count, supplement games count
+            if players_dict[existing_id].total_games == 0:
+                in_mem_games = len(GAMES_STORE.get(p_id, []))
+                if in_mem_games > 0:
+                    players_dict[existing_id].total_games = in_mem_games
+            continue
+
+        total_g = len(GAMES_STORE.get(p_id, []))
+        players_dict[p_id] = PlayerResponse(
+            id=p_id,
+            user_id=p_user or "local_user",
+            canonical_name=p["canonical_name"],
+            fide_id=p.get("fide_id"),
+            title=p.get("title"),
+            notes=p.get("notes"),
+            total_games=total_g,
+            created_at=p.get("created_at", datetime.now()),
+            updated_at=p.get("updated_at", datetime.now()),
+            datasets=[]
+        )
+        seen_canonical_names[name_key] = p_id
 
     return BaseResponse(success=True, data=list(players_dict.values()))
 
@@ -224,3 +259,29 @@ async def list_player_games(
             total_pages=(total + page_size - 1) // page_size if total > 0 else 0
         )
     )
+
+
+@router.delete("/{player_id}", response_model=BaseResponse[Dict[str, Any]])
+async def delete_player(player_id: str, x_user_id: Optional[str] = Header(None)):
+    """
+    Deletes a player profile from in-memory session and DB (if present).
+    """
+    deleted = False
+    if player_id in PLAYERS_STORE:
+        del PLAYERS_STORE[player_id]
+        deleted = True
+    if player_id in GAMES_STORE:
+        del GAMES_STORE[player_id]
+
+    try:
+        sb = DBService.get_supabase()
+        q = sb.table("players").delete().eq("id", player_id)
+        if x_user_id:
+            q = q.eq("user_id", x_user_id)
+        q.execute()
+        deleted = True
+    except Exception as e:
+        logger.warning(f"Error deleting player from DB: {e}")
+
+    return BaseResponse(success=True, message="Đã xóa hồ sơ kỳ thủ", data={"deleted": deleted, "player_id": player_id})
+

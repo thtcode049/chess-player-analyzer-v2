@@ -9,12 +9,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
 
-# Load .env for local development
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass  # On Vercel, env vars are injected directly
+# Load environment variables for local development
+import os
+for env_filename in [".env.local", ".env"]:
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), env_filename)
+    if not os.path.exists(env_path):
+        env_path = env_filename
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip("'\"")
+                        if k and k not in os.environ:
+                            os.environ[k] = v
+        except Exception:
+            pass
 
 from api.routes.imports import router as imports_router
 from api.routes.players import router as players_router
@@ -33,7 +46,13 @@ app = FastAPI(
 # Configure Cross-Origin Resource Sharing (CORS) for Next.js
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "*"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

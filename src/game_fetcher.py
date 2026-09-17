@@ -94,7 +94,7 @@ def fetch_lichess_games(
 
     try:
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             if resp.status == 200:
                 raw_bytes = resp.read()
                 if not raw_bytes or len(raw_bytes.strip()) == 0:
@@ -134,7 +134,7 @@ def fetch_chesscom_games(
 
     try:
         req = urllib.request.Request(archives_url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:
             if resp.status != 200:
                 return None, f"Chess.com API trả về mã lỗi HTTP {resp.status}."
             data = json.loads(resp.read().decode('utf-8'))
@@ -152,7 +152,7 @@ def fetch_chesscom_games(
                 break
             
             archive_req = urllib.request.Request(archive_url, headers=headers)
-            with urllib.request.urlopen(archive_req, timeout=10) as a_resp:
+            with urllib.request.urlopen(archive_req, timeout=30) as a_resp:
                 if a_resp.status == 200:
                     month_data = json.loads(a_resp.read().decode('utf-8'))
                     month_games = month_data.get("games", [])

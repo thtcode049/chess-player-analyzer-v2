@@ -8,7 +8,68 @@ import {
   PaginatedResult,
 } from "./types";
 
-const API_BASE = ""; // Relative calls proxy through /api/* in Next.js
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    ? "http://127.0.0.1:8000"
+    : "");
+
+async function handleResponse<T>(res: Response): Promise<T> {
+  let json: any = null;
+  const contentType = res.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    try {
+      json = await res.json();
+    } catch {
+      // Ignore parsing error, will fall back to text / statusText
+    }
+  }
+
+  if (!res.ok) {
+    let errorMsg = "";
+    if (json) {
+      if (typeof json.detail === "string") {
+        errorMsg = json.detail;
+      } else if (Array.isArray(json.detail)) {
+        errorMsg = json.detail.map((d: any) => d.msg || JSON.stringify(d)).join("; ");
+      } else if (typeof json.message === "string") {
+        errorMsg = json.message;
+      }
+    }
+    if (!errorMsg) {
+      try {
+        const text = await res.text();
+        if (text && text.length < 300) {
+          errorMsg = text;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    if (!errorMsg) {
+      if (res.status === 504 || res.status === 502) {
+        errorMsg = "Máy chủ phản hồi quá thời gian chờ (Gateway Timeout). Vui lòng thử lại với số lượng ván đấu ít hơn.";
+      } else {
+        errorMsg = `Lỗi máy chủ (HTTP ${res.status}: ${res.statusText || "Internal Server Error"})`;
+      }
+    }
+    throw new Error(errorMsg);
+  }
+
+  if (json && typeof json === "object") {
+    if ("success" in json && json.success === false) {
+      throw new Error(json.message || "Yêu cầu thất bại");
+    }
+    if ("data" in json) {
+      return json.data as T;
+    }
+    return json as T;
+  }
+
+  return json as T;
+}
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {};
@@ -45,7 +106,7 @@ async function getUserId(): Promise<string | undefined> {
 export const apiClient = {
   async healthCheck() {
     const res = await fetch(`${API_BASE}/api/health`);
-    return res.json();
+    return handleResponse<any>(res);
   },
 
   async getPlayers(): Promise<Player[]> {
@@ -53,8 +114,8 @@ export const apiClient = {
     const res = await fetch(`${API_BASE}/api/players`, {
       headers: authHeaders,
     });
-    const json = await res.json();
-    return json.data || [];
+    const data = await handleResponse<Player[]>(res);
+    return data || [];
   },
 
   async createPlayer(data: { canonical_name: string; title?: string; notes?: string }): Promise<Player> {
@@ -64,8 +125,7 @@ export const apiClient = {
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(data),
     });
-    const json = await res.json();
-    return json.data;
+    return handleResponse<Player>(res);
   },
 
   async getPlayer(id: string): Promise<Player> {
@@ -73,8 +133,7 @@ export const apiClient = {
     const res = await fetch(`${API_BASE}/api/players/${id}`, {
       headers: authHeaders,
     });
-    const json = await res.json();
-    return json.data;
+    return handleResponse<Player>(res);
   },
 
   async getPlayerGames(
@@ -91,8 +150,7 @@ export const apiClient = {
     const res = await fetch(`${API_BASE}/api/players/${playerId}/games?${query.toString()}`, {
       headers: authHeaders,
     });
-    const json = await res.json();
-    return json.data;
+    return handleResponse<PaginatedResult<Game>>(res);
   },
 
   async getGame(gameId: string): Promise<Game> {
@@ -100,8 +158,7 @@ export const apiClient = {
     const res = await fetch(`${API_BASE}/api/games/${gameId}`, {
       headers: authHeaders,
     });
-    const json = await res.json();
-    return json.data;
+    return handleResponse<Game>(res);
   },
 
   async importPgnFile(file: File, playerId?: string, maxGames = 200, userIdOverride?: string): Promise<ImportSummary> {
@@ -118,8 +175,7 @@ export const apiClient = {
       headers: authHeaders,
       body: formData,
     });
-    const json = await res.json();
-    return json.data;
+    return handleResponse<ImportSummary>(res);
   },
 
   async importPgnText(text: string, datasetName?: string, playerId?: string, maxGames = 200, userIdOverride?: string): Promise<ImportSummary> {
@@ -136,8 +192,7 @@ export const apiClient = {
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ ...data, user_id: userId }),
     });
-    const json = await res.json();
-    return json.data;
+    return handleResponse<ImportSummary>(res);
   },
 
   async importChesscom(data: { player_id?: string; user_id?: string; username: string; max_games?: number; rated_only?: boolean; perf_types?: string[] }): Promise<ImportSummary> {
@@ -148,8 +203,7 @@ export const apiClient = {
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ ...data, user_id: userId }),
     });
-    const json = await res.json();
-    return json.data;
+    return handleResponse<ImportSummary>(res);
   },
 
   async createAnalysisRun(data: {
@@ -164,8 +218,7 @@ export const apiClient = {
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(data),
     });
-    const json = await res.json();
-    return json.data;
+    return handleResponse<AnalysisRun>(res);
   },
 
   async getAnalysisRun(runId: string): Promise<AnalysisRun> {
@@ -173,8 +226,7 @@ export const apiClient = {
     const res = await fetch(`${API_BASE}/api/analysis/runs/${runId}`, {
       headers: authHeaders,
     });
-    const json = await res.json();
-    return json.data;
+    return handleResponse<AnalysisRun>(res);
   },
 
   async getOpeningTreeBranch(runId: string, fen: string, color: string = "all"): Promise<OpeningTreeNode> {
@@ -183,10 +235,8 @@ export const apiClient = {
     const res = await fetch(`${API_BASE}/api/analysis/runs/${runId}/tree?${query.toString()}`, {
       headers: authHeaders,
     });
-    const json = await res.json();
-    return json.data;
+    return handleResponse<OpeningTreeNode>(res);
   },
-
 
   async getAiBriefing(runId: string, perspectiveMode: "self" | "opponent" = "self"): Promise<StrategicBriefing> {
     const res = await fetch(`${API_BASE}/api/ai/briefing`, {
@@ -194,8 +244,7 @@ export const apiClient = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ run_id: runId, perspective_mode: perspectiveMode }),
     });
-    const json = await res.json();
-    return json.data;
+    return handleResponse<StrategicBriefing>(res);
   },
 
   async chatAiStream(

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 class LichessImportRequest(BaseModel):
     player_id: Optional[str] = None
+    user_id: Optional[str] = None
     username: str
     max_games: int = 50
     perf_types: Optional[List[str]] = ["blitz", "rapid", "bullet"]
@@ -13,6 +14,7 @@ class LichessImportRequest(BaseModel):
 
 class ChesscomImportRequest(BaseModel):
     player_id: Optional[str] = None
+    user_id: Optional[str] = None
     username: str
     max_games: int = 50
     perf_types: Optional[List[str]] = ["blitz", "rapid", "bullet"]

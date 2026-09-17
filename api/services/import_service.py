@@ -54,6 +54,8 @@ class ImportService:
             return [], err or "No games found from Lichess"
             
         raw_games = parse_pgn(pgn_bytes)
+        if max_games and len(raw_games) > max_games:
+            raw_games = raw_games[:max_games]
         return raw_games, None
 
     @staticmethod
@@ -77,6 +79,8 @@ class ImportService:
             return [], err or "No games found from Chess.com"
             
         raw_games = parse_pgn(pgn_bytes)
+        if max_games and len(raw_games) > max_games:
+            raw_games = raw_games[:max_games]
         return raw_games, None
 
     @staticmethod

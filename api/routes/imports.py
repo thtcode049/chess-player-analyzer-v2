@@ -29,9 +29,11 @@ async def import_pgn_file(
     player_id: Optional[str] = Form(None),
     max_games: Optional[int] = Form(200),
     user_id: Optional[str] = Form(None),
+    x_user_id: Optional[str] = Header(None),
 ):
     """
-    Parses an uploaded .pgn file, saves player/dataset/games to Supabase.
+    Parses an uploaded .pgn file, saves player/dataset/games to Supabase if logged in,
+    and always maintains fast in-memory session.
     """
     try:
         content = await file.read()
@@ -47,12 +49,14 @@ async def import_pgn_file(
         db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
         final_player_name = primary_player or file.filename or "Unknown Player"
 
-        # --- Persist to Supabase if user_id is provided ---
+        effective_user_id = user_id or x_user_id
         actual_player_id = player_id or str(uuid.uuid4())
-        if user_id:
+
+        # --- Persist to Supabase if user is logged in ---
+        if effective_user_id:
             try:
                 player_rec = DBService.upsert_player(
-                    user_id=user_id,
+                    user_id=effective_user_id,
                     canonical_name=final_player_name,
                 )
                 actual_player_id = player_rec["id"]
@@ -68,16 +72,16 @@ async def import_pgn_file(
                 # Re-normalize with correct dataset_id from DB
                 db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
                 inserted = DBService.bulk_insert_games(db_games, dataset_id=dataset_id)
-                logger.info(f"[Import] Saved {inserted}/{len(db_games)} games to Supabase for user={user_id}")
+                logger.info(f"[Import PGN] Saved {inserted}/{len(db_games)} games to Supabase for user={effective_user_id}")
             except Exception as db_err:
-                logger.error(f"[Import] DB save error: {db_err}")
-                # Still return success with summary, but note DB error
+                logger.error(f"[Import PGN] DB save error: {db_err}")
         else:
-            logger.warning("[Import] No user_id provided — games NOT saved to DB")
+            logger.info("[Import PGN] Guest mode (no user_id) — games cached in session memory only")
 
-        # --- In-Memory Session & Analysis Pre-computation ---
+        # --- In-Memory Session & Analysis Pre-computation (Fast interactive session) ---
         PLAYERS_STORE[actual_player_id] = {
             "id": actual_player_id,
+            "user_id": effective_user_id or "guest",
             "canonical_name": final_player_name,
             "created_at": datetime.now(),
             "updated_at": datetime.now()
@@ -123,9 +127,18 @@ async def import_pgn_file(
 
             RUN_SNAPSHOTS_CACHE[run_id] = run_res
             RUN_SNAPSHOTS_CACHE[actual_player_id] = run_res
-            logger.info(f"[Import] Auto-analyzed {len(player_games)} games for {final_player_name}, run_id={run_id}")
+
+            # Persist analysis run to Supabase if logged in
+            if effective_user_id:
+                try:
+                    DBService.save_analysis_run(actual_player_id, run_res, run_id=run_id)
+                    logger.info(f"[Import PGN] Persisted analysis run {run_id} to Supabase")
+                except Exception as save_err:
+                    logger.warning(f"[Import PGN] Could not persist analysis run: {save_err}")
+
+            logger.info(f"[Import PGN] Auto-analyzed {len(player_games)} games for {final_player_name}, run_id={run_id}")
         except Exception as an_err:
-            logger.warning(f"[Import] Auto-analysis error: {an_err}")
+            logger.warning(f"[Import PGN] Auto-analysis error: {an_err}")
 
         summary = ImportSummaryResponse(
             dataset_id=dataset_id,
@@ -146,9 +159,10 @@ async def import_pgn_file(
 
 
 @router.post("/lichess", response_model=BaseResponse[ImportSummaryResponse])
-async def import_lichess(req: LichessImportRequest):
+async def import_lichess(req: LichessImportRequest, x_user_id: Optional[str] = Header(None)):
     """
     Fetches games from Lichess Explorer API for a specific username.
+    Saves to Supabase DB if user is logged in, and always keeps in-memory session.
     """
     try:
         raw_games, err = ImportService.fetch_lichess(
@@ -160,12 +174,39 @@ async def import_lichess(req: LichessImportRequest):
         if err:
             raise HTTPException(status_code=400, detail=err)
 
+        effective_user_id = req.user_id or x_user_id
         target_player_id = req.player_id or str(uuid.uuid4())
         dataset_id = str(uuid.uuid4())
         db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
 
+        # --- Persist to Supabase if logged in ---
+        if effective_user_id:
+            try:
+                player_rec = DBService.upsert_player(
+                    user_id=effective_user_id,
+                    canonical_name=req.username,
+                )
+                target_player_id = player_rec["id"]
+
+                dataset_rec = DBService.create_dataset(
+                    player_id=target_player_id,
+                    source_type="lichess",
+                    source_identifier=req.username,
+                    games_count=len(db_games),
+                )
+                dataset_id = dataset_rec["id"]
+
+                db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
+                inserted = DBService.bulk_insert_games(db_games, dataset_id=dataset_id)
+                logger.info(f"[Import Lichess] Saved {inserted}/{len(db_games)} games to Supabase for user={effective_user_id}")
+            except Exception as db_err:
+                logger.error(f"[Import Lichess] DB save error: {db_err}")
+        else:
+            logger.info("[Import Lichess] Guest mode (no user_id) — cached in session memory only")
+
         PLAYERS_STORE[target_player_id] = {
             "id": target_player_id,
+            "user_id": effective_user_id or "guest",
             "canonical_name": req.username,
             "created_at": datetime.now(),
             "updated_at": datetime.now()
@@ -206,6 +247,14 @@ async def import_lichess(req: LichessImportRequest):
 
             RUN_SNAPSHOTS_CACHE[run_id] = run_res
             RUN_SNAPSHOTS_CACHE[target_player_id] = run_res
+
+            # Persist analysis run to Supabase if logged in
+            if effective_user_id:
+                try:
+                    DBService.save_analysis_run(target_player_id, run_res, run_id=run_id)
+                    logger.info(f"[Import Lichess] Persisted analysis run {run_id} to Supabase")
+                except Exception as save_err:
+                    logger.warning(f"[Import Lichess] Could not persist analysis run: {save_err}")
         except Exception as an_err:
             logger.warning(f"[Import Lichess] Auto-analysis error: {an_err}")
 
@@ -227,9 +276,10 @@ async def import_lichess(req: LichessImportRequest):
 
 
 @router.post("/chesscom", response_model=BaseResponse[ImportSummaryResponse])
-async def import_chesscom(req: ChesscomImportRequest):
+async def import_chesscom(req: ChesscomImportRequest, x_user_id: Optional[str] = Header(None)):
     """
     Fetches games from Chess.com Public API for a specific username.
+    Saves to Supabase DB if user is logged in, and always keeps in-memory session.
     """
     try:
         raw_games, err = ImportService.fetch_chesscom(
@@ -241,12 +291,39 @@ async def import_chesscom(req: ChesscomImportRequest):
         if err:
             raise HTTPException(status_code=400, detail=err)
 
+        effective_user_id = req.user_id or x_user_id
         target_player_id = req.player_id or str(uuid.uuid4())
         dataset_id = str(uuid.uuid4())
         db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
 
+        # --- Persist to Supabase if logged in ---
+        if effective_user_id:
+            try:
+                player_rec = DBService.upsert_player(
+                    user_id=effective_user_id,
+                    canonical_name=req.username,
+                )
+                target_player_id = player_rec["id"]
+
+                dataset_rec = DBService.create_dataset(
+                    player_id=target_player_id,
+                    source_type="chesscom",
+                    source_identifier=req.username,
+                    games_count=len(db_games),
+                )
+                dataset_id = dataset_rec["id"]
+
+                db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
+                inserted = DBService.bulk_insert_games(db_games, dataset_id=dataset_id)
+                logger.info(f"[Import Chess.com] Saved {inserted}/{len(db_games)} games to Supabase for user={effective_user_id}")
+            except Exception as db_err:
+                logger.error(f"[Import Chess.com] DB save error: {db_err}")
+        else:
+            logger.info("[Import Chess.com] Guest mode (no user_id) — cached in session memory only")
+
         PLAYERS_STORE[target_player_id] = {
             "id": target_player_id,
+            "user_id": effective_user_id or "guest",
             "canonical_name": req.username,
             "created_at": datetime.now(),
             "updated_at": datetime.now()
@@ -277,6 +354,14 @@ async def import_chesscom(req: ChesscomImportRequest):
 
             RUN_SNAPSHOTS_CACHE[run_id] = run_res
             RUN_SNAPSHOTS_CACHE[target_player_id] = run_res
+
+            # Persist analysis run to Supabase if logged in
+            if effective_user_id:
+                try:
+                    DBService.save_analysis_run(target_player_id, run_res, run_id=run_id)
+                    logger.info(f"[Import Chess.com] Persisted analysis run {run_id} to Supabase")
+                except Exception as save_err:
+                    logger.warning(f"[Import Chess.com] Could not persist analysis run: {save_err}")
         except Exception as an_err:
             logger.warning(f"[Import Chess.com] Auto-analysis error: {an_err}")
 

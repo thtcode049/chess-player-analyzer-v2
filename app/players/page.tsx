@@ -25,12 +25,22 @@ export default function PlayersPage() {
   const [showModal, setShowModal] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
 
   // Form state
   const [canonicalName, setCanonicalName] = useState("");
   const [title, setTitle] = useState("");
   const [fideId, setFideId] = useState("");
   const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    import("@/lib/supabase/client").then(({ createClient }) => {
+      const sb = createClient();
+      sb.auth.getUser().then(({ data }) => {
+        setIsGuest(!data.user);
+      });
+    });
+  }, []);
 
   const loadPlayers = async () => {
     try {
@@ -121,6 +131,19 @@ export default function PlayersPage() {
           Tạo Kỳ Thủ Mới
         </button>
       </div>
+
+      {/* Guest Mode Notice */}
+      {isGuest && (
+        <div className="flex items-center justify-between p-3.5 bg-card/70 border border-primary/20 rounded-xl text-xs text-muted-foreground shadow-sm animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="w-4 h-4 text-primary shrink-0" />
+            <span>Bạn đang sử dụng ở <b>chế độ Khách</b>. Dữ liệu chỉ lưu tạm thời trong bộ nhớ phiên làm việc.</span>
+          </div>
+          <Link href="/login" className="font-semibold text-primary hover:underline shrink-0 ml-3">
+            Đăng nhập để lưu vĩnh viễn &rarr;
+          </Link>
+        </div>
+      )}
 
       {/* Filter & Search Bar */}
       <div className="flex flex-col sm:flex-row items-center gap-4">

@@ -21,13 +21,13 @@ class PlayerUpdate(BaseModel):
     notes: Optional[str] = None
 
 class DatasetResponse(BaseModel):
-    id: str
-    player_id: str
-    source_type: str
-    source_identifier: str
-    games_count: int
+    id: Optional[str] = None
+    player_id: Optional[str] = None
+    source_type: Optional[str] = "pgn_upload"
+    source_identifier: Optional[str] = "dataset"
+    games_count: int = 0
     pgn_storage_path: Optional[str] = None
-    imported_at: datetime
+    imported_at: Optional[datetime] = None
 
 class PlayerResponse(PlayerBase):
     id: str

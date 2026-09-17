@@ -112,7 +112,7 @@ class DBService:
         sb = get_supabase()
         res = (
             sb.table("players")
-            .select("*, datasets(games_count, source_type, imported_at)")
+            .select("*, datasets(*)")
             .eq("user_id", user_id)
             .order("created_at", desc=True)
             .execute()
@@ -181,7 +181,7 @@ class DBService:
             sb = get_supabase()
             res = (
                 sb.table("players")
-                .select("*, datasets(games_count, source_type, imported_at)")
+                .select("*, datasets(*)")
                 .order("created_at", desc=True)
                 .execute()
             )
@@ -252,4 +252,71 @@ class DBService:
                 "evaluations": g.get("evaluations", []) if g.get("has_embedded_eval") else []
             })
         return analysis_games
+
+    @staticmethod
+    def save_analysis_run(player_id: str, run_res: Dict[str, Any], run_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Persist a complete analytical snapshot into public.analysis_runs.
+        """
+        sb = get_supabase()
+        record = {
+            "player_id": player_id,
+            "run_label": run_res.get("run_label", "Analytical Snapshot"),
+            "scope_filter": run_res.get("scope_filter", {}),
+            "games_analyzed_count": int(run_res.get("games_analyzed_count", 0)),
+            "engine_status": str(run_res.get("engine_status", "statistical_only")),
+            "engine_coverage_pct": float(run_res.get("engine_coverage_pct", 0.0)),
+            "engine_games_count": int(run_res.get("engine_games_count", 0)),
+            "engine_name": run_res.get("engine_name"),
+            "engine_depth": run_res.get("engine_depth"),
+            "overall_win_rate": float(run_res.get("overall_win_rate", 0.0)) if run_res.get("overall_win_rate") is not None else None,
+            "overall_score": float(run_res.get("overall_score", 0.0)) if run_res.get("overall_score") is not None else None,
+            "white_score": float(run_res.get("white_score", 0.0)) if run_res.get("white_score") is not None else None,
+            "black_score": float(run_res.get("black_score", 0.0)) if run_res.get("black_score") is not None else None,
+            "overall_acpl": float(run_res.get("overall_acpl")) if run_res.get("overall_acpl") is not None else None,
+            "acpl_opening": float(run_res.get("acpl_opening")) if run_res.get("acpl_opening") is not None else None,
+            "acpl_middlegame": float(run_res.get("acpl_middlegame")) if run_res.get("acpl_middlegame") is not None else None,
+            "acpl_endgame": float(run_res.get("acpl_endgame")) if run_res.get("acpl_endgame") is not None else None,
+            "dominant_archetype": run_res.get("dominant_archetype", "Universal Master"),
+            "repertoire_summary": run_res.get("repertoire_summary", {}),
+            "pawn_structures_summary": run_res.get("pawn_structures_summary", {}),
+            "style_radar_metrics": run_res.get("style_radar_metrics", {}),
+            "opening_tree_snapshot": run_res.get("opening_tree_snapshot", {})
+        }
+        if run_id:
+            record["id"] = run_id
+
+        res = sb.table("analysis_runs").insert(record).execute()
+        if not res.data:
+            raise RuntimeError(f"Failed to insert analysis run for player: {player_id}")
+        return res.data[0]
+
+    @staticmethod
+    def get_analysis_run(run_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch analysis run by its UUID."""
+        try:
+            sb = get_supabase()
+            res = sb.table("analysis_runs").select("*").eq("id", run_id).limit(1).execute()
+            return res.data[0] if res.data else None
+        except Exception as e:
+            logger.warning(f"Failed to fetch analysis run {run_id}: {e}")
+            return None
+
+    @staticmethod
+    def get_latest_analysis_run_for_player(player_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch latest analysis run for a player."""
+        try:
+            sb = get_supabase()
+            res = (
+                sb.table("analysis_runs")
+                .select("*")
+                .eq("player_id", player_id)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            return res.data[0] if res.data else None
+        except Exception as e:
+            logger.warning(f"Failed to fetch analysis run for player {player_id}: {e}")
+            return None
 

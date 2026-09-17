@@ -1,7 +1,7 @@
 """
 Analysis Route Handlers (Snapshots, Bayesian Profile, Opening Tree)
 """
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Query, Body, Header
 from typing import Optional, Dict, Any, List
 import uuid
 import logging
@@ -72,7 +72,7 @@ def _resolve_games_for_player(player_id: str) -> tuple[List[Dict[str, Any]], str
 
 
 @router.post("/runs", response_model=BaseResponse[AnalysisRunResponse])
-async def create_analysis_run(req: AnalysisRunCreate):
+async def create_analysis_run(req: AnalysisRunCreate, x_user_id: Optional[str] = Header(None)):
     """
     Executes core analysis pipeline (Statistics, Bayes, Tree, Pawn Structures, Style).
     Returns persistent analytical snapshot.
@@ -152,6 +152,14 @@ async def create_analysis_run(req: AnalysisRunCreate):
         if req.player_id:
             RUN_SNAPSHOTS_CACHE[req.player_id] = run_res
 
+        # Persist to Supabase if player_id is provided
+        if req.player_id:
+            try:
+                DBService.save_analysis_run(req.player_id, run_res, run_id=run_id)
+                logger.info(f"[Analysis] Persisted run {run_id} to Supabase for player {req.player_id}")
+            except Exception as db_err:
+                logger.warning(f"[Analysis] Could not persist run to DB: {db_err}")
+
         response_data = AnalysisRunResponse(
             id=run_id,
             player_id=req.player_id,
@@ -189,35 +197,77 @@ async def get_analysis_run(run_id: str):
     """
     Retrieves complete snapshot details for a run ID.
     If run_id is a player_id, dynamically generates or returns the run.
+    Restores from Supabase DB if not present in memory cache.
     """
     if run_id not in RUN_SNAPSHOTS_CACHE:
-        # Check if run_id is player_id
-        games, player_name = _resolve_games_for_player(run_id)
-        if games:
-            run_res = AnalysisService.run_complete_analysis(
-                games=games,
-                player_name=player_name,
-                color_filter="all",
-                run_label=f"Hồ sơ {player_name}"
-            )
-            _, fm_all = build_opening_tree(games, color="all")
-            _, fm_w = build_opening_tree(games, color="white")
-            _, fm_b = build_opening_tree(games, color="black")
-            run_res["fen_map_all"] = fm_all
-            run_res["fen_map_white"] = fm_w
-            run_res["fen_map_black"] = fm_b
-            run_res["player_name"] = player_name
-            run_res["player_id"] = run_id
-            run_res["run_id"] = run_id
-            RUN_SNAPSHOTS_CACHE[run_id] = run_res
+        # 1. Try fetching directly from Supabase analysis_runs table
+        db_run = DBService.get_analysis_run(run_id)
+        if not db_run:
+            db_run = DBService.get_latest_analysis_run_for_player(run_id)
+
+        if db_run:
+            run_dict = {
+                "id": db_run["id"],
+                "player_id": db_run.get("player_id"),
+                "run_label": db_run.get("run_label", "Analytical Snapshot"),
+                "scope_filter": db_run.get("scope_filter", {}),
+                "games_analyzed_count": db_run.get("games_analyzed_count", 0),
+                "engine_status": db_run.get("engine_status", "statistical_only"),
+                "engine_coverage_pct": float(db_run.get("engine_coverage_pct", 0.0)),
+                "engine_games_count": db_run.get("engine_games_count", 0),
+                "engine_name": db_run.get("engine_name"),
+                "engine_depth": db_run.get("engine_depth"),
+                "overall_win_rate": float(db_run.get("overall_win_rate", 0.0)) if db_run.get("overall_win_rate") is not None else None,
+                "overall_score": float(db_run.get("overall_score", 0.0)) if db_run.get("overall_score") is not None else None,
+                "white_score": float(db_run.get("white_score", 0.0)) if db_run.get("white_score") is not None else None,
+                "black_score": float(db_run.get("black_score", 0.0)) if db_run.get("black_score") is not None else None,
+                "overall_acpl": float(db_run.get("overall_acpl")) if db_run.get("overall_acpl") is not None else None,
+                "acpl_opening": float(db_run.get("acpl_opening")) if db_run.get("acpl_opening") is not None else None,
+                "acpl_middlegame": float(db_run.get("acpl_middlegame")) if db_run.get("acpl_middlegame") is not None else None,
+                "acpl_endgame": float(db_run.get("acpl_endgame")) if db_run.get("acpl_endgame") is not None else None,
+                "dominant_archetype": db_run.get("dominant_archetype", "Universal Master"),
+                "repertoire_summary": db_run.get("repertoire_summary", {}),
+                "pawn_structures_summary": db_run.get("pawn_structures_summary", {}),
+                "style_radar_metrics": db_run.get("style_radar_metrics", {}),
+                "opening_tree_snapshot": db_run.get("opening_tree_snapshot", {}),
+                "status": "completed"
+            }
+            RUN_SNAPSHOTS_CACHE[run_id] = run_dict
+            RUN_SNAPSHOTS_CACHE[db_run["id"]] = run_dict
+            if db_run.get("player_id"):
+                RUN_SNAPSHOTS_CACHE[db_run["player_id"]] = run_dict
         else:
-            raise HTTPException(status_code=404, detail="Analysis run not found")
+            # 2. Check if run_id is player_id and re-analyze games
+            games, player_name = _resolve_games_for_player(run_id)
+            if games:
+                run_res = AnalysisService.run_complete_analysis(
+                    games=games,
+                    player_name=player_name,
+                    color_filter="all",
+                    run_label=f"Hồ sơ {player_name}"
+                )
+                _, fm_all = build_opening_tree(games, color="all")
+                _, fm_w = build_opening_tree(games, color="white")
+                _, fm_b = build_opening_tree(games, color="black")
+                run_res["fen_map_all"] = fm_all
+                run_res["fen_map_white"] = fm_w
+                run_res["fen_map_black"] = fm_b
+                run_res["player_name"] = player_name
+                run_res["player_id"] = run_id
+                run_res["run_id"] = run_id
+                RUN_SNAPSHOTS_CACHE[run_id] = run_res
+                try:
+                    DBService.save_analysis_run(run_id, run_res, run_id=run_id)
+                except Exception:
+                    pass
+            else:
+                raise HTTPException(status_code=404, detail="Analysis run not found")
 
     cached = RUN_SNAPSHOTS_CACHE[run_id]
     response_data = AnalysisRunResponse(
-        id=run_id,
+        id=cached.get("id") or cached.get("run_id") or run_id,
         player_id=cached.get("player_id", "player"),
-        run_label=cached["run_label"],
+        run_label=cached.get("run_label", "Analytical Snapshot"),
         scope_filter={},
         games_analyzed_count=cached["games_analyzed_count"],
         engine_status=cached["engine_status"],

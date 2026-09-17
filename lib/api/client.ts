@@ -10,6 +10,38 @@ import {
 
 const API_BASE = ""; // Relative calls proxy through /api/* in Next.js
 
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const sb = createClient();
+      const { data } = await sb.auth.getSession();
+      if (data?.session?.user?.id) {
+        headers["X-User-Id"] = data.session.user.id;
+        headers["Authorization"] = `Bearer ${data.session.access_token}`;
+      }
+    } catch (e) {
+      console.warn("Could not get supabase session for API headers:", e);
+    }
+  }
+  return headers;
+}
+
+async function getUserId(): Promise<string | undefined> {
+  if (typeof window !== "undefined") {
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const sb = createClient();
+      const { data } = await sb.auth.getSession();
+      return data?.session?.user?.id;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 export const apiClient = {
   async healthCheck() {
     const res = await fetch(`${API_BASE}/api/health`);
@@ -17,15 +49,19 @@ export const apiClient = {
   },
 
   async getPlayers(): Promise<Player[]> {
-    const res = await fetch(`${API_BASE}/api/players`);
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(`${API_BASE}/api/players`, {
+      headers: authHeaders,
+    });
     const json = await res.json();
     return json.data || [];
   },
 
   async createPlayer(data: { canonical_name: string; title?: string; notes?: string }): Promise<Player> {
+    const authHeaders = await getAuthHeaders();
     const res = await fetch(`${API_BASE}/api/players`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(data),
     });
     const json = await res.json();
@@ -33,7 +69,10 @@ export const apiClient = {
   },
 
   async getPlayer(id: string): Promise<Player> {
-    const res = await fetch(`${API_BASE}/api/players/${id}`);
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(`${API_BASE}/api/players/${id}`, {
+      headers: authHeaders,
+    });
     const json = await res.json();
     return json.data;
   },
@@ -42,58 +81,72 @@ export const apiClient = {
     playerId: string,
     params: { page?: number; pageSize?: number; color?: string; eco?: string } = {}
   ): Promise<PaginatedResult<Game>> {
+    const authHeaders = await getAuthHeaders();
     const query = new URLSearchParams();
     if (params.page) query.set("page", params.page.toString());
     if (params.pageSize) query.set("page_size", params.pageSize.toString());
     if (params.color) query.set("color", params.color);
     if (params.eco) query.set("eco", params.eco);
 
-    const res = await fetch(`${API_BASE}/api/players/${playerId}/games?${query.toString()}`);
+    const res = await fetch(`${API_BASE}/api/players/${playerId}/games?${query.toString()}`, {
+      headers: authHeaders,
+    });
     const json = await res.json();
     return json.data;
   },
 
   async getGame(gameId: string): Promise<Game> {
-    const res = await fetch(`${API_BASE}/api/games/${gameId}`);
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(`${API_BASE}/api/games/${gameId}`, {
+      headers: authHeaders,
+    });
     const json = await res.json();
     return json.data;
   },
 
-  async importPgnFile(file: File, playerId?: string, maxGames = 200): Promise<ImportSummary> {
+  async importPgnFile(file: File, playerId?: string, maxGames = 200, userIdOverride?: string): Promise<ImportSummary> {
+    const authHeaders = await getAuthHeaders();
+    const userId = userIdOverride || (await getUserId());
     const formData = new FormData();
     formData.append("file", file);
     if (playerId) formData.append("player_id", playerId);
+    if (userId) formData.append("user_id", userId);
     formData.append("max_games", maxGames.toString());
 
     const res = await fetch(`${API_BASE}/api/import/pgn-file`, {
       method: "POST",
+      headers: authHeaders,
       body: formData,
     });
     const json = await res.json();
     return json.data;
   },
 
-  async importPgnText(text: string, datasetName?: string, playerId?: string, maxGames = 200): Promise<ImportSummary> {
+  async importPgnText(text: string, datasetName?: string, playerId?: string, maxGames = 200, userIdOverride?: string): Promise<ImportSummary> {
     const blob = new Blob([text], { type: "text/plain" });
     const file = new File([blob], `${datasetName || "import"}.pgn`, { type: "text/plain" });
-    return this.importPgnFile(file, playerId, maxGames);
+    return this.importPgnFile(file, playerId, maxGames, userIdOverride);
   },
 
-  async importLichess(data: { player_id?: string; username: string; max_games?: number; rated_only?: boolean; perf_types?: string[] }): Promise<ImportSummary> {
+  async importLichess(data: { player_id?: string; user_id?: string; username: string; max_games?: number; rated_only?: boolean; perf_types?: string[] }): Promise<ImportSummary> {
+    const authHeaders = await getAuthHeaders();
+    const userId = data.user_id || (await getUserId());
     const res = await fetch(`${API_BASE}/api/import/lichess`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body: JSON.stringify({ ...data, user_id: userId }),
     });
     const json = await res.json();
     return json.data;
   },
 
-  async importChesscom(data: { player_id?: string; username: string; max_games?: number; rated_only?: boolean; perf_types?: string[] }): Promise<ImportSummary> {
+  async importChesscom(data: { player_id?: string; user_id?: string; username: string; max_games?: number; rated_only?: boolean; perf_types?: string[] }): Promise<ImportSummary> {
+    const authHeaders = await getAuthHeaders();
+    const userId = data.user_id || (await getUserId());
     const res = await fetch(`${API_BASE}/api/import/chesscom`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body: JSON.stringify({ ...data, user_id: userId }),
     });
     const json = await res.json();
     return json.data;
@@ -105,9 +158,10 @@ export const apiClient = {
     scope_filter?: Record<string, any>;
     raw_pgn_text?: string;
   }): Promise<AnalysisRun> {
+    const authHeaders = await getAuthHeaders();
     const res = await fetch(`${API_BASE}/api/analysis/runs`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(data),
     });
     const json = await res.json();
@@ -115,14 +169,20 @@ export const apiClient = {
   },
 
   async getAnalysisRun(runId: string): Promise<AnalysisRun> {
-    const res = await fetch(`${API_BASE}/api/analysis/runs/${runId}`);
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(`${API_BASE}/api/analysis/runs/${runId}`, {
+      headers: authHeaders,
+    });
     const json = await res.json();
     return json.data;
   },
 
   async getOpeningTreeBranch(runId: string, fen: string, color: string = "all"): Promise<OpeningTreeNode> {
+    const authHeaders = await getAuthHeaders();
     const query = new URLSearchParams({ fen, color });
-    const res = await fetch(`${API_BASE}/api/analysis/runs/${runId}/tree?${query.toString()}`);
+    const res = await fetch(`${API_BASE}/api/analysis/runs/${runId}/tree?${query.toString()}`, {
+      headers: authHeaders,
+    });
     const json = await res.json();
     return json.data;
   },

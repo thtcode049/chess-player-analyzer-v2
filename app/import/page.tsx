@@ -63,7 +63,6 @@ export default function ImportPage() {
 
   const handlePgnImport = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("[Import] Submit clicked, pgnFile:", pgnFile?.name, "pgnText length:", pgnText.length);
     setError(null);
     setResult(null);
     setIsLoading(true);
@@ -71,23 +70,12 @@ export default function ImportPage() {
     try {
       let res: ImportSummary;
       if (pgnFile) {
-        const formData = new FormData();
-        formData.append("file", pgnFile);
-        formData.append("max_games", "200");
-        if (userId) formData.append("user_id", userId);
-        const httpRes = await fetch("/api/import/pgn-file", { method: "POST", body: formData });
-        const json = await httpRes.json();
-        console.log("[Import] Raw response:", json);
-        if (!httpRes.ok || !json.success) {
-          throw new Error(json.detail || json.message || "Lỗi import PGN");
-        }
-        res = json.data;
+        res = await apiClient.importPgnFile(pgnFile, undefined, 200, userId || undefined);
       } else if (pgnText.trim()) {
-        res = await apiClient.importPgnText(pgnText, datasetName || "PGN Text Import", undefined, 200);
+        res = await apiClient.importPgnText(pgnText, datasetName || "PGN Text Import", undefined, 200, userId || undefined);
       } else {
         throw new Error("Vui lòng tải lên tệp .pgn hoặc dán văn bản PGN.");
       }
-      console.log("[Import] Result:", res);
       setResult(res);
     } catch (err: any) {
       console.error("[Import] Error:", err);
@@ -110,6 +98,7 @@ export default function ImportPage() {
     try {
       const perfs = lichessPerfTypes.split(",").map(p => p.trim()).filter(Boolean);
       const res = await apiClient.importLichess({
+        user_id: userId || undefined,
         username: lichessUsername.trim(),
         max_games: lichessMaxGames,
         rated_only: lichessRatedOnly,

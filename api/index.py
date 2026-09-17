@@ -9,6 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
 
+# Load .env for local development
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # On Vercel, env vars are injected directly
+
 from api.routes.imports import router as imports_router
 from api.routes.players import router as players_router
 from api.routes.games import router as games_router

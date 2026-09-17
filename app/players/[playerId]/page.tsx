@@ -68,92 +68,25 @@ export default function PlayerDetailPage() {
           });
         }
 
-        // Load games
-        const gList = await apiClient.getPlayerGames(playerId).catch(() => []);
-        setGames(gList || []);
+        // Load games safely handling paginated or array response
+        const gRes = await apiClient.getPlayerGames(playerId, { pageSize: 100 }).catch(() => null);
+        const gameItems = Array.isArray(gRes) ? gRes : ((gRes as any)?.items || []);
+        setGames(gameItems);
 
-        // Load or simulate recent analysis run
-        const sampleRun: AnalysisRun = {
-          id: `run-${playerId}`,
-          player_id: playerId,
-          run_label: "Phân Tích Tiêu Chuẩn V2",
-          scope_filter: { min_moves: 10 },
-          games_analyzed_count: (gList && gList.length) ? gList.length : 85,
-          engine_status: "embedded_eval",
-          engine_coverage_pct: 88.5,
-          engine_games_count: 75,
-          overall_win_rate: 58.8,
-          overall_score: 62.4,
-          white_score: 66.2,
-          black_score: 54.1,
-          overall_acpl: 24.5,
-          acpl_opening: 14.2,
-          acpl_middlegame: 28.6,
-          acpl_endgame: 22.1,
-          dominant_archetype: "Universal Aggressive Master",
-          style_radar_metrics: {
-            volatility: 68,
-            sacrifice: 62,
-            simplification: 45,
-            resilience: 78,
-            tactical_sharpness: 84,
-            solid_defense: 72,
-            endgame_affinity: 76,
-            pawn_structure: 80,
-          },
-          pawn_structures_summary: {
-            structures: [
-              {
-                name: "Isolani (Tốt d dâng cô lập d4)",
-                games_count: 24,
-                wins: 16,
-                draws: 4,
-                losses: 4,
-                score_pct: 75.0,
-                adjusted_score_pct: 71.4,
-                delta_vs_baseline: 12.6,
-                assessment_badge: "Vũ Khí Sát Thủ",
-                assessment_color: "emerald",
-              },
-              {
-                name: "Carlsbad Structure (Tốt d4-c3 vs d5-e6)",
-                games_count: 18,
-                wins: 11,
-                draws: 5,
-                losses: 2,
-                score_pct: 75.0,
-                adjusted_score_pct: 70.8,
-                delta_vs_baseline: 9.2,
-                assessment_badge: "Rất Mạnh",
-                assessment_color: "emerald",
-              },
-              {
-                name: "Hedgehog (Cấu trúc Con Nhím a6-b6-d6-e6)",
-                games_count: 12,
-                wins: 4,
-                draws: 3,
-                losses: 5,
-                score_pct: 45.8,
-                adjusted_score_pct: 48.0,
-                delta_vs_baseline: -14.4,
-                assessment_badge: "Điểm Yếu Cần Cải Thiện",
-                assessment_color: "amber",
-              },
-            ],
-          },
-          opening_tree_snapshot: {
-            fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-            games_count: 85,
-            continuations: [
-              { san: "e4", games_count: 48, usage_pct: 56.5, win_pct: 62.5, draw_pct: 22.9, loss_pct: 14.6, score_pct: 73.9 },
-              { san: "d4", games_count: 28, usage_pct: 32.9, win_pct: 53.6, draw_pct: 28.6, loss_pct: 17.8, score_pct: 67.9 },
-              { san: "Nf3", games_count: 6, usage_pct: 7.1, win_pct: 50.0, draw_pct: 33.3, loss_pct: 16.7, score_pct: 66.7 },
-              { san: "c4", games_count: 3, usage_pct: 3.5, win_pct: 33.3, draw_pct: 33.3, loss_pct: 33.4, score_pct: 50.0 },
-            ],
-          },
-          status: "completed",
-        };
-        setAnalysisRun(sampleRun);
+        // Load real analysis run from API
+        let run: AnalysisRun | null = null;
+        try {
+          run = await apiClient.getAnalysisRun(playerId);
+        } catch {
+          try {
+            run = await apiClient.createAnalysisRun({ player_id: playerId });
+          } catch (runErr) {
+            console.warn("Could not get or create analysis run:", runErr);
+          }
+        }
+        if (run) {
+          setAnalysisRun(run);
+        }
       } catch (err: any) {
         setError(err.message || "Lỗi khi tải thông tin kỳ thủ.");
       } finally {
@@ -163,6 +96,7 @@ export default function PlayerDetailPage() {
 
     loadData();
   }, [playerId]);
+
 
   const handleTriggerAnalysis = async () => {
     setRunningAnalysis(true);
@@ -180,9 +114,14 @@ export default function PlayerDetailPage() {
     }
   };
 
-  const filteredGames = games.filter(g => {
-    if (gameColorFilter === "white") return g.white_player.toLowerCase().includes(player?.canonical_name.toLowerCase() || "");
-    if (gameColorFilter === "black") return g.black_player.toLowerCase().includes(player?.canonical_name.toLowerCase() || "");
+  const safeGames = Array.isArray(games) ? games : [];
+  const filteredGames = safeGames.filter(g => {
+    if (!g) return false;
+    const pName = (player?.canonical_name || "").toLowerCase();
+    const wPlayer = (g.white_player || "").toLowerCase();
+    const bPlayer = (g.black_player || "").toLowerCase();
+    if (gameColorFilter === "white") return wPlayer.includes(pName);
+    if (gameColorFilter === "black") return bPlayer.includes(pName);
     return true;
   });
 
@@ -431,24 +370,145 @@ export default function PlayerDetailPage() {
 
       {/* Tab 2: Openings */}
       {activeTab === "openings" && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-foreground">Cây Khai Cuộc & Biến Thể Đã Đấu</h3>
-            <span className="text-xs text-muted-foreground">Cập nhật qua phân tích EPD & Bayesian Shrinkage (K=6.0)</span>
-          </div>
-          {analysisRun?.opening_tree_snapshot ? (
-            <OpeningTreeTable
-              continuations={analysisRun.opening_tree_snapshot.continuations}
-              totalGames={analysisRun.games_analyzed_count}
-              onSelectMove={(san) => router.push(`/analyze?move=${san}`)}
-            />
-          ) : (
-            <div className="p-8 text-center bg-card border border-border/40 rounded-2xl text-muted-foreground text-sm">
-              Chưa có dữ liệu cây khai cuộc cho kỳ thủ này. Vui lòng bấm &quot;Chạy Phân Tích Lại&quot;.
+        <div className="space-y-8">
+          {/* Bayesian Shrinkage Repertoire Assessment */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <Play className="w-5 h-5 text-primary" />
+                  Hồ Sơ Khai Cuộc & Co Ngót Bayes (Bayesian Shrinkage K=6.0)
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Khắc phục thiên lệch mẫu nhỏ: Phân định điểm mạnh / điểm yếu thực sự so với mức trung bình cơ sở.
+                </p>
+              </div>
+              <span className="text-xs px-2.5 py-1 rounded-lg bg-secondary text-foreground font-semibold">
+                Điểm cơ sở: {analysisRun?.repertoire_summary?.overall_baseline?.toFixed(1) || 50}%
+              </span>
             </div>
-          )}
+
+            {/* Repertoire Items Table */}
+            {analysisRun?.repertoire_summary?.all_openings && analysisRun.repertoire_summary.all_openings.length > 0 ? (
+              <div className="bg-card border border-border/60 rounded-2xl overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider border-b border-border/60">
+                      <tr>
+                        <th className="px-4 py-3">Hệ thống Khai cuộc</th>
+                        <th className="px-3 py-3">Số ván</th>
+                        <th className="px-4 py-3 min-w-[140px]">Tỷ lệ Kết quả</th>
+                        <th className="px-3 py-3 text-right">Điểm thực</th>
+                        <th className="px-3 py-3 text-right">Điểm Bayes</th>
+                        <th className="px-3 py-3 text-right">Độ lệch (Δ)</th>
+                        <th className="px-4 py-3">Đánh giá Toán học</th>
+                        <th className="px-3 py-3 text-center">Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40">
+                      {analysisRun.repertoire_summary.all_openings.map((op: any, idx: number) => {
+                        const delta = op.delta_vs_baseline || 0;
+                        const isPositive = delta > 0;
+                        const badgeColor = op.assessment_color || (isPositive ? "#10B981" : "#EF4444");
+
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                            <td className="px-4 py-3 font-semibold text-foreground">
+                              {op.name}
+                            </td>
+                            <td className="px-3 py-3 font-mono font-bold text-muted-foreground">
+                              {op.games_count}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="space-y-1">
+                                <div className="wdl-bar">
+                                  <div
+                                    className="wdl-bar-win"
+                                    style={{ width: `${op.win_pct}%` }}
+                                    title={`Thắng: ${op.win_pct?.toFixed(1)}%`}
+                                  />
+                                  <div
+                                    className="wdl-bar-draw"
+                                    style={{ width: `${op.draw_pct}%` }}
+                                    title={`Hòa: ${op.draw_pct?.toFixed(1)}%`}
+                                  />
+                                  <div
+                                    className="wdl-bar-loss"
+                                    style={{ width: `${op.loss_pct}%` }}
+                                    title={`Thua: ${op.loss_pct?.toFixed(1)}%`}
+                                  />
+                                </div>
+                                <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
+                                  <span className="text-emerald-500 font-bold">{op.win_pct?.toFixed(0)}%</span>
+                                  <span>{op.draw_pct?.toFixed(0)}%</span>
+                                  <span className="text-rose-500 font-bold">{op.loss_pct?.toFixed(0)}%</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-right font-mono font-bold text-foreground">
+                              {op.raw_score_pct?.toFixed(1) || op.score_pct?.toFixed(1)}%
+                            </td>
+                            <td className="px-3 py-3 text-right font-mono font-bold text-primary">
+                              {op.adjusted_score_pct?.toFixed(1)}%
+                            </td>
+                            <td className={`px-3 py-3 text-right font-mono font-bold ${isPositive ? "text-emerald-500" : delta < 0 ? "text-rose-500" : "text-muted-foreground"}`}>
+                              {isPositive ? `+${delta.toFixed(1)}%` : `${delta.toFixed(1)}%`}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className="inline-block px-2 py-0.5 rounded text-[11px] font-bold"
+                                style={{
+                                  backgroundColor: `${badgeColor}20`,
+                                  color: badgeColor,
+                                  border: `1px solid ${badgeColor}40`
+                                }}
+                              >
+                                {op.assessment_badge || op.assessment_label || op.assessment}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              <Link
+                                href={`/analyze?playerId=${playerId}&runId=${analysisRun.id}&opening=${encodeURIComponent(op.name)}`}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-secondary hover:bg-primary hover:text-primary-foreground font-semibold text-[11px] transition text-foreground"
+                              >
+                                <span>Phân tích</span>
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 text-center bg-card border border-border/40 rounded-2xl text-muted-foreground text-xs">
+                Chưa đủ mẫu ván đấu để phân loại Repertoire theo Co ngót Bayes.
+              </div>
+            )}
+          </div>
+
+          {/* Root Opening Tree Continuations */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-foreground">Các Nước Đi Khai Cuộc Đầu Tiên (Starting Position)</h3>
+              <span className="text-xs text-muted-foreground">Chọn nước đi để nhảy vào Bàn cờ phân tích</span>
+            </div>
+            {analysisRun?.opening_tree_snapshot ? (
+              <OpeningTreeTable
+                continuations={analysisRun.opening_tree_snapshot.continuations}
+                totalGames={analysisRun.games_analyzed_count}
+                onSelectMove={(san) => router.push(`/analyze?playerId=${playerId}&runId=${analysisRun.id}&move=${san}`)}
+              />
+            ) : (
+              <div className="p-8 text-center bg-card border border-border/40 rounded-2xl text-muted-foreground text-sm">
+                Chưa có dữ liệu cây khai cuộc cho kỳ thủ này.
+              </div>
+            )}
+          </div>
         </div>
       )}
+
 
       {/* Tab 3: Structures & Style */}
       {activeTab === "structures" && (
@@ -485,6 +545,7 @@ export default function PlayerDetailPage() {
 
               <PawnStructureGrid
                 structures={analysisRun?.pawn_structures_summary?.structures || []}
+                playerId={playerId}
               />
             </div>
           </div>

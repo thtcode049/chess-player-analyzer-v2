@@ -146,6 +146,7 @@ export default function GameViewerPage() {
             <ChessBoard
               initialFen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
               moves={moves}
+              currentPly={currentPly}
               onPositionChange={handlePositionChange}
               height={480}
             />

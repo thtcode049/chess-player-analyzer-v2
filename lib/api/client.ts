@@ -5,6 +5,7 @@ import {
   StrategicBriefing,
   ImportSummary,
   OpeningTreeNode,
+  PaginatedResult,
 } from "./types";
 
 const API_BASE = ""; // Relative calls proxy through /api/* in Next.js
@@ -40,7 +41,7 @@ export const apiClient = {
   async getPlayerGames(
     playerId: string,
     params: { page?: number; pageSize?: number; color?: string; eco?: string } = {}
-  ) {
+  ): Promise<PaginatedResult<Game>> {
     const query = new URLSearchParams();
     if (params.page) query.set("page", params.page.toString());
     if (params.pageSize) query.set("page_size", params.pageSize.toString());
@@ -119,12 +120,13 @@ export const apiClient = {
     return json.data;
   },
 
-  async getOpeningTreeBranch(runId: string, fen: string): Promise<OpeningTreeNode> {
-    const query = new URLSearchParams({ fen });
+  async getOpeningTreeBranch(runId: string, fen: string, color: string = "all"): Promise<OpeningTreeNode> {
+    const query = new URLSearchParams({ fen, color });
     const res = await fetch(`${API_BASE}/api/analysis/runs/${runId}/tree?${query.toString()}`);
     const json = await res.json();
     return json.data;
   },
+
 
   async getAiBriefing(runId: string, perspectiveMode: "self" | "opponent" = "self"): Promise<StrategicBriefing> {
     const res = await fetch(`${API_BASE}/api/ai/briefing`, {

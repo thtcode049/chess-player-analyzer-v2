@@ -9,6 +9,8 @@ from api.schemas.common import BaseResponse
 from api.schemas.games import GameDetailResponse, CriticalPositionResponse
 from api.routes.players import GAMES_STORE
 
+from api.services.db_service import DBService
+
 router = APIRouter(prefix="/api/games", tags=["Games"])
 
 @router.get("/{game_id}", response_model=BaseResponse[GameDetailResponse])
@@ -27,6 +29,10 @@ async def get_game_detail(game_id: str):
             break
 
     if not found_game:
+        # Check DB
+        found_game = DBService.get_game(game_id)
+
+    if not found_game:
         # Provide fallback demo game if testing standalone
         found_game = {
             "id": game_id,
@@ -41,6 +47,7 @@ async def get_game_detail(game_id: str):
             "ply_count": 10,
             "raw_headers": {}
         }
+
 
     critical_positions = [
         CriticalPositionResponse(

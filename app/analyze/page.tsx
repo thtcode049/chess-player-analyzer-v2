@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Chess } from "chess.js";
 import { 
   Play, 
@@ -14,74 +14,192 @@ import {
   Share2, 
   Info,
   CheckCircle2,
-  Loader2
+  Loader2,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  User
 } from "lucide-react";
 import Link from "next/link";
 import ChessBoard from "@/components/chess/ChessBoard";
 import MoveHistory from "@/components/chess/MoveHistory";
 import OpeningTreeTable from "@/components/analysis/OpeningTreeTable";
 import { apiClient } from "@/lib/api/client";
-import { Game, OpeningContinuation } from "@/lib/api/types";
+import { Game, OpeningContinuation, Player } from "@/lib/api/types";
 
 function AnalyzeContent() {
   const searchParams = useSearchParams();
-  const gameId = searchParams.get("gameId");
-  const initialMove = searchParams.get("move");
+  const router = useRouter();
 
+  const queryGameId = searchParams.get("gameId");
+  const queryPlayerId = searchParams.get("playerId");
+  const queryRunId = searchParams.get("runId");
+  const queryOpening = searchParams.get("opening");
+  const queryMove = searchParams.get("move");
+
+  // Player & Run state
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>(queryPlayerId || "");
+  const [activeRunId, setActiveRunId] = useState<string>(queryRunId || queryPlayerId || "");
+  const [colorFilter, setColorFilter] = useState<"all" | "white" | "black">("all");
+  const [boardOrientation, setBoardOrientation] = useState<"white" | "black">("white");
+
+  // Chess board state
   const [moves, setMoves] = useState<string[]>([]);
   const [currentPly, setCurrentPly] = useState(0);
   const [currentFen, setCurrentFen] = useState("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
   const [gameInfo, setGameInfo] = useState<Game | null>(null);
-  
-  // Custom PGN/FEN input modal or drawers
+
+  // Dynamic Opening Tree Continuations
+  const [continuations, setContinuations] = useState<OpeningContinuation[]>([]);
+  const [treeLoading, setTreeLoading] = useState(false);
+
+  // Custom PGN modal
   const [showPgnInput, setShowPgnInput] = useState(false);
   const [inputPgn, setInputPgn] = useState("");
-  const [inputFen, setInputFen] = useState("");
 
-  // Sample opening continuations matching initial moves
-  const [continuations, setContinuations] = useState<OpeningContinuation[]>([
-    { san: "e4", games_count: 520, usage_pct: 54.2, win_pct: 61.2, draw_pct: 24.1, loss_pct: 14.7, score_pct: 73.2 },
-    { san: "d4", games_count: 310, usage_pct: 32.3, win_pct: 55.4, draw_pct: 26.5, loss_pct: 18.1, score_pct: 68.6 },
-    { san: "Nf3", games_count: 85, usage_pct: 8.9, win_pct: 52.0, draw_pct: 31.0, loss_pct: 17.0, score_pct: 67.5 },
-    { san: "c4", games_count: 45, usage_pct: 4.6, win_pct: 48.9, draw_pct: 33.3, loss_pct: 17.8, score_pct: 65.5 },
-  ]);
-
-  // Load game from ID if present
+  // 1. Fetch available players
   useEffect(() => {
-    if (gameId) {
-      apiClient.getGame(gameId).then((g) => {
+    apiClient.getPlayers().then((list) => {
+      setPlayers(list);
+      if (list.length > 0 && !selectedPlayerId) {
+        const defaultP = list[0];
+        setSelectedPlayerId(defaultP.id);
+        setActiveRunId(queryRunId || defaultP.id);
+      }
+    }).catch((err) => {
+      console.warn("Failed to load players:", err);
+    });
+  }, [queryRunId, selectedPlayerId]);
+
+  // 2. Load single game from gameId if passed
+  useEffect(() => {
+    if (queryGameId) {
+      apiClient.getGame(queryGameId).then((g) => {
         if (g) {
           setGameInfo(g);
           if (g.moves_san) {
-            const parsedMoves = g.moves_san.split(" ").filter(Boolean);
+            // Clean move tokens
+            const rawTokens = g.moves_san.split(" ");
+            const parsedMoves = rawTokens
+              .map((t) => t.replace(/^\d+\.+/, "").trim())
+              .filter((t) => t && !["1-0", "0-1", "1/2-1/2", "*"].includes(t));
             setMoves(parsedMoves);
+            setCurrentPly(0);
+            setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
           }
         }
-      }).catch((err) => {
-        console.warn("Could not load game:", err);
-      });
-    } else if (initialMove) {
-      setMoves([initialMove]);
+      }).catch((err) => console.warn("Failed to load game:", err));
     }
-  }, [gameId, initialMove]);
+  }, [queryGameId]);
 
+  // 2b. Auto-play initial move if queryMove is present
+  useEffect(() => {
+    if (queryMove && moves.length === 0) {
+      try {
+        const game = new Chess();
+        const moveRes = game.move(queryMove);
+        if (moveRes) {
+          setMoves([moveRes.san]);
+          setCurrentPly(1);
+          setCurrentFen(game.fen());
+        }
+      } catch (err) {
+        console.warn("Could not play query move:", queryMove, err);
+      }
+    }
+  }, [queryMove, moves.length]);
+
+  // 3. Fetch real Opening Tree Continuations whenever FEN, activeRunId, or colorFilter changes
+  const fetchTreeContinuations = useCallback((runId: string, fen: string, color: string) => {
+    if (!runId) return;
+    setTreeLoading(true);
+    apiClient.getOpeningTreeBranch(runId, fen, color)
+      .then((treeNode) => {
+        if (treeNode && treeNode.continuations) {
+          setContinuations(treeNode.continuations);
+        } else {
+          setContinuations([]);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to fetch tree branch:", err);
+        setContinuations([]);
+      })
+      .finally(() => setTreeLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const targetRun = activeRunId || selectedPlayerId;
+    if (targetRun) {
+      fetchTreeContinuations(targetRun, currentFen, colorFilter);
+    }
+  }, [activeRunId, selectedPlayerId, currentFen, colorFilter, fetchTreeContinuations]);
+
+  // Handle Player Switch
+  const handlePlayerChange = (newPlayerId: string) => {
+    setSelectedPlayerId(newPlayerId);
+    setActiveRunId(newPlayerId);
+    // Reset board to initial position
+    setMoves([]);
+    setCurrentPly(0);
+    setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    setGameInfo(null);
+  };
+
+  // Position change from ChessBoard component
   const handlePositionChange = (fen: string, ply: number) => {
     setCurrentFen(fen);
     setCurrentPly(ply);
   };
 
+  // Move list change from ChessBoard component (e.g. piece dropped)
+  const handleMovesChange = (newMoves: string[], ply: number, fen: string) => {
+    setMoves(newMoves);
+    setCurrentPly(ply);
+    setCurrentFen(fen);
+  };
+
+  // Select move from Opening Tree
   const handleSelectMove = (san: string) => {
     try {
       const chess = new Chess(currentFen);
       chess.move(san);
-      setMoves(prev => [...prev.slice(0, currentPly), san]);
-      setCurrentPly(prev => prev + 1);
-      setCurrentFen(chess.fen());
+      const newFen = chess.fen();
+      const updatedMoves = [...moves.slice(0, currentPly), san];
+      setMoves(updatedMoves);
+      setCurrentPly(updatedMoves.length);
+      setCurrentFen(newFen);
     } catch (e) {
       console.warn("Invalid move selected:", san, e);
     }
   };
 
+  // Load a single game branch onto the board
+  const handleLoadSingleGame = (sg: any) => {
+    if (!sg || !sg.moves) return;
+    const gMoves = sg.moves;
+    setMoves(gMoves);
+    setCurrentPly(0);
+    setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    setGameInfo({
+      id: "single_branch",
+      dataset_id: "ds_branch",
+      white_player: sg.white || "White",
+      black_player: sg.black || "Black",
+      white_elo: sg.white_elo,
+      black_elo: sg.black_elo,
+      result: sg.result || "*",
+      eco: sg.eco || "",
+      opening_name: sg.opening || "",
+      moves_san: gMoves.join(" "),
+      has_embedded_eval: false,
+    });
+  };
+
+  // Handle Custom PGN Input
   const handleLoadCustomPgn = () => {
     if (!inputPgn.trim()) return;
     try {
@@ -98,10 +216,15 @@ function AnalyzeContent() {
     }
   };
 
+  // Lichess URL for current position
+  const lichessAnalysisUrl = `https://lichess.org/analysis/standard/${currentFen.replace(/ /g, "_")}`;
+
+  const currentPlayerObj = players.find((p) => p.id === selectedPlayerId);
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-fade-in pb-12">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-4">
+      {/* Top Header & Context Controls */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-4">
         <div>
           <div className="flex items-center gap-2">
             <Link
@@ -121,19 +244,38 @@ function AnalyzeContent() {
           </h1>
           {gameInfo ? (
             <p className="text-xs text-muted-foreground mt-0.5 font-medium">
-              Ván đấu: <b>{gameInfo.white_player}</b> ({gameInfo.white_elo || "?"}) vs <b>{gameInfo.black_player}</b> ({gameInfo.black_elo || "?"}) • Kết quả: <b className="text-primary">{gameInfo.result}</b> • ECO: <b>{gameInfo.eco || "---"}</b>
+              Ván đấu: <b>{gameInfo.white_player}</b> ({gameInfo.white_elo || "?"}) vs <b>{gameInfo.black_player}</b> ({gameInfo.black_elo || "?"}) • Kết quả: <b className="text-primary">{gameInfo.result}</b> • Khai cuộc: <b>{gameInfo.opening_name || "---"}</b>
             </p>
           ) : (
             <p className="text-xs text-muted-foreground mt-0.5">
-              Phân tích trực tiếp trên trình duyệt, không gây tải cho máy chủ.
+              Cây khai cuộc chống chuyển vị (Transposition-Safe EPD) • Phân tích trực tiếp trên trình duyệt.
             </p>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Global Player Selector & PGN upload button */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {players.length > 0 && (
+            <div className="flex items-center gap-2 bg-card border border-border/60 rounded-xl px-3 py-1.5 shadow-sm">
+              <User className="w-3.5 h-3.5 text-primary" />
+              <span className="text-xs font-semibold text-muted-foreground">Kỳ thủ:</span>
+              <select
+                value={selectedPlayerId}
+                onChange={(e) => handlePlayerChange(e.target.value)}
+                className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer pr-2"
+              >
+                {players.map((p) => (
+                  <option key={p.id} value={p.id} className="bg-card text-foreground">
+                    {p.canonical_name} ({p.total_games || 0} ván)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <button
             onClick={() => setShowPgnInput(true)}
-            className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-border/60 hover:bg-card text-foreground transition-all flex items-center gap-1.5"
+            className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-border/60 hover:bg-card text-foreground transition-all flex items-center gap-1.5 shadow-sm"
           >
             <Upload className="w-3.5 h-3.5" />
             Dán PGN / FEN
@@ -143,38 +285,75 @@ function AnalyzeContent() {
 
       {/* Main Analysis Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left / Center: Interactive Board & Controls (7 Cols) */}
+        {/* Left Column: Interactive ChessBoard & Bottom Actions (7 Cols) */}
         <div className="lg:col-span-7 space-y-4">
           <div className="bg-card border border-border/60 rounded-3xl p-4 sm:p-6 shadow-sm">
             <ChessBoard
               initialFen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
               moves={moves}
+              currentPly={currentPly}
+              orientation={boardOrientation}
               onPositionChange={handlePositionChange}
-              height={500}
+              onMovesChange={handleMovesChange}
+              height={480}
             />
+
+            {/* Quick Board Utilities Bar */}
+            <div className="mt-4 pt-3 border-t border-border/40 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
+                  className="px-3 py-1.5 rounded-xl border border-border/60 hover:bg-secondary text-foreground font-semibold flex items-center gap-1.5 transition"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                  Xoay bàn ({boardOrientation === "white" ? "Trắng" : "Đen"})
+                </button>
+                <a
+                  href={lichessAnalysisUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 rounded-xl bg-secondary hover:bg-primary hover:text-primary-foreground font-semibold text-foreground flex items-center gap-1.5 transition"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Phân tích trên Lichess
+                </a>
+              </div>
+
+              {currentPlayerObj && (
+                <Link
+                  href={`/players/${currentPlayerObj.id}`}
+                  className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                >
+                  Xem Hồ sơ {currentPlayerObj.canonical_name} →
+                </Link>
+              )}
+            </div>
           </div>
 
           {/* Current FEN Bar */}
-          <div className="bg-card/60 border border-border/40 rounded-xl p-3 flex items-center justify-between gap-3 text-xs">
-            <span className="font-mono text-muted-foreground truncate select-all">
-              {currentFen}
-            </span>
+          <div className="bg-card/60 border border-border/40 rounded-2xl p-3 flex items-center justify-between gap-3 text-xs shadow-sm">
+            <div className="flex items-center gap-2 truncate">
+              <span className="font-bold text-muted-foreground uppercase text-[10px]">FEN:</span>
+              <span className="font-mono text-foreground truncate select-all">
+                {currentFen}
+              </span>
+            </div>
             <button
               onClick={() => {
                 navigator.clipboard.writeText(currentFen);
                 alert("Đã sao chép FEN vào clipboard!");
               }}
-              className="px-2.5 py-1 rounded bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground font-semibold text-[11px] whitespace-nowrap transition-all"
+              className="px-2.5 py-1 rounded-lg bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground font-semibold text-[11px] whitespace-nowrap transition-all flex-shrink-0"
             >
-              Sao chép FEN
+              Sao chép
             </button>
           </div>
         </div>
 
-        {/* Right: Move History & Continuations (5 Cols) */}
-        <div className="lg:col-span-5 space-y-6">
+        {/* Right Column: Move History & Continuations (5 Cols) */}
+        <div className="lg:col-span-5 space-y-5">
           {/* Move History Sheet */}
-          <div className="h-[280px]">
+          <div className="h-[240px]">
             <MoveHistory
               moves={moves}
               currentPly={currentPly}
@@ -184,12 +363,58 @@ function AnalyzeContent() {
             />
           </div>
 
-          {/* Opening Continuations Tree */}
-          <div>
+          {/* Color Filter Controls */}
+          <div className="flex items-center gap-2 p-1.5 bg-card/80 border border-border/60 rounded-2xl shadow-sm">
+            <button
+              onClick={() => setColorFilter("all")}
+              className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                colorFilter === "all"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              }`}
+            >
+              <span>🔄 Tất cả</span>
+            </button>
+            <button
+              onClick={() => {
+                setColorFilter("white");
+                setBoardOrientation("white");
+              }}
+              className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                colorFilter === "white"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              }`}
+            >
+              <span>⚪ Cầm Trắng</span>
+            </button>
+            <button
+              onClick={() => {
+                setColorFilter("black");
+                setBoardOrientation("black");
+              }}
+              className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                colorFilter === "black"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              }`}
+            >
+              <span>⚫ Cầm Đen</span>
+            </button>
+          </div>
+
+          {/* Opening Continuations Tree Table */}
+          <div className="relative">
+            {treeLoading && (
+              <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-10 rounded-2xl flex items-center justify-center">
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              </div>
+            )}
             <OpeningTreeTable
               continuations={continuations}
-              totalGames={100}
+              totalGames={continuations.reduce((acc, c) => acc + c.games_count, 0)}
               onSelectMove={handleSelectMove}
+              onLoadGame={handleLoadSingleGame}
             />
           </div>
         </div>
@@ -250,3 +475,4 @@ export default function AnalyzePage() {
     </Suspense>
   );
 }
+

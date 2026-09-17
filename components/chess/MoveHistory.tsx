@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 
 interface MoveHistoryProps {
   moves: string[];
@@ -13,6 +13,18 @@ export default function MoveHistory({
   currentPly = 0,
   onSelectPly,
 }: MoveHistoryProps) {
+  const activeRef = useRef<HTMLButtonElement | null>(null);
+
+  // Auto-scroll to active move
+  useEffect(() => {
+    if (activeRef.current) {
+      activeRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [currentPly]);
+
   // Group moves into pairs (White, Black)
   const movePairs: Array<{ number: number; white: string; black?: string }> = [];
   for (let i = 0; i < moves.length; i += 2) {
@@ -30,10 +42,15 @@ export default function MoveHistory({
         <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
           Biên bản Nước đi ({moves.length} plies)
         </span>
+        {currentPly > 0 && (
+          <span className="text-[11px] font-mono font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+            Nước {currentPly} / {moves.length}
+          </span>
+        )}
       </div>
 
       {/* Move list */}
-      <div className="flex-1 overflow-y-auto max-h-[360px] p-2 space-y-1 text-sm font-mono">
+      <div className="flex-1 overflow-y-auto max-h-[360px] p-2 space-y-1 text-sm font-mono scroll-smooth">
         {movePairs.length === 0 ? (
           <div className="text-center py-8 text-xs text-slate-400">
             Chưa có nước đi nào
@@ -58,10 +75,11 @@ export default function MoveHistory({
 
                 {/* White Move */}
                 <button
+                  ref={isWhiteActive ? activeRef : undefined}
                   onClick={() => onSelectPly(whitePly)}
-                  className={`flex-1 text-left px-2 py-0.5 rounded font-medium transition ${
+                  className={`flex-1 text-left px-2 py-1 rounded font-medium transition ${
                     isWhiteActive
-                      ? "bg-emerald-500 text-white font-bold"
+                      ? "bg-emerald-500 text-white font-bold shadow-sm shadow-emerald-500/30"
                       : "text-slate-800 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400"
                   }`}
                 >
@@ -71,10 +89,11 @@ export default function MoveHistory({
                 {/* Black Move */}
                 {pair.black ? (
                   <button
+                    ref={isBlackActive ? activeRef : undefined}
                     onClick={() => onSelectPly(blackPly)}
-                    className={`flex-1 text-left px-2 py-0.5 rounded font-medium transition ${
+                    className={`flex-1 text-left px-2 py-1 rounded font-medium transition ${
                       isBlackActive
-                        ? "bg-emerald-500 text-white font-bold"
+                        ? "bg-emerald-500 text-white font-bold shadow-sm shadow-emerald-500/30"
                         : "text-slate-800 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400"
                     }`}
                   >

@@ -81,11 +81,32 @@ export interface OpeningContinuation {
   draw_pct: number;
   loss_pct: number;
   score_pct: number;
+  single_game_info?: {
+    white?: string;
+    white_elo?: number;
+    black?: string;
+    black_elo?: number;
+    result?: string;
+    site?: string;
+    link?: string;
+    event?: string;
+    date?: string;
+    round?: string;
+    moves?: string[];
+    opening?: string;
+    player_color?: string;
+  };
 }
 
 export interface OpeningTreeNode {
   fen: string;
   games_count: number;
+  in_pgn?: boolean;
+  total_games?: number;
+  score_pct?: number;
+  wins?: number;
+  draws?: number;
+  losses?: number;
   continuations: OpeningContinuation[];
 }
 
@@ -136,6 +157,7 @@ export interface StrategicBriefing {
 export interface ImportSummary {
   dataset_id?: string;
   player_id: string;
+  run_id?: string;
   total_found: number;
   imported_count: number;
   skipped_count: number;
@@ -143,3 +165,12 @@ export interface ImportSummary {
   source_type: string;
   sample_games?: Game[];
 }
+
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+

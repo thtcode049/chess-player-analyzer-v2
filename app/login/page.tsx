@@ -3,12 +3,11 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+
 import { Lock, Mail, ArrowRight, Loader2, Sparkles, CheckCircle2, ShieldCheck } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,10 +16,14 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("[Login] Form submitted!", { email });
     setError(null);
     setLoading(true);
 
     try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,

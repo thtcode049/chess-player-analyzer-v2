@@ -21,6 +21,11 @@ export class StockfishEngineController {
   private isReady = false;
   private currentFen = "";
   private onEvaluation: EvaluationCallback | null = null;
+  private currentEvaluation: EngineEvaluation = {
+    depth: 0,
+    score: 0,
+    isMate: false,
+  };
 
   constructor(onEvaluation?: EvaluationCallback) {
     if (onEvaluation) {
@@ -32,13 +37,11 @@ export class StockfishEngineController {
     if (typeof window === "undefined") return false;
 
     try {
-      // Use local Stockfish WASM worker or CDN fallback
-      try {
-        this.worker = new Worker("/stockfish/stockfish.js");
-      } catch {
-        this.worker = new Worker("https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js");
-      }
+      this.worker = new Worker("/stockfish/stockfish.js");
       this.worker.onmessage = this.handleMessage.bind(this);
+      this.worker.onerror = (err) => {
+        console.warn("Stockfish Web Worker runtime error:", err);
+      };
 
       // Send initial UCI initialization commands
       this.sendCommand("uci");
@@ -47,7 +50,7 @@ export class StockfishEngineController {
       this.isReady = true;
       return true;
     } catch (err) {
-      console.warn("Stockfish Web Worker initialization error (client offline or blocked):", err);
+      console.warn("Stockfish Web Worker initialization error:", err);
       this.isReady = false;
       return false;
     }
@@ -62,8 +65,14 @@ export class StockfishEngineController {
     }
 
     this.currentFen = fen;
+    // Reset current evaluation depth for new position
+    this.currentEvaluation = {
+      depth: 0,
+      score: this.currentEvaluation.score,
+      isMate: false,
+    };
+
     this.sendCommand("stop");
-    this.sendCommand("ucinewgame");
     this.sendCommand(`position fen ${fen}`);
     this.sendCommand(`go depth ${depth}`);
   }
@@ -94,20 +103,26 @@ export class StockfishEngineController {
     // Parse UCI info score cp ... pv ...
     if (line.startsWith("info") && line.includes("score")) {
       const parsedEval = this.parseUciInfoLine(line);
-      if (parsedEval && this.onEvaluation) {
-        this.onEvaluation(parsedEval);
+      if (parsedEval) {
+        this.currentEvaluation = {
+          ...this.currentEvaluation,
+          ...parsedEval,
+        };
+        if (this.onEvaluation) {
+          this.onEvaluation(this.currentEvaluation);
+        }
       }
     } else if (line.startsWith("bestmove")) {
       const parts = line.split(" ");
       const bestMove = parts[1];
-      if (bestMove && this.onEvaluation) {
-        // Emit final best move
-        this.onEvaluation({
-          depth: 12,
-          score: 0,
-          isMate: false,
+      if (bestMove && bestMove !== "(none)") {
+        this.currentEvaluation = {
+          ...this.currentEvaluation,
           bestMove,
-        });
+        };
+        if (this.onEvaluation) {
+          this.onEvaluation(this.currentEvaluation);
+        }
       }
     }
   }
@@ -129,7 +144,18 @@ export class StockfishEngineController {
       score = mateIn > 0 ? 10000 : -10000;
     } else if (cpMatch) {
       score = parseInt(cpMatch[1], 10);
-      // Normalized to pawns or centipawns
+    } else {
+      return null;
+    }
+
+    // Convert from side-to-move perspective to White's perspective
+    // Stockfish UCI returns cp relative to the side whose turn it is
+    const isBlackToMove = this.currentFen.split(" ")[1] === "b";
+    if (isBlackToMove) {
+      score = -score;
+      if (mateIn !== undefined) {
+        mateIn = -mateIn;
+      }
     }
 
     const pvMatch = line.match(/pv\s+(.+)$/);
@@ -145,7 +171,7 @@ export class StockfishEngineController {
       mateIn,
       pv,
       nodes,
-      bestMove: pv.length > 0 ? pv[0] : undefined,
+      bestMove: pv.length > 0 ? pv[0] : this.currentEvaluation.bestMove,
     };
   }
 }

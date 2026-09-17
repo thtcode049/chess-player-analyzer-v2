@@ -3,12 +3,10 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { UserPlus, Mail, Lock, User, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -16,33 +14,46 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("Đăng ký thành công! Đang chuyển hướng...");
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("[Register] Form submitted!", { email, displayName });
     setError(null);
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      // Lazy import để tránh lỗi SSR
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: {
-            display_name: displayName,
-          },
+          data: { display_name: displayName },
         },
       });
 
-      if (error) {
-        throw error;
+      console.log("[Register] Response:", { data, error: signUpError });
+
+      if (signUpError) {
+        throw signUpError;
       }
 
-      setSuccess(true);
-      setTimeout(() => {
-        router.push("/dashboard");
-      }, 1500);
+      if (data.session) {
+        // Email confirmation tắt → đăng nhập ngay
+        setSuccessMsg("Đăng ký thành công! Đang chuyển hướng...");
+        setSuccess(true);
+        setTimeout(() => router.push("/dashboard"), 1200);
+      } else {
+        // Email confirmation bật → cần xác nhận email
+        setSuccessMsg("Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.");
+        setSuccess(true);
+      }
     } catch (err: any) {
-      setError(err.message || "Đăng ký thất bại. Vui lòng kiểm tra lại thông tin.");
+      console.error("[Register] Error:", err);
+      setError(err.message || "Đăng ký thất bại. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
@@ -52,7 +63,7 @@ export default function RegisterPage() {
     <div className="min-h-[75vh] flex items-center justify-center p-4 animate-fade-in">
       <div className="w-full max-w-md bg-card border border-border/80 rounded-3xl p-8 shadow-2xl space-y-6 relative overflow-hidden backdrop-blur-xl">
         <div className="absolute -left-16 -top-16 w-48 h-48 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-        
+
         {/* Header */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 text-primary mb-1">
@@ -62,20 +73,20 @@ export default function RegisterPage() {
             Tạo Tài Khoản Mới
           </h1>
           <p className="text-xs text-muted-foreground">
-            Bắt đầu phân tích kỳ thủ chuyên sâu hoàn toàn miễn phí trên Cloud Free Tier.
+            Bắt đầu phân tích kỳ thủ chuyên sâu hoàn toàn miễn phí.
           </p>
         </div>
 
         {error && (
           <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-xl text-destructive text-xs leading-relaxed animate-fade-in">
-            {error}
+            ⚠️ {error}
           </div>
         )}
 
         {success && (
           <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-500 text-xs flex items-center gap-3 animate-fade-in">
             <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-            <span>Đăng ký thành công! Đang chuyển hướng vào Bảng điều khiển...</span>
+            <span>{successMsg}</span>
           </div>
         )}
 
@@ -83,7 +94,7 @@ export default function RegisterPage() {
         <form onSubmit={handleRegister} className="space-y-4 text-sm">
           <div>
             <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-              Họ & Tên / Biệt Danh
+              Họ &amp; Tên / Biệt Danh
             </label>
             <div className="relative">
               <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -109,7 +120,7 @@ export default function RegisterPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="grandmaster@chess.com"
+                placeholder="grandmaster@gmail.com"
                 className="w-full bg-background border border-border/60 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
               />
             </div>

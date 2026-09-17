@@ -1,24 +1,37 @@
 """
 Import Route Handlers (PGN Upload, Lichess, Chess.com)
 """
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, Header
 from typing import Optional, List
+from datetime import datetime
 import uuid
+import logging
 
 from api.schemas.common import BaseResponse
 from api.schemas.imports import LichessImportRequest, ChesscomImportRequest, ImportSummaryResponse
 from api.services.import_service import ImportService
+from api.services.db_service import DBService
+from api.routes.players import PLAYERS_STORE, GAMES_STORE
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/import", tags=["Imports"])
+
+
+def _get_user_id_from_header(x_user_id: Optional[str] = Header(None)) -> Optional[str]:
+    """Extract user_id passed from frontend via X-User-Id header."""
+    return x_user_id
+
 
 @router.post("/pgn-file", response_model=BaseResponse[ImportSummaryResponse])
 async def import_pgn_file(
     file: UploadFile = File(...),
     player_id: Optional[str] = Form(None),
-    max_games: Optional[int] = Form(200)
+    max_games: Optional[int] = Form(200),
+    user_id: Optional[str] = Form(None),
 ):
     """
-    Parses an uploaded .pgn file, identifies player, and returns normalized games summary.
+    Parses an uploaded .pgn file, saves player/dataset/games to Supabase.
     """
     try:
         content = await file.read()
@@ -26,25 +39,111 @@ async def import_pgn_file(
             raise HTTPException(status_code=400, detail="Empty PGN file uploaded")
 
         raw_games, primary_player, total_found = ImportService.parse_pgn_bytes(content, max_games=max_games)
-        
-        target_player_id = player_id or str(uuid.uuid4())
-        dataset_id = str(uuid.uuid4())
 
-        # Normalize games for DB
+        if not raw_games:
+            raise HTTPException(status_code=400, detail="No valid games found in PGN file")
+
+        dataset_id = str(uuid.uuid4())
         db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
+        final_player_name = primary_player or file.filename or "Unknown Player"
+
+        # --- Persist to Supabase if user_id is provided ---
+        actual_player_id = player_id or str(uuid.uuid4())
+        if user_id:
+            try:
+                player_rec = DBService.upsert_player(
+                    user_id=user_id,
+                    canonical_name=final_player_name,
+                )
+                actual_player_id = player_rec["id"]
+
+                dataset_rec = DBService.create_dataset(
+                    player_id=actual_player_id,
+                    source_type="pgn_upload",
+                    source_identifier=file.filename or "upload.pgn",
+                    games_count=len(db_games),
+                )
+                dataset_id = dataset_rec["id"]
+
+                # Re-normalize with correct dataset_id from DB
+                db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
+                inserted = DBService.bulk_insert_games(db_games, dataset_id=dataset_id)
+                logger.info(f"[Import] Saved {inserted}/{len(db_games)} games to Supabase for user={user_id}")
+            except Exception as db_err:
+                logger.error(f"[Import] DB save error: {db_err}")
+                # Still return success with summary, but note DB error
+        else:
+            logger.warning("[Import] No user_id provided — games NOT saved to DB")
+
+        # --- In-Memory Session & Analysis Pre-computation ---
+        PLAYERS_STORE[actual_player_id] = {
+            "id": actual_player_id,
+            "canonical_name": final_player_name,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now()
+        }
+
+        # Filter games for primary player and set player_color
+        p_lower = final_player_name.lower().strip()
+        player_games = [g for g in raw_games if p_lower in g.get("white", "").lower() or p_lower in g.get("black", "").lower()]
+        if not player_games:
+            player_games = raw_games
+
+        for g in player_games:
+            if p_lower in g.get("white", "").lower():
+                g["player_color"] = "white"
+            elif p_lower in g.get("black", "").lower():
+                g["player_color"] = "black"
+            else:
+                g["player_color"] = "white"
+
+        GAMES_STORE[actual_player_id] = player_games
+
+        run_id = str(uuid.uuid4())
+        try:
+            from api.routes.analyses import RUN_SNAPSHOTS_CACHE
+            from api.services.analysis_service import AnalysisService
+            from src.opening_tree import build_opening_tree
+
+            run_res = AnalysisService.run_complete_analysis(
+                games=player_games,
+                player_name=final_player_name,
+                color_filter="all",
+                run_label=f"Hồ sơ {final_player_name}"
+            )
+            _, fm_all = build_opening_tree(player_games, color="all")
+            _, fm_w = build_opening_tree(player_games, color="white")
+            _, fm_b = build_opening_tree(player_games, color="black")
+            run_res["fen_map_all"] = fm_all
+            run_res["fen_map_white"] = fm_w
+            run_res["fen_map_black"] = fm_b
+            run_res["player_name"] = final_player_name
+            run_res["player_id"] = actual_player_id
+            run_res["run_id"] = run_id
+
+            RUN_SNAPSHOTS_CACHE[run_id] = run_res
+            RUN_SNAPSHOTS_CACHE[actual_player_id] = run_res
+            logger.info(f"[Import] Auto-analyzed {len(player_games)} games for {final_player_name}, run_id={run_id}")
+        except Exception as an_err:
+            logger.warning(f"[Import] Auto-analysis error: {an_err}")
 
         summary = ImportSummaryResponse(
             dataset_id=dataset_id,
-            player_id=target_player_id,
+            player_id=actual_player_id,
+            run_id=run_id,
             total_found=total_found,
             imported_count=len(db_games),
-            primary_player=primary_player or "Unknown",
+            primary_player=final_player_name,
             source_type="pgn_upload",
             sample_games=db_games[:5]
         )
-        return BaseResponse(success=True, message=f"Successfully parsed {len(db_games)} games from PGN", data=summary)
+        return BaseResponse(success=True, message=f"Successfully imported {len(db_games)} games", data=summary)
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to process PGN: {str(e)}")
+        logger.error(f"[Import] Unexpected error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process PGN: {str(e)})")
+
 
 @router.post("/lichess", response_model=BaseResponse[ImportSummaryResponse])
 async def import_lichess(req: LichessImportRequest):
@@ -65,9 +164,55 @@ async def import_lichess(req: LichessImportRequest):
         dataset_id = str(uuid.uuid4())
         db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
 
+        PLAYERS_STORE[target_player_id] = {
+            "id": target_player_id,
+            "canonical_name": req.username,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now()
+        }
+
+        u_lower = req.username.lower().strip()
+        for g in raw_games:
+            if u_lower in g.get("white", "").lower():
+                g["player_color"] = "white"
+            elif u_lower in g.get("black", "").lower():
+                g["player_color"] = "black"
+            else:
+                g["player_color"] = "white"
+
+        GAMES_STORE[target_player_id] = raw_games
+
+        run_id = str(uuid.uuid4())
+        try:
+            from api.routes.analyses import RUN_SNAPSHOTS_CACHE
+            from api.services.analysis_service import AnalysisService
+            from src.opening_tree import build_opening_tree
+
+            run_res = AnalysisService.run_complete_analysis(
+                games=raw_games,
+                player_name=req.username,
+                color_filter="all",
+                run_label=f"Lichess: {req.username}"
+            )
+            _, fm_all = build_opening_tree(raw_games, color="all")
+            _, fm_w = build_opening_tree(raw_games, color="white")
+            _, fm_b = build_opening_tree(raw_games, color="black")
+            run_res["fen_map_all"] = fm_all
+            run_res["fen_map_white"] = fm_w
+            run_res["fen_map_black"] = fm_b
+            run_res["player_name"] = req.username
+            run_res["player_id"] = target_player_id
+            run_res["run_id"] = run_id
+
+            RUN_SNAPSHOTS_CACHE[run_id] = run_res
+            RUN_SNAPSHOTS_CACHE[target_player_id] = run_res
+        except Exception as an_err:
+            logger.warning(f"[Import Lichess] Auto-analysis error: {an_err}")
+
         summary = ImportSummaryResponse(
             dataset_id=dataset_id,
             player_id=target_player_id,
+            run_id=run_id,
             total_found=len(raw_games),
             imported_count=len(db_games),
             primary_player=req.username,
@@ -79,6 +224,7 @@ async def import_lichess(req: LichessImportRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lichess sync error: {str(e)}")
+
 
 @router.post("/chesscom", response_model=BaseResponse[ImportSummaryResponse])
 async def import_chesscom(req: ChesscomImportRequest):
@@ -99,9 +245,45 @@ async def import_chesscom(req: ChesscomImportRequest):
         dataset_id = str(uuid.uuid4())
         db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
 
+        PLAYERS_STORE[target_player_id] = {
+            "id": target_player_id,
+            "canonical_name": req.username,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now()
+        }
+        GAMES_STORE[target_player_id] = raw_games
+
+        run_id = str(uuid.uuid4())
+        try:
+            from api.routes.analyses import RUN_SNAPSHOTS_CACHE
+            from api.services.analysis_service import AnalysisService
+            from src.opening_tree import build_opening_tree
+
+            run_res = AnalysisService.run_complete_analysis(
+                games=raw_games,
+                player_name=req.username,
+                color_filter="all",
+                run_label=f"Chess.com: {req.username}"
+            )
+            _, fm_all = build_opening_tree(raw_games, color="all")
+            _, fm_w = build_opening_tree(raw_games, color="white")
+            _, fm_b = build_opening_tree(raw_games, color="black")
+            run_res["fen_map_all"] = fm_all
+            run_res["fen_map_white"] = fm_w
+            run_res["fen_map_black"] = fm_b
+            run_res["player_name"] = req.username
+            run_res["player_id"] = target_player_id
+            run_res["run_id"] = run_id
+
+            RUN_SNAPSHOTS_CACHE[run_id] = run_res
+            RUN_SNAPSHOTS_CACHE[target_player_id] = run_res
+        except Exception as an_err:
+            logger.warning(f"[Import Chess.com] Auto-analysis error: {an_err}")
+
         summary = ImportSummaryResponse(
             dataset_id=dataset_id,
             player_id=target_player_id,
+            run_id=run_id,
             total_found=len(raw_games),
             imported_count=len(db_games),
             primary_player=req.username,
@@ -113,3 +295,4 @@ async def import_chesscom(req: ChesscomImportRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chess.com sync error: {str(e)}")
+

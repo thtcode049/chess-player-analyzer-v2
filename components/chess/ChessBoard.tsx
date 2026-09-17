@@ -17,16 +17,20 @@ import { useStockfish } from "@/lib/stockfish/useStockfish";
 interface ChessBoardProps {
   initialFen?: string;
   moves?: string[]; // Array of SAN moves
+  currentPly?: number; // Controlled ply from parent
   orientation?: "white" | "black";
   onPositionChange?: (fen: string, ply: number) => void;
+  onMovesChange?: (moves: string[], currentPly: number, fen: string) => void;
   height?: number;
 }
 
 export default function ChessBoard({
   initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
   moves = [],
+  currentPly: externalPly,
   orientation = "white",
   onPositionChange,
+  onMovesChange,
   height = 480,
 }: ChessBoardProps) {
   const [game, setGame] = useState(new Chess(initialFen));
@@ -37,7 +41,7 @@ export default function ChessBoard({
   // Stockfish WASM client hook
   const { evaluation, isThinking, evaluateFen } = useStockfish();
 
-  // Reset or initialize if moves prop changes
+  // Reset or initialize if moves or initialFen prop changes
   useEffect(() => {
     const newGame = new Chess();
     const fens = [newGame.fen()];
@@ -58,12 +62,37 @@ export default function ChessBoard({
       } catch {}
     }
 
-    setGame(newGame);
     setHistoryFens(fens);
-    const lastPly = fens.length - 1;
-    setCurrentPly(lastPly);
-    evaluateFen(newGame.fen(), 10);
+
+    // Determine starting ply: prioritize externalPly if valid, otherwise end of game
+    const targetPly = 
+      typeof externalPly === "number" && externalPly >= 0 && externalPly < fens.length
+        ? externalPly
+        : fens.length - 1;
+
+    const targetFen = fens[targetPly];
+    setGame(new Chess(targetFen));
+    setCurrentPly(targetPly);
+    evaluateFen(targetFen, 12);
   }, [moves, initialFen, evaluateFen]);
+
+  // Synchronize with externalPly changes (e.g. from MoveHistory click or parent)
+  useEffect(() => {
+    if (
+      typeof externalPly === "number" &&
+      externalPly !== currentPly &&
+      externalPly >= 0 &&
+      externalPly < historyFens.length
+    ) {
+      const targetFen = historyFens[externalPly];
+      setGame(new Chess(targetFen));
+      setCurrentPly(externalPly);
+      evaluateFen(targetFen, 12);
+      if (onPositionChange) {
+        onPositionChange(targetFen, externalPly);
+      }
+    }
+  }, [externalPly, historyFens, currentPly, evaluateFen, onPositionChange]);
 
   // Navigate to specific ply
   const jumpToPly = useCallback((targetPly: number) => {
@@ -72,17 +101,53 @@ export default function ChessBoard({
     const updatedGame = new Chess(targetFen);
     setGame(updatedGame);
     setCurrentPly(targetPly);
-    evaluateFen(targetFen, 10);
+    evaluateFen(targetFen, 12);
     if (onPositionChange) {
       onPositionChange(targetFen, targetPly);
     }
   }, [historyFens, evaluateFen, onPositionChange]);
 
-  const handleFirst = () => jumpToPly(0);
-  const handlePrev = () => jumpToPly(Math.max(0, currentPly - 1));
-  const handleNext = () => jumpToPly(Math.min(historyFens.length - 1, currentPly + 1));
-  const handleLast = () => jumpToPly(historyFens.length - 1);
-  const handleFlip = () => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"));
+  const handleFirst = useCallback(() => jumpToPly(0), [jumpToPly]);
+  const handlePrev = useCallback(() => jumpToPly(Math.max(0, currentPly - 1)), [jumpToPly, currentPly]);
+  const handleNext = useCallback(() => jumpToPly(Math.min(historyFens.length - 1, currentPly + 1)), [jumpToPly, currentPly, historyFens.length]);
+  const handleLast = useCallback(() => jumpToPly(historyFens.length - 1), [jumpToPly, historyFens.length]);
+  const handleFlip = useCallback(() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white")), []);
+
+  // Keyboard navigation (< and > / Left and Right arrows / Home and End / F to flip)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if user is typing in form inputs
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (e.key === "ArrowLeft" || e.key === "<" || e.key === ",") {
+        e.preventDefault();
+        handlePrev();
+      } else if (e.key === "ArrowRight" || e.key === ">" || e.key === ".") {
+        e.preventDefault();
+        handleNext();
+      } else if (e.key === "Home" || (e.key === "ArrowDown" && e.ctrlKey)) {
+        e.preventDefault();
+        handleFirst();
+      } else if (e.key === "End" || (e.key === "ArrowUp" && e.ctrlKey)) {
+        e.preventDefault();
+        handleLast();
+      } else if (e.key === "f" || e.key === "F") {
+        handleFlip();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handlePrev, handleNext, handleFirst, handleLast, handleFlip]);
 
   // Make move on the board
   const makeAMove = useCallback(
@@ -93,13 +158,20 @@ export default function ChessBoard({
         if (result) {
           const newFen = gameCopy.fen();
           setGame(gameCopy);
+          const nextPly = currentPly + 1;
           const newFens = historyFens.slice(0, currentPly + 1);
           newFens.push(newFen);
           setHistoryFens(newFens);
-          setCurrentPly(newFens.length - 1);
+          setCurrentPly(nextPly);
           evaluateFen(newFen, 12);
+
+          // Update move list and notify parent
+          const updatedMoves = [...moves.slice(0, currentPly), result.san];
+          if (onMovesChange) {
+            onMovesChange(updatedMoves, nextPly, newFen);
+          }
           if (onPositionChange) {
-            onPositionChange(newFen, newFens.length - 1);
+            onPositionChange(newFen, nextPly);
           }
           return true;
         }
@@ -108,7 +180,7 @@ export default function ChessBoard({
       }
       return false;
     },
-    [game, historyFens, currentPly, evaluateFen, onPositionChange]
+    [game, historyFens, currentPly, moves, evaluateFen, onPositionChange, onMovesChange]
   );
 
   const onDrop = (sourceSquare: string, targetSquare: string) => {
@@ -133,7 +205,9 @@ export default function ChessBoard({
 
   const evalDisplay = isMate
     ? `#${evaluation?.mateIn ?? ""}`
-    : `${(scoreCp / 100).toFixed(1)}`;
+    : scoreCp > 0
+      ? `+${(scoreCp / 100).toFixed(1)}`
+      : `${(scoreCp / 100).toFixed(1)}`;
 
   return (
     <div className="flex flex-col items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full max-w-[540px]">
@@ -146,12 +220,25 @@ export default function ChessBoard({
           <span className="text-slate-300 dark:text-slate-700">•</span>
           <span>Nước: {currentPly} / {historyFens.length - 1}</span>
         </div>
-        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">
-          <Cpu className="w-3.5 h-3.5 text-emerald-500" />
-          <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-            {evalDisplay}
-          </span>
-          {isThinking && <Zap className="w-3 h-3 text-amber-500 animate-pulse" />}
+        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700/60">
+          <div className="flex items-center gap-1.5">
+            <Cpu className="w-3.5 h-3.5 text-emerald-500" />
+            <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400 font-bold">
+              {evalDisplay}
+            </span>
+          </div>
+          {evaluation?.depth ? (
+            <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-700/60 px-1.5 py-0.5 rounded font-medium">
+              d{evaluation.depth}
+            </span>
+          ) : null}
+          {isThinking ? (
+            <span title="Stockfish đang tính toán...">
+              <Zap className="w-3 h-3 text-amber-500 animate-pulse" />
+            </span>
+          ) : (
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" title="Stockfish sẵn sàng" />
+          )}
         </div>
       </div>
 
@@ -186,7 +273,7 @@ export default function ChessBoard({
           onClick={handleFirst}
           disabled={currentPly === 0}
           className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition"
-          title="Nước đầu tiên"
+          title="Nước đầu tiên (Home)"
         >
           <ChevronsLeft className="w-4 h-4" />
         </button>
@@ -194,7 +281,7 @@ export default function ChessBoard({
           onClick={handlePrev}
           disabled={currentPly === 0}
           className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition"
-          title="Lùi 1 nước"
+          title="Lùi 1 nước (← hoặc <)"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -202,7 +289,7 @@ export default function ChessBoard({
           onClick={handleNext}
           disabled={currentPly >= historyFens.length - 1}
           className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition"
-          title="Tiến 1 nước"
+          title="Tiến 1 nước (→ hoặc >)"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -210,17 +297,34 @@ export default function ChessBoard({
           onClick={handleLast}
           disabled={currentPly >= historyFens.length - 1}
           className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition"
-          title="Nước cuối cùng"
+          title="Nước cuối cùng (End)"
         >
           <ChevronsRight className="w-4 h-4" />
         </button>
         <button
           onClick={handleFlip}
           className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-          title="Xoay bàn cờ"
+          title="Xoay bàn cờ (F)"
         >
           <RotateCw className="w-4 h-4" />
         </button>
+      </div>
+
+      {/* Keyboard hints */}
+      <div className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center justify-center gap-3 pt-2 select-none">
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-300">←</kbd>
+          <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-300">→</kbd>
+          <span>hoặc</span>
+          <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-300">&lt;</kbd>
+          <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-300">&gt;</kbd>
+          <span>duyệt nước đi</span>
+        </span>
+        <span>•</span>
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-300">F</kbd>
+          <span>xoay bàn</span>
+        </span>
       </div>
     </div>
   );

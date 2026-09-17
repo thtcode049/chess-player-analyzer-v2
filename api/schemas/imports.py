@@ -21,9 +21,11 @@ class ChesscomImportRequest(BaseModel):
 class ImportSummaryResponse(BaseModel):
     dataset_id: Optional[str] = None
     player_id: str
+    run_id: Optional[str] = None
     total_found: int
     imported_count: int
     skipped_count: int = 0
     primary_player: str
     source_type: str
     sample_games: Optional[List[dict]] = []
+

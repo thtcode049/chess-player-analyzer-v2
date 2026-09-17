@@ -25,28 +25,22 @@ export default function DashboardPage() {
     async function loadData() {
       try {
         const fetchedPlayers = await apiClient.getPlayers();
-        setPlayers(fetchedPlayers);
+        setPlayers(fetchedPlayers || []);
 
-        // Fallback demo run if first time visit
-        setRecentRuns([
-          {
-            id: "demo_run_01",
-            player_id: "hikaru_demo",
-            run_label: "Toàn bộ ván Lichess Blitz (100 ván)",
-            scope_filter: { color: "all" },
-            games_analyzed_count: 100,
-            engine_status: "embedded_eval",
-            engine_coverage_pct: 94.5,
-            engine_games_count: 95,
-            engine_name: "Lichess Server Engine",
-            engine_depth: 18,
-            overall_win_rate: 68.0,
-            overall_score: 74.5,
-            dominant_archetype: "Universal Tactician",
-            status: "completed",
-            created_at: new Date().toISOString(),
-          },
-        ]);
+        if (fetchedPlayers && fetchedPlayers.length > 0) {
+          const runs: AnalysisRun[] = [];
+          for (const p of fetchedPlayers.slice(0, 10)) {
+            try {
+              const run = await apiClient.getAnalysisRun(p.id);
+              if (run) runs.push(run);
+            } catch (err) {
+              console.warn("Could not fetch analysis run for player:", p.canonical_name, err);
+            }
+          }
+          setRecentRuns(runs);
+        } else {
+          setRecentRuns([]);
+        }
       } catch (err) {
         console.error("Failed to load dashboard data:", err);
       } finally {
@@ -178,42 +172,64 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-              {recentRuns.map((run) => {
-                const badge = getEngineBadge(run.engine_status);
-                return (
-                  <tr key={run.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
-                    <td className="px-5 py-3.5 font-bold text-slate-900 dark:text-white">
-                      {run.run_label}
-                    </td>
-                    <td className="px-4 py-3.5 font-semibold text-slate-600 dark:text-slate-300">
-                      {run.games_analyzed_count} ván
-                    </td>
-                    <td className="px-4 py-3.5 text-emerald-600 font-bold">
-                      {run.overall_win_rate?.toFixed(1)}%
-                    </td>
-                    <td className="px-4 py-3.5 font-bold text-slate-800 dark:text-slate-200">
-                      {run.overall_score?.toFixed(1)}%
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${badge.color}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
-                        {badge.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
-                      {run.dominant_archetype || "N/A"}
-                    </td>
-                    <td className="px-4 py-3.5 text-right">
-                      <Link
-                        href={`/analyze?run_id=${run.id}`}
-                        className="text-xs font-bold text-emerald-600 hover:text-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1.5 rounded-lg transition"
-                      >
-                        Xem chi tiết
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
+              {recentRuns.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
+                    <p className="text-sm font-medium">Chưa có báo cáo phân tích nào trong hệ thống.</p>
+                    <p className="text-xs mt-1 text-slate-500">Hãy nạp tệp PGN hoặc đồng bộ Lichess để bắt đầu bóc tách chiến lược.</p>
+                    <Link
+                      href="/import"
+                      className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition shadow-sm"
+                    >
+                      <UploadCloud className="w-3.5 h-3.5" />
+                      <span>Nạp ván đấu ngay</span>
+                    </Link>
+                  </td>
+                </tr>
+              ) : (
+                recentRuns.map((run) => {
+                  const badge = getEngineBadge(run.engine_status);
+                  return (
+                    <tr key={run.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                      <td className="px-5 py-3.5 font-bold text-slate-900 dark:text-white">
+                        {run.run_label}
+                      </td>
+                      <td className="px-4 py-3.5 font-semibold text-slate-600 dark:text-slate-300">
+                        {run.games_analyzed_count} ván
+                      </td>
+                      <td className="px-4 py-3.5 text-emerald-600 font-bold">
+                        {run.overall_win_rate?.toFixed(1)}%
+                      </td>
+                      <td className="px-4 py-3.5 font-bold text-slate-800 dark:text-slate-200">
+                        {run.overall_score?.toFixed(1)}%
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${badge.color}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                        {run.dominant_archetype || "N/A"}
+                      </td>
+                      <td className="px-4 py-3.5 text-right space-x-2 whitespace-nowrap">
+                        <Link
+                          href={`/analyze?playerId=${run.player_id}&runId=${run.id}`}
+                          className="text-xs font-bold text-emerald-600 hover:text-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1.5 rounded-lg transition"
+                        >
+                          Bàn cờ
+                        </Link>
+                        <Link
+                          href={`/players/${run.player_id}`}
+                          className="text-xs font-bold text-sky-600 hover:text-sky-500 bg-sky-50 dark:bg-sky-950/60 px-2.5 py-1.5 rounded-lg transition"
+                        >
+                          Hồ sơ
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

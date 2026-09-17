@@ -20,11 +20,19 @@ class OpeningContinuation(BaseModel):
     draw_pct: float
     loss_pct: float
     score_pct: float
+    single_game_info: Optional[Dict[str, Any]] = None
 
 class OpeningTreeNodeResponse(BaseModel):
     fen: str
     games_count: int
+    in_pgn: Optional[bool] = True
+    total_games: Optional[int] = 0
+    score_pct: Optional[float] = 0.0
+    wins: Optional[int] = 0
+    draws: Optional[int] = 0
+    losses: Optional[int] = 0
     continuations: List[OpeningContinuation] = []
+
 
 class AnalysisRunResponse(BaseModel):
     id: str

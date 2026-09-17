@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { Layers } from "lucide-react";
 
 interface PawnStructureItem {
@@ -20,10 +21,12 @@ interface PawnStructureItem {
 
 interface PawnStructureGridProps {
   structures?: PawnStructureItem[];
+  playerId?: string;
 }
 
 export default function PawnStructureGrid({
   structures = [],
+  playerId,
 }: PawnStructureGridProps) {
   if (!structures || structures.length === 0) {
     return (
@@ -112,6 +115,17 @@ export default function PawnStructureGrid({
                 <span className={`text-xs ${deltaColor}`}>({deltaStr})</span>
               </div>
             </div>
+
+            {playerId && (
+              <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-right">
+                <Link
+                  href={`/analyze?playerId=${playerId}&structure=${encodeURIComponent(item.name)}`}
+                  className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
+                >
+                  Xem ván đấu cấu trúc này →
+                </Link>
+              </div>
+            )}
           </div>
         );
       })}

@@ -4,6 +4,7 @@ Analysis Route Handlers (Snapshots, Bayesian Profile, Opening Tree)
 from fastapi import APIRouter, HTTPException, Query, Body
 from typing import Optional, Dict, Any, List
 import uuid
+import logging
 
 from api.schemas.common import BaseResponse
 from api.schemas.analyses import (
@@ -14,11 +15,61 @@ from api.schemas.analyses import (
 )
 from api.services.analysis_service import AnalysisService
 from api.services.import_service import ImportService
+from api.services.db_service import DBService
+from api.routes.players import PLAYERS_STORE, GAMES_STORE
+from src.opening_tree import build_opening_tree
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/analysis", tags=["Analysis"])
 
 # In-memory session cache for fast interactive opening tree drill-down during active sessions
 RUN_SNAPSHOTS_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+def _resolve_games_for_player(player_id: str) -> tuple[List[Dict[str, Any]], str]:
+    """Resolves analysis-ready game list and player canonical name from memory or Supabase."""
+    player_name = "Player"
+    games = []
+
+    # 1. Resolve player name
+    if player_id in PLAYERS_STORE:
+        player_name = PLAYERS_STORE[player_id].get("canonical_name", "Player")
+    else:
+        try:
+            all_p = DBService.get_all_players()
+            for p in all_p:
+                if p.get("id") == player_id:
+                    player_name = p.get("canonical_name", "Player")
+                    break
+        except Exception:
+            pass
+
+    # 2. Resolve games
+    if player_id in GAMES_STORE and GAMES_STORE[player_id]:
+        raw_games = GAMES_STORE[player_id]
+        if raw_games and isinstance(raw_games[0].get("moves"), list):
+            games = raw_games
+        else:
+            games = DBService.convert_db_games_to_analysis_games(raw_games, player_name)
+    else:
+        db_games = DBService.get_player_games(player_id, limit=500)
+        if db_games:
+            GAMES_STORE[player_id] = db_games
+            games = DBService.convert_db_games_to_analysis_games(db_games, player_name)
+
+    # Ensure player_color is populated
+    p_lower = player_name.strip().lower()
+    for g in games:
+        if not g.get("player_color"):
+            if p_lower in g.get("white", "").lower():
+                g["player_color"] = "white"
+            elif p_lower in g.get("black", "").lower():
+                g["player_color"] = "black"
+            else:
+                g["player_color"] = "white"
+
+    return games, player_name
+
 
 @router.post("/runs", response_model=BaseResponse[AnalysisRunResponse])
 async def create_analysis_run(req: AnalysisRunCreate):
@@ -36,23 +87,76 @@ async def create_analysis_run(req: AnalysisRunCreate):
             games = parsed_games
             if detected_player:
                 player_name = detected_player
+        elif req.player_id:
+            # Check cache first for instant response
+            if req.player_id in RUN_SNAPSHOTS_CACHE:
+                cached = RUN_SNAPSHOTS_CACHE[req.player_id]
+                run_id = cached.get("run_id") or str(uuid.uuid4())
+                cached["run_id"] = run_id
+                RUN_SNAPSHOTS_CACHE[run_id] = cached
+                return BaseResponse(
+                    success=True,
+                    message="Analysis snapshot loaded from cache",
+                    data=AnalysisRunResponse(
+                        id=run_id,
+                        player_id=req.player_id,
+                        run_label=cached.get("run_label", "Analytical Snapshot"),
+                        scope_filter=req.scope_filter or {},
+                        games_analyzed_count=cached.get("games_analyzed_count", 0),
+                        engine_status=cached.get("engine_status", "statistical_only"),
+                        engine_coverage_pct=cached.get("engine_coverage_pct", 0.0),
+                        engine_games_count=cached.get("engine_games_count", 0),
+                        engine_name=cached.get("engine_name"),
+                        engine_depth=cached.get("engine_depth"),
+                        overall_win_rate=cached.get("overall_win_rate"),
+                        overall_score=cached.get("overall_score"),
+                        white_score=cached.get("white_score"),
+                        black_score=cached.get("black_score"),
+                        overall_acpl=cached.get("overall_acpl"),
+                        acpl_opening=cached.get("acpl_opening"),
+                        acpl_middlegame=cached.get("acpl_middlegame"),
+                        acpl_endgame=cached.get("acpl_endgame"),
+                        dominant_archetype=cached.get("dominant_archetype"),
+                        repertoire_summary=cached.get("repertoire_summary"),
+                        pawn_structures_summary=cached.get("pawn_structures_summary"),
+                        style_radar_metrics=cached.get("style_radar_metrics"),
+                        opening_tree_snapshot=cached.get("opening_tree_snapshot"),
+                        status="completed"
+                    )
+                )
 
-        color_filter = req.scope_filter.get("color", "all")
+            # Resolve games from memory / DB
+            games, player_name = _resolve_games_for_player(req.player_id)
+
+        color_filter = req.scope_filter.get("color", "all") if req.scope_filter else "all"
         run_res = AnalysisService.run_complete_analysis(
             games=games,
             player_name=player_name,
             color_filter=color_filter,
-            run_label=req.run_label or "Analytical Snapshot"
+            run_label=req.run_label or f"Hồ sơ {player_name}"
         )
 
+        # Build color-specific opening trees for instant White/Black filtering
+        _, fen_map_all = build_opening_tree(games, color="all")
+        _, fen_map_white = build_opening_tree(games, color="white")
+        _, fen_map_black = build_opening_tree(games, color="black")
+        run_res["fen_map_all"] = fen_map_all
+        run_res["fen_map_white"] = fen_map_white
+        run_res["fen_map_black"] = fen_map_black
+        run_res["player_name"] = player_name
+        run_res["player_id"] = req.player_id
+
         run_id = str(uuid.uuid4())
+        run_res["run_id"] = run_id
         RUN_SNAPSHOTS_CACHE[run_id] = run_res
+        if req.player_id:
+            RUN_SNAPSHOTS_CACHE[req.player_id] = run_res
 
         response_data = AnalysisRunResponse(
             id=run_id,
             player_id=req.player_id,
             run_label=run_res["run_label"],
-            scope_filter=req.scope_filter,
+            scope_filter=req.scope_filter or {},
             games_analyzed_count=run_res["games_analyzed_count"],
             engine_status=run_res["engine_status"],
             engine_coverage_pct=run_res["engine_coverage_pct"],
@@ -76,20 +180,43 @@ async def create_analysis_run(req: AnalysisRunCreate):
         )
         return BaseResponse(success=True, message="Analysis completed successfully", data=response_data)
     except Exception as e:
+        logger.error(f"Analysis pipeline error: {e}")
         raise HTTPException(status_code=500, detail=f"Analysis pipeline error: {str(e)}")
+
 
 @router.get("/runs/{run_id}", response_model=BaseResponse[AnalysisRunResponse])
 async def get_analysis_run(run_id: str):
     """
     Retrieves complete snapshot details for a run ID.
+    If run_id is a player_id, dynamically generates or returns the run.
     """
     if run_id not in RUN_SNAPSHOTS_CACHE:
-        raise HTTPException(status_code=404, detail="Analysis run not found or expired from cache")
+        # Check if run_id is player_id
+        games, player_name = _resolve_games_for_player(run_id)
+        if games:
+            run_res = AnalysisService.run_complete_analysis(
+                games=games,
+                player_name=player_name,
+                color_filter="all",
+                run_label=f"Hồ sơ {player_name}"
+            )
+            _, fm_all = build_opening_tree(games, color="all")
+            _, fm_w = build_opening_tree(games, color="white")
+            _, fm_b = build_opening_tree(games, color="black")
+            run_res["fen_map_all"] = fm_all
+            run_res["fen_map_white"] = fm_w
+            run_res["fen_map_black"] = fm_b
+            run_res["player_name"] = player_name
+            run_res["player_id"] = run_id
+            run_res["run_id"] = run_id
+            RUN_SNAPSHOTS_CACHE[run_id] = run_res
+        else:
+            raise HTTPException(status_code=404, detail="Analysis run not found")
 
     cached = RUN_SNAPSHOTS_CACHE[run_id]
     response_data = AnalysisRunResponse(
         id=run_id,
-        player_id="cached_player",
+        player_id=cached.get("player_id", "player"),
         run_label=cached["run_label"],
         scope_filter={},
         games_analyzed_count=cached["games_analyzed_count"],
@@ -115,18 +242,44 @@ async def get_analysis_run(run_id: str):
     )
     return BaseResponse(success=True, data=response_data)
 
+
 @router.get("/runs/{run_id}/tree", response_model=BaseResponse[OpeningTreeNodeResponse])
 async def query_opening_tree_branch(
     run_id: str,
-    fen: str = Query("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -", description="FEN position to query")
+    fen: str = Query("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -", description="FEN position to query"),
+    color: str = Query("all", description="Color filter: all, white, black")
 ):
     """
     Queries next available continuations from the opening tree for any given FEN position.
+    Supports color filtering (all, white, black) with Transposition-Safe EPD matching.
     """
     if run_id not in RUN_SNAPSHOTS_CACHE:
-        raise HTTPException(status_code=404, detail="Analysis run not found")
+        # Check if run_id is a player_id
+        games, player_name = _resolve_games_for_player(run_id)
+        if games:
+            run_res = AnalysisService.run_complete_analysis(games=games, player_name=player_name)
+            _, fm_all = build_opening_tree(games, color="all")
+            _, fm_w = build_opening_tree(games, color="white")
+            _, fm_b = build_opening_tree(games, color="black")
+            run_res["fen_map_all"] = fm_all
+            run_res["fen_map_white"] = fm_w
+            run_res["fen_map_black"] = fm_b
+            run_res["run_id"] = run_id
+            RUN_SNAPSHOTS_CACHE[run_id] = run_res
+        else:
+            raise HTTPException(status_code=404, detail="Analysis run not found")
 
-    fen_map = RUN_SNAPSHOTS_CACHE[run_id].get("fen_map", {})
+    cached = RUN_SNAPSHOTS_CACHE[run_id]
+
+    # Select color-specific fen_map
+    c_lower = (color or "all").lower()
+    if c_lower == "white":
+        fen_map = cached.get("fen_map_white") or cached.get("fen_map", {})
+    elif c_lower == "black":
+        fen_map = cached.get("fen_map_black") or cached.get("fen_map", {})
+    else:
+        fen_map = cached.get("fen_map_all") or cached.get("fen_map", {})
+
     pos_details = AnalysisService.query_tree_position(fen_map, fen)
 
     continuations = [
@@ -137,14 +290,22 @@ async def query_opening_tree_branch(
             win_pct=c["win_pct"],
             draw_pct=c["draw_pct"],
             loss_pct=c["loss_pct"],
-            score_pct=c["score_pct"]
+            score_pct=c["score_pct"],
+            single_game_info=c.get("single_game_info")
         )
         for c in pos_details.get("continuations", [])
     ]
 
     result = OpeningTreeNodeResponse(
         fen=pos_details.get("fen", fen),
-        games_count=pos_details.get("games_count", 0),
+        games_count=pos_details.get("total_games", pos_details.get("games_count", 0)),
+        in_pgn=pos_details.get("in_pgn", True),
+        total_games=pos_details.get("total_games", 0),
+        score_pct=pos_details.get("score_pct", 0.0),
+        wins=pos_details.get("wins", 0),
+        draws=pos_details.get("draws", 0),
+        losses=pos_details.get("losses", 0),
         continuations=continuations
     )
     return BaseResponse(success=True, data=result)
+

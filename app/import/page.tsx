@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   UploadCloud, 
@@ -21,6 +21,17 @@ import { ImportSummary } from "@/lib/api/types";
 
 export default function ImportPage() {
   const [activeTab, setActiveTab] = useState<"pgn" | "lichess" | "chesscom">("pgn");
+  const [userId, setUserId] = useState<string | null>(null);
+  
+  // Get current user session
+  useEffect(() => {
+    import("@/lib/supabase/client").then(({ createClient }) => {
+      const sb = createClient();
+      sb.auth.getUser().then(({ data }) => {
+        if (data.user) setUserId(data.user.id);
+      });
+    });
+  }, []);
   
   // PGN Upload states
   const [pgnFile, setPgnFile] = useState<File | null>(null);
@@ -42,6 +53,7 @@ export default function ImportPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      console.log("[Import] File selected:", file.name, file.size);
       setPgnFile(file);
       if (!datasetName) {
         setDatasetName(file.name.replace(/\.[^/.]+$/, ""));
@@ -51,21 +63,34 @@ export default function ImportPage() {
 
   const handlePgnImport = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("[Import] Submit clicked, pgnFile:", pgnFile?.name, "pgnText length:", pgnText.length);
     setError(null);
     setResult(null);
     setIsLoading(true);
 
     try {
+      let res: ImportSummary;
       if (pgnFile) {
-        const res = await apiClient.importPgnFile(pgnFile, undefined, 200);
-        setResult(res);
+        const formData = new FormData();
+        formData.append("file", pgnFile);
+        formData.append("max_games", "200");
+        if (userId) formData.append("user_id", userId);
+        const httpRes = await fetch("/api/import/pgn-file", { method: "POST", body: formData });
+        const json = await httpRes.json();
+        console.log("[Import] Raw response:", json);
+        if (!httpRes.ok || !json.success) {
+          throw new Error(json.detail || json.message || "Lỗi import PGN");
+        }
+        res = json.data;
       } else if (pgnText.trim()) {
-        const res = await apiClient.importPgnText(pgnText, datasetName || "PGN Text Import", undefined, 200);
-        setResult(res);
+        res = await apiClient.importPgnText(pgnText, datasetName || "PGN Text Import", undefined, 200);
       } else {
         throw new Error("Vui lòng tải lên tệp .pgn hoặc dán văn bản PGN.");
       }
+      console.log("[Import] Result:", res);
+      setResult(res);
     } catch (err: any) {
+      console.error("[Import] Error:", err);
       setError(err.message || "Lỗi khi nhập dữ liệu PGN");
     } finally {
       setIsLoading(false);
@@ -376,14 +401,31 @@ export default function ImportPage() {
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-border/60">
+              <div className="mt-6 pt-4 border-t border-border/60 space-y-2">
                 <Link
-                  href="/dashboard"
+                  href={result.player_id ? `/analyze?playerId=${result.player_id}&runId=${result.run_id || ""}` : "/analyze"}
                   className="w-full py-2.5 px-4 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 text-sm shadow-md"
                 >
                   <BarChart3 className="w-4 h-4" />
-                  Xem trong Bảng điều khiển
+                  Mở Bàn Cờ & Cây Khai Cuộc
                   <ArrowRight className="w-4 h-4 ml-1" />
+                </Link>
+
+                {result.player_id && (
+                  <Link
+                    href={`/players/${result.player_id}`}
+                    className="w-full py-2 px-4 bg-secondary text-secondary-foreground font-semibold rounded-xl hover:bg-secondary/80 transition-all flex items-center justify-center gap-2 text-xs"
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    Xem Hồ Sơ & Thống Kê Bayes Kỳ Thủ
+                  </Link>
+                )}
+
+                <Link
+                  href="/dashboard"
+                  className="w-full py-1.5 px-4 text-center text-xs text-muted-foreground hover:text-foreground transition-colors block"
+                >
+                  Về Bảng Điều Khiển Tổng Quan
                 </Link>
               </div>
             </div>

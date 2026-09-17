@@ -71,7 +71,7 @@ export interface Game {
   critical_positions?: CriticalPosition[];
 }
 
-export type EngineStatus = 'statistical_only' | 'embedded_eval' | 'sampled_wasm' | 'full_engine';
+export type EngineStatus = 'statistical_only' | 'embedded_eval' | 'sampled_wasm' | 'full_engine' | 'stockfish_parallel' | 'hybrid_stockfish';
 
 export interface OpeningContinuation {
   san: string;

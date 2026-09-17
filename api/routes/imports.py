@@ -110,19 +110,17 @@ async def import_pgn_file(
             "updated_at": datetime.now()
         }
 
-        # Filter games for primary player and set player_color
-        p_lower = final_player_name.lower().strip()
-        player_games = [g for g in raw_games if p_lower in g.get("white", "").lower() or p_lower in g.get("black", "").lower()]
+        from api.services.db_service import determine_player_color
+        player_games = [
+            g for g in raw_games
+            if determine_player_color(final_player_name, g.get("white", ""), g.get("black", "")) in ("white", "black")
+            and (final_player_name.lower().strip() in g.get("white", "").lower() or final_player_name.lower().strip() in g.get("black", "").lower() or len(raw_games) < 500)
+        ]
         if not player_games:
             player_games = raw_games
 
         for g in player_games:
-            if p_lower in g.get("white", "").lower():
-                g["player_color"] = "white"
-            elif p_lower in g.get("black", "").lower():
-                g["player_color"] = "black"
-            else:
-                g["player_color"] = "white"
+            g["player_color"] = determine_player_color(final_player_name, g.get("white", ""), g.get("black", ""))
 
         GAMES_STORE[actual_player_id] = player_games
 

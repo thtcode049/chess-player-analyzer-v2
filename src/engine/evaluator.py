@@ -432,34 +432,34 @@ def get_comprehensive_move_evaluations(
             "game_summaries": []
         }
 
-    # 1. Thử trích xuất từ dữ liệu có sẵn trên 100% ván đấu
+    # 1. Thử trích xuất từ dữ liệu có sẵn trên các ván đấu chứa tag [%eval]
     embedded_res = extract_all_embedded_evaluations(games)
-    if embedded_res.get("available") and embedded_res.get("analyzed_games", 0) > 0:
+    embedded_evals = embedded_res.get("move_evaluations", [])
+    embedded_count = embedded_res.get("analyzed_games", 0)
+
+    # Nếu 100% ván đều đã có sẵn eval hoặc max_stockfish_games <= 0:
+    if (embedded_count >= len(games) and embedded_count > 0) or max_stockfish_games <= 0:
         return embedded_res
 
-    # Nếu max_stockfish_games <= 0 (ví dụ Lichess không yêu cầu phân tích thêm ván mẫu khi thiếu eval):
-    if max_stockfish_games <= 0:
-        return {
-            "available": False,
-            "source": "none",
-            "analyzed_games": 0,
-            "total_moves_analyzed": 0,
-            "overall_acpl": None,
-            "move_evaluations": [],
-            "game_summaries": []
-        }
-
-    # 2. Dự phòng: Chạy cụm Stockfish đa luồng song song trên 10 ván mẫu ban đầu
+    # 2. Phân tích các ván còn lại bằng cụm Stockfish 18 đa luồng song song
     stockfish_available = (engine and engine.is_available()) or StockfishEngine().is_available()
     if stockfish_available:
-        return parallel_batch_analyze_games(
+        target_max = min(len(games), max_stockfish_games) if max_stockfish_games > 0 else len(games)
+        res = parallel_batch_analyze_games(
             games,
             max_workers=max_workers,
             depth=depth,
-            max_games=max_stockfish_games,
+            max_games=target_max,
             progress_callback=progress_callback,
-            existing_evaluations=existing_evaluations
+            existing_evaluations=embedded_evals
         )
+        if embedded_count > 0 and res.get("analyzed_games", 0) > embedded_count:
+            res["source"] = "hybrid_stockfish"
+        return res
+
+    # Nếu Stockfish không sẵn sàng trên máy nhưng có một phần dữ liệu embedded:
+    if embedded_res.get("available") and embedded_count > 0:
+        return embedded_res
 
     return {
         "available": False,

@@ -98,10 +98,11 @@ def analyze_phase_performance(
             phase = classify_phase(board, move_num)
 
             phases_data[phase]["moves_count"] += 1
-            phases_data[phase]["cpls"].append(cpl)
+            if cpl is not None:
+                phases_data[phase]["cpls"].append(cpl)
+                if cpl >= 100.0:
+                    phases_data[phase]["mistakes"] += 1
             phases_data[phase]["games"].add(g_idx)
-            if cpl >= 100.0:
-                phases_data[phase]["mistakes"] += 1
     else:
         # Fallback: Phân loại giai đoạn và đếm số nước từ danh sách ván đấu
         for g_idx, game in enumerate(filtered_games or []):

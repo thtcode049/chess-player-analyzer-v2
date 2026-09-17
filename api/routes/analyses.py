@@ -58,15 +58,10 @@ def _resolve_games_for_player(player_id: str) -> tuple[List[Dict[str, Any]], str
             games = DBService.convert_db_games_to_analysis_games(db_games, player_name)
 
     # Ensure player_color is populated
-    p_lower = player_name.strip().lower()
+    from api.services.db_service import determine_player_color
     for g in games:
         if not g.get("player_color"):
-            if p_lower in g.get("white", "").lower():
-                g["player_color"] = "white"
-            elif p_lower in g.get("black", "").lower():
-                g["player_color"] = "black"
-            else:
-                g["player_color"] = "white"
+            g["player_color"] = determine_player_color(player_name, g.get("white", ""), g.get("black", ""))
 
     return games, player_name
 
@@ -88,42 +83,8 @@ async def create_analysis_run(req: AnalysisRunCreate, x_user_id: Optional[str] =
             if detected_player:
                 player_name = detected_player
         elif req.player_id:
-            # Check cache first for instant response
-            if req.player_id in RUN_SNAPSHOTS_CACHE:
-                cached = RUN_SNAPSHOTS_CACHE[req.player_id]
-                run_id = cached.get("run_id") or str(uuid.uuid4())
-                cached["run_id"] = run_id
-                RUN_SNAPSHOTS_CACHE[run_id] = cached
-                return BaseResponse(
-                    success=True,
-                    message="Analysis snapshot loaded from cache",
-                    data=AnalysisRunResponse(
-                        id=run_id,
-                        player_id=req.player_id,
-                        run_label=cached.get("run_label", "Analytical Snapshot"),
-                        scope_filter=req.scope_filter or {},
-                        games_analyzed_count=cached.get("games_analyzed_count", 0),
-                        engine_status=cached.get("engine_status", "statistical_only"),
-                        engine_coverage_pct=cached.get("engine_coverage_pct", 0.0),
-                        engine_games_count=cached.get("engine_games_count", 0),
-                        engine_name=cached.get("engine_name"),
-                        engine_depth=cached.get("engine_depth"),
-                        overall_win_rate=cached.get("overall_win_rate"),
-                        overall_score=cached.get("overall_score"),
-                        white_score=cached.get("white_score"),
-                        black_score=cached.get("black_score"),
-                        overall_acpl=cached.get("overall_acpl"),
-                        acpl_opening=cached.get("acpl_opening"),
-                        acpl_middlegame=cached.get("acpl_middlegame"),
-                        acpl_endgame=cached.get("acpl_endgame"),
-                        dominant_archetype=cached.get("dominant_archetype"),
-                        repertoire_summary=cached.get("repertoire_summary"),
-                        pawn_structures_summary=cached.get("pawn_structures_summary"),
-                        style_radar_metrics=cached.get("style_radar_metrics"),
-                        opening_tree_snapshot=cached.get("opening_tree_snapshot"),
-                        status="completed"
-                    )
-                )
+            # Luôn xóa cache cũ khi POST tạo run mới — đảm bảo Stockfish chạy lại
+            RUN_SNAPSHOTS_CACHE.pop(req.player_id, None)
 
             # Resolve games from memory / DB
             games, player_name = _resolve_games_for_player(req.player_id)

@@ -340,7 +340,9 @@ export default function PlayerDetailPage() {
               <div className="space-y-3 text-xs">
                 <div className="flex justify-between py-1 border-b border-border/40">
                   <span className="text-muted-foreground">Cơ chế engine:</span>
-                  <span className="font-bold text-emerald-500 uppercase">{analysisRun?.engine_status || "embedded_eval"}</span>
+                  <span className="font-bold text-emerald-500">
+                    {analysisRun?.engine_name || (analysisRun?.engine_status === "stockfish_parallel" ? "Stockfish 18 Parallel" : analysisRun?.engine_status?.toUpperCase() || "STOCKFISH")}
+                  </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-border/40">
                   <span className="text-muted-foreground">Độ phủ engine:</span>
@@ -348,7 +350,7 @@ export default function PlayerDetailPage() {
                 </div>
                 <div className="flex justify-between py-1 border-b border-border/40">
                   <span className="text-muted-foreground">Hình mẫu chủ đạo:</span>
-                  <span className="font-bold text-amber-500">{analysisRun?.dominant_archetype || "Universal"}</span>
+                  <span className="font-bold text-amber-500">{analysisRun?.dominant_archetype || "Universal Master"}</span>
                 </div>
               </div>
             </div>

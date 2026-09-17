@@ -1,30 +1,45 @@
 "use client";
 
 import React from "react";
-import { ShieldAlert, Award } from "lucide-react";
+import { Award } from "lucide-react";
+
+interface Dimension {
+  key: string;
+  label: string;
+  fallbackKey?: string;
+}
 
 interface StyleRadarChartProps {
-  metrics?: Record<string, number>;
+  metrics?: Record<string, number | boolean>;
   archetype?: string;
 }
 
 export default function StyleRadarChart({
   metrics = {},
-  archetype = "Universal Master",
+  archetype,
 }: StyleRadarChartProps) {
-  // Define 8 standard style dimensions
-  const dimensions = [
-    { key: "volatility", label: "Biến động (Volatility)" },
-    { key: "sacrifice", label: "Thí quân (Sacrifice)" },
-    { key: "simplification", label: "Đổi quân (Simplification)" },
-    { key: "resilience", label: "Kiên cường (Resilience)" },
-    { key: "tactical_sharpness", label: "Chiến thuật (Tactics)" },
-    { key: "solid_defense", label: "Phòng thủ (Defense)" },
-    { key: "endgame_affinity", label: "Cờ tàn (Endgame)" },
-    { key: "pawn_structure", label: "Thế trận (Structure)" },
+  // 7 trục thực nghiệm — double-key fallback để tương thích cả raw keys (backend)
+  // lẫn mapped keys (analysis_service đã ánh xạ sẵn)
+  const dimensions: Dimension[] = [
+    { key: "volatility",           label: "Biến động",  fallbackKey: "volatility_score" },
+    { key: "sacrifice",            label: "Thí quân",   fallbackKey: "sacrifice_rate" },
+    { key: "simplification",       label: "Đổi quân",   fallbackKey: "simplification_rate" },
+    { key: "resilience",           label: "Kiên cường", fallbackKey: "resilience_rate" },
+    { key: "open_preference",      label: "Cờ mở",      fallbackKey: "open_preference" },
+    { key: "closed_preference",    label: "Cờ kín",     fallbackKey: "closed_preference" },
+    { key: "semi_open_preference", label: "Nửa mở",     fallbackKey: "semi_open_preference" },
   ];
 
-  // SVG Radar Polygon calculations
+  const getValue = (d: Dimension): number => {
+    const primary = metrics[d.key];
+    if (primary !== undefined && primary !== null && typeof primary === "number") return primary;
+    if (d.fallbackKey) {
+      const fb = metrics[d.fallbackKey];
+      if (fb !== undefined && fb !== null && typeof fb === "number") return fb;
+    }
+    return 50;
+  };
+
   const size = 320;
   const center = size / 2;
   const radius = center - 45;
@@ -32,22 +47,22 @@ export default function StyleRadarChart({
 
   const getCoordinates = (index: number, valueRatio: number) => {
     const angle = (Math.PI * 2 / totalAxes) * index - Math.PI / 2;
-    const x = center + radius * valueRatio * Math.cos(angle);
-    const y = center + radius * valueRatio * Math.sin(angle);
-    return { x, y };
+    return {
+      x: center + radius * valueRatio * Math.cos(angle),
+      y: center + radius * valueRatio * Math.sin(angle),
+    };
   };
 
-  // Generate data polygon points
-  const points = dimensions.map((d, i) => {
-    const rawVal = metrics[d.key] ?? 50;
-    const ratio = Math.max(0.1, Math.min(1.0, rawVal / 100));
-    const { x, y } = getCoordinates(i, ratio);
-    return `${x},${y}`;
-  }).join(" ");
+  const points = dimensions
+    .map((d, i) => {
+      const ratio = Math.max(0.05, Math.min(1.0, getValue(d) / 100));
+      const { x, y } = getCoordinates(i, ratio);
+      return `${x},${y}`;
+    })
+    .join(" ");
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col items-center">
-      {/* Archetype Header */}
       <div className="w-full flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-2.5">
           <div className="p-2 rounded-xl bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400">
@@ -58,16 +73,14 @@ export default function StyleRadarChart({
               Hình mẫu Thi đấu
             </span>
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              {archetype}
+              {archetype || "\u2014"}
             </h3>
           </div>
         </div>
       </div>
 
-      {/* SVG Radar Chart */}
       <div className="relative py-4">
         <svg width={size} height={size} className="overflow-visible">
-          {/* Background concentric reference polygons (25%, 50%, 75%, 100%) */}
           {[0.25, 0.5, 0.75, 1.0].map((level, lIdx) => {
             const levelPoints = dimensions
               .map((_, i) => {
@@ -88,8 +101,7 @@ export default function StyleRadarChart({
             );
           })}
 
-          {/* Radial axis lines */}
-          {dimensions.map((d, i) => {
+          {dimensions.map((_, i) => {
             const { x, y } = getCoordinates(i, 1.0);
             return (
               <line
@@ -104,16 +116,13 @@ export default function StyleRadarChart({
             );
           })}
 
-          {/* Data Filled Polygon */}
           <polygon
             points={points}
             className="fill-emerald-500/25 stroke-emerald-500 stroke-2"
           />
 
-          {/* Data Points */}
           {dimensions.map((d, i) => {
-            const rawVal = metrics[d.key] ?? 50;
-            const ratio = Math.max(0.1, Math.min(1.0, rawVal / 100));
+            const ratio = Math.max(0.05, Math.min(1.0, getValue(d) / 100));
             const { x, y } = getCoordinates(i, ratio);
             return (
               <circle
@@ -126,9 +135,8 @@ export default function StyleRadarChart({
             );
           })}
 
-          {/* Axis Labels */}
           {dimensions.map((d, i) => {
-            const { x, y } = getCoordinates(i, 1.18);
+            const { x, y } = getCoordinates(i, 1.2);
             return (
               <text
                 key={i}
@@ -140,22 +148,22 @@ export default function StyleRadarChart({
                 alignmentBaseline="middle"
                 className="fill-slate-500 dark:fill-slate-400 select-none font-sans"
               >
-                {d.label.split(" ")[0]}
+                {d.label}
               </text>
             );
           })}
         </svg>
       </div>
 
-      {/* Numerical Indicators Grid */}
       <div className="w-full grid grid-cols-4 gap-2 pt-3 border-t border-slate-100 dark:border-slate-800 text-center">
         {dimensions.slice(0, 4).map((d, i) => (
           <div key={i} className="bg-slate-50 dark:bg-slate-800/40 rounded-lg p-2">
-            <span className="block text-[10px] text-slate-400 font-medium">
-              {d.label.split(" ")[0]}
+            <span className="block text-[10px] text-slate-400 font-medium mb-0.5">
+              {d.label}
             </span>
             <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-              {(metrics[d.key] ?? 50).toFixed(0)}/100
+              {getValue(d).toFixed(0)}
+              <span className="text-[9px] text-slate-400 font-normal">/100</span>
             </span>
           </div>
         ))}

@@ -64,19 +64,30 @@ class AnalysisService:
         tree_root, fen_map = build_opening_tree(filtered_games, color=color_filter)
         repertoire_data = analyze_opening_repertoire(filtered_games)
 
-        # 4. Zero-Compute Embedded Evaluation Extraction (from Lichess/Chess.com)
-        comp_res = get_comprehensive_move_evaluations(filtered_games, depth=6, max_stockfish_games=0)
+        # 4. Hybrid Evaluation: Embedded (Lichess [%eval]) + Stockfish 18 Parallel for ALL games
+        comp_res = get_comprehensive_move_evaluations(
+            filtered_games,
+            depth=6,
+            max_stockfish_games=len(filtered_games)  # Analyse 100% of games
+        )
         move_evals = comp_res.get("move_evaluations", []) if comp_res.get("available") else None
-        
-        has_embedded = comp_res.get("source") == "embedded_pgn"
+
         analyzed_games_count = comp_res.get("analyzed_games", 0)
+        source = comp_res.get("source", "none")
+        has_embedded = source in ("embedded_pgn", "hybrid_stockfish")
+        has_stockfish = source in ("parallel_stockfish", "hybrid_stockfish")
 
         # Determine Engine Status & Coverage
-        if has_embedded and analyzed_games_count > 0:
+        if analyzed_games_count > 0:
             coverage_pct = round((analyzed_games_count / max(1, total_games)) * 100.0, 2)
-            engine_status = "embedded_eval" if coverage_pct >= 95.0 else "embedded_eval"
-            engine_name = "Embedded Server Eval (Lichess/Chess.com)"
-            engine_depth = 18
+            if source in ("parallel_stockfish", "hybrid_stockfish"):
+                engine_status = "stockfish_parallel"
+                engine_name = "Stockfish 18 Parallel"
+                engine_depth = 6
+            else:  # embedded_pgn
+                engine_status = "embedded_eval"
+                engine_name = "Embedded Server Eval (Lichess/Chess.com)"
+                engine_depth = 20
         else:
             coverage_pct = 0.0
             analyzed_games_count = 0
@@ -92,13 +103,19 @@ class AnalysisService:
         )
 
         phases_data = deep_profile.get("phases", {}).get("phases", {})
-        opening_acc = phases_data.get("opening", {}).get("accuracy") or phases_data.get("opening", {}).get("accuracy_pct")
-        middlegame_acc = phases_data.get("middlegame", {}).get("accuracy") or phases_data.get("middlegame", {}).get("accuracy_pct")
-        endgame_acc = phases_data.get("endgame", {}).get("accuracy") or phases_data.get("endgame", {}).get("accuracy_pct")
+        # Trích xuất ACPL (centipawn) từng giai đoạn — dùng avg_acpl, KHÔNG dùng accuracy%
+        opening_acpl = phases_data.get("opening", {}).get("avg_acpl")
+        middlegame_acpl = phases_data.get("middlegame", {}).get("avg_acpl")
+        endgame_acpl = phases_data.get("endgame", {}).get("avg_acpl")
+        # Chuyển 0.0 (fallback không có dữ liệu) thành None để frontend hiển thị "N/A"
+        opening_acpl = opening_acpl if opening_acpl else None
+        middlegame_acpl = middlegame_acpl if middlegame_acpl else None
+        endgame_acpl = endgame_acpl if endgame_acpl else None
 
         style_profile = deep_profile.get("style_profile", {})
         radar_metrics = style_profile.get("raw_metrics", {})
-        dominant_archetype = style_profile.get("archetype", {}).get("primary", "Universal Master")
+        # dominant_archetype: giữ giá trị hiện có, không thêm logic mới
+        dominant_archetype = style_profile.get("dominant_archetype") or style_profile.get("archetype", {}).get("primary") or None
 
         # 6. Extract Critical Positions (Blunders & Eval Swings)
         critical_positions = find_critical_positions(move_evals, max_positions=15) if move_evals else []
@@ -124,17 +141,27 @@ class AnalysisService:
             "white_score": float(stats.get("white_score_percentage", 0.0)),
             "black_score": float(stats.get("black_score_percentage", 0.0)),
             
-            # Phase ACPL metrics
-            "overall_acpl": deep_profile.get("acpl"),
-            "acpl_opening": opening_acc,
-            "acpl_middlegame": middlegame_acc,
-            "acpl_endgame": endgame_acc,
+            # Phase ACPL metrics (centipawn — cp)
+            "overall_acpl": deep_profile.get("overall_acpl") or comp_res.get("overall_acpl"),
+            "acpl_opening": opening_acpl,
+            "acpl_middlegame": middlegame_acpl,
+            "acpl_endgame": endgame_acpl,
             "dominant_archetype": dominant_archetype,
             
             # Snapshots
             "repertoire_summary": repertoire_data,
             "pawn_structures_summary": deep_profile.get("structures", {}),
-            "style_radar_metrics": radar_metrics,
+            # style_radar_metrics: ánh xạ sang keys chuẩn cho frontend + giữ raw keys
+            "style_radar_metrics": {
+                "volatility": radar_metrics.get("volatility_score", 50.0),
+                "sacrifice": radar_metrics.get("sacrifice_rate", 0.0),
+                "simplification": radar_metrics.get("simplification_rate", 0.0),
+                "resilience": radar_metrics.get("resilience_rate", 50.0),
+                "open_preference": radar_metrics.get("open_preference", 33.3),
+                "semi_open_preference": radar_metrics.get("semi_open_preference", 33.3),
+                "closed_preference": radar_metrics.get("closed_preference", 33.4),
+                **radar_metrics,  # giữ raw keys (volatility_score, sacrifice_rate, ...) cho backward compatibility
+            },
             "opening_tree_snapshot": root_details,
             
             # Additional rich state

@@ -166,6 +166,7 @@ def analyze_structural_performance(
                         stat["losses"] += 1
 
                     stat["games"].append({
+                        "id": game.get("id"),
                         "game_index": g_idx,
                         "formation_move": move_number,
                         "white": game.get("white", "Unknown"),

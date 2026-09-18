@@ -68,8 +68,8 @@ export default function PlayerDetailPage() {
           });
         }
 
-        // Load games safely handling paginated or array response
-        const gRes = await apiClient.getPlayerGames(playerId, { pageSize: 100 }).catch(() => null);
+        // Load games safely handling paginated or array response (up to 500 games)
+        const gRes = await apiClient.getPlayerGames(playerId, { pageSize: 500 }).catch(() => null);
         const gameItems = Array.isArray(gRes) ? gRes : ((gRes as any)?.items || []);
         setGames(gameItems);
 
@@ -363,7 +363,7 @@ export default function PlayerDetailPage() {
               <OpeningTreeTable
                 continuations={analysisRun.opening_tree_snapshot.continuations}
                 totalGames={analysisRun.games_analyzed_count}
-                onSelectMove={(san) => router.push(`/analyze?move=${san}`)}
+                onSelectMove={(san) => router.push(`/analyze?playerId=${playerId}&runId=${analysisRun?.id || ""}&move=${san}`)}
               />
             </div>
           )}
@@ -639,7 +639,7 @@ export default function PlayerDetailPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Link
-                          href={`/analyze?gameId=${g.id}`}
+                          href={`/analyze?gameId=${g.id}&playerId=${playerId}`}
                           className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-secondary text-secondary-foreground text-[11px] font-medium hover:bg-primary hover:text-primary-foreground transition-all"
                         >
                           Phân Tích

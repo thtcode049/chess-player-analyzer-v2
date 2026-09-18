@@ -197,7 +197,7 @@ async def get_player(player_id: str, x_user_id: Optional[str] = Header(None)):
 async def list_player_games(
     player_id: str,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(50, ge=1, le=1000),
     color: Optional[str] = Query(None),
     eco: Optional[str] = Query(None),
     result: Optional[str] = Query(None)
@@ -208,7 +208,7 @@ async def list_player_games(
     games = GAMES_STORE.get(player_id, [])
     if not games:
         # Try fetching from DB
-        db_games = DBService.get_player_games(player_id, limit=300)
+        db_games = DBService.get_player_games(player_id, limit=1000)
         if db_games:
             GAMES_STORE[player_id] = db_games
             games = db_games

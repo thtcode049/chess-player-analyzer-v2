@@ -1,23 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { Layers } from "lucide-react";
-
-interface PawnStructureItem {
-  name: string;
-  structure_key?: string;
-  typical_formation_move?: number;
-  games_count: number;
-  wins: number;
-  draws: number;
-  losses: number;
-  score_pct: number;
-  adjusted_score_pct?: number;
-  delta_vs_baseline?: number;
-  assessment_badge?: string;
-  assessment_color?: string;
-}
+import { Layers, ChevronRight, X, ExternalLink, Play, Trophy, CheckCircle2, AlertCircle } from "lucide-react";
+import { PawnStructureItem, PawnStructureGame } from "@/lib/api/types";
 
 interface PawnStructureGridProps {
   structures?: PawnStructureItem[];
@@ -28,107 +14,318 @@ export default function PawnStructureGrid({
   structures = [],
   playerId,
 }: PawnStructureGridProps) {
+  const [activeModalStructure, setActiveModalStructure] = useState<PawnStructureItem | null>(null);
+  const [modalFilter, setModalFilter] = useState<"all" | "wins" | "draws" | "losses">("all");
+
   if (!structures || structures.length === 0) {
     return (
-      <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-400 text-sm">
+      <div className="p-8 text-center bg-card rounded-3xl border border-border/60 text-muted-foreground text-sm">
         Chưa phát hiện cấu trúc Tốt đặc trưng nào trong tập ván đấu này.
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {structures.map((item, idx) => {
-        const delta = item.delta_vs_baseline ?? 0;
-        const deltaStr = delta > 0 ? `+${delta.toFixed(1)}%` : `${delta.toFixed(1)}%`;
-        const deltaColor =
-          delta > 5
-            ? "text-emerald-500 font-bold"
-            : delta < -5
-            ? "text-rose-500 font-bold"
-            : "text-slate-400";
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {structures.map((item, idx) => {
+          const delta = item.delta_vs_baseline ?? 0;
+          const deltaStr = delta > 0 ? `+${delta.toFixed(1)}%` : `${delta.toFixed(1)}%`;
+          const deltaColor =
+            delta > 5
+              ? "text-emerald-500 font-bold"
+              : delta < -5
+              ? "text-rose-500 font-bold"
+              : "text-muted-foreground";
 
-        return (
-          <div
-            key={idx}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-md transition flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
-                    <Layers className="w-4 h-4" />
+          const hasGames = item.games && item.games.length > 0;
+
+          return (
+            <div
+              key={idx}
+              className="bg-card border border-border/60 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm text-foreground leading-tight">
+                        {item.name}
+                      </h4>
+                      <span className="text-[11px] text-muted-foreground">
+                        Hình thành quanh nước {item.typical_formation_move ?? 12}
+                      </span>
+                    </div>
+                  </div>
+
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-[10px] font-bold"
+                    style={{
+                      backgroundColor: `${item.assessment_color ?? "#94A3B8"}15`,
+                      color: item.assessment_color ?? "#94A3B8",
+                    }}
+                  >
+                    {item.assessment_badge || "Bình thường"}
+                  </span>
+                </div>
+
+                {/* Stats row */}
+                <div className="grid grid-cols-3 gap-2 py-3 border-y border-border/40 my-3 text-center text-xs">
+                  <div>
+                    <span className="block text-[10px] text-muted-foreground">Số ván</span>
+                    <span className="font-bold text-foreground">
+                      {item.games_count}
+                    </span>
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm text-slate-900 dark:text-white leading-tight">
-                      {item.name}
-                    </h4>
-                    <span className="text-[11px] text-slate-400">
-                      Hình thành quanh nước {item.typical_formation_move ?? 12}
+                    <span className="block text-[10px] text-muted-foreground">W / D / L</span>
+                    <span className="font-mono text-[11px]">
+                      <span className="text-emerald-500 font-bold">{item.wins}</span>-
+                      <span className="text-muted-foreground">{item.draws}</span>-
+                      <span className="text-rose-500 font-bold">{item.losses}</span>
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-muted-foreground">Điểm thô</span>
+                    <span className="font-bold text-foreground">
+                      {item.score_pct.toFixed(0)}%
                     </span>
                   </div>
                 </div>
+              </div>
 
-                <span
-                  className="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                  style={{
-                    backgroundColor: `${item.assessment_color ?? "#94A3B8"}15`,
-                    color: item.assessment_color ?? "#94A3B8",
-                  }}
+              {/* Bayesian Adjusted Score */}
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-xs text-muted-foreground">Độ tin cậy Bayes:</span>
+                <div className="text-right">
+                  <span className="text-sm font-extrabold text-foreground">
+                    {(item.adjusted_score_pct ?? item.score_pct).toFixed(1)}%
+                  </span>{" "}
+                  <span className={`text-xs ${deltaColor}`}>({deltaStr})</span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between gap-2 text-xs">
+                {hasGames ? (
+                  <button
+                    onClick={() => {
+                      setActiveModalStructure(item);
+                      setModalFilter("all");
+                    }}
+                    className="text-[11px] font-medium text-muted-foreground hover:text-foreground transition inline-flex items-center gap-1"
+                  >
+                    Danh sách ({item.games?.length})
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-muted-foreground">{item.games_count} ván</span>
+                )}
+
+                {playerId && (
+                  <Link
+                    href={`/analyze?playerId=${playerId}&structure=${encodeURIComponent(item.name)}`}
+                    className="text-[11px] font-bold text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    Xem ván đấu cấu trúc này →
+                  </Link>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Modal: View Games with this structure */}
+      {activeModalStructure && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-card border border-border/80 rounded-3xl max-w-3xl w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col animate-scale-in">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 border-b border-border/40 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-primary uppercase tracking-wider">Cấu trúc Tốt</span>
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-[10px] font-bold"
+                    style={{
+                      backgroundColor: `${activeModalStructure.assessment_color ?? "#94A3B8"}15`,
+                      color: activeModalStructure.assessment_color ?? "#94A3B8",
+                    }}
+                  >
+                    {activeModalStructure.assessment_badge || "Bình thường"}
+                  </span>
+                </div>
+                <h3 className="text-lg font-black text-foreground mt-0.5">
+                  {activeModalStructure.name}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Tổng cộng <b>{activeModalStructure.games?.length || activeModalStructure.games_count}</b> ván đấu thực tế • Hình thành quanh nước {activeModalStructure.typical_formation_move || 12}
+                </p>
+              </div>
+
+              <button
+                onClick={() => setActiveModalStructure(null)}
+                className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Filter Pills & Analyze CTA */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 p-1 bg-secondary/60 rounded-xl">
+                <button
+                  onClick={() => setModalFilter("all")}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+                    modalFilter === "all" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
                 >
-                  {item.assessment_badge || "Bình thường"}
-                </span>
+                  Tất cả ({activeModalStructure.games?.length || 0})
+                </button>
+                <button
+                  onClick={() => setModalFilter("wins")}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+                    modalFilter === "wins" ? "bg-emerald-500 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Thắng ({activeModalStructure.wins})
+                </button>
+                <button
+                  onClick={() => setModalFilter("draws")}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+                    modalFilter === "draws" ? "bg-amber-500 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Hòa ({activeModalStructure.draws})
+                </button>
+                <button
+                  onClick={() => setModalFilter("losses")}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+                    modalFilter === "losses" ? "bg-rose-500 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Thua ({activeModalStructure.losses})
+                </button>
               </div>
 
-              {/* Stats row */}
-              <div className="grid grid-cols-3 gap-2 py-3 border-y border-slate-100 dark:border-slate-800 my-2 text-center text-xs">
-                <div>
-                  <span className="block text-[10px] text-slate-400">Số ván</span>
-                  <span className="font-bold text-slate-700 dark:text-slate-300">
-                    {item.games_count}
-                  </span>
-                </div>
-                <div>
-                  <span className="block text-[10px] text-slate-400">W / D / L</span>
-                  <span className="font-mono text-[11px]">
-                    <span className="text-emerald-600 font-bold">{item.wins}</span>-
-                    <span className="text-slate-400">{item.draws}</span>-
-                    <span className="text-rose-600 font-bold">{item.losses}</span>
-                  </span>
-                </div>
-                <div>
-                  <span className="block text-[10px] text-slate-400">Điểm thô</span>
-                  <span className="font-bold text-slate-700 dark:text-slate-300">
-                    {item.score_pct.toFixed(0)}%
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Bayesian Adjusted Score */}
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-xs text-slate-500">Độ tin cậy Bayes:</span>
-              <div className="text-right">
-                <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                  {(item.adjusted_score_pct ?? item.score_pct).toFixed(1)}%
-                </span>{" "}
-                <span className={`text-xs ${deltaColor}`}>({deltaStr})</span>
-              </div>
-            </div>
-
-            {playerId && (
-              <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-right">
+              {playerId && (
                 <Link
-                  href={`/analyze?playerId=${playerId}&structure=${encodeURIComponent(item.name)}`}
-                  className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
+                  href={`/analyze?playerId=${playerId}&structure=${encodeURIComponent(activeModalStructure.name)}`}
+                  className="px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition flex items-center gap-1.5 shadow-sm shadow-primary/20"
                 >
-                  Xem ván đấu cấu trúc này →
+                  <Play className="w-3 h-3" />
+                  Mở Structure Explorer trên Bàn cờ →
                 </Link>
-              </div>
-            )}
+              )}
+            </div>
+
+            {/* Games List Table */}
+            <div className="flex-1 overflow-y-auto border border-border/40 rounded-2xl">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/50 text-muted-foreground font-semibold sticky top-0 backdrop-blur-sm">
+                  <tr>
+                    <th className="px-3 py-2.5">#</th>
+                    <th className="px-3 py-2.5">Trắng vs Đen</th>
+                    <th className="px-3 py-2.5">Khai cuộc / Kết quả</th>
+                    <th className="px-3 py-2.5 text-center">Nước hình thành</th>
+                    <th className="px-3 py-2.5 text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {(() => {
+                    const games = (activeModalStructure.games || []).filter((g) => {
+                      if (modalFilter === "wins") return g.is_win;
+                      if (modalFilter === "draws") return g.is_draw;
+                      if (modalFilter === "losses") return g.is_loss;
+                      return true;
+                    });
+
+                    if (games.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                            Không có ván đấu nào phù hợp với bộ lọc.
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return games.map((g, gIdx) => {
+                      let resColor = "bg-muted text-muted-foreground";
+                      let resText = g.result;
+                      if (g.is_win) {
+                        resColor = "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20";
+                        resText = `${g.result} (Thắng)`;
+                      } else if (g.is_draw) {
+                        resColor = "bg-amber-500/10 text-amber-500 border border-amber-500/20";
+                        resText = `${g.result} (Hòa)`;
+                      } else if (g.is_loss) {
+                        resColor = "bg-rose-500/10 text-rose-500 border border-rose-500/20";
+                        resText = `${g.result} (Thua)`;
+                      }
+
+                      return (
+                        <tr key={gIdx} className="hover:bg-secondary/30 transition">
+                          <td className="px-3 py-3 font-mono text-muted-foreground">
+                            {g.game_index !== undefined ? g.game_index + 1 : gIdx + 1}
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="font-semibold text-foreground">
+                              ⚪ {g.white}
+                            </div>
+                            <div className="text-muted-foreground">
+                              ⚫ {g.black}
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="text-muted-foreground truncate max-w-[200px]">
+                              {g.opening || "Khai cuộc"}
+                            </div>
+                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold mt-0.5 ${resColor}`}>
+                              {resText}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <span className="font-mono text-xs px-2 py-0.5 rounded-lg bg-secondary text-foreground">
+                              Move {g.formation_move || "?"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-right">
+                            <Link
+                              href={
+                                g.id
+                                  ? `/analyze?gameId=${g.id}&playerId=${playerId || ""}`
+                                  : `/analyze?playerId=${playerId || ""}&structure=${encodeURIComponent(activeModalStructure.name)}&gameIdx=${g.game_index ?? gIdx}`
+                              }
+                              className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-secondary hover:bg-primary hover:text-primary-foreground font-medium text-[11px] text-foreground transition"
+                            >
+                              Phân tích
+                              <ExternalLink className="w-3 h-3" />
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end pt-2">
+              <button
+                onClick={() => setActiveModalStructure(null)}
+                className="px-4 py-2 rounded-xl border border-border/60 text-xs font-semibold text-muted-foreground hover:text-foreground transition"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
-        );
-      })}
-    </div>
+        </div>
+      )}
+    </>
   );
 }
+

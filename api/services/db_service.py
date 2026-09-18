@@ -178,7 +178,7 @@ class DBService:
         return res.data or []
 
     @staticmethod
-    def get_player_games(player_id: str, limit: int = 500, offset: int = 0) -> List[Dict[str, Any]]:
+    def get_player_games(player_id: str, limit: int = 1000, offset: int = 0) -> List[Dict[str, Any]]:
         """Get all games for a player across all datasets."""
         try:
             sb = get_supabase()

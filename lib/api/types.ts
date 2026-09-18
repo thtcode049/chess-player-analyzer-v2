@@ -174,3 +174,36 @@ export interface PaginatedResult<T> {
   total_pages: number;
 }
 
+export interface PawnStructureGame {
+  id?: string;
+  game_index: number;
+  formation_move: number;
+  white: string;
+  black: string;
+  result: string;
+  opening?: string;
+  date?: string;
+  site?: string;
+  player_color?: string;
+  is_win: boolean;
+  is_draw: boolean;
+  is_loss: boolean;
+  game_accuracy?: number;
+}
+
+export interface PawnStructureItem {
+  name: string;
+  structure_key?: string;
+  typical_formation_move?: number;
+  games_count: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  score_pct: number;
+  adjusted_score_pct?: number;
+  delta_vs_baseline?: number;
+  assessment_badge?: string;
+  assessment_color?: string;
+  games?: PawnStructureGame[];
+}
+

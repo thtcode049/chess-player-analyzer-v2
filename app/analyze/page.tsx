@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense } from "react";
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Chess } from "chess.js";
 import { 
@@ -20,14 +20,39 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  User
+  User,
+  Search,
+  Check
 } from "lucide-react";
 import Link from "next/link";
 import ChessBoard from "@/components/chess/ChessBoard";
 import MoveHistory from "@/components/chess/MoveHistory";
 import OpeningTreeTable from "@/components/analysis/OpeningTreeTable";
 import { apiClient } from "@/lib/api/client";
-import { Game, OpeningContinuation, Player } from "@/lib/api/types";
+import { Game, OpeningContinuation, Player, PawnStructureItem, PawnStructureGame } from "@/lib/api/types";
+
+function normalizePlayerName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isPlayerNameMatch(nameA?: string | null, nameB?: string | null): boolean {
+  if (!nameA || !nameB) return false;
+  const a = normalizePlayerName(nameA);
+  const b = normalizePlayerName(nameB);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.includes(b) || b.includes(a)) return true;
+  const tokensA = a.split(" ").filter((t) => t.length >= 2);
+  const tokensB = b.split(" ").filter((t) => t.length >= 2);
+  const matches = tokensA.filter((t) => tokensB.includes(t));
+  return matches.length >= 2 || (tokensA.length === 1 && matches.length === 1);
+}
 
 function AnalyzeContent() {
   const searchParams = useSearchParams();
@@ -38,6 +63,8 @@ function AnalyzeContent() {
   const queryRunId = searchParams.get("runId");
   const queryOpening = searchParams.get("opening");
   const queryMove = searchParams.get("move");
+  const queryStructure = searchParams.get("structure");
+  const queryGameIdx = searchParams.get("gameIdx");
 
   // Player & Run state
   const [players, setPlayers] = useState<Player[]>([]);
@@ -56,6 +83,14 @@ function AnalyzeContent() {
   const [continuations, setContinuations] = useState<OpeningContinuation[]>([]);
   const [treeLoading, setTreeLoading] = useState(false);
 
+  // Structure Explorer Mode State
+  const [availableStructures, setAvailableStructures] = useState<PawnStructureItem[]>([]);
+  const [selectedStructure, setSelectedStructure] = useState<PawnStructureItem | null>(null);
+  const [structureFilter, setStructureFilter] = useState<"all" | "wins" | "draws" | "losses">("all");
+  const [structureSearch, setStructureSearch] = useState<string>("");
+  const [playerGames, setPlayerGames] = useState<Game[]>([]);
+  const [activeStructureGameIdx, setActiveStructureGameIdx] = useState<number | null>(null);
+
   // Custom PGN modal
   const [showPgnInput, setShowPgnInput] = useState(false);
   const [inputPgn, setInputPgn] = useState("");
@@ -64,15 +99,20 @@ function AnalyzeContent() {
   useEffect(() => {
     apiClient.getPlayers().then((list) => {
       setPlayers(list);
-      if (list.length > 0 && !selectedPlayerId) {
-        const defaultP = list[0];
-        setSelectedPlayerId(defaultP.id);
-        setActiveRunId(queryRunId || defaultP.id);
+      if (list.length > 0) {
+        if (queryPlayerId && list.some((p) => p.id === queryPlayerId)) {
+          setSelectedPlayerId(queryPlayerId);
+          setActiveRunId(queryRunId || queryPlayerId);
+        } else if (!selectedPlayerId) {
+          const defaultP = list[0];
+          setSelectedPlayerId(defaultP.id);
+          setActiveRunId(queryRunId || defaultP.id);
+        }
       }
     }).catch((err) => {
       console.warn("Failed to load players:", err);
     });
-  }, [queryRunId, selectedPlayerId]);
+  }, [queryRunId, queryPlayerId]);
 
   // 2. Load single game from gameId if passed
   useEffect(() => {
@@ -90,12 +130,45 @@ function AnalyzeContent() {
             setCurrentPly(0);
             setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
           }
+
+          // Automatically match and select player from the game if queryPlayerId is not provided
+          if (!queryPlayerId && players.length > 0) {
+            const matchedPlayer = players.find((p) =>
+              isPlayerNameMatch(p.canonical_name, g.white_player) ||
+              isPlayerNameMatch(p.canonical_name, g.black_player)
+            );
+            if (matchedPlayer) {
+              setSelectedPlayerId(matchedPlayer.id);
+              setActiveRunId(matchedPlayer.id);
+            }
+          }
         }
       }).catch((err) => console.warn("Failed to load game:", err));
     }
-  }, [queryGameId]);
+  }, [queryGameId, queryPlayerId, players]);
 
-  // 2b. Auto-play initial move if queryMove is present
+  // 2b. Synchronize player matching if players list loaded after gameInfo
+  useEffect(() => {
+    if (gameInfo && !queryPlayerId && players.length > 0) {
+      const currentObj = players.find((p) => p.id === selectedPlayerId);
+      const isCurrentMatching = currentObj && (
+        isPlayerNameMatch(currentObj.canonical_name, gameInfo.white_player) ||
+        isPlayerNameMatch(currentObj.canonical_name, gameInfo.black_player)
+      );
+      if (!isCurrentMatching) {
+        const matchedPlayer = players.find((p) =>
+          isPlayerNameMatch(p.canonical_name, gameInfo.white_player) ||
+          isPlayerNameMatch(p.canonical_name, gameInfo.black_player)
+        );
+        if (matchedPlayer) {
+          setSelectedPlayerId(matchedPlayer.id);
+          setActiveRunId(matchedPlayer.id);
+        }
+      }
+    }
+  }, [players, gameInfo, queryPlayerId, selectedPlayerId]);
+
+  // 2c. Auto-play initial move if queryMove is present
   useEffect(() => {
     if (queryMove && moves.length === 0) {
       try {
@@ -138,6 +211,54 @@ function AnalyzeContent() {
     }
   }, [activeRunId, selectedPlayerId, currentFen, colorFilter, fetchTreeContinuations]);
 
+  // 4. Fetch Analysis Run (Pawn Structures) and Player Games when selectedPlayerId changes
+  useEffect(() => {
+    const targetPlayer = queryPlayerId || selectedPlayerId;
+    if (!targetPlayer) return;
+
+    // Fetch analysis run for pawn structures
+    apiClient.getAnalysisRun(targetPlayer)
+      .then((run) => {
+        const structs: PawnStructureItem[] = run?.pawn_structures_summary?.structures || [];
+        setAvailableStructures(structs);
+
+        if (queryStructure) {
+          const matched = structs.find((s) => 
+            s.name.toLowerCase().trim() === queryStructure.toLowerCase().trim() ||
+            (s.structure_key && s.structure_key.toLowerCase() === queryStructure.toLowerCase().trim())
+          );
+          if (matched) {
+            setSelectedStructure(matched);
+          }
+        }
+      })
+      .catch((err) => console.warn("Failed to load run structures:", err));
+
+    // Fetch player's games list for full moves_san
+    apiClient.getPlayerGames(targetPlayer, { pageSize: 500 })
+      .then((res) => {
+        if (res && res.items) {
+          setPlayerGames(res.items);
+        }
+      })
+      .catch((err) => console.warn("Failed to load player games:", err));
+  }, [selectedPlayerId, queryPlayerId, queryStructure]);
+
+  // 4b. Sync selectedStructure if queryStructure changes
+  useEffect(() => {
+    if (queryStructure && availableStructures.length > 0) {
+      const matched = availableStructures.find((s) => 
+        s.name.toLowerCase().trim() === queryStructure.toLowerCase().trim() ||
+        (s.structure_key && s.structure_key.toLowerCase() === queryStructure.toLowerCase().trim())
+      );
+      if (matched) {
+        setSelectedStructure(matched);
+      }
+    } else if (!queryStructure) {
+      setSelectedStructure(null);
+    }
+  }, [queryStructure, availableStructures]);
+
   // Handle Player Switch
   const handlePlayerChange = (newPlayerId: string) => {
     setSelectedPlayerId(newPlayerId);
@@ -147,6 +268,8 @@ function AnalyzeContent() {
     setCurrentPly(0);
     setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     setGameInfo(null);
+    setSelectedStructure(null);
+    setActiveStructureGameIdx(null);
   };
 
   // Position change from ChessBoard component
@@ -199,6 +322,95 @@ function AnalyzeContent() {
     });
   };
 
+  // Load a structure game onto the board
+  const handleLoadStructureGame = (structGame: PawnStructureGame, indexInStruct: number) => {
+    setActiveStructureGameIdx(indexInStruct);
+
+    // Find the full Game object
+    let fullGame: Game | undefined;
+    if (structGame.id) {
+      fullGame = playerGames.find((pg) => pg.id === structGame.id);
+    }
+    if (!fullGame && structGame.game_index !== undefined && playerGames[structGame.game_index]) {
+      fullGame = playerGames[structGame.game_index];
+    }
+    if (!fullGame) {
+      fullGame = playerGames.find((pg) => 
+        isPlayerNameMatch(pg.white_player, structGame.white) &&
+        isPlayerNameMatch(pg.black_player, structGame.black) &&
+        pg.result === structGame.result
+      );
+    }
+
+    const applyGameMoves = (targetGame: Game) => {
+      setGameInfo(targetGame);
+      if (targetGame.moves_san) {
+        const rawTokens = targetGame.moves_san.split(" ");
+        const parsedMoves = rawTokens
+          .map((t) => t.replace(/^\d+\.+/, "").trim())
+          .filter((t) => t && !["1-0", "0-1", "1/2-1/2", "*"].includes(t));
+
+        setMoves(parsedMoves);
+
+        // Jump to the formation move of the structure
+        const chess = new Chess();
+        const formMove = structGame.formation_move || 10;
+        const targetPly = Math.min(Math.max(0, (formMove - 1) * 2), parsedMoves.length);
+
+        for (let i = 0; i < targetPly; i++) {
+          try {
+            chess.move(parsedMoves[i]);
+          } catch {
+            break;
+          }
+        }
+
+        setCurrentPly(targetPly);
+        setCurrentFen(chess.fen());
+      }
+    };
+
+    if (fullGame) {
+      applyGameMoves(fullGame);
+    } else if (structGame.id) {
+      apiClient.getGame(structGame.id).then((g) => {
+        if (g) applyGameMoves(g);
+      }).catch((err) => console.warn("Could not fetch full structure game:", err));
+    }
+  };
+
+  // Auto-load game if queryGameIdx is in URL
+  useEffect(() => {
+    if (queryGameIdx && selectedStructure?.games && selectedStructure.games.length > 0 && playerGames.length > 0) {
+      const idxNum = parseInt(queryGameIdx, 10);
+      const targetG = selectedStructure.games.find((g) => g.game_index === idxNum) || selectedStructure.games[idxNum];
+      if (targetG) {
+        handleLoadStructureGame(targetG, targetG.game_index ?? idxNum);
+      }
+    }
+  }, [queryGameIdx, selectedStructure, playerGames]);
+
+  // Exit Structure Explorer Mode
+  const handleExitStructureExplorer = () => {
+    setSelectedStructure(null);
+    setActiveStructureGameIdx(null);
+    const params = new URLSearchParams(window.location.search);
+    params.delete("structure");
+    params.delete("gameIdx");
+    const newQuery = params.toString();
+    router.replace(newQuery ? `/analyze?${newQuery}` : `/analyze`);
+  };
+
+  // Switch Structure in Explorer Mode
+  const handleSelectStructure = (struct: PawnStructureItem) => {
+    setSelectedStructure(struct);
+    setActiveStructureGameIdx(null);
+    const params = new URLSearchParams(window.location.search);
+    params.set("structure", struct.name);
+    params.delete("gameIdx");
+    router.replace(`/analyze?${params.toString()}`);
+  };
+
   // Handle Custom PGN Input
   const handleLoadCustomPgn = () => {
     if (!inputPgn.trim()) return;
@@ -216,13 +428,34 @@ function AnalyzeContent() {
     }
   };
 
+  // Filtered structure games
+  const filteredStructureGames = useMemo(() => {
+    if (!selectedStructure || !selectedStructure.games) return [];
+    return selectedStructure.games.filter((g) => {
+      if (structureFilter === "wins" && !g.is_win) return false;
+      if (structureFilter === "draws" && !g.is_draw) return false;
+      if (structureFilter === "losses" && !g.is_loss) return false;
+
+      if (structureSearch.trim()) {
+        const q = normalizePlayerName(structureSearch);
+        const w = normalizePlayerName(g.white || "");
+        const b = normalizePlayerName(g.black || "");
+        const op = normalizePlayerName(g.opening || "");
+        if (!w.includes(q) && !b.includes(q) && !op.includes(q)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [selectedStructure, structureFilter, structureSearch]);
+
   // Lichess URL for current position
   const lichessAnalysisUrl = `https://lichess.org/analysis/standard/${currentFen.replace(/ /g, "_")}`;
 
   const currentPlayerObj = players.find((p) => p.id === selectedPlayerId);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 animate-fade-in pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 animate-fade-in pb-16">
       {/* Top Header & Context Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-4">
         <div>
@@ -283,6 +516,69 @@ function AnalyzeContent() {
         </div>
       </div>
 
+      {/* MODE B: STRUCTURE EXPLORER HEADER BANNER */}
+      {selectedStructure && (
+        <div className="bg-primary/10 border border-primary/30 rounded-3xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
+              <Layers className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-primary uppercase tracking-wider">
+                  Structure Explorer Mode
+                </span>
+                <span
+                  className="px-2.5 py-0.5 rounded-full text-[10px] font-bold"
+                  style={{
+                    backgroundColor: `${selectedStructure.assessment_color ?? "#94A3B8"}20`,
+                    color: selectedStructure.assessment_color ?? "#94A3B8",
+                  }}
+                >
+                  {selectedStructure.assessment_badge || "Cấu trúc Tốt"}
+                </span>
+              </div>
+              <h2 className="text-xl font-black text-foreground mt-0.5">
+                {selectedStructure.name}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Đang xem <b>{selectedStructure.games?.length || selectedStructure.games_count}</b> ván đấu thực tế có cấu trúc Tốt này • Hình thành quanh nước {selectedStructure.typical_formation_move || 12} • Điểm Bayes: <b>{(selectedStructure.adjusted_score_pct ?? selectedStructure.score_pct).toFixed(1)}%</b>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {availableStructures.length > 1 && (
+              <div className="flex items-center gap-1.5 bg-card border border-border/60 rounded-xl px-2.5 py-1.5 shadow-sm">
+                <span className="text-[11px] font-semibold text-muted-foreground">Đổi cấu trúc:</span>
+                <select
+                  value={selectedStructure.name}
+                  onChange={(e) => {
+                    const target = availableStructures.find((s) => s.name === e.target.value);
+                    if (target) handleSelectStructure(target);
+                  }}
+                  className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer"
+                >
+                  {availableStructures.map((s) => (
+                    <option key={s.name} value={s.name} className="bg-card text-foreground">
+                      {s.name} ({s.games_count} ván)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              onClick={handleExitStructureExplorer}
+              className="px-3.5 py-2 rounded-xl border border-border/60 hover:bg-secondary text-foreground text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Trở về Phân tích Thường
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Analysis Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Interactive ChessBoard & Bottom Actions (7 Cols) */}
@@ -319,14 +615,50 @@ function AnalyzeContent() {
                 </a>
               </div>
 
-              {currentPlayerObj && (
-                <Link
-                  href={`/players/${currentPlayerObj.id}`}
-                  className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                >
-                  Xem Hồ sơ {currentPlayerObj.canonical_name} →
-                </Link>
-              )}
+              {/* Robust Player Profile Links */}
+              <div className="flex flex-wrap items-center gap-3">
+                {gameInfo ? (
+                  (() => {
+                    const whiteP = players.find((p) => isPlayerNameMatch(p.canonical_name, gameInfo.white_player));
+                    const blackP = players.find((p) => isPlayerNameMatch(p.canonical_name, gameInfo.black_player));
+                    const matched = [whiteP, blackP].filter((p): p is Player => !!p);
+
+                    if (matched.length > 0) {
+                      return matched.map((p) => (
+                        <Link
+                          key={p.id}
+                          href={`/players/${p.id}`}
+                          className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                        >
+                          Xem Hồ sơ {p.canonical_name} →
+                        </Link>
+                      ));
+                    }
+
+                    if (queryPlayerId && currentPlayerObj) {
+                      return (
+                        <Link
+                          href={`/players/${currentPlayerObj.id}`}
+                          className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                        >
+                          Xem Hồ sơ {currentPlayerObj.canonical_name} →
+                        </Link>
+                      );
+                    }
+
+                    return null;
+                  })()
+                ) : (
+                  currentPlayerObj && (
+                    <Link
+                      href={`/players/${currentPlayerObj.id}`}
+                      className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                    >
+                      Xem Hồ sơ {currentPlayerObj.canonical_name} →
+                    </Link>
+                  )
+                )}
+              </div>
             </div>
           </div>
 
@@ -420,6 +752,182 @@ function AnalyzeContent() {
         </div>
       </div>
 
+      {/* MODE B: STRUCTURE GAMES LIST PANEL */}
+      {selectedStructure && (
+        <div className="bg-card border border-border/60 rounded-3xl p-6 shadow-sm space-y-4 animate-fade-in">
+          {/* Header & Search */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-4">
+            <div>
+              <h3 className="text-lg font-black text-foreground flex items-center gap-2">
+                <Layers className="w-5 h-5 text-primary" />
+                📋 Danh sách ván đấu có cấu trúc {selectedStructure.name} ({selectedStructure.games?.length || selectedStructure.games_count} ván)
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Bấm <b>"Xem ván"</b> để nạp toàn bộ nước đi lên bàn cờ và nhảy ngay tới nước hình thành cấu trúc Tốt (Nước {selectedStructure.typical_formation_move || 12}).
+              </p>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative w-full sm:w-64">
+              <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Tìm đối thủ, khai cuộc..."
+                value={structureSearch}
+                onChange={(e) => setStructureSearch(e.target.value)}
+                className="w-full bg-secondary/50 border border-border/60 rounded-xl pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setStructureFilter("all")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                structureFilter === "all"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Tất cả ({selectedStructure.games?.length || 0})
+            </button>
+            <button
+              onClick={() => setStructureFilter("wins")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                structureFilter === "wins"
+                  ? "bg-emerald-500 text-white shadow-sm"
+                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Ván Thắng ({selectedStructure.wins})
+            </button>
+            <button
+              onClick={() => setStructureFilter("draws")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                structureFilter === "draws"
+                  ? "bg-amber-500 text-white shadow-sm"
+                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Ván Hòa ({selectedStructure.draws})
+            </button>
+            <button
+              onClick={() => setStructureFilter("losses")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                structureFilter === "losses"
+                  ? "bg-rose-500 text-white shadow-sm"
+                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Ván Thua ({selectedStructure.losses})
+            </button>
+          </div>
+
+          {/* Games Table */}
+          <div className="overflow-x-auto border border-border/40 rounded-2xl">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted/50 text-muted-foreground font-semibold">
+                <tr>
+                  <th className="px-4 py-3">#</th>
+                  <th className="px-4 py-3">Trắng vs Đen</th>
+                  <th className="px-4 py-3">Khai cuộc / Kết quả</th>
+                  <th className="px-4 py-3 text-center">Nước hình thành</th>
+                  <th className="px-4 py-3 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {filteredStructureGames.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                      Không có ván đấu nào khớp với bộ lọc.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredStructureGames.map((g, idx) => {
+                    const isCurrent = activeStructureGameIdx === (g.game_index ?? idx);
+
+                    let resBadge = <span className="text-muted-foreground">{g.result}</span>;
+                    if (g.is_win) {
+                      resBadge = (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                          {g.result} (Thắng)
+                        </span>
+                      );
+                    } else if (g.is_draw) {
+                      resBadge = (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                          {g.result} (Hòa)
+                        </span>
+                      );
+                    } else if (g.is_loss) {
+                      resBadge = (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                          {g.result} (Thua)
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <tr
+                        key={idx}
+                        className={`transition ${isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/30"}`}
+                      >
+                        <td className="px-4 py-3 font-mono text-muted-foreground">
+                          {g.game_index !== undefined ? g.game_index + 1 : idx + 1}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-foreground">
+                            ⚪ {g.white}
+                          </div>
+                          <div className="text-muted-foreground">
+                            ⚫ {g.black}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-muted-foreground truncate max-w-[220px]">
+                            {g.opening || "Khai cuộc không xác định"}
+                          </div>
+                          <div className="mt-0.5">{resBadge}</div>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="font-mono text-xs px-2.5 py-0.5 rounded-lg bg-secondary text-foreground">
+                            Move {g.formation_move || "?"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => handleLoadStructureGame(g, g.game_index ?? idx)}
+                            disabled={isCurrent}
+                            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition shadow-sm ${
+                              isCurrent
+                                ? "bg-emerald-500 text-white cursor-default"
+                                : "bg-primary text-primary-foreground hover:bg-primary/90"
+                            }`}
+                          >
+                            {isCurrent ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                Đang xem
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-3.5 h-3.5" />
+                                Xem ván
+                              </>
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Custom PGN / FEN Modal */}
       {showPgnInput && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
@@ -475,4 +983,3 @@ export default function AnalyzePage() {
     </Suspense>
   );
 }
-

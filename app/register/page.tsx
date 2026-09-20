@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { UserPlus, Mail, Lock, User, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
+import { UserPlus, Mail, Lock, User, ArrowRight, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -78,8 +78,9 @@ export default function RegisterPage() {
         </div>
 
         {error && (
-          <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-xl text-destructive text-xs leading-relaxed animate-fade-in">
-            ⚠️ {error}
+          <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-xl text-destructive text-xs leading-relaxed flex items-center gap-2 animate-fade-in">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 

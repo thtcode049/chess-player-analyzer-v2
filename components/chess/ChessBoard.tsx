@@ -214,8 +214,9 @@ export default function ChessBoard({
       {/* Top Engine & Status Bar */}
       <div className="w-full flex items-center justify-between pb-3 text-xs text-slate-500 dark:text-slate-400">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-slate-800 dark:text-slate-200">
-            {boardOrientation === "white" ? "⚪ Trắng" : "⚫ Đen"} POV
+          <span className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
+            <span className={`w-2.5 h-2.5 rounded-full border shadow-2xs ${boardOrientation === "white" ? "bg-white border-slate-300 dark:border-slate-500" : "bg-slate-900 border-slate-700"}`} />
+            <span>Góc nhìn: {boardOrientation === "white" ? "Trắng" : "Đen"}</span>
           </span>
           <span className="text-slate-300 dark:text-slate-700">•</span>
           <span>Nước: {currentPly} / {historyFens.length - 1}</span>
@@ -258,6 +259,7 @@ export default function ChessBoard({
             position={game.fen()}
             onPieceDrop={onDrop}
             boardOrientation={boardOrientation}
+            boardWidth={height}
             customBoardStyle={{
               borderRadius: "8px",
             }}
@@ -272,7 +274,7 @@ export default function ChessBoard({
         <button
           onClick={handleFirst}
           disabled={currentPly === 0}
-          className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition"
+          className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-slate-100 dark:disabled:hover:bg-slate-800/80 disabled:hover:text-slate-700 border border-slate-200/60 dark:border-slate-700/60 transition-all shadow-xs"
           title="Nước đầu tiên (Home)"
         >
           <ChevronsLeft className="w-4 h-4" />
@@ -280,51 +282,34 @@ export default function ChessBoard({
         <button
           onClick={handlePrev}
           disabled={currentPly === 0}
-          className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition"
-          title="Lùi 1 nước (← hoặc <)"
+          className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-slate-100 dark:disabled:hover:bg-slate-800/80 disabled:hover:text-slate-700 border border-slate-200/60 dark:border-slate-700/60 transition-all shadow-xs"
+          title="Lùi 1 nước"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
         <button
           onClick={handleNext}
           disabled={currentPly >= historyFens.length - 1}
-          className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition"
-          title="Tiến 1 nước (→ hoặc >)"
+          className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-slate-100 dark:disabled:hover:bg-slate-800/80 disabled:hover:text-slate-700 border border-slate-200/60 dark:border-slate-700/60 transition-all shadow-xs"
+          title="Tiến 1 nước"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
         <button
           onClick={handleLast}
           disabled={currentPly >= historyFens.length - 1}
-          className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition"
+          className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-slate-100 dark:disabled:hover:bg-slate-800/80 disabled:hover:text-slate-700 border border-slate-200/60 dark:border-slate-700/60 transition-all shadow-xs"
           title="Nước cuối cùng (End)"
         >
           <ChevronsRight className="w-4 h-4" />
         </button>
         <button
           onClick={handleFlip}
-          className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-          title="Xoay bàn cờ (F)"
+          className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white border border-slate-200/60 dark:border-slate-700/60 transition-all shadow-xs"
+          title="Xoay bàn cờ"
         >
           <RotateCw className="w-4 h-4" />
         </button>
-      </div>
-
-      {/* Keyboard hints */}
-      <div className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center justify-center gap-3 pt-2 select-none">
-        <span className="flex items-center gap-1">
-          <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-300">←</kbd>
-          <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-300">→</kbd>
-          <span>hoặc</span>
-          <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-300">&lt;</kbd>
-          <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-300">&gt;</kbd>
-          <span>duyệt nước đi</span>
-        </span>
-        <span>•</span>
-        <span className="flex items-center gap-1">
-          <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-300">F</kbd>
-          <span>xoay bàn</span>
-        </span>
       </div>
     </div>
   );

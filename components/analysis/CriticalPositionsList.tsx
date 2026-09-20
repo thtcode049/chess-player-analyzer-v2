@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AlertTriangle, AlertCircle, ArrowRight, Crosshair, ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronRight, ArrowRight } from "lucide-react";
 import { CriticalPosition } from "@/lib/api/types";
 
 interface CriticalPositionsListProps {
@@ -30,7 +30,7 @@ export default function CriticalPositionsList({
       case "INACCURACY":
         return <span className="px-2 py-0.5 rounded text-[10px] font-black bg-sky-500/15 text-sky-500 border border-sky-500/30">INACCURACY ?!</span>;
       default:
-        return <span className="px-2 py-0.5 rounded text-[10px] font-black bg-purple-500/15 text-purple-500 border border-purple-500/30">SWING ⚡</span>;
+        return <span className="px-2 py-0.5 rounded text-[10px] font-black bg-purple-500/15 text-purple-500 border border-purple-500/30">SWING</span>;
     }
   };
 

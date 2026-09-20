@@ -9,12 +9,12 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Loader2, 
-  ArrowRight,
+  Sparkles,
   Database,
-  BarChart3,
   User,
-  ShieldCheck,
-  RefreshCw
+  RefreshCw,
+  BarChart3,
+  ArrowRight
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { ImportSummary } from "@/lib/api/types";
@@ -430,24 +430,32 @@ export default function ImportPage() {
             </div>
           )}
 
-          {/* Architecture Guarantee Card */}
-          <div className="bg-card/50 border border-border/40 rounded-2xl p-6 space-y-4">
-            <div className="flex items-center gap-2.5 text-primary">
-              <ShieldCheck className="w-5 h-5" />
-              <h4 className="font-bold text-sm text-foreground">Nguyên tắc Kiến trúc V2</h4>
+          {/* Quick Guide Card */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl p-6 space-y-4 shadow-xs">
+            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+              <Sparkles className="w-4 h-4" />
+              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white">
+                Quy Trình Phân Tích Dữ Liệu
+              </h4>
             </div>
-            <ul className="space-y-2.5 text-xs text-muted-foreground leading-relaxed">
-              <li className="flex items-start gap-2">
-                <span className="text-primary font-bold">•</span>
-                <span><b>Zero Server CPU Timeout:</b> Trích xuất đánh giá tích hợp trong file PGN (&lt;10ms) thay vì chạy engine nặng gây timeout serverless.</span>
+            <ul className="space-y-3 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              <li className="flex items-start gap-2.5">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] shrink-0 mt-0.5">
+                  1
+                </span>
+                <span><b>Tải file hoặc kết nối tài khoản:</b> Nạp tệp PGN hoặc nhập username Lichess/Chess.com để kéo ván đấu tự động.</span>
               </li>
-              <li className="flex items-start gap-2">
-                <span className="text-primary font-bold">•</span>
-                <span><b>Free Tier 500MB Safety:</b> PGN gốc lưu trong Supabase Storage Bucket (`pgn-vault`), chỉ lưu metadata và compact JSONB trong DB.</span>
+              <li className="flex items-start gap-2.5">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] shrink-0 mt-0.5">
+                  2
+                </span>
+                <span><b>Chuẩn hóa & Bóc tách chiến thuật:</b> Hệ thống tự động trích xuất các biến khai cuộc, cấu trúc Tốt và phát hiện các nước sai lầm then chốt.</span>
               </li>
-              <li className="flex items-start gap-2">
-                <span className="text-primary font-bold">•</span>
-                <span><b>Interactive Analysis:</b> Phân tích từng thế cờ trực tiếp chạy bằng Stockfish WASM trong Browser Web Worker.</span>
+              <li className="flex items-start gap-2.5">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] shrink-0 mt-0.5">
+                  3
+                </span>
+                <span><b>Khám phá & Cố vấn:</b> Xem cây khai cuộc trên Bàn cờ phân tích hoặc nhận lộ trình cải thiện từ Trợ lí AI Đại kiện tướng.</span>
               </li>
             </ul>
           </div>

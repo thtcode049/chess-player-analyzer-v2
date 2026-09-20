@@ -5,23 +5,14 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Chess } from "chess.js";
 import { 
   Play, 
-  RotateCw, 
   Layers, 
   Cpu, 
   Upload, 
   FileText, 
   ArrowLeft, 
-  Share2, 
-  Info,
-  CheckCircle2,
-  Loader2,
-  ExternalLink,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  User,
-  Search,
+  Loader2, 
+  User, 
+  Search, 
   Check
 } from "lucide-react";
 import Link from "next/link";
@@ -61,7 +52,6 @@ function AnalyzeContent() {
   const queryGameId = searchParams.get("gameId");
   const queryPlayerId = searchParams.get("playerId");
   const queryRunId = searchParams.get("runId");
-  const queryOpening = searchParams.get("opening");
   const queryMove = searchParams.get("move");
   const queryStructure = searchParams.get("structure");
   const queryGameIdx = searchParams.get("gameIdx");
@@ -449,8 +439,6 @@ function AnalyzeContent() {
     });
   }, [selectedStructure, structureFilter, structureSearch]);
 
-  // Lichess URL for current position
-  const lichessAnalysisUrl = `https://lichess.org/analysis/standard/${currentFen.replace(/ /g, "_")}`;
 
   const currentPlayerObj = players.find((p) => p.id === selectedPlayerId);
 
@@ -594,29 +582,9 @@ function AnalyzeContent() {
               height={480}
             />
 
-            {/* Quick Board Utilities Bar */}
-            <div className="mt-4 pt-3 border-t border-border/40 flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
-                  className="px-3 py-1.5 rounded-xl border border-border/60 hover:bg-secondary text-foreground font-semibold flex items-center gap-1.5 transition"
-                >
-                  <RotateCw className="w-3.5 h-3.5" />
-                  Xoay bàn ({boardOrientation === "white" ? "Trắng" : "Đen"})
-                </button>
-                <a
-                  href={lichessAnalysisUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-3 py-1.5 rounded-xl bg-secondary hover:bg-primary hover:text-primary-foreground font-semibold text-foreground flex items-center gap-1.5 transition"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Phân tích trên Lichess
-                </a>
-              </div>
-
-              {/* Robust Player Profile Links */}
-              <div className="flex flex-wrap items-center gap-3">
+            {/* Player Profile Link */}
+            {(gameInfo || currentPlayerObj) && (
+              <div className="mt-3 pt-2.5 border-t border-border/40 flex flex-wrap items-center justify-end gap-3 text-xs">
                 {gameInfo ? (
                   (() => {
                     const whiteP = players.find((p) => isPlayerNameMatch(p.canonical_name, gameInfo.white_player));
@@ -659,7 +627,7 @@ function AnalyzeContent() {
                   )
                 )}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Current FEN Bar */}
@@ -705,7 +673,8 @@ function AnalyzeContent() {
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary"
               }`}
             >
-              <span>🔄 Tất cả</span>
+              <Layers className="w-3.5 h-3.5" />
+              <span>Tất cả</span>
             </button>
             <button
               onClick={() => {
@@ -718,7 +687,8 @@ function AnalyzeContent() {
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary"
               }`}
             >
-              <span>⚪ Cầm Trắng</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-white border border-slate-300 dark:border-slate-500 shadow-2xs" />
+              <span>Cầm Trắng</span>
             </button>
             <button
               onClick={() => {
@@ -731,7 +701,8 @@ function AnalyzeContent() {
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary"
               }`}
             >
-              <span>⚫ Cầm Đen</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-600 shadow-2xs" />
+              <span>Cầm Đen</span>
             </button>
           </div>
 
@@ -760,7 +731,7 @@ function AnalyzeContent() {
             <div>
               <h3 className="text-lg font-black text-foreground flex items-center gap-2">
                 <Layers className="w-5 h-5 text-primary" />
-                📋 Danh sách ván đấu có cấu trúc {selectedStructure.name} ({selectedStructure.games?.length || selectedStructure.games_count} ván)
+                Danh sách ván đấu có cấu trúc {selectedStructure.name} ({selectedStructure.games?.length || selectedStructure.games_count} ván)
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Bấm <b>"Xem ván"</b> để nạp toàn bộ nước đi lên bàn cờ và nhảy ngay tới nước hình thành cấu trúc Tốt (Nước {selectedStructure.typical_formation_move || 12}).
@@ -877,11 +848,13 @@ function AnalyzeContent() {
                           {g.game_index !== undefined ? g.game_index + 1 : idx + 1}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="font-semibold text-foreground">
-                            ⚪ {g.white}
+                          <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                            <span className="w-2 h-2 rounded-full bg-white border border-slate-300 dark:border-slate-500 shrink-0" />
+                            <span>{g.white}</span>
                           </div>
-                          <div className="text-muted-foreground">
-                            ⚫ {g.black}
+                          <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
+                            <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-700 shrink-0" />
+                            <span>{g.black}</span>
                           </div>
                         </td>
                         <td className="px-4 py-3">

@@ -4,10 +4,7 @@ import React, { useState, useEffect } from "react";
 import { 
   Settings, 
   User, 
-  Key, 
-  Sliders, 
   Save, 
-  ShieldCheck, 
   CheckCircle2,
   Globe,
   SlidersHorizontal
@@ -23,7 +20,6 @@ export default function SettingsPage() {
   const [chesscomUser, setChesscomUser] = useState("");
   const [geminiKey, setGeminiKey] = useState("");
   const [engineDepth, setEngineDepth] = useState(12);
-  const [boardTheme, setBoardTheme] = useState("brown");
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {

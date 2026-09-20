@@ -2,7 +2,7 @@
 
 import React from "react";
 import { OpeningContinuation } from "@/lib/api/types";
-import { Play, Eye, ExternalLink, Info } from "lucide-react";
+import { Play, GitBranch, Eye, ExternalLink } from "lucide-react";
 
 interface OpeningTreeTableProps {
   continuations: OpeningContinuation[];
@@ -21,10 +21,11 @@ export default function OpeningTreeTable({
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
       <div className="px-4 py-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 flex items-center justify-between">
         <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-          <span>🌳 Các Biến Thể Khai Cuộc Tiếp Theo</span>
+          <GitBranch className="w-4 h-4 text-emerald-500" />
+          <span>Các Biến Thể Khai Cuộc Tiếp Theo</span>
         </h3>
         <span className="text-xs text-slate-500 font-medium">
-          {continuations.length} biến khả dụng
+          {totalGames > 0 ? `${totalGames} ván • ` : ""}{continuations.length} biến khả dụng
         </span>
       </div>
 

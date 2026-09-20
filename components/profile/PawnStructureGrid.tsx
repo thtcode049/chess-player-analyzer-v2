@@ -2,8 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Layers, ChevronRight, X, ExternalLink, Play, Trophy, CheckCircle2, AlertCircle } from "lucide-react";
-import { PawnStructureItem, PawnStructureGame } from "@/lib/api/types";
+import { Layers, X, Play, ExternalLink } from "lucide-react";
+import { PawnStructureItem } from "@/lib/api/types";
 
 interface PawnStructureGridProps {
   structures?: PawnStructureItem[];
@@ -272,11 +272,13 @@ export default function PawnStructureGrid({
                             {g.game_index !== undefined ? g.game_index + 1 : gIdx + 1}
                           </td>
                           <td className="px-3 py-3">
-                            <div className="font-semibold text-foreground">
-                              ⚪ {g.white}
+                            <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                              <span className="w-2 h-2 rounded-full bg-white border border-slate-300 dark:border-slate-500 shrink-0" />
+                              <span>{g.white}</span>
                             </div>
-                            <div className="text-muted-foreground">
-                              ⚫ {g.black}
+                            <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
+                              <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-700 shrink-0" />
+                              <span>{g.black}</span>
                             </div>
                           </td>
                           <td className="px-3 py-3">

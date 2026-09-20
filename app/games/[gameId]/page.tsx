@@ -1,18 +1,11 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from "react";
-import { useParams, useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { 
   ArrowLeft, 
-  Trophy, 
-  Calendar, 
-  ExternalLink, 
   Cpu, 
-  Play, 
-  Layers, 
-  ShieldCheck,
-  AlertTriangle,
   Loader2
 } from "lucide-react";
 import ChessBoard from "@/components/chess/ChessBoard";
@@ -23,7 +16,6 @@ import { Game, CriticalPosition } from "@/lib/api/types";
 
 export default function GameViewerPage() {
   const params = useParams();
-  const router = useRouter();
   const gameId = params.gameId as string;
 
   const [game, setGame] = useState<Game | null>(null);

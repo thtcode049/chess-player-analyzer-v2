@@ -11,7 +11,8 @@ import {
   Copy,
   Check,
   RotateCcw,
-  Zap
+  Zap,
+  Target
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -300,26 +301,28 @@ export default function AiCoachChat({
                 setPerspectiveMode("self");
                 loadBriefing("self");
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
                 perspectiveMode === "self"
                   ? "bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-xs"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              👤 Bản thân / Học viên
+              <User className="w-3.5 h-3.5" />
+              <span>Bản thân / Học viên</span>
             </button>
             <button
               onClick={() => {
                 setPerspectiveMode("opponent");
                 loadBriefing("opponent");
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
                 perspectiveMode === "opponent"
                   ? "bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-xs"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              🎯 Đối thủ sắp gặp
+              <Target className="w-3.5 h-3.5" />
+              <span>Đối thủ sắp gặp</span>
             </button>
           </div>
 

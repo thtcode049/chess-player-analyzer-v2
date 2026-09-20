@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { 
-  User, 
   Trophy, 
   BarChart2, 
   Layers, 
@@ -14,12 +13,10 @@ import {
   RefreshCw, 
   ArrowLeft, 
   Play, 
-  Calendar, 
   Loader2,
-  AlertCircle,
-  Clock,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Check
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { Player, Game, AnalysisRun } from "@/lib/api/types";
@@ -39,7 +36,6 @@ export default function PlayerDetailPage() {
   const [analysisRun, setAnalysisRun] = useState<AnalysisRun | null>(null);
   const [loading, setLoading] = useState(true);
   const [runningAnalysis, setRunningAnalysis] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   // Filter state for games tab
   const [gameColorFilter, setGameColorFilter] = useState<string>("all");
@@ -88,7 +84,7 @@ export default function PlayerDetailPage() {
           setAnalysisRun(run);
         }
       } catch (err: any) {
-        setError(err.message || "Lỗi khi tải thông tin kỳ thủ.");
+        console.error("Lỗi khi tải thông tin kỳ thủ:", err);
       } finally {
         setLoading(false);
       }
@@ -379,10 +375,10 @@ export default function PlayerDetailPage() {
               <div>
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <Play className="w-5 h-5 text-primary" />
-                  Hồ Sơ Khai Cuộc & Co Ngót Bayes (Bayesian Shrinkage K=6.0)
+                  Đánh Giá Hiệu Suất Khai Cuộc (Bayesian Adjusted)
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Khắc phục thiên lệch mẫu nhỏ: Phân định điểm mạnh / điểm yếu thực sự so với mức trung bình cơ sở.
+                  Đánh giá khách quan điểm mạnh & điểm yếu thực sự so với mức trung bình cơ sở.
                 </p>
               </div>
               <span className="text-xs px-2.5 py-1 rounded-lg bg-secondary text-foreground font-semibold">
@@ -403,7 +399,7 @@ export default function PlayerDetailPage() {
                         <th className="px-3 py-3 text-right">Điểm thực</th>
                         <th className="px-3 py-3 text-right">Điểm Bayes</th>
                         <th className="px-3 py-3 text-right">Độ lệch (Δ)</th>
-                        <th className="px-4 py-3">Đánh giá Toán học</th>
+                        <th className="px-4 py-3">Đánh giá Hiệu suất</th>
                         <th className="px-3 py-3 text-center">Hành động</th>
                       </tr>
                     </thead>
@@ -485,7 +481,7 @@ export default function PlayerDetailPage() {
               </div>
             ) : (
               <div className="p-6 text-center bg-card border border-border/40 rounded-2xl text-muted-foreground text-xs">
-                Chưa đủ mẫu ván đấu để phân loại Repertoire theo Co ngót Bayes.
+                Chưa đủ số ván đấu để phân loại hiệu suất khai cuộc.
               </div>
             )}
           </div>
@@ -628,12 +624,13 @@ export default function PlayerDetailPage() {
                       </td>
                       <td className="px-3 py-3">
                         {g.has_embedded_eval ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                            ✓ Tích hợp sẵn
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                            <Check className="w-3 h-3" />
+                            <span>Đã nạp sẵn</span>
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground">
-                            WASM On-demand
+                            Phân tích On-demand
                           </span>
                         )}
                       </td>

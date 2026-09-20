@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Brain, Sparkles, User, ShieldCheck, ArrowRight, BookOpen, Layers, Lightbulb } from "lucide-react";
+import { Brain, Sparkles, BookOpen, Layers, Lightbulb } from "lucide-react";
 import AiCoachChat from "@/components/ai/AiCoachChat";
 import { apiClient } from "@/lib/api/client";
 import { Player } from "@/lib/api/types";
@@ -9,7 +9,6 @@ import { Player } from "@/lib/api/types";
 export default function AiCoachPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
-  const [loadingPlayers, setLoadingPlayers] = useState(true);
 
   useEffect(() => {
     apiClient.getPlayers()
@@ -22,8 +21,7 @@ export default function AiCoachPage() {
       .catch(() => {
         // Fallback default
         setSelectedPlayerId("00000000-0000-0000-0000-000000000001");
-      })
-      .finally(() => setLoadingPlayers(false));
+      });
   }, []);
 
   const selectedPlayer = players.find(p => p.id === selectedPlayerId);
@@ -33,16 +31,16 @@ export default function AiCoachPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-6">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20 mb-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40 mb-2">
             <Sparkles className="w-3.5 h-3.5" />
-            Trợ Lý AI Đại Kiện Tướng V2
+            Trợ Lý Chiến Lược AI
           </div>
           <h1 className="text-3xl font-black text-foreground tracking-tight flex items-center gap-3">
-            <Brain className="w-8 h-8 text-primary" />
-            Trung Tâm Huấn Luyện & Cố Vấn Chiến Lược AI
+            <Brain className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
+            Cố Vấn Chiến Lược & Huấn Luyện AI
           </h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            Tự động tổng hợp dữ liệu ván đấu, khai cuộc EPD, cấu trúc Tốt và đưa ra khuyến nghị chiến thuật sắc bén qua Gemini AI hoặc Chuyên gia Cục bộ.
+            Tự động tổng hợp dữ liệu thực nghiệm từ các ván đấu, phân tích danh mục khai cuộc, cấu trúc Tốt và đưa ra khuyến nghị chiến thuật cá nhân hóa.
           </p>
         </div>
 

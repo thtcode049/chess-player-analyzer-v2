@@ -118,7 +118,7 @@ export const apiClient = {
     return data || [];
   },
 
-  async createPlayer(data: { canonical_name: string; title?: string; notes?: string }): Promise<Player> {
+  async createPlayer(data: { canonical_name: string; title?: string; fide_id?: number; notes?: string }): Promise<Player> {
     const authHeaders = await getAuthHeaders();
     const res = await fetch(`${API_BASE}/api/players`, {
       method: "POST",

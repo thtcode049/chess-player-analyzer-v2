@@ -19,6 +19,10 @@ export type EvaluationCallback = (evalData: EngineEvaluation) => void;
 export class StockfishEngineController {
   private worker: Worker | null = null;
   private isReady = false;
+
+  public get ready(): boolean {
+    return this.isReady;
+  }
   private currentFen = "";
   private onEvaluation: EvaluationCallback | null = null;
   private currentEvaluation: EngineEvaluation = {

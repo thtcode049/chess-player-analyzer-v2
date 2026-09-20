@@ -7,13 +7,10 @@ import {
   UserPlus,
   Search,
   Sparkles,
-  Trophy,
   ChevronRight,
-  BookOpen,
   Calendar,
   X,
-  Loader2,
-  AlertCircle
+  Loader2
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { Player } from "@/lib/api/types";
@@ -24,7 +21,6 @@ export default function PlayersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isGuest, setIsGuest] = useState(false);
 
   // Form state
@@ -48,7 +44,7 @@ export default function PlayersPage() {
       const data = await apiClient.getPlayers();
       setPlayers(data);
     } catch (err: any) {
-      setError("Không thể tải danh sách kỳ thủ. Đang hiển thị danh sách mặc định.");
+      console.warn("Không thể tải danh sách kỳ thủ. Đang hiển thị danh sách mặc định.", err);
       // Fallback sample data if DB is empty in test
       setPlayers([
         {
@@ -90,6 +86,7 @@ export default function PlayersPage() {
       const newPlayer = await apiClient.createPlayer({
         canonical_name: canonicalName.trim(),
         title: title.trim() || undefined,
+        fide_id: fideId.trim() ? parseInt(fideId.trim(), 10) : undefined,
         notes: notes.trim() || undefined
       });
       setPlayers(prev => [newPlayer, ...prev]);

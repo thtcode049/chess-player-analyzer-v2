@@ -13,7 +13,7 @@
   --primary-foreground: #ffffff;
   --muted: #f1f5f9;
   --muted-foreground: #64748b;
-  --win: #22c55e;
+  --win: #10b981;
   --draw: #94a3b8;
   --loss: #ef4444;
 }
@@ -23,25 +23,26 @@
   --foreground: #f8fafc;
   --card: #111827;
   --card-foreground: #f8fafc;
-  --border: #1f2937;
+  --border: #1e293b;
   --primary: #10b981;
   --primary-hover: #34d399;
   --primary-foreground: #ffffff;
-  --muted: #1e293b;
+  --muted: #162032;
   --muted-foreground: #94a3b8;
-  --win: #22c55e;
+  --win: #10b981;
   --draw: #64748b;
-  --loss: #ef4444;
+  --loss: #f43f5e;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   min-height: 100vh;
+  letter-spacing: -0.01em;
 }
 
-/* Custom Scrollbars */
+/* Modern Subtle Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -51,43 +52,64 @@ body {
 }
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 4px;
+  border-radius: 9999px;
 }
 .dark ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #253347;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #384b66;
 }
 
-/* Win / Draw / Loss Bar Component */
+/* Glassmorphism Card Utility */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+.dark .glass-panel {
+  background: rgba(17, 24, 39, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(30, 41, 59, 0.8);
+}
+
+/* Modern Win / Draw / Loss Bar Component (Chess.com / Lichess style) */
 .wdl-bar {
   display: flex;
-  height: 10px;
-  border-radius: 5px;
+  height: 8px;
+  border-radius: 9999px;
   overflow: hidden;
   background: var(--muted);
   width: 100%;
 }
 .wdl-bar-win {
   background: var(--win);
-  transition: width 0.3s ease;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .wdl-bar-draw {
   background: var(--draw);
-  transition: width 0.3s ease;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .wdl-bar-loss {
   background: var(--loss);
-  transition: width 0.3s ease;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Chess Evaluation Bar */
 .eval-bar-container {
   width: 24px;
   background: #1e293b;
-  border-radius: 4px;
+  border-radius: 6px;
   overflow: hidden;
   display: flex;
   flex-direction: column-reverse;
   position: relative;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 .eval-bar-fill {
   background: #ffffff;

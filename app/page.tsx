@@ -1,118 +1,175 @@
 import Link from "next/link";
 import { 
-  BarChart3, 
   Brain, 
-  ShieldCheck, 
-  Zap, 
   ArrowRight, 
   Sparkles, 
-  Layers, 
-  Cpu 
+  BookOpen,
+  Target,
+  Upload,
+  Activity,
+  CheckCircle2
 } from "lucide-react";
 
 export default function LandingPage() {
   return (
-    <div className="flex flex-col items-center justify-center py-12 sm:py-20 text-center">
-      {/* Badge */}
-      <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-6">
-        <Sparkles className="w-3.5 h-3.5" />
-        <span>Nền tảng Phân tích Dữ liệu Ván đấu & Huấn luyện AI Cờ Vua V2</span>
+    <div className="flex flex-col items-center justify-center py-8 sm:py-16 text-center animate-fade-in">
+      {/* Glow Effect Background */}
+      <div className="relative max-w-5xl mx-auto flex flex-col items-center">
+        <div className="absolute top-1/3 -translate-y-1/2 w-72 sm:w-96 h-72 sm:h-96 bg-emerald-500/10 dark:bg-emerald-500/15 rounded-full blur-3xl pointer-events-none -z-10" />
+
+        {/* Official Brand Logo Mark */}
+        <div className="mb-5 flex items-center justify-center">
+          <div className="p-3.5 rounded-3xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 shadow-xl shadow-emerald-500/10 backdrop-blur-md transition-transform duration-300 hover:scale-105">
+            <img src="/logo.png" alt="ChessLook Logo" className="w-16 h-16 sm:w-20 sm:h-20 object-contain filter drop-shadow-md" />
+          </div>
+        </div>
+
+        {/* Brand Pill Badge */}
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-6 backdrop-blur-sm">
+          <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+          <span>ChessLook • Nền Tảng Phân Tích & Cố Vấn Cờ Vua Thông Minh</span>
+        </div>
+
+        {/* Main Hero Title */}
+        <h1 className="text-4xl sm:text-6xl font-black text-slate-900 dark:text-white tracking-tight max-w-4xl leading-[1.15]">
+          Làm Chủ Bàn Cờ Với{" "}
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-300">
+            Trí Tuệ Phân Tích Chuyên Sâu
+          </span>
+        </h1>
+
+        {/* Subtitle */}
+        <p className="mt-6 text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
+          Chuyển hóa dữ liệu ván đấu thô từ Lichess và Chess.com thành cây khai cuộc trực quan, 
+          radar 8 chiều phong cách, phân tích cấu trúc Tốt và bản tham mưu chiến thuật cá nhân hóa cùng AI.
+        </p>
+
+        {/* Dual Primary CTA Buttons */}
+        <div className="mt-8 flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+          <Link
+            href="/dashboard"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg shadow-emerald-600/25 transition-all duration-200 text-base group"
+          >
+            <span>Khám Phá Bảng Điều Khiển</span>
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+          <Link
+            href="/import"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/80 font-bold px-7 py-3.5 rounded-xl transition-all duration-200 text-base shadow-sm"
+          >
+            <Upload className="w-4 h-4 text-emerald-500" />
+            <span>Nhập Ván Đấu Của Bạn</span>
+          </Link>
+        </div>
+
+        {/* Helper Links */}
+        <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <span>Đã có tài khoản?</span>
+          <Link href="/login" className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline">
+            Đăng nhập ngay
+          </Link>
+          <span>•</span>
+          <Link href="/players" className="text-slate-600 dark:text-slate-300 font-medium hover:underline">
+            Xem Thư Viện Kỳ Thủ
+          </Link>
+        </div>
+
+        {/* Feature Highlights Banner */}
+        <div className="mt-12 flex flex-wrap items-center justify-center gap-6 text-xs font-semibold text-slate-600 dark:text-slate-400">
+          <div className="flex items-center gap-1.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <span>Tích hợp Stockfish 18 thế hệ mới</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <span>Nhận diện chống chuyển vị nước đi</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <span>Trợ lý AI Cố vấn chiến lược 24/7</span>
+          </div>
+        </div>
       </div>
 
-      {/* Main Hero Title */}
-      <h1 className="text-4xl sm:text-6xl font-extrabold text-slate-900 dark:text-white tracking-tight max-w-4xl leading-tight sm:leading-none">
-        Khai phá Lỗ hổng Cờ vua bằng{" "}
-        <span className="bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-500">
-          Toán học Bayes & Trí tuệ Nhân tạo
-        </span>
-      </h1>
-
-      {/* Subtitle */}
-      <p className="mt-6 text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
-        Biến hàng trăm ván PGN thô từ Lichess và Chess.com thành Cây khai cuộc chống chuyển vị, 
-        Radar 8 trục phong cách, phân tích cấu trúc Tốt và Bản tham mưu chiến thuật tự động cùng AI Đại kiện tướng.
-      </p>
-
-      {/* CTA Buttons */}
-      <div className="mt-8 flex flex-col sm:flex-row items-center gap-4">
-        <Link
-          href="/dashboard"
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-7 py-3.5 rounded-xl shadow-lg shadow-emerald-600/25 transition text-base"
-        >
-          <span>Khám phá Bảng Điều Khiển</span>
-          <ArrowRight className="w-4 h-4" />
-        </Link>
-        <Link
-          href="/register"
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold px-7 py-3.5 rounded-xl transition text-base"
-        >
-          <span>Đăng Ký Tài Khoản Miễn Phí</span>
-        </Link>
-      </div>
-
-      <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-        Đã có tài khoản?{" "}
-        <Link href="/login" className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline">
-          Đăng nhập ngay
-        </Link>
-        {" "}hoặc{" "}
-        <Link href="/dashboard" className="text-slate-600 dark:text-slate-300 font-medium hover:underline">
-          Trải nghiệm thử (Guest)
-        </Link>
-      </div>
-
-      {/* 4 Key Pillars Feature Grid */}
-      <div className="mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full text-left">
-        {/* Pillar 1 */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-          <div className="p-3 w-fit rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 mb-4">
-            <ShieldCheck className="w-6 h-6" />
+      {/* 4 Player-Centric Pillars Grid */}
+      <div className="mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full text-left max-w-7xl">
+        {/* Pillar 1: Openings */}
+        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm hover:border-emerald-500/40 hover:shadow-md transition-all duration-300 group">
+          <div className="p-3 w-fit rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mb-4 group-hover:scale-110 transition-transform">
+            <BookOpen className="w-6 h-6" />
           </div>
           <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">
-            Co ngót Bayes (Bayesian)
+            Bóc Tách Lỗ Hổng Khai Cuộc
           </h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Triệt tiêu hoàn toàn hiện tượng thiên lệch mẫu nhỏ ($K=6.0$). Phân loại 5 cấp bậc điểm mạnh và điểm yếu thực chất.
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Phân tích toàn diện mọi biến thể bạn từng thi đấu. Theo dõi tỷ lệ Thắng/Hòa/Thua và phát hiện ngay những nhánh cờ khiến bạn hay rơi vào thế bị động.
           </p>
         </div>
 
-        {/* Pillar 2 */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-          <div className="p-3 w-fit rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 mb-4">
-            <BarChart3 className="w-6 h-6" />
+        {/* Pillar 2: Blunders & ACPL */}
+        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm hover:border-sky-500/40 hover:shadow-md transition-all duration-300 group">
+          <div className="p-3 w-fit rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 mb-4 group-hover:scale-110 transition-transform">
+            <Target className="w-6 h-6" />
           </div>
           <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">
-            Cây Khai Cuộc Chống Chuyển Vị
+            Đo Lường Điểm Mù & ACPL
           </h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Mã băm EPD 4 trường nhận diện chính xác 100% các biến đổi thứ tự nước đi. Thống kê tỷ lệ Win/Draw/Loss chi tiết.
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Tính toán chi tiết sai số trung bình (ACPL) qua từng giai đoạn Khai cuộc, Trung cuộc và Tàn cuộc để xác định chính xác thời điểm bạn đánh mất lợi thế.
           </p>
         </div>
 
-        {/* Pillar 3 */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-          <div className="p-3 w-fit rounded-xl bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 mb-4">
-            <Cpu className="w-6 h-6" />
+        {/* Pillar 3: Style Radar & Pawn Structures */}
+        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm hover:border-purple-500/40 hover:shadow-md transition-all duration-300 group">
+          <div className="p-3 w-fit rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 mb-4 group-hover:scale-110 transition-transform">
+            <Activity className="w-6 h-6" />
           </div>
           <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">
-            Stockfish WASM Client-Side
+            Radar Phong Cách 8 Chiều
           </h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Động cơ Stockfish chạy trực tiếp trong Web Worker trình duyệt người dùng. Đánh giá thế cờ tức thì, 0 đồng chi phí server.
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Khắc họa chân dung phong cách: độ chủ động, sắc bén chiến thuật, kỹ năng tàn cuộc và hiệu suất thi đấu trên các cấu trúc Tốt điển hình.
           </p>
         </div>
 
-        {/* Pillar 4 */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-          <div className="p-3 w-fit rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 mb-4">
+        {/* Pillar 4: AI Coach */}
+        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm hover:border-amber-500/40 hover:shadow-md transition-all duration-300 group">
+          <div className="p-3 w-fit rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 mb-4 group-hover:scale-110 transition-transform">
             <Brain className="w-6 h-6" />
           </div>
           <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">
-            Trợ Lí AI Đại Kiện Tướng
+            Cố Vấn Chiến Lược AI
           </h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Chủ động tạo Bản Tóm tắt Chiến lược Mở đầu, gợi ý phương án khai thác đối thủ và đàm thoại chiến thuật cùng Gemini LLM.
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Nhận bản báo cáo phân tích chiến thuật tự động, chuẩn bị phương án đối đầu với bất kỳ đối thủ nào và đàm thoại chiến thuật trực tiếp cùng AI.
           </p>
+        </div>
+      </div>
+
+      {/* Bottom Call to Action Card */}
+      <div className="mt-20 w-full max-w-5xl bg-gradient-to-br from-emerald-950/40 via-slate-900/80 to-slate-900/60 border border-emerald-500/20 rounded-3xl p-8 sm:p-12 text-center relative overflow-hidden shadow-xl">
+        <div className="relative z-10 space-y-4">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
+            Sẵn Sàng Làm Chủ Bàn Cờ & Bứt Phá Trình Độ?
+          </h2>
+          <p className="text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
+            Nhập các ván đấu gần đây của bạn từ Lichess hoặc Chess.com để nhận hồ sơ phân tích toàn diện chỉ trong vài giây.
+          </p>
+          <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              href="/import"
+              className="inline-flex items-center gap-2 px-7 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition text-sm"
+            >
+              <Upload className="w-4 h-4" />
+              <span>Bắt Đầu Nhập Ván Đấu</span>
+            </Link>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-slate-800/80 hover:bg-slate-800 text-slate-200 font-semibold rounded-xl border border-slate-700 transition text-sm"
+            >
+              <span>Xem Demo Bảng Điều Khiển</span>
+            </Link>
+          </div>
         </div>
       </div>
     </div>

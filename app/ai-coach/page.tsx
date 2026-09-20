@@ -106,6 +106,7 @@ export default function AiCoachPage() {
       {/* Interactive AI Chat & Briefing Container */}
       <div className="bg-card border border-border/60 rounded-3xl p-6 sm:p-8 shadow-sm">
         <AiCoachChat
+          key={selectedPlayerId || "default"}
           runId={`run-${selectedPlayerId || "default"}`}
           suggestedQuestions={[
             `Phân tích những điểm yếu nhất trong khai cuộc của ${selectedPlayer?.canonical_name || "kỳ thủ này"}?`,

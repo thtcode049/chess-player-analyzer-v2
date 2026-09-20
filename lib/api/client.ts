@@ -268,8 +268,20 @@ export const apiClient = {
         body: JSON.stringify(data),
       });
 
-      if (!res.ok || !res.body) {
-        throw new Error(`Chat stream error: ${res.statusText}`);
+      if (!res.ok) {
+        let errorMsg = res.statusText;
+        try {
+          const errData = await res.json();
+          if (errData?.message) errorMsg = errData.message;
+          else if (errData?.detail) errorMsg = typeof errData.detail === "string" ? errData.detail : JSON.stringify(errData.detail);
+        } catch {
+          // Ignore json parse error
+        }
+        throw new Error(`Chat stream error (${res.status}): ${errorMsg || "Lỗi máy chủ nội bộ"}`);
+      }
+
+      if (!res.body) {
+        throw new Error("Chat stream error: Không nhận được luồng dữ liệu từ máy chủ");
       }
 
       const reader = res.body.getReader();

@@ -46,9 +46,9 @@ class AIService:
         Creates structured Ground Truth text to prevent LLM hallucinations.
         """
         context = build_player_ai_context(
-            player_name=player_name,
+            deep_profile=deep_profile,
             stats=stats,
-            deep_profile=deep_profile
+            selected_player=player_name
         )
         if current_fen:
             context += f"\n\n[CURRENT BOARD FEN POSITION]: {current_fen}"
@@ -71,8 +71,8 @@ class AIService:
         if chat_history:
             for msg in chat_history:
                 history_formatted.append({
-                    "role": msg.get("role", "user"),
-                    "parts": [msg.get("content", "")]
+                    "role": "user" if msg.get("role") == "user" else "model",
+                    "content": msg.get("content", "")
                 })
 
         try:
@@ -81,8 +81,11 @@ class AIService:
             for chunk in stream_gemini_response(
                 prompt=prompt,
                 context=context,
-                history=history_formatted,
-                perspective=perspective_mode
+                chat_history=history_formatted,
+                deep_profile=deep_profile,
+                stats=stats,
+                selected_player=player_name,
+                mode=perspective_mode
             ):
                 if chunk:
                     yielded_any = True

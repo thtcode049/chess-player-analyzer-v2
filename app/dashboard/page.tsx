@@ -9,7 +9,6 @@ import {
   UploadCloud, 
   Trophy, 
   ArrowUpRight,
-  Sparkles,
   Layers
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
@@ -66,42 +65,43 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* Executive Performance Hero Header */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-850 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 border border-slate-800 p-7 sm:p-8 text-white shadow-sm">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <Sparkles className="w-3.5 h-3.5" />
-              Trung Tâm Điều Hành Chiến Thuật
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-              Hệ Thống Phân Tích & Cố Vấn Cờ Vua
-            </h1>
-            <p className="text-sm text-slate-300 dark:text-slate-400 leading-relaxed">
-              Tự động bóc tách danh mục khai cuộc, cấu trúc Tốt, đo lường sai số ACPL và đồng hành cùng AI Đại kiện tướng để hoàn thiện chiến lược thi đấu.
-            </p>
-          </div>
+      {/* Welcome Rich Emerald Gradient Hero Banner */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#059669] via-[#0d8560] to-[#0a5c44] border border-emerald-300/30 p-8 sm:p-9 text-white shadow-xl shadow-emerald-950/25">
+        {/* Ambient Gradient Glows for Rich Lighting Depth */}
+        <div className="absolute -top-16 -left-16 w-80 h-80 bg-emerald-300/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-16 right-1/4 w-80 h-80 bg-teal-200/15 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
+        <div className="relative z-10 max-w-2xl">
+          <span className="text-xs font-extrabold uppercase tracking-widest text-emerald-200 drop-shadow-xs">
+            CHESS PLAYER ANALYTICS
+          </span>
+          <h1 className="mt-2 text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight drop-shadow-xs">
+            Chào mừng trở lại! Sẵn sàng phân tích thế cờ?
+          </h1>
+          <p className="mt-3 text-sm sm:text-base text-emerald-50/95 leading-relaxed drop-shadow-xs">
+            Hệ thống đã sẵn sàng hỗ trợ nạp dữ liệu từ Lichess/Chess.com, bóc tách Repertoire khai cuộc, và đồng hành cùng Trợ lí AI Đại kiện tướng để hoàn thiện chiến lược thi đấu.
+          </p>
+
+          <div className="mt-6 flex flex-wrap items-center gap-3">
             <Link
               href="/import"
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:from-emerald-500 hover:to-teal-500 transition"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-xs font-bold text-emerald-900 shadow-lg shadow-black/10 hover:bg-emerald-50 hover:shadow-xl transition-all duration-200 active:scale-95"
             >
-              <UploadCloud className="w-4 h-4" />
-              <span>Nạp Ván Đấu</span>
+              <UploadCloud className="w-4 h-4 text-emerald-700" />
+              <span>Nạp Ván Đấu Mới</span>
             </Link>
             <Link
               href="/analyze"
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 px-4 py-2.5 text-xs font-bold text-slate-200 transition"
+              className="inline-flex items-center gap-2 rounded-xl bg-white/15 hover:bg-white/25 border border-white/25 px-5 py-3 text-xs font-bold text-white shadow-xs backdrop-blur-md transition-all duration-200 active:scale-95"
             >
-              <Swords className="w-4 h-4" />
-              <span>Bàn Cờ Phân Tích</span>
+              <Swords className="w-4 h-4 text-emerald-100" />
+              <span>Mở Bàn Cờ Tương Tác</span>
             </Link>
             <Link
               href="/ai-coach"
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-4 py-2.5 text-xs font-bold text-emerald-300 transition"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-950/40 hover:bg-emerald-950/60 border border-emerald-300/30 px-5 py-3 text-xs font-bold text-white shadow-xs backdrop-blur-md transition-all duration-200 active:scale-95"
             >
-              <Brain className="w-4 h-4" />
+              <Brain className="w-4 h-4 text-emerald-200" />
               <span>Trợ Lí AI</span>
             </Link>
           </div>

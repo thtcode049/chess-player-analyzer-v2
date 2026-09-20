@@ -45,33 +45,13 @@ export default function PlayersPage() {
   const loadPlayers = async () => {
     try {
       setLoading(true);
+      setError(null);
       const data = await apiClient.getPlayers();
       setPlayers(data);
     } catch (err: any) {
-      setError("Không thể tải danh sách kỳ thủ. Đang hiển thị danh sách mặc định.");
-      // Fallback sample data if DB is empty in test
-      setPlayers([
-        {
-          id: "00000000-0000-0000-0000-000000000001",
-          user_id: "u1",
-          canonical_name: "Magnus Carlsen",
-          title: "GM",
-          notes: "World Chess Champion 2013-2023. Universal aggressive-positional master.",
-          total_games: 1420,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "00000000-0000-0000-0000-000000000002",
-          user_id: "u1",
-          canonical_name: "Hikaru Nakamura",
-          title: "GM",
-          notes: "Elite speed chess legend and dynamic tactical specialist.",
-          total_games: 980,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }
-      ]);
+      console.error("Failed to load players from API:", err);
+      setError(`Không thể kết nối đến máy chủ API (${err.message || "Lỗi mạng"}). Vui lòng thử lại.`);
+      setPlayers([]);
     } finally {
       setLoading(false);
     }
@@ -142,6 +122,22 @@ export default function PlayersPage() {
           <Link href="/login" className="font-semibold text-primary hover:underline shrink-0 ml-3">
             Đăng nhập để lưu vĩnh viễn &rarr;
           </Link>
+        </div>
+      )}
+
+      {/* API Connection / Error Notice */}
+      {error && (
+        <div className="flex items-center justify-between p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-600 dark:text-amber-400 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 shrink-0 text-amber-500" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => loadPlayers()}
+            className="font-semibold underline shrink-0 ml-3 hover:opacity-80"
+          >
+            Thử lại
+          </button>
         </div>
       )}
 

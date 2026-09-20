@@ -13,13 +13,9 @@ logger = logging.getLogger(__name__)
 
 def get_supabase() -> Client:
     url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
-    key = (
-        os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-        or os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY", "")
-        or os.environ.get("SUPABASE_KEY", "")
-    )
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
     if not url or not key:
-        raise RuntimeError("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY) env vars")
+        raise RuntimeError("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars")
     return create_client(url, key)
 
 
@@ -145,19 +141,15 @@ class DBService:
 
     @staticmethod
     def get_players(user_id: str) -> List[Dict[str, Any]]:
-        try:
-            sb = get_supabase()
-            res = (
-                sb.table("players")
-                .select("*, datasets(*)")
-                .eq("user_id", user_id)
-                .order("created_at", desc=True)
-                .execute()
-            )
-            return res.data or []
-        except Exception as e:
-            logger.warning(f"Failed to fetch players for user {user_id} from DB: {e}")
-            return []
+        sb = get_supabase()
+        res = (
+            sb.table("players")
+            .select("*, datasets(*)")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return res.data or []
 
     @staticmethod
     def get_player(player_id: str, user_id: str) -> Optional[Dict[str, Any]]:

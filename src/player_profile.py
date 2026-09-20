@@ -6,7 +6,6 @@ tự động (Rule-Based Insights) hỗ trợ người chơi nhận diện phong
 """
 
 from typing import List, Dict, Any, Optional
-from src.ui_components import get_icon_svg
 from src.utils import determine_game_outcome
 
 

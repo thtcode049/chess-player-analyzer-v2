@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import { 
   Brain, 
   ArrowRight, 
@@ -9,8 +12,36 @@ import {
   Activity,
   CheckCircle2
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LandingPage() {
+  const [user, setUser] = useState<any>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+    const supabase = createClient();
+
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data?.user || null);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const displayName = 
+    user?.user_metadata?.full_name || 
+    user?.user_metadata?.name || 
+    user?.user_metadata?.display_name || 
+    user?.email?.split("@")[0] || 
+    "Kỳ thủ";
+
   return (
     <div className="flex flex-col items-center justify-center py-8 sm:py-16 text-center animate-fade-in">
       {/* Glow Effect Background */}
@@ -50,7 +81,7 @@ export default function LandingPage() {
             href="/dashboard"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg shadow-emerald-600/25 transition-all duration-200 text-base group"
           >
-            <span>Khám Phá Bảng Điều Khiển</span>
+            <span>{isMounted && user ? "Vào Bảng Điều Khiển" : "Khám Phá Bảng Điều Khiển"}</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </Link>
           <Link
@@ -63,15 +94,34 @@ export default function LandingPage() {
         </div>
 
         {/* Helper Links */}
-        <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-          <span>Đã có tài khoản?</span>
-          <Link href="/login" className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline">
-            Đăng nhập ngay
-          </Link>
-          <span>•</span>
-          <Link href="/players" className="text-slate-600 dark:text-slate-300 font-medium hover:underline">
-            Xem Thư Viện Kỳ Thủ
-          </Link>
+        <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400 min-h-[22px]">
+          {isMounted && user ? (
+            <>
+              <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Chào mừng trở lại, <strong className="font-semibold text-slate-700 dark:text-slate-200">{displayName}</strong>!
+              </span>
+              <span>•</span>
+              <Link href="/players" className="text-slate-600 dark:text-slate-300 font-medium hover:underline">
+                Xem Thư Viện Kỳ Thủ
+              </Link>
+            </>
+          ) : isMounted ? (
+            <>
+              <span>Đã có tài khoản?</span>
+              <Link href="/login" className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline">
+                Đăng nhập ngay
+              </Link>
+              <span>•</span>
+              <Link href="/players" className="text-slate-600 dark:text-slate-300 font-medium hover:underline">
+                Xem Thư Viện Kỳ Thủ
+              </Link>
+            </>
+          ) : (
+            <Link href="/players" className="text-slate-600 dark:text-slate-300 font-medium hover:underline">
+              Xem Thư Viện Kỳ Thủ
+            </Link>
+          )}
         </div>
 
         {/* Feature Highlights Banner */}
@@ -167,7 +217,7 @@ export default function LandingPage() {
               href="/dashboard"
               className="inline-flex items-center gap-2 px-6 py-3 bg-slate-800/80 hover:bg-slate-800 text-slate-200 font-semibold rounded-xl border border-slate-700 transition text-sm"
             >
-              <span>Xem Demo Bảng Điều Khiển</span>
+              <span>{isMounted && user ? "Vào Bảng Điều Khiển" : "Xem Demo Bảng Điều Khiển"}</span>
             </Link>
           </div>
         </div>

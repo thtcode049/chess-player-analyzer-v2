@@ -81,9 +81,22 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
       if (data?.session?.user?.id) {
         headers["X-User-Id"] = data.session.user.id;
         headers["Authorization"] = `Bearer ${data.session.access_token}`;
+        return headers;
       }
     } catch (e) {
       console.warn("Could not get supabase session for API headers:", e);
+    }
+
+    // Guest Mode Session: lấy hoặc tạo unique guest session ID lưu trong sessionStorage
+    try {
+      let guestId = sessionStorage.getItem("chess_guest_session_id");
+      if (!guestId) {
+        guestId = "guest_" + (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36));
+        sessionStorage.setItem("chess_guest_session_id", guestId);
+      }
+      headers["X-Guest-Session-Id"] = guestId;
+    } catch {
+      // In case sessionStorage is blocked by browser privacy settings
     }
   }
   return headers;

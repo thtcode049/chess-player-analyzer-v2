@@ -11,7 +11,7 @@ from api.schemas.common import BaseResponse
 from api.schemas.imports import LichessImportRequest, ChesscomImportRequest, ImportSummaryResponse
 from api.services.import_service import ImportService
 from api.services.db_service import DBService
-from api.routes.players import PLAYERS_STORE, GAMES_STORE
+from api.routes.players import PLAYERS_STORE, GAMES_STORE, get_guest_session
 
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ async def import_pgn_file(
     max_games: Optional[int] = Form(200),
     user_id: Optional[str] = Form(None),
     x_user_id: Optional[str] = Header(None),
+    x_guest_session_id: Optional[str] = Header(None),
 ):
     """
     Parses an uploaded .pgn file, saves player/dataset/games to Supabase if logged in,
@@ -100,6 +101,15 @@ async def import_pgn_file(
                 logger.error(f"[Import PGN] DB save error: {db_err}")
         else:
             logger.info("[Import PGN] Guest mode (no user_id) — games cached in session memory only")
+            session = get_guest_session(x_guest_session_id)
+            session["players"][actual_player_id] = {
+                "id": actual_player_id,
+                "user_id": "guest",
+                "canonical_name": final_player_name,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now()
+            }
+            session["games"][actual_player_id] = player_games
 
         # --- In-Memory Session & Analysis Pre-computation (Fast interactive session) ---
         PLAYERS_STORE[actual_player_id] = {
@@ -123,6 +133,9 @@ async def import_pgn_file(
             g["player_color"] = determine_player_color(final_player_name, g.get("white", ""), g.get("black", ""))
 
         GAMES_STORE[actual_player_id] = player_games
+        if not effective_user_id:
+            session = get_guest_session(x_guest_session_id)
+            session["games"][actual_player_id] = player_games
 
         run_id = str(uuid.uuid4())
         try:
@@ -149,13 +162,17 @@ async def import_pgn_file(
             RUN_SNAPSHOTS_CACHE[run_id] = run_res
             RUN_SNAPSHOTS_CACHE[actual_player_id] = run_res
 
-            # Persist analysis run to Supabase if logged in
+            # Persist analysis run to Supabase ONLY if logged in
             if effective_user_id:
                 try:
                     DBService.save_analysis_run(actual_player_id, run_res, run_id=run_id)
                     logger.info(f"[Import PGN] Persisted analysis run {run_id} to Supabase")
                 except Exception as save_err:
                     logger.warning(f"[Import PGN] Could not persist analysis run: {save_err}")
+            else:
+                session = get_guest_session(x_guest_session_id)
+                session["runs"][run_id] = run_res
+                session["runs"][actual_player_id] = run_res
 
             logger.info(f"[Import PGN] Auto-analyzed {len(player_games)} games for {final_player_name}, run_id={run_id}")
         except Exception as an_err:
@@ -180,7 +197,11 @@ async def import_pgn_file(
 
 
 @router.post("/lichess", response_model=BaseResponse[ImportSummaryResponse])
-async def import_lichess(req: LichessImportRequest, x_user_id: Optional[str] = Header(None)):
+async def import_lichess(
+    req: LichessImportRequest,
+    x_user_id: Optional[str] = Header(None),
+    x_guest_session_id: Optional[str] = Header(None)
+):
     """
     Fetches games from Lichess Explorer API for a specific username.
     Saves to Supabase DB if user is logged in, and always keeps in-memory session.
@@ -249,6 +270,15 @@ async def import_lichess(req: LichessImportRequest, x_user_id: Optional[str] = H
                 logger.error(f"[Import Lichess] DB save error: {db_err}")
         else:
             logger.info("[Import Lichess] Guest mode (no user_id) — cached in session memory only")
+            session = get_guest_session(x_guest_session_id)
+            session["players"][target_player_id] = {
+                "id": target_player_id,
+                "user_id": "guest",
+                "canonical_name": u_name,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now()
+            }
+            session["games"][target_player_id] = raw_games
 
         PLAYERS_STORE[target_player_id] = {
             "id": target_player_id,
@@ -294,13 +324,17 @@ async def import_lichess(req: LichessImportRequest, x_user_id: Optional[str] = H
             RUN_SNAPSHOTS_CACHE[run_id] = run_res
             RUN_SNAPSHOTS_CACHE[target_player_id] = run_res
 
-            # Persist analysis run to Supabase if logged in
+            # Persist analysis run to Supabase ONLY if logged in
             if effective_user_id:
                 try:
                     DBService.save_analysis_run(target_player_id, run_res, run_id=run_id)
                     logger.info(f"[Import Lichess] Persisted analysis run {run_id} to Supabase")
                 except Exception as save_err:
                     logger.warning(f"[Import Lichess] Could not persist analysis run: {save_err}")
+            else:
+                session = get_guest_session(x_guest_session_id)
+                session["runs"][run_id] = run_res
+                session["runs"][target_player_id] = run_res
         except Exception as an_err:
             logger.warning(f"[Import Lichess] Auto-analysis error: {an_err}")
 
@@ -322,7 +356,11 @@ async def import_lichess(req: LichessImportRequest, x_user_id: Optional[str] = H
 
 
 @router.post("/chesscom", response_model=BaseResponse[ImportSummaryResponse])
-async def import_chesscom(req: ChesscomImportRequest, x_user_id: Optional[str] = Header(None)):
+async def import_chesscom(
+    req: ChesscomImportRequest,
+    x_user_id: Optional[str] = Header(None),
+    x_guest_session_id: Optional[str] = Header(None)
+):
     """
     Fetches games from Chess.com Public API for a specific username.
     Saves to Supabase DB if user is logged in, and always keeps in-memory session.
@@ -391,6 +429,15 @@ async def import_chesscom(req: ChesscomImportRequest, x_user_id: Optional[str] =
                 logger.error(f"[Import Chess.com] DB save error: {db_err}")
         else:
             logger.info("[Import Chess.com] Guest mode (no user_id) — cached in session memory only")
+            session = get_guest_session(x_guest_session_id)
+            session["players"][target_player_id] = {
+                "id": target_player_id,
+                "user_id": "guest",
+                "canonical_name": u_name,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now()
+            }
+            session["games"][target_player_id] = raw_games
 
         PLAYERS_STORE[target_player_id] = {
             "id": target_player_id,
@@ -426,14 +473,19 @@ async def import_chesscom(req: ChesscomImportRequest, x_user_id: Optional[str] =
             RUN_SNAPSHOTS_CACHE[run_id] = run_res
             RUN_SNAPSHOTS_CACHE[target_player_id] = run_res
 
-            # Persist analysis run to Supabase if logged in
+            # Persist analysis run to Supabase ONLY if logged in
             if effective_user_id:
                 try:
                     DBService.save_analysis_run(target_player_id, run_res, run_id=run_id)
                     logger.info(f"[Import Chess.com] Persisted analysis run {run_id} to Supabase")
                 except Exception as save_err:
                     logger.warning(f"[Import Chess.com] Could not persist analysis run: {save_err}")
+            else:
+                session = get_guest_session(x_guest_session_id)
+                session["runs"][run_id] = run_res
+                session["runs"][target_player_id] = run_res
         except Exception as an_err:
+            logger.warning(f"[Import Chess.com] Auto-analysis error: {an_err}")
             logger.warning(f"[Import Chess.com] Auto-analysis error: {an_err}")
 
         summary = ImportSummaryResponse(

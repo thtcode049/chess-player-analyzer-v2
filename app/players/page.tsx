@@ -10,7 +10,8 @@ import {
   ChevronRight,
   Calendar,
   X,
-  Loader2
+  Loader2,
+  Upload
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { Player } from "@/lib/api/types";
@@ -42,32 +43,10 @@ export default function PlayersPage() {
     try {
       setLoading(true);
       const data = await apiClient.getPlayers();
-      setPlayers(data);
+      setPlayers(data || []);
     } catch (err: any) {
-      console.warn("Không thể tải danh sách kỳ thủ. Đang hiển thị danh sách mặc định.", err);
-      // Fallback sample data if DB is empty in test
-      setPlayers([
-        {
-          id: "00000000-0000-0000-0000-000000000001",
-          user_id: "u1",
-          canonical_name: "Magnus Carlsen",
-          title: "GM",
-          notes: "World Chess Champion 2013-2023. Universal aggressive-positional master.",
-          total_games: 1420,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "00000000-0000-0000-0000-000000000002",
-          user_id: "u1",
-          canonical_name: "Hikaru Nakamura",
-          title: "GM",
-          notes: "Elite speed chess legend and dynamic tactical specialist.",
-          total_games: 980,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }
-      ]);
+      console.warn("Không thể tải danh sách kỳ thủ:", err);
+      setPlayers([]);
     } finally {
       setLoading(false);
     }
@@ -166,20 +145,79 @@ export default function PlayersPage() {
           <p className="text-sm">Đang tải thư viện kỳ thủ...</p>
         </div>
       ) : filteredPlayers.length === 0 ? (
-        <div className="text-center py-16 bg-card border border-border/40 rounded-2xl p-8">
-          <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-foreground">Không tìm thấy kỳ thủ phù hợp</h3>
-          <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-            Chưa có hồ sơ kỳ thủ nào khớp với từ khóa hoặc thư viện đang trống.
-          </p>
-          <button
-            onClick={() => setShowModal(true)}
-            className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:bg-primary/90 transition-all"
-          >
-            <UserPlus className="w-4 h-4" />
-            Tạo kỳ thủ đầu tiên
-          </button>
-        </div>
+        searchQuery ? (
+          <div className="text-center py-16 bg-card border border-border/40 rounded-2xl p-8 animate-fade-in">
+            <Search className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <h3 className="text-lg font-bold text-foreground">Không tìm thấy kỳ thủ phù hợp</h3>
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+              Không có hồ sơ nào khớp với từ khóa &ldquo;{searchQuery}&rdquo;.
+            </p>
+            <button
+              onClick={() => setSearchQuery("")}
+              className="mt-4 px-4 py-2 border border-border/60 text-xs font-semibold rounded-lg hover:bg-card transition-all"
+            >
+              Xóa bộ lọc tìm kiếm
+            </button>
+          </div>
+        ) : isGuest ? (
+          <div className="text-center py-16 bg-card/60 border border-primary/20 rounded-2xl p-8 max-w-xl mx-auto space-y-4 shadow-sm animate-fade-in">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto text-primary">
+              <Sparkles className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-lg font-extrabold text-foreground">Chưa có hồ sơ trong phiên khách</h3>
+              <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed max-w-md mx-auto">
+                Bạn đang ở <b>Chế độ Khách</b>. Dữ liệu chỉ được lưu tạm thời trong phiên làm việc hiện tại và không lưu vào CSDL. Hãy tạo hồ sơ hoặc nạp ván đấu để bắt đầu khám phá!
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <button
+                onClick={() => setShowModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground text-xs font-semibold rounded-xl hover:bg-primary/90 transition-all shadow-md shadow-primary/20"
+              >
+                <UserPlus className="w-4 h-4" />
+                Tạo Kỳ Thủ Mới
+              </button>
+              <Link
+                href="/import"
+                className="inline-flex items-center gap-2 px-4 py-2.5 border border-border/60 bg-card hover:bg-accent text-foreground text-xs font-semibold rounded-xl transition-all"
+              >
+                <Upload className="w-4 h-4 text-primary" />
+                Nhập Ván Đấu (PGN / Lichess / Chess.com)
+              </Link>
+            </div>
+            <p className="text-[11px] text-muted-foreground pt-2">
+              Muốn lưu trữ hồ sơ và phân tích vĩnh viễn?{" "}
+              <Link href="/login" className="text-primary font-semibold hover:underline">
+                Đăng nhập tài khoản &rarr;
+              </Link>
+            </p>
+          </div>
+        ) : (
+          <div className="text-center py-16 bg-card border border-border/40 rounded-2xl p-8 animate-fade-in">
+            <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <h3 className="text-lg font-bold text-foreground">Thư viện kỳ thủ đang trống</h3>
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+              Chưa có hồ sơ kỳ thủ nào trong tài khoản của bạn. Hãy tạo hồ sơ hoặc nạp tập ván đấu để bắt đầu phân tích phong cách và khai cuộc.
+            </p>
+            <div className="flex items-center justify-center gap-3 mt-5">
+              <button
+                onClick={() => setShowModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:bg-primary/90 transition-all shadow-sm"
+              >
+                <UserPlus className="w-4 h-4" />
+                Tạo Kỳ Thủ Đầu Tiên
+              </button>
+              <Link
+                href="/import"
+                className="inline-flex items-center gap-2 px-4 py-2 border border-border/60 text-xs font-semibold rounded-lg hover:bg-card transition-all"
+              >
+                <Upload className="w-4 h-4 text-primary" />
+                Nhập Ván Đấu
+              </Link>
+            </div>
+          </div>
+        )
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredPlayers.map((player) => {

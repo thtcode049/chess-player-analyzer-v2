@@ -19,7 +19,27 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ChessLookLogo from "@/components/ChessLookLogo";
 
+function UserAvatar({ url, name }: { url?: string | null; name: string }) {
+  const [hasError, setHasError] = useState(false);
 
+  if (url && !hasError) {
+    return (
+      <img
+        src={url}
+        alt={name}
+        referrerPolicy="no-referrer"
+        onError={() => setHasError(true)}
+        className="w-6 h-6 rounded-full object-cover ring-1 ring-emerald-500/40 shrink-0 shadow-xs"
+      />
+    );
+  }
+
+  return (
+    <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-[10px] font-bold shrink-0">
+      {name ? name.trim()[0].toUpperCase() : "U"}
+    </div>
+  );
+}
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -127,23 +147,36 @@ export default function Navbar() {
           </button>
 
           {user ? (
-            <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 py-1.5 px-3 rounded-xl text-xs font-semibold text-foreground">
-                <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-[10px] font-bold">
-                  {user.email ? user.email[0].toUpperCase() : "U"}
+            (() => {
+              const displayName = 
+                user.user_metadata?.full_name || 
+                user.user_metadata?.name || 
+                user.user_metadata?.display_name || 
+                user.email?.split("@")[0] || 
+                "Kỳ thủ";
+              const avatarUrl = 
+                user.user_metadata?.avatar_url || 
+                user.user_metadata?.picture || 
+                null;
+
+              return (
+                <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-2.5 bg-slate-100 dark:bg-slate-800/90 py-1.5 px-3 rounded-2xl text-xs font-semibold text-foreground shadow-xs">
+                    <UserAvatar url={avatarUrl} name={displayName} />
+                    <span className="max-w-[150px] truncate hidden sm:inline-block font-semibold">
+                      {displayName}
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition"
+                    title="Đăng xuất"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
                 </div>
-                <span className="max-w-[100px] truncate hidden sm:inline-block font-medium">
-                  {user.user_metadata?.display_name || user.email?.split("@")[0]}
-                </span>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition"
-                title="Đăng xuất"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
+              );
+            })()
           ) : (
             <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-slate-800">
               <Link

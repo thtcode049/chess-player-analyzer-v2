@@ -26,7 +26,12 @@ export default function SettingsPage() {
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) {
         setEmail(data.user.email || "");
-        setDisplayName(data.user.user_metadata?.display_name || "");
+        const name = 
+          data.user.user_metadata?.full_name || 
+          data.user.user_metadata?.name || 
+          data.user.user_metadata?.display_name || 
+          "";
+        setDisplayName(name);
       }
     });
 

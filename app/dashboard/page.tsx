@@ -91,7 +91,7 @@ export default function DashboardPage() {
           </span>
           <h1 className="mt-2 text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight drop-shadow-xs">
             {user 
-              ? `Chào mừng trở lại, ${user.user_metadata?.display_name || user.email?.split("@")[0] || "Kỳ thủ"}!` 
+              ? `Chào mừng trở lại, ${user.user_metadata?.full_name || user.user_metadata?.name || user.user_metadata?.display_name || user.email?.split("@")[0] || "Kỳ thủ"}!` 
               : "Khám Phá Phân Tích & Cố Vấn Cờ Vua Thông Minh"}
           </h1>
           <p className="mt-3 text-sm sm:text-base text-emerald-50/95 leading-relaxed drop-shadow-xs">

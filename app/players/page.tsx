@@ -289,9 +289,9 @@ export default function PlayersPage() {
                     <ChevronRight className="w-3.5 h-3.5" />
                   </Link>
                   <Link
-                    href={`/import`}
+                    href={`/import?playerId=${player.id}&playerName=${encodeURIComponent(player.canonical_name)}`}
                     className="py-2 px-3 text-xs font-medium rounded-xl border border-border/60 hover:bg-card text-muted-foreground hover:text-foreground transition-all"
-                    title="Nhập thêm ván cho kỳ thủ này"
+                    title={`Nhập thêm ván cho kỳ thủ ${player.canonical_name}`}
                   >
                     + Ván
                   </Link>

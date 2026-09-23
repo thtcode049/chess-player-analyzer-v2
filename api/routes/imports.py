@@ -10,7 +10,7 @@ import logging
 from api.schemas.common import BaseResponse
 from api.schemas.imports import LichessImportRequest, ChesscomImportRequest, ImportSummaryResponse
 from api.services.import_service import ImportService
-from api.services.db_service import DBService
+from api.services.db_service import DBService, determine_player_color
 from api.routes.players import PLAYERS_STORE, GAMES_STORE, get_guest_session
 
 
@@ -49,13 +49,28 @@ async def import_pgn_file(
         dataset_id = str(uuid.uuid4())
         db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
         final_player_name = primary_player or file.filename or "Unknown Player"
-        p_lower = final_player_name.strip().lower()
 
         effective_user_id = user_id or x_user_id
         actual_player_id = player_id
 
         # 1. Resolve or reuse existing player
-        if not actual_player_id:
+        existing_player = None
+        if actual_player_id:
+            if effective_user_id:
+                try:
+                    existing_player = DBService.get_player(actual_player_id, effective_user_id)
+                except Exception as e:
+                    logger.warning(f"[Import PGN] Could not fetch player {actual_player_id}: {e}")
+            if not existing_player:
+                session = get_guest_session(x_guest_session_id)
+                existing_player = session.get("players", {}).get(actual_player_id)
+            if not existing_player:
+                existing_player = PLAYERS_STORE.get(actual_player_id)
+
+            if existing_player:
+                final_player_name = existing_player.get("canonical_name") or final_player_name
+        else:
+            p_lower = final_player_name.strip().lower()
             if effective_user_id:
                 try:
                     player_rec = DBService.upsert_player(
@@ -76,11 +91,24 @@ async def import_pgn_file(
                 actual_player_id = str(uuid.uuid4())
 
         # Clean up any duplicate keys in PLAYERS_STORE for this player name
+        p_lower = final_player_name.strip().lower()
         for pid in list(PLAYERS_STORE.keys()):
             if pid != actual_player_id and PLAYERS_STORE[pid].get("canonical_name", "").strip().lower() == p_lower:
                 del PLAYERS_STORE[pid]
                 if pid in GAMES_STORE:
                     del GAMES_STORE[pid]
+
+        # Prepare player games with correct player_color
+        player_games = [
+            g for g in raw_games
+            if determine_player_color(final_player_name, g.get("white", ""), g.get("black", "")) in ("white", "black")
+            and (final_player_name.lower().strip() in g.get("white", "").lower() or final_player_name.lower().strip() in g.get("black", "").lower() or len(raw_games) < 500)
+        ]
+        if not player_games:
+            player_games = raw_games
+
+        for g in player_games:
+            g["player_color"] = determine_player_color(final_player_name, g.get("white", ""), g.get("black", ""))
 
         # --- Persist to Supabase if user is logged in ---
         if effective_user_id:
@@ -109,7 +137,8 @@ async def import_pgn_file(
                 "created_at": datetime.now(),
                 "updated_at": datetime.now()
             }
-            session["games"][actual_player_id] = player_games
+            curr_guest_games = session.get("games", {}).get(actual_player_id, [])
+            session["games"][actual_player_id] = curr_guest_games + player_games
 
         # --- In-Memory Session & Analysis Pre-computation (Fast interactive session) ---
         PLAYERS_STORE[actual_player_id] = {
@@ -120,22 +149,9 @@ async def import_pgn_file(
             "updated_at": datetime.now()
         }
 
-        from api.services.db_service import determine_player_color
-        player_games = [
-            g for g in raw_games
-            if determine_player_color(final_player_name, g.get("white", ""), g.get("black", "")) in ("white", "black")
-            and (final_player_name.lower().strip() in g.get("white", "").lower() or final_player_name.lower().strip() in g.get("black", "").lower() or len(raw_games) < 500)
-        ]
-        if not player_games:
-            player_games = raw_games
-
-        for g in player_games:
-            g["player_color"] = determine_player_color(final_player_name, g.get("white", ""), g.get("black", ""))
-
-        GAMES_STORE[actual_player_id] = player_games
-        if not effective_user_id:
-            session = get_guest_session(x_guest_session_id)
-            session["games"][actual_player_id] = player_games
+        curr_store_games = GAMES_STORE.get(actual_player_id, [])
+        all_combined_games = curr_store_games + player_games
+        GAMES_STORE[actual_player_id] = all_combined_games
 
         run_id = str(uuid.uuid4())
         try:
@@ -144,14 +160,14 @@ async def import_pgn_file(
             from src.opening_tree import build_opening_tree
 
             run_res = AnalysisService.run_complete_analysis(
-                games=player_games,
+                games=all_combined_games,
                 player_name=final_player_name,
                 color_filter="all",
                 run_label=f"Hồ sơ {final_player_name}"
             )
-            _, fm_all = build_opening_tree(player_games, color="all")
-            _, fm_w = build_opening_tree(player_games, color="white")
-            _, fm_b = build_opening_tree(player_games, color="black")
+            _, fm_all = build_opening_tree(all_combined_games, color="all")
+            _, fm_w = build_opening_tree(all_combined_games, color="white")
+            _, fm_b = build_opening_tree(all_combined_games, color="black")
             run_res["fen_map_all"] = fm_all
             run_res["fen_map_white"] = fm_w
             run_res["fen_map_black"] = fm_b
@@ -174,7 +190,7 @@ async def import_pgn_file(
                 session["runs"][run_id] = run_res
                 session["runs"][actual_player_id] = run_res
 
-            logger.info(f"[Import PGN] Auto-analyzed {len(player_games)} games for {final_player_name}, run_id={run_id}")
+            logger.info(f"[Import PGN] Auto-analyzed {len(all_combined_games)} games for {final_player_name}, run_id={run_id}")
         except Exception as an_err:
             logger.warning(f"[Import PGN] Auto-analysis error: {an_err}")
 
@@ -220,9 +236,25 @@ async def import_lichess(
         target_player_id = req.player_id
         u_name = req.username.strip()
         u_lower = u_name.lower()
+        player_display_name = u_name
 
         # 1. Resolve or reuse existing player
-        if not target_player_id:
+        existing_player = None
+        if target_player_id:
+            if effective_user_id:
+                try:
+                    existing_player = DBService.get_player(target_player_id, effective_user_id)
+                except Exception as e:
+                    logger.warning(f"[Import Lichess] Could not fetch player {target_player_id}: {e}")
+            if not existing_player:
+                session = get_guest_session(x_guest_session_id)
+                existing_player = session.get("players", {}).get(target_player_id)
+            if not existing_player:
+                existing_player = PLAYERS_STORE.get(target_player_id)
+
+            if existing_player:
+                player_display_name = existing_player.get("canonical_name") or u_name
+        else:
             if effective_user_id:
                 try:
                     player_rec = DBService.upsert_player(
@@ -274,21 +306,22 @@ async def import_lichess(
             session["players"][target_player_id] = {
                 "id": target_player_id,
                 "user_id": "guest",
-                "canonical_name": u_name,
+                "canonical_name": player_display_name,
                 "created_at": datetime.now(),
                 "updated_at": datetime.now()
             }
-            session["games"][target_player_id] = raw_games
+            curr_guest_games = session.get("games", {}).get(target_player_id, [])
+            session["games"][target_player_id] = curr_guest_games + raw_games
 
         PLAYERS_STORE[target_player_id] = {
             "id": target_player_id,
             "user_id": effective_user_id or "guest",
-            "canonical_name": u_name,
+            "canonical_name": player_display_name,
             "created_at": datetime.now(),
             "updated_at": datetime.now()
         }
 
-        u_lower = req.username.lower().strip()
+        # Tag player color using Lichess username
         for g in raw_games:
             if u_lower in g.get("white", "").lower():
                 g["player_color"] = "white"
@@ -297,7 +330,9 @@ async def import_lichess(
             else:
                 g["player_color"] = "white"
 
-        GAMES_STORE[target_player_id] = raw_games
+        curr_store_games = GAMES_STORE.get(target_player_id, [])
+        all_combined_games = curr_store_games + raw_games
+        GAMES_STORE[target_player_id] = all_combined_games
 
         run_id = str(uuid.uuid4())
         try:
@@ -306,18 +341,18 @@ async def import_lichess(
             from src.opening_tree import build_opening_tree
 
             run_res = AnalysisService.run_complete_analysis(
-                games=raw_games,
-                player_name=req.username,
+                games=all_combined_games,
+                player_name=player_display_name,
                 color_filter="all",
-                run_label=f"Lichess: {req.username}"
+                run_label=f"Hồ sơ {player_display_name}"
             )
-            _, fm_all = build_opening_tree(raw_games, color="all")
-            _, fm_w = build_opening_tree(raw_games, color="white")
-            _, fm_b = build_opening_tree(raw_games, color="black")
+            _, fm_all = build_opening_tree(all_combined_games, color="all")
+            _, fm_w = build_opening_tree(all_combined_games, color="white")
+            _, fm_b = build_opening_tree(all_combined_games, color="black")
             run_res["fen_map_all"] = fm_all
             run_res["fen_map_white"] = fm_w
             run_res["fen_map_black"] = fm_b
-            run_res["player_name"] = req.username
+            run_res["player_name"] = player_display_name
             run_res["player_id"] = target_player_id
             run_res["run_id"] = run_id
 
@@ -344,11 +379,11 @@ async def import_lichess(
             run_id=run_id,
             total_found=len(raw_games),
             imported_count=len(db_games),
-            primary_player=req.username,
+            primary_player=player_display_name,
             source_type="lichess",
             sample_games=db_games[:5]
         )
-        return BaseResponse(success=True, message=f"Fetched {len(db_games)} games from Lichess", data=summary)
+        return BaseResponse(success=True, message=f"Fetched {len(db_games)} games from Lichess into {player_display_name}", data=summary)
     except HTTPException:
         raise
     except Exception as e:
@@ -379,9 +414,25 @@ async def import_chesscom(
         target_player_id = req.player_id
         u_name = req.username.strip()
         u_lower = u_name.lower()
+        player_display_name = u_name
 
         # 1. Resolve or reuse existing player
-        if not target_player_id:
+        existing_player = None
+        if target_player_id:
+            if effective_user_id:
+                try:
+                    existing_player = DBService.get_player(target_player_id, effective_user_id)
+                except Exception as e:
+                    logger.warning(f"[Import Chess.com] Could not fetch player {target_player_id}: {e}")
+            if not existing_player:
+                session = get_guest_session(x_guest_session_id)
+                existing_player = session.get("players", {}).get(target_player_id)
+            if not existing_player:
+                existing_player = PLAYERS_STORE.get(target_player_id)
+
+            if existing_player:
+                player_display_name = existing_player.get("canonical_name") or u_name
+        else:
             if effective_user_id:
                 try:
                     player_rec = DBService.upsert_player(
@@ -433,20 +484,33 @@ async def import_chesscom(
             session["players"][target_player_id] = {
                 "id": target_player_id,
                 "user_id": "guest",
-                "canonical_name": u_name,
+                "canonical_name": player_display_name,
                 "created_at": datetime.now(),
                 "updated_at": datetime.now()
             }
-            session["games"][target_player_id] = raw_games
+            curr_guest_games = session.get("games", {}).get(target_player_id, [])
+            session["games"][target_player_id] = curr_guest_games + raw_games
 
         PLAYERS_STORE[target_player_id] = {
             "id": target_player_id,
             "user_id": effective_user_id or "guest",
-            "canonical_name": u_name,
+            "canonical_name": player_display_name,
             "created_at": datetime.now(),
             "updated_at": datetime.now()
         }
-        GAMES_STORE[target_player_id] = raw_games
+
+        # Tag player color using Chess.com username
+        for g in raw_games:
+            if u_lower in g.get("white", "").lower():
+                g["player_color"] = "white"
+            elif u_lower in g.get("black", "").lower():
+                g["player_color"] = "black"
+            else:
+                g["player_color"] = "white"
+
+        curr_store_games = GAMES_STORE.get(target_player_id, [])
+        all_combined_games = curr_store_games + raw_games
+        GAMES_STORE[target_player_id] = all_combined_games
 
         run_id = str(uuid.uuid4())
         try:
@@ -455,18 +519,18 @@ async def import_chesscom(
             from src.opening_tree import build_opening_tree
 
             run_res = AnalysisService.run_complete_analysis(
-                games=raw_games,
-                player_name=req.username,
+                games=all_combined_games,
+                player_name=player_display_name,
                 color_filter="all",
-                run_label=f"Chess.com: {req.username}"
+                run_label=f"Chess.com: {player_display_name}"
             )
-            _, fm_all = build_opening_tree(raw_games, color="all")
-            _, fm_w = build_opening_tree(raw_games, color="white")
-            _, fm_b = build_opening_tree(raw_games, color="black")
+            _, fm_all = build_opening_tree(all_combined_games, color="all")
+            _, fm_w = build_opening_tree(all_combined_games, color="white")
+            _, fm_b = build_opening_tree(all_combined_games, color="black")
             run_res["fen_map_all"] = fm_all
             run_res["fen_map_white"] = fm_w
             run_res["fen_map_black"] = fm_b
-            run_res["player_name"] = req.username
+            run_res["player_name"] = player_display_name
             run_res["player_id"] = target_player_id
             run_res["run_id"] = run_id
 
@@ -486,7 +550,6 @@ async def import_chesscom(
                 session["runs"][target_player_id] = run_res
         except Exception as an_err:
             logger.warning(f"[Import Chess.com] Auto-analysis error: {an_err}")
-            logger.warning(f"[Import Chess.com] Auto-analysis error: {an_err}")
 
         summary = ImportSummaryResponse(
             dataset_id=dataset_id,
@@ -494,13 +557,12 @@ async def import_chesscom(
             run_id=run_id,
             total_found=len(raw_games),
             imported_count=len(db_games),
-            primary_player=req.username,
+            primary_player=player_display_name,
             source_type="chesscom",
             sample_games=db_games[:5]
         )
-        return BaseResponse(success=True, message=f"Fetched {len(db_games)} games from Chess.com", data=summary)
+        return BaseResponse(success=True, message=f"Fetched {len(db_games)} games from Chess.com into {player_display_name}", data=summary)
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chess.com sync error: {str(e)}")
-

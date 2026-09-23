@@ -151,7 +151,7 @@ export default function PlayerDetailPage() {
             Chạy Phân Tích Lại
           </button>
           <Link
-            href="/import"
+            href={`/import?playerId=${playerId}&playerName=${encodeURIComponent(player?.canonical_name || '')}`}
             className="px-3.5 py-2 border border-border/60 text-xs font-medium rounded-xl hover:bg-card text-foreground transition-all"
           >
             + Nhập Thêm Ván

@@ -152,16 +152,12 @@ class DBService:
         return res.data or []
 
     @staticmethod
-    def get_player(player_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+    def get_player(player_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         sb = get_supabase()
-        res = (
-            sb.table("players")
-            .select("*")
-            .eq("id", player_id)
-            .eq("user_id", user_id)
-            .limit(1)
-            .execute()
-        )
+        query = sb.table("players").select("*").eq("id", player_id)
+        if user_id:
+            query = query.eq("user_id", user_id)
+        res = query.limit(1).execute()
         return res.data[0] if res.data else None
 
     @staticmethod

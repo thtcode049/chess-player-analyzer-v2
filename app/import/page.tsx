@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { 
   UploadCloud, 
@@ -9,20 +10,31 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Loader2, 
-  Sparkles,
-  Database,
-  User,
-  RefreshCw,
-  BarChart3,
-  ArrowRight
+  Sparkles, 
+  Database, 
+  User, 
+  RefreshCw, 
+  BarChart3, 
+  ArrowRight,
+  UserCheck,
+  ChevronDown
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
-import { ImportSummary } from "@/lib/api/types";
+import { ImportSummary, Player } from "@/lib/api/types";
 
-export default function ImportPage() {
+function ImportContent() {
+  const searchParams = useSearchParams();
+  const paramPlayerId = searchParams.get("playerId") || "";
+  const paramPlayerName = searchParams.get("playerName") || "";
+
   const [activeTab, setActiveTab] = useState<"pgn" | "lichess" | "chesscom">("pgn");
   const [userId, setUserId] = useState<string | null>(null);
-  
+
+  // Existing players list and target player selection
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>(paramPlayerId);
+  const [loadingPlayers, setLoadingPlayers] = useState(true);
+
   // Get current user session
   useEffect(() => {
     import("@/lib/supabase/client").then(({ createClient }) => {
@@ -32,18 +44,50 @@ export default function ImportPage() {
       });
     });
   }, []);
-  
+
+  // Fetch players for selector
+  useEffect(() => {
+    const fetchPlayers = async () => {
+      try {
+        setLoadingPlayers(true);
+        const data = await apiClient.getPlayers();
+        setPlayers(data || []);
+      } catch (err) {
+        console.warn("Không thể tải danh sách kỳ thủ:", err);
+      } finally {
+        setLoadingPlayers(false);
+      }
+    };
+    fetchPlayers();
+  }, []);
+
+  // Update selectedPlayerId if param changes
+  useEffect(() => {
+    if (paramPlayerId) {
+      setSelectedPlayerId(paramPlayerId);
+    }
+  }, [paramPlayerId]);
+
+  // Selected player object
+  const selectedPlayer = players.find(p => p.id === selectedPlayerId);
+
   // PGN Upload states
   const [pgnFile, setPgnFile] = useState<File | null>(null);
   const [pgnText, setPgnText] = useState("");
   const [datasetName, setDatasetName] = useState("");
   const [detectedPlayer, setDetectedPlayer] = useState("");
-  
+
   // Lichess states
   const [lichessUsername, setLichessUsername] = useState("");
   const [lichessMaxGames, setLichessMaxGames] = useState(50);
   const [lichessRatedOnly, setLichessRatedOnly] = useState(true);
   const [lichessPerfTypes, setLichessPerfTypes] = useState("blitz,rapid");
+
+  // Chess.com states
+  const [chesscomUsername, setChesscomUsername] = useState("");
+  const [chesscomMaxGames, setChesscomMaxGames] = useState(50);
+  const [chesscomRatedOnly, setChesscomRatedOnly] = useState(true);
+  const [chesscomPerfTypes, setChesscomPerfTypes] = useState("blitz,rapid");
 
   // Loading & Result states
   const [isLoading, setIsLoading] = useState(false);
@@ -53,7 +97,6 @@ export default function ImportPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      console.log("[Import] File selected:", file.name, file.size);
       setPgnFile(file);
       if (!datasetName) {
         setDatasetName(file.name.replace(/\.[^/.]+$/, ""));
@@ -69,10 +112,11 @@ export default function ImportPage() {
 
     try {
       let res: ImportSummary;
+      const targetId = selectedPlayerId ? selectedPlayerId : undefined;
       if (pgnFile) {
-        res = await apiClient.importPgnFile(pgnFile, undefined, 200, userId || undefined);
+        res = await apiClient.importPgnFile(pgnFile, targetId, 200, userId || undefined);
       } else if (pgnText.trim()) {
-        res = await apiClient.importPgnText(pgnText, datasetName || "PGN Text Import", undefined, 200, userId || undefined);
+        res = await apiClient.importPgnText(pgnText, datasetName || "PGN Text Import", targetId, 200, userId || undefined);
       } else {
         throw new Error("Vui lòng tải lên tệp .pgn hoặc dán văn bản PGN.");
       }
@@ -97,7 +141,9 @@ export default function ImportPage() {
 
     try {
       const perfs = lichessPerfTypes.split(",").map(p => p.trim()).filter(Boolean);
+      const targetId = selectedPlayerId ? selectedPlayerId : undefined;
       const res = await apiClient.importLichess({
+        player_id: targetId,
         user_id: userId || undefined,
         username: lichessUsername.trim(),
         max_games: lichessMaxGames,
@@ -107,6 +153,35 @@ export default function ImportPage() {
       setResult(res);
     } catch (err: any) {
       setError(err.message || "Lỗi khi đồng bộ ván đấu từ Lichess");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChesscomSync = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chesscomUsername.trim()) {
+      setError("Vui lòng nhập Chess.com username.");
+      return;
+    }
+    setError(null);
+    setResult(null);
+    setIsLoading(true);
+
+    try {
+      const perfs = chesscomPerfTypes.split(",").map(p => p.trim()).filter(Boolean);
+      const targetId = selectedPlayerId ? selectedPlayerId : undefined;
+      const res = await apiClient.importChesscom({
+        player_id: targetId,
+        user_id: userId || undefined,
+        username: chesscomUsername.trim(),
+        max_games: chesscomMaxGames,
+        rated_only: chesscomRatedOnly,
+        perf_types: perfs.length > 0 ? perfs : undefined
+      });
+      setResult(res);
+    } catch (err: any) {
+      setError(err.message || "Lỗi khi đồng bộ ván đấu từ Chess.com");
     } finally {
       setIsLoading(false);
     }
@@ -122,9 +197,76 @@ export default function ImportPage() {
             Nhập & Đồng bộ Dữ liệu Ván Đấu
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Hỗ trợ tệp PGN tiêu chuẩn, Lichess API không giới hạn, và trích xuất đánh giá tích hợp &lt;10ms.
+            Hỗ trợ tệp PGN tiêu chuẩn, Lichess API trực tiếp và Chess.com Public Archives.
           </p>
         </div>
+      </div>
+
+      {/* Target Player Profile Selection Banner */}
+      <div className="bg-card border border-border/80 rounded-2xl p-5 shadow-sm space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold">
+              <UserCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+                Hồ sơ kỳ thủ nhận ván đấu
+              </div>
+              <div className="text-sm font-bold text-foreground flex items-center gap-2">
+                {selectedPlayer ? (
+                  <>
+                    <span className="text-primary">{selectedPlayer.canonical_name}</span>
+                    {selectedPlayer.title && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-extrabold uppercase rounded bg-amber-500/10 text-amber-500 border border-amber-500/30">
+                        {selectedPlayer.title}
+                      </span>
+                    )}
+                    <span className="text-xs text-muted-foreground font-normal">
+                      ({selectedPlayer.total_games || 0} ván hiện có)
+                    </span>
+                  </>
+                ) : paramPlayerName ? (
+                  <span className="text-primary">{paramPlayerName}</span>
+                ) : (
+                  <span className="text-muted-foreground">Tự động nhận diện & tạo hồ sơ mới</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Player Switcher Dropdown */}
+          <div className="flex items-center gap-2">
+            <label htmlFor="targetPlayerSelect" className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
+              Gán vào:
+            </label>
+            <div className="relative min-w-[220px]">
+              <select
+                id="targetPlayerSelect"
+                value={selectedPlayerId}
+                onChange={(e) => setSelectedPlayerId(e.target.value)}
+                className="w-full bg-background border border-border/70 rounded-xl px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none pr-8 cursor-pointer"
+              >
+                <option value="">-- Tự động tạo hồ sơ mới --</option>
+                {players.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.canonical_name} {p.title ? `[${p.title}]` : ""} ({p.total_games || 0} ván)
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+        </div>
+
+        {selectedPlayer && (
+          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-1.5 flex items-center gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+            <span>
+              Các ván đấu mới sẽ được thêm trực tiếp vào hồ sơ <b>{selectedPlayer.canonical_name}</b>, không tạo hồ sơ trùng lặp.
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Source Selector Tabs */}
@@ -269,7 +411,7 @@ export default function ImportPage() {
                     required
                     value={lichessUsername}
                     onChange={(e) => setLichessUsername(e.target.value)}
-                    placeholder="VD: thtcode, penguingm1, magnuscarlsen"
+                    placeholder="VD: nganbanghe, magnuscarlsen, penguingm1"
                     className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                   />
                 </div>
@@ -305,12 +447,12 @@ export default function ImportPage() {
                 <div className="flex items-center gap-3 p-3 bg-card/60 border border-border/40 rounded-xl">
                   <input
                     type="checkbox"
-                    id="ratedOnly"
+                    id="ratedOnlyLichess"
                     checked={lichessRatedOnly}
                     onChange={(e) => setLichessRatedOnly(e.target.checked)}
                     className="w-4 h-4 rounded text-primary focus:ring-primary border-border"
                   />
-                  <label htmlFor="ratedOnly" className="text-xs text-foreground cursor-pointer select-none">
+                  <label htmlFor="ratedOnlyLichess" className="text-xs text-foreground cursor-pointer select-none">
                     Chỉ lấy ván đấu có tính điểm (Rated Matches)
                   </label>
                 </div>
@@ -336,28 +478,80 @@ export default function ImportPage() {
             )}
 
             {activeTab === "chesscom" && (
-              <div className="space-y-6 text-center py-8">
-                <User className="w-12 h-12 text-muted-foreground mx-auto" />
+              <form onSubmit={handleChesscomSync} className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-bold text-foreground">Đồng bộ Chess.com Public API</h3>
-                  <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
-                    Hỗ trợ tải toàn bộ tệp tháng đấu công khai từ Chess.com qua endpoint PGN archive.
-                  </p>
-                </div>
-                <div className="max-w-sm mx-auto space-y-4 text-left">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    Chess.com Username
+                  </label>
                   <input
                     type="text"
-                    placeholder="Chess.com Username (VD: hikaru)"
+                    required
+                    value={chesscomUsername}
+                    onChange={(e) => setChesscomUsername(e.target.value)}
+                    placeholder="VD: hikaru, magnuscarlsen, gothamchess"
                     className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                   />
-                  <button
-                    onClick={() => alert("Chức năng Chess.com API đang kết nối trực tiếp với endpoint PGN archive của Chess.com. Bạn cũng có thể tải PGN từ Chess.com và nhập vào tab PGN File.")}
-                    className="w-full py-3 px-6 bg-secondary text-secondary-foreground font-semibold rounded-xl hover:bg-secondary/80 transition-all flex items-center justify-center gap-2"
-                  >
-                    Đồng bộ từ Chess.com
-                  </button>
                 </div>
-              </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                      Số lượng ván đấu tối đa
+                    </label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={200}
+                      value={chesscomMaxGames}
+                      onChange={(e) => setChesscomMaxGames(parseInt(e.target.value, 10) || 50)}
+                      className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                      Thể loại (Perf Types)
+                    </label>
+                    <input
+                      type="text"
+                      value={chesscomPerfTypes}
+                      onChange={(e) => setChesscomPerfTypes(e.target.value)}
+                      placeholder="blitz, rapid, bullet"
+                      className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-card/60 border border-border/40 rounded-xl">
+                  <input
+                    type="checkbox"
+                    id="ratedOnlyChesscom"
+                    checked={chesscomRatedOnly}
+                    onChange={(e) => setChesscomRatedOnly(e.target.checked)}
+                    className="w-4 h-4 rounded text-primary focus:ring-primary border-border"
+                  />
+                  <label htmlFor="ratedOnlyChesscom" className="text-xs text-foreground cursor-pointer select-none">
+                    Chỉ lấy ván đấu có tính điểm (Rated Matches)
+                  </label>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading || !chesscomUsername.trim()}
+                  className="w-full py-3 px-6 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-primary/20"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Đang đồng bộ trực tiếp từ Chess.com...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-5 h-5" />
+                      Bắt đầu Đồng bộ Chess.com
+                    </>
+                  )}
+                </button>
+              </form>
             )}
           </div>
         </div>
@@ -385,8 +579,8 @@ export default function ImportPage() {
                   <span className="font-bold text-emerald-500">{result.imported_count}</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-border/40">
-                  <span className="text-muted-foreground">Kỳ thủ phát hiện:</span>
-                  <span className="font-medium text-foreground">{result.primary_player || "Nhiều kỳ thủ"}</span>
+                  <span className="text-muted-foreground">Hồ sơ kỳ thủ:</span>
+                  <span className="font-bold text-primary">{result.primary_player || "Kỳ thủ"}</span>
                 </div>
               </div>
 
@@ -406,15 +600,15 @@ export default function ImportPage() {
                     className="w-full py-2 px-4 bg-secondary text-secondary-foreground font-semibold rounded-xl hover:bg-secondary/80 transition-all flex items-center justify-center gap-2 text-xs"
                   >
                     <User className="w-3.5 h-3.5" />
-                    Xem Hồ Sơ & Thống Kê Bayes Kỳ Thủ
+                    Xem Hồ Sơ & Thống Kê Kỳ Thủ
                   </Link>
                 )}
 
                 <Link
-                  href="/dashboard"
+                  href="/players"
                   className="w-full py-1.5 px-4 text-center text-xs text-muted-foreground hover:text-foreground transition-colors block"
                 >
-                  Về Bảng Điều Khiển Tổng Quan
+                  Quay lại Thư viện Kỳ thủ
                 </Link>
               </div>
             </div>
@@ -443,24 +637,37 @@ export default function ImportPage() {
                 <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] shrink-0 mt-0.5">
                   1
                 </span>
-                <span><b>Tải file hoặc kết nối tài khoản:</b> Nạp tệp PGN hoặc nhập username Lichess/Chess.com để kéo ván đấu tự động.</span>
+                <span><b>Chọn hồ sơ & nạp ván:</b> Chọn đúng hồ sơ kỳ thủ cần phân tích để tránh tạo hồ sơ trùng lặp.</span>
               </li>
               <li className="flex items-start gap-2.5">
                 <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] shrink-0 mt-0.5">
                   2
                 </span>
-                <span><b>Chuẩn hóa & Bóc tách chiến thuật:</b> Hệ thống tự động trích xuất các biến khai cuộc, cấu trúc Tốt và phát hiện các nước sai lầm then chốt.</span>
+                <span><b>Chuẩn hóa & Bóc tách:</b> Hệ thống tự động trích xuất các biến khai cuộc, cấu trúc Tốt và phát hiện các nước sai lầm then chốt.</span>
               </li>
               <li className="flex items-start gap-2.5">
                 <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] shrink-0 mt-0.5">
                   3
                 </span>
-                <span><b>Khám phá & Cố vấn:</b> Xem cây khai cuộc trên Bàn cờ phân tích hoặc nhận lộ trình cải thiện từ Trợ lí AI Đại kiện tướng.</span>
+                <span><b>Khám phá & Cố vấn:</b> Xem cây khai cuộc trên Bàn cờ phân tích hoặc nhận lộ trình cải thiện từ Trợ lí AI.</span>
               </li>
             </ul>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ImportPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-24 gap-3 text-muted-foreground">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <span className="text-sm">Đang tải trang nhập dữ liệu...</span>
+      </div>
+    }>
+      <ImportContent />
+    </Suspense>
   );
 }

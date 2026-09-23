@@ -40,7 +40,7 @@ function LoginContent() {
         throw error;
       }
 
-      router.push("/dashboard");
+      window.location.href = "/dashboard";
     } catch (err: any) {
       const msg = err.message || "";
       if (msg.toLowerCase().includes("email not confirmed")) {

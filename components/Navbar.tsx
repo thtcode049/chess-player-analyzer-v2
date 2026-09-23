@@ -42,7 +42,7 @@ export default function Navbar() {
 
     // Check user auth state
     supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
+      setUser(data.user || null);
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -52,11 +52,12 @@ export default function Navbar() {
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [pathname]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    window.location.href = "/login";
   };
 
   const toggleTheme = () => {

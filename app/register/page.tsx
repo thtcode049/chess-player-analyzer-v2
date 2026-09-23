@@ -60,7 +60,9 @@ export default function RegisterPage() {
         // Trường hợp Supabase tắt Confirm Email: đăng nhập và chuyển hướng ngay
         setImmediateLogin(true);
         setSuccess(true);
-        setTimeout(() => router.push("/dashboard"), 1200);
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 1200);
       } else {
         // Trường hợp Supabase bật Confirm Email: bắt buộc kiểm tra email để kích hoạt
         setImmediateLogin(false);

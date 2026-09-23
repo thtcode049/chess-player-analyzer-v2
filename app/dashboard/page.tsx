@@ -9,7 +9,8 @@ import {
   UploadCloud, 
   Trophy, 
   ArrowUpRight,
-  Layers
+  Layers,
+  Sparkles
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { Player, AnalysisRun } from "@/lib/api/types";
@@ -30,10 +31,19 @@ const getEngineBadge = (status?: string) => {
 export default function DashboardPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [recentRuns, setRecentRuns] = useState<AnalysisRun[]>([]);
+  const [user, setUser] = useState<any>(null);
+  const [isGuest, setIsGuest] = useState(false);
 
   useEffect(() => {
     async function loadData() {
       try {
+        const { createClient } = await import("@/lib/supabase/client");
+        const sb = createClient();
+        const { data: authData } = await sb.auth.getUser();
+        const currentUser = authData?.user || null;
+        setUser(currentUser);
+        setIsGuest(!currentUser);
+
         const fetchedPlayers = await apiClient.getPlayers();
         setPlayers(fetchedPlayers || []);
 
@@ -58,10 +68,14 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
-  const totalGames = recentRuns.reduce((acc, r) => acc + (r.games_analyzed_count || 0), 0);
-  const avgScore = (recentRuns.length > 0 && recentRuns[0]?.overall_score != null) 
-    ? recentRuns[0].overall_score.toFixed(1) 
-    : "61.7";
+  const totalAnalyzedGames = recentRuns.reduce((acc, r) => acc + (r.games_analyzed_count || 0), 0);
+  const totalImportedGames = players.reduce((acc, p) => acc + (p.total_games || 0), 0);
+  const totalGames = totalAnalyzedGames > 0 ? totalAnalyzedGames : totalImportedGames;
+
+  const validRuns = recentRuns.filter((r) => r.overall_score != null);
+  const avgScore = validRuns.length > 0
+    ? (validRuns.reduce((acc, r) => acc + (r.overall_score || 0), 0) / validRuns.length).toFixed(1)
+    : null;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -76,10 +90,14 @@ export default function DashboardPage() {
             CHESS PLAYER ANALYTICS
           </span>
           <h1 className="mt-2 text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight drop-shadow-xs">
-            Chào mừng trở lại! Sẵn sàng phân tích thế cờ?
+            {user 
+              ? `Chào mừng trở lại, ${user.user_metadata?.display_name || user.email?.split("@")[0] || "Kỳ thủ"}!` 
+              : "Khám Phá Phân Tích & Cố Vấn Cờ Vua Thông Minh"}
           </h1>
           <p className="mt-3 text-sm sm:text-base text-emerald-50/95 leading-relaxed drop-shadow-xs">
-            Hệ thống đã sẵn sàng hỗ trợ nạp dữ liệu từ Lichess/Chess.com, bóc tách Repertoire khai cuộc, và đồng hành cùng Trợ lí AI Đại kiện tướng để hoàn thiện chiến lược thi đấu.
+            {user
+              ? "Hệ thống đã sẵn sàng hỗ trợ nạp dữ liệu từ Lichess/Chess.com, bóc tách Repertoire khai cuộc, và đồng hành cùng Trợ lí AI Đại kiện tướng để hoàn thiện chiến lược thi đấu."
+              : "Nền tảng hỗ trợ nạp ván cờ từ tệp PGN hoặc đồng bộ trực tiếp từ Lichess/Chess.com để bóc tách khai cuộc, vẽ radar phong cách và đồng hành cùng Trợ lí AI."}
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -107,6 +125,33 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Guest Mode Notice Banner */}
+      {isGuest && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-xs text-foreground shadow-xs animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>
+              Bạn đang sử dụng ở <b>Chế độ Khách (Guest)</b>. Ván đấu nạp vào sẽ được lưu tạm thời trong phiên trình duyệt này.
+            </span>
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0">
+            <Link 
+              href="/login" 
+              className="font-bold text-emerald-700 dark:text-emerald-300 hover:underline"
+            >
+              Đăng nhập
+            </Link>
+            <span className="text-muted-foreground">•</span>
+            <Link 
+              href="/register" 
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition shadow-xs"
+            >
+              Đăng ký miễn phí
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* 4 KPI Metrics Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
@@ -139,10 +184,10 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-            {totalGames > 0 ? totalGames : "133"}
+            {totalGames}
           </div>
           <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-1 block">
-            Ván cờ đã chuẩn hóa EPD
+            {totalGames > 0 ? "Ván cờ đã chuẩn hóa EPD" : "Chưa có ván đấu nào"}
           </span>
         </div>
 
@@ -157,10 +202,10 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">
-            {avgScore}%
+            {avgScore !== null ? `${avgScore}%` : "--"}
           </div>
           <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-1 block">
-            Tỷ lệ điểm số giành được
+            {avgScore !== null ? "Tỷ lệ điểm số giành được" : "Chưa có dữ liệu đánh giá"}
           </span>
         </div>
 

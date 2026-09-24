@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Chess } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { 
@@ -8,9 +8,7 @@ import {
   ChevronLeft, 
   ChevronRight, 
   ChevronsLeft, 
-  ChevronsRight, 
-  Cpu, 
-  Zap 
+  ChevronsRight 
 } from "lucide-react";
 import { useStockfish } from "@/lib/stockfish/useStockfish";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
@@ -37,14 +35,14 @@ export default function ChessBoard({
   onMovesChange,
   onEvaluationChange,
   isEngineEnabled = true,
-  multiPv = 3,
   height = 480,
 }: ChessBoardProps) {
   const [game, setGame] = useState(new Chess(initialFen));
   const [boardOrientation, setBoardOrientation] = useState<"white" | "black">(orientation);
   const [currentPly, setCurrentPly] = useState(0);
   const [historyFens, setHistoryFens] = useState<string[]>([initialFen]);
-  
+  const lastProcessedMoves = useRef<string>("");
+
   // Stockfish WASM client hook
   const { evaluation, isThinking, evaluateFen, stop } = useStockfish();
 
@@ -55,21 +53,46 @@ export default function ChessBoard({
     }
   }, [evaluation, isThinking, isEngineEnabled, onEvaluationChange]);
 
-  // Stop or restart evaluation when isEngineEnabled or multiPv changes
+  // Navigate to specific ply cleanly (called once per navigation)
+  const jumpToPly = useCallback(
+    (targetPly: number) => {
+      if (targetPly < 0 || targetPly >= historyFens.length) return;
+      const targetFen = historyFens[targetPly];
+      const updatedGame = new Chess(targetFen);
+      setGame(updatedGame);
+      setCurrentPly(targetPly);
+
+      if (isEngineEnabled) {
+        evaluateFen(targetFen, 14);
+      }
+      if (onPositionChange) {
+        onPositionChange(targetFen, targetPly);
+      }
+    },
+    [historyFens, isEngineEnabled, evaluateFen, onPositionChange]
+  );
+
+  // Stop or restart evaluation ONLY when isEngineEnabled toggles
   useEffect(() => {
     if (!isEngineEnabled) {
       stop();
     } else {
       const activeFen = historyFens[currentPly] || game.fen();
-      evaluateFen(activeFen, 25, multiPv);
+      evaluateFen(activeFen, 14);
     }
-  }, [isEngineEnabled, multiPv, stop, evaluateFen, currentPly, historyFens, game]);
+  }, [isEngineEnabled]);
 
-  // Reset or initialize if moves or initialFen prop changes
+  // Reset or initialize if external moves or initialFen prop changes
   useEffect(() => {
+    const movesKey = `${initialFen}__${moves.join(" ")}`;
+    if (movesKey === lastProcessedMoves.current) {
+      return;
+    }
+    lastProcessedMoves.current = movesKey;
+
     const newGame = new Chess();
     const fens = [newGame.fen()];
-    
+
     if (moves && moves.length > 0) {
       for (const m of moves) {
         try {
@@ -89,7 +112,7 @@ export default function ChessBoard({
     setHistoryFens(fens);
 
     // Determine starting ply: prioritize externalPly if valid, otherwise end of game
-    const targetPly = 
+    const targetPly =
       typeof externalPly === "number" && externalPly >= 0 && externalPly < fens.length
         ? externalPly
         : fens.length - 1;
@@ -97,11 +120,14 @@ export default function ChessBoard({
     const targetFen = fens[targetPly];
     setGame(new Chess(targetFen));
     setCurrentPly(targetPly);
-    evaluateFen(targetFen, 25, multiPv);
+
+    if (isEngineEnabled) {
+      evaluateFen(targetFen, 14);
+    }
     if (onPositionChange) {
       onPositionChange(targetFen, targetPly);
     }
-  }, [moves, initialFen, evaluateFen, multiPv, onPositionChange]);
+  }, [moves, initialFen]);
 
   // Synchronize with externalPly changes (e.g. from MoveHistory click or parent)
   useEffect(() => {
@@ -111,39 +137,22 @@ export default function ChessBoard({
       externalPly >= 0 &&
       externalPly < historyFens.length
     ) {
-      const targetFen = historyFens[externalPly];
-      setGame(new Chess(targetFen));
-      setCurrentPly(externalPly);
-      evaluateFen(targetFen, 25, multiPv);
-      if (onPositionChange) {
-        onPositionChange(targetFen, externalPly);
-      }
+      jumpToPly(externalPly);
     }
-  }, [externalPly, historyFens, currentPly, evaluateFen, onPositionChange]);
-
-  // Navigate to specific ply
-  const jumpToPly = useCallback((targetPly: number) => {
-    if (targetPly < 0 || targetPly >= historyFens.length) return;
-    const targetFen = historyFens[targetPly];
-    const updatedGame = new Chess(targetFen);
-    setGame(updatedGame);
-    setCurrentPly(targetPly);
-    evaluateFen(targetFen, 25, multiPv);
-    if (onPositionChange) {
-      onPositionChange(targetFen, targetPly);
-    }
-  }, [historyFens, evaluateFen, onPositionChange]);
+  }, [externalPly, currentPly, historyFens.length, jumpToPly]);
 
   const handleFirst = useCallback(() => jumpToPly(0), [jumpToPly]);
   const handlePrev = useCallback(() => jumpToPly(Math.max(0, currentPly - 1)), [jumpToPly, currentPly]);
-  const handleNext = useCallback(() => jumpToPly(Math.min(historyFens.length - 1, currentPly + 1)), [jumpToPly, currentPly, historyFens.length]);
+  const handleNext = useCallback(
+    () => jumpToPly(Math.min(historyFens.length - 1, currentPly + 1)),
+    [jumpToPly, currentPly, historyFens.length]
+  );
   const handleLast = useCallback(() => jumpToPly(historyFens.length - 1), [jumpToPly, historyFens.length]);
   const handleFlip = useCallback(() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white")), []);
 
   // Keyboard navigation (< and > / Left and Right arrows / Home and End / F to flip)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept if user is typing in form inputs
       const target = e.target as HTMLElement | null;
       if (
         target &&
@@ -190,10 +199,16 @@ export default function ChessBoard({
           newFens.push(newFen);
           setHistoryFens(newFens);
           setCurrentPly(nextPly);
-          evaluateFen(newFen, 25, multiPv);
+
+          // Track in lastProcessedMoves so the moves useEffect won't duplicate
+          const updatedMoves = [...moves.slice(0, currentPly), result.san];
+          lastProcessedMoves.current = `${initialFen}__${updatedMoves.join(" ")}`;
+
+          if (isEngineEnabled) {
+            evaluateFen(newFen, 14);
+          }
 
           // Update move list and notify parent
-          const updatedMoves = [...moves.slice(0, currentPly), result.san];
           if (onMovesChange) {
             onMovesChange(updatedMoves, nextPly, newFen);
           }
@@ -207,7 +222,7 @@ export default function ChessBoard({
       }
       return false;
     },
-    [game, historyFens, currentPly, moves, evaluateFen, onPositionChange, onMovesChange]
+    [game, currentPly, historyFens, moves, initialFen, isEngineEnabled, evaluateFen, onPositionChange, onMovesChange]
   );
 
   const onDrop = (sourceSquare: string, targetSquare: string) => {
@@ -268,7 +283,7 @@ export default function ChessBoard({
             boardOrientation={boardOrientation}
             boardWidth={height}
             customBoardStyle={{
-              borderRadius: "8px",
+              borderRadius: "0.75rem",
             }}
             customDarkSquareStyle={{ backgroundColor: "#779952" }}
             customLightSquareStyle={{ backgroundColor: "#edeed1" }}
@@ -276,7 +291,7 @@ export default function ChessBoard({
         </div>
       </div>
 
-      {/* Navigation Controls */}
+      {/* Navigation Controls Bar */}
       <div className="w-full flex items-center justify-center gap-2 pt-4">
         <button
           onClick={handleFirst}
@@ -290,7 +305,7 @@ export default function ChessBoard({
           onClick={handlePrev}
           disabled={currentPly === 0}
           className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-slate-100 dark:disabled:hover:bg-slate-800/80 disabled:hover:text-slate-700 border border-slate-200/60 dark:border-slate-700/60 transition-all shadow-xs"
-          title="Lùi 1 nước"
+          title="Lùi 1 nước (←)"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -298,7 +313,7 @@ export default function ChessBoard({
           onClick={handleNext}
           disabled={currentPly >= historyFens.length - 1}
           className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-slate-100 dark:disabled:hover:bg-slate-800/80 disabled:hover:text-slate-700 border border-slate-200/60 dark:border-slate-700/60 transition-all shadow-xs"
-          title="Tiến 1 nước"
+          title="Tiến 1 nước (→)"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -313,7 +328,7 @@ export default function ChessBoard({
         <button
           onClick={handleFlip}
           className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white border border-slate-200/60 dark:border-slate-700/60 transition-all shadow-xs"
-          title="Xoay bàn cờ"
+          title="Xoay bàn cờ (F)"
         >
           <RotateCw className="w-4 h-4" />
         </button>

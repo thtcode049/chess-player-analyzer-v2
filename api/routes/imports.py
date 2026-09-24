@@ -6,11 +6,22 @@ from typing import Optional, List
 from datetime import datetime
 import uuid
 import logging
+import json
+import urllib.request
+import urllib.parse
+import urllib.error
 
 from api.schemas.common import BaseResponse
-from api.schemas.imports import LichessImportRequest, ChesscomImportRequest, ImportSummaryResponse
+from api.schemas.imports import (
+    LichessImportRequest,
+    ChesscomImportRequest,
+    ImportSummaryResponse,
+    LichessOAuthTokenRequest,
+    LichessVerifyTokenRequest,
+    LichessAuthResponse
+)
 from api.services.import_service import ImportService
-from api.services.db_service import DBService, determine_player_color
+from api.services.db_service import DBService, determine_player_color, normalize_name_words
 from api.routes.players import PLAYERS_STORE, GAMES_STORE, get_guest_session
 
 
@@ -27,7 +38,9 @@ def _get_user_id_from_header(x_user_id: Optional[str] = Header(None)) -> Optiona
 async def import_pgn_file(
     file: UploadFile = File(...),
     player_id: Optional[str] = Form(None),
-    max_games: Optional[int] = Form(200),
+    player_name: Optional[str] = Form(None),
+    alias_names: Optional[str] = Form(None),
+    max_games: Optional[int] = Form(1000),
     user_id: Optional[str] = Form(None),
     x_user_id: Optional[str] = Header(None),
     x_guest_session_id: Optional[str] = Header(None),
@@ -47,8 +60,7 @@ async def import_pgn_file(
             raise HTTPException(status_code=400, detail="No valid games found in PGN file")
 
         dataset_id = str(uuid.uuid4())
-        db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
-        final_player_name = primary_player or file.filename or "Unknown Player"
+        final_player_name = player_name or primary_player or file.filename or "Unknown Player"
 
         effective_user_id = user_id or x_user_id
         actual_player_id = player_id
@@ -98,17 +110,50 @@ async def import_pgn_file(
                 if pid in GAMES_STORE:
                     del GAMES_STORE[pid]
 
-        # Prepare player games with correct player_color
-        player_games = [
-            g for g in raw_games
-            if determine_player_color(final_player_name, g.get("white", ""), g.get("black", "")) in ("white", "black")
-            and (final_player_name.lower().strip() in g.get("white", "").lower() or final_player_name.lower().strip() in g.get("black", "").lower() or len(raw_games) < 500)
-        ]
-        if not player_games:
+        # Prepare aliases list for fuzzy/variant matching
+        alias_list = [final_player_name.lower().strip()]
+        if alias_names:
+            try:
+                parsed_aliases = json.loads(alias_names)
+                if isinstance(parsed_aliases, list):
+                    alias_list.extend([str(a).lower().strip() for a in parsed_aliases if a])
+            except Exception:
+                alias_list.extend([a.lower().strip() for a in alias_names.split(",") if a.strip()])
+        alias_set = set(alias_list)
+        p_words = normalize_name_words(final_player_name)
+
+        def matches_target_player(player_str: str) -> bool:
+            if not player_str:
+                return False
+            low = player_str.strip().lower()
+            if any(a in low or low in a for a in alias_set):
+                return True
+            w_words = normalize_name_words(player_str)
+            if p_words and len(w_words & p_words) >= max(2, int(len(p_words) * 0.6)):
+                return True
+            return False
+
+        # Prepare player games with correct player_color, merging all name variants
+        if player_name or alias_names:
+            matched_games = [
+                g for g in raw_games
+                if matches_target_player(g.get("white", "")) or matches_target_player(g.get("black", ""))
+            ]
+            player_games = matched_games if matched_games else raw_games
+        else:
             player_games = raw_games
 
         for g in player_games:
-            g["player_color"] = determine_player_color(final_player_name, g.get("white", ""), g.get("black", ""))
+            w_match = matches_target_player(g.get("white", ""))
+            b_match = matches_target_player(g.get("black", ""))
+            if w_match and not b_match:
+                g["player_color"] = "white"
+            elif b_match and not w_match:
+                g["player_color"] = "black"
+            else:
+                g["player_color"] = determine_player_color(final_player_name, g.get("white", ""), g.get("black", ""))
+
+        db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in player_games]
 
         # --- Persist to Supabase if user is logged in ---
         if effective_user_id:
@@ -117,14 +162,14 @@ async def import_pgn_file(
                     player_id=actual_player_id,
                     source_type="pgn_upload",
                     source_identifier=file.filename or "upload.pgn",
-                    games_count=len(db_games),
+                    games_count=len(player_games),
                 )
                 dataset_id = dataset_rec["id"]
 
                 # Re-normalize with correct dataset_id from DB
-                db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
+                db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in player_games]
                 inserted = DBService.bulk_insert_games(db_games, dataset_id=dataset_id)
-                logger.info(f"[Import PGN] Saved {inserted}/{len(db_games)} games to Supabase for user={effective_user_id}")
+                logger.info(f"[Import PGN] Saved {inserted}/{len(player_games)} games to Supabase for user={effective_user_id}")
             except Exception as db_err:
                 logger.error(f"[Import PGN] DB save error: {db_err}")
         else:
@@ -227,7 +272,10 @@ async def import_lichess(
             username=req.username,
             max_games=req.max_games,
             perf_types=req.perf_types,
-            rated=req.rated_only
+            rated=req.rated_only,
+            token=req.token,
+            since=req.since,
+            until=req.until
         )
         if err:
             raise HTTPException(status_code=400, detail=err)
@@ -405,7 +453,9 @@ async def import_chesscom(
             username=req.username,
             max_games=req.max_games,
             perf_types=req.perf_types,
-            rated=req.rated_only
+            rated=req.rated_only,
+            since=req.since,
+            until=req.until
         )
         if err:
             raise HTTPException(status_code=400, detail=err)
@@ -566,3 +616,123 @@ async def import_chesscom(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chess.com sync error: {str(e)}")
+
+
+@router.post("/lichess/oauth-token", response_model=BaseResponse[LichessAuthResponse])
+async def exchange_lichess_oauth(req: LichessOAuthTokenRequest):
+    """
+    Exchanges PKCE authorization code for Lichess access token and fetches account details.
+    """
+    try:
+        url = "https://lichess.org/api/token"
+        payload = urllib.parse.urlencode({
+            "grant_type": "authorization_code",
+            "code": req.code,
+            "code_verifier": req.code_verifier,
+            "redirect_uri": req.redirect_uri,
+            "client_id": req.client_id or "chess-player-analyzer"
+        }).encode("utf-8")
+
+        post_req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": "ChessPlayerAnalyzer (contact: admin@localhost)"
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(post_req, timeout=15) as resp:
+            token_data = json.loads(resp.read().decode("utf-8"))
+
+        access_token = token_data.get("access_token")
+        if not access_token:
+            return BaseResponse(
+                success=False,
+                message="Không thể nhận access token từ Lichess",
+                data=LichessAuthResponse(valid=False, error="No access token returned")
+            )
+
+        # Fetch username from /api/account
+        username = None
+        acc_req = urllib.request.Request(
+            "https://lichess.org/api/account",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "User-Agent": "ChessPlayerAnalyzer"
+            }
+        )
+        try:
+            with urllib.request.urlopen(acc_req, timeout=10) as acc_resp:
+                acc_data = json.loads(acc_resp.read().decode("utf-8"))
+                username = acc_data.get("username")
+        except Exception as e:
+            logger.warning(f"Could not retrieve Lichess username: {e}")
+
+        return BaseResponse(
+            success=True,
+            message="Ủy quyền Lichess thành công!",
+            data=LichessAuthResponse(
+                access_token=access_token,
+                username=username,
+                valid=True
+            )
+        )
+    except urllib.error.HTTPError as e:
+        err_msg = e.read().decode("utf-8") if e.fp else str(e)
+        logger.error(f"[Lichess OAuth] HTTP Error {e.code}: {err_msg}")
+        return BaseResponse(
+            success=False,
+            message=f"Lỗi xác thực Lichess ({e.code}): {err_msg}",
+            data=LichessAuthResponse(valid=False, error=err_msg)
+        )
+    except Exception as e:
+        logger.error(f"[Lichess OAuth] Exception: {e}")
+        return BaseResponse(
+            success=False,
+            message=f"Lỗi kết nối tới Lichess: {str(e)}",
+            data=LichessAuthResponse(valid=False, error=str(e))
+        )
+
+
+@router.post("/lichess/verify-token", response_model=BaseResponse[LichessAuthResponse])
+async def verify_lichess_token(req: LichessVerifyTokenRequest):
+    """
+    Verifies a Lichess Personal Access Token or OAuth token and retrieves the account username.
+    """
+    token = req.token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Token không được để trống")
+    try:
+        acc_req = urllib.request.Request(
+            "https://lichess.org/api/account",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "User-Agent": "ChessPlayerAnalyzer"
+            }
+        )
+        with urllib.request.urlopen(acc_req, timeout=10) as acc_resp:
+            acc_data = json.loads(acc_resp.read().decode("utf-8"))
+            username = acc_data.get("username")
+
+        return BaseResponse(
+            success=True,
+            message=f"Token hợp lệ! Tài khoản: {username}",
+            data=LichessAuthResponse(
+                access_token=token,
+                username=username,
+                valid=True
+            )
+        )
+    except urllib.error.HTTPError as e:
+        return BaseResponse(
+            success=False,
+            message="Token không hợp lệ hoặc đã hết hạn",
+            data=LichessAuthResponse(valid=False, error=f"HTTP {e.code}")
+        )
+    except Exception as e:
+        return BaseResponse(
+            success=False,
+            message=f"Lỗi kiểm tra token: {str(e)}",
+            data=LichessAuthResponse(valid=False, error=str(e))
+        )

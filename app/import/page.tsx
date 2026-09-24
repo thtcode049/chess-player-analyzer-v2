@@ -10,32 +10,313 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Loader2, 
-  Sparkles, 
   Database, 
   User, 
-  RefreshCw, 
   BarChart3, 
   ArrowRight,
   UserCheck,
-  ChevronDown
+  ChevronDown,
+  Calendar,
+  Zap,
+  Clock,
+  ShieldCheck,
+  LogOut,
+  Download,
+  Search,
+  Users
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { ImportSummary, Player } from "@/lib/api/types";
+
+export interface DetectedPlayerInfo {
+  name: string;
+  rawNames: string[];
+  rawStats: { name: string; count: number; white: number; black: number }[];
+  gameCount: number;
+  whiteCount: number;
+  blackCount: number;
+  hasMergedVariants: boolean;
+}
+
+function cleanPlayerName(name: string): string {
+  // Normalize unicode NFD to strip diacritics
+  let s = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  // Replace Vietnamese đ/Đ
+  s = s.replace(/[đĐ]/g, "d");
+  // Remove special characters, accents often corrupted in VIQR/VNI: ~ ` ' ? ^
+  s = s.replace(/[~`'?^]/g, "");
+  // Replace punctuation and commas with spaces
+  s = s.replace(/[,._\-\/\\|+*]/g, " ");
+  // Collapse whitespace and lowercase
+  return s.toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+function stringSimilarity(a: string, b: string): number {
+  if (a === b) return 1.0;
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) return 1.0;
+  return 1 - levenshteinDistance(a, b) / maxLen;
+}
+
+function arePlayerNamesSimilar(nameA: string, nameB: string): boolean {
+  if (nameA === nameB) return true;
+  const cleanA = cleanPlayerName(nameA);
+  const cleanB = cleanPlayerName(nameB);
+  if (cleanA === cleanB) return true;
+
+  const wordsA = cleanA.split(" ").filter((w) => w.length > 0);
+  const wordsB = cleanB.split(" ").filter((w) => w.length > 0);
+
+  // If both have multiple words:
+  if (wordsA.length >= 2 && wordsB.length >= 2) {
+    // Check first word (often family name e.g. "vu" vs "vu")
+    if (wordsA[0] !== wordsB[0]) {
+      return false;
+    }
+    // Check word count difference
+    if (Math.abs(wordsA.length - wordsB.length) > 1) {
+      return false;
+    }
+  }
+
+  // Token set check or overall Levenshtein similarity on cleaned strings
+  const sim = stringSimilarity(cleanA, cleanB);
+  if (sim >= 0.80) return true;
+
+  // Also check if words match closely with prefix (e.g. "th" vs "thi")
+  if (wordsA.length === wordsB.length && wordsA.length >= 3) {
+    let matchedWords = 0;
+    for (let i = 0; i < wordsA.length; i++) {
+      const wa = wordsA[i];
+      const wb = wordsB[i];
+      if (wa === wb || wa.startsWith(wb) || wb.startsWith(wa) || stringSimilarity(wa, wb) >= 0.7) {
+        matchedWords++;
+      }
+    }
+    if (matchedWords >= wordsA.length - 0.5) return true;
+  }
+
+  return false;
+}
+
+function nameQualityScore(name: string): number {
+  let score = 0;
+  for (const ch of name) {
+    if ("?~`^".includes(ch)) score += 10;
+  }
+  return score;
+}
+
+function extractPlayersFromPgn(pgnText: string): DetectedPlayerInfo[] {
+  const playerCounts: Record<string, { count: number; white: number; black: number }> = {};
+  const whiteRegex = /\[White\s+["']([^"']+)["']\]/gi;
+  const blackRegex = /\[Black\s+["']([^"']+)["']\]/gi;
+
+  let match;
+  while ((match = whiteRegex.exec(pgnText)) !== null) {
+    const name = match[1].trim();
+    if (name && name !== "?" && name.toLowerCase() !== "unknown") {
+      if (!playerCounts[name]) playerCounts[name] = { count: 0, white: 0, black: 0 };
+      playerCounts[name].count += 1;
+      playerCounts[name].white += 1;
+    }
+  }
+
+  while ((match = blackRegex.exec(pgnText)) !== null) {
+    const name = match[1].trim();
+    if (name && name !== "?" && name.toLowerCase() !== "unknown") {
+      if (!playerCounts[name]) playerCounts[name] = { count: 0, white: 0, black: 0 };
+      playerCounts[name].count += 1;
+      playerCounts[name].black += 1;
+    }
+  }
+
+  const rawList = Object.entries(playerCounts)
+    .map(([name, stats]) => ({
+      name,
+      count: stats.count,
+      white: stats.white,
+      black: stats.black,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  const clusters: DetectedPlayerInfo[] = [];
+
+  for (const item of rawList) {
+    const matchedCluster = clusters.find((c) =>
+      c.rawNames.some((rn) => arePlayerNamesSimilar(rn, item.name))
+    );
+
+    if (matchedCluster) {
+      matchedCluster.rawNames.push(item.name);
+      matchedCluster.rawStats.push(item);
+      matchedCluster.gameCount += item.count;
+      matchedCluster.whiteCount += item.white;
+      matchedCluster.blackCount += item.black;
+      matchedCluster.hasMergedVariants = true;
+
+      // Select cleanest name: lowest corruption score, tie-break with largest game count
+      if (nameQualityScore(item.name) < nameQualityScore(matchedCluster.name)) {
+        matchedCluster.name = item.name;
+      }
+    } else {
+      clusters.push({
+        name: item.name,
+        rawNames: [item.name],
+        rawStats: [item],
+        gameCount: item.count,
+        whiteCount: item.white,
+        blackCount: item.black,
+        hasMergedVariants: false,
+      });
+    }
+  }
+
+  return clusters.sort((a, b) => b.gameCount - a.gameCount);
+}
+
+// PKCE Helper Functions for Lichess OAuth
+function generateRandomString(length = 64): string {
+  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+  let text = "";
+  const values = new Uint8Array(length);
+  crypto.getRandomValues(values);
+  for (let i = 0; i < length; i++) {
+    text += possible[values[i] % possible.length];
+  }
+  return text;
+}
+
+async function generateCodeChallenge(verifier: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  const bytes = new Uint8Array(digest);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+type TimeRangePreset = "all" | "30d" | "3m" | "6m" | "1y" | "custom";
+
+const TIME_PRESETS: { id: TimeRangePreset; label: string }[] = [
+  { id: "all", label: "Tất cả" },
+  { id: "30d", label: "30 ngày gần nhất" },
+  { id: "3m", label: "3 tháng" },
+  { id: "6m", label: "6 tháng" },
+  { id: "1y", label: "1 năm" },
+  { id: "custom", label: "Tùy chỉnh" },
+];
+
+const LICHESS_PERF_OPTIONS = [
+  { id: "blitz", label: "Blitz (Chớp)" },
+  { id: "rapid", label: "Rapid (Nhanh)" },
+  { id: "classical", label: "Classical (Tiêu chuẩn)" },
+  { id: "bullet", label: "Bullet (Siêu chớp)" },
+];
+
+const CHESSCOM_PERF_OPTIONS = [
+  { id: "blitz", label: "Blitz (Chớp)" },
+  { id: "rapid", label: "Rapid (Nhanh)" },
+  { id: "bullet", label: "Bullet (Siêu chớp)" },
+  { id: "daily", label: "Daily (Hàng ngày)" },
+];
+
+function computeTimeBounds(
+  preset: TimeRangePreset,
+  customStart: string,
+  customEnd: string
+): { since?: number; until?: number } {
+  const now = Date.now();
+  if (preset === "30d") return { since: now - 30 * 24 * 60 * 60 * 1000 };
+  if (preset === "3m") return { since: now - 90 * 24 * 60 * 60 * 1000 };
+  if (preset === "6m") return { since: now - 180 * 24 * 60 * 60 * 1000 };
+  if (preset === "1y") return { since: now - 365 * 24 * 60 * 60 * 1000 };
+  if (preset === "custom") {
+    const s = customStart ? new Date(customStart).getTime() : undefined;
+    const u = customEnd ? new Date(customEnd).getTime() + 86399999 : undefined;
+    return { since: s, until: u };
+  }
+  return {};
+}
 
 function ImportContent() {
   const searchParams = useSearchParams();
   const paramPlayerId = searchParams.get("playerId") || "";
   const paramPlayerName = searchParams.get("playerName") || "";
 
-  const [activeTab, setActiveTab] = useState<"pgn" | "lichess" | "chesscom">("pgn");
+  const [activeTab, setActiveTab] = useState<"pgn" | "lichess" | "chesscom">("lichess");
   const [userId, setUserId] = useState<string | null>(null);
 
   // Existing players list and target player selection
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>(paramPlayerId);
-  const [loadingPlayers, setLoadingPlayers] = useState(true);
+  const [, setLoadingPlayers] = useState(true);
 
-  // Get current user session
+  // Lichess OAuth & Token state
+  const [lichessToken, setLichessToken] = useState<string>("");
+  const [lichessAuthUser, setLichessAuthUser] = useState<string>("");
+  const [isVerifyingLichess, setIsVerifyingLichess] = useState(false);
+
+  // PGN Upload states
+  const [pgnFile, setPgnFile] = useState<File | null>(null);
+  const [pgnText, setPgnText] = useState("");
+  const [detectedPlayers, setDetectedPlayers] = useState<DetectedPlayerInfo[]>([]);
+  const [selectedFocusPlayer, setSelectedFocusPlayer] = useState<string>("");
+  const [playerSearchFilter, setPlayerSearchFilter] = useState<string>("");
+
+  // Lichess states
+  const [lichessUsername, setLichessUsername] = useState("");
+  const [lichessMaxGames, setLichessMaxGames] = useState<number | "">("");
+  const [lichessRatedOnly, setLichessRatedOnly] = useState(true);
+  const [lichessSelectedPerfs, setLichessSelectedPerfs] = useState<string[]>(["blitz", "rapid"]);
+  const [lichessTimePreset, setLichessTimePreset] = useState<TimeRangePreset>("all");
+  const [lichessCustomStart, setLichessCustomStart] = useState("");
+  const [lichessCustomEnd, setLichessCustomEnd] = useState("");
+
+  // Chess.com states
+  const [chesscomUsername, setChesscomUsername] = useState("");
+  const [chesscomMaxGames, setChesscomMaxGames] = useState<number | "">("");
+  const [chesscomRatedOnly, setChesscomRatedOnly] = useState(true);
+  const [chesscomSelectedPerfs, setChesscomSelectedPerfs] = useState<string[]>(["blitz", "rapid"]);
+  const [chesscomTimePreset, setChesscomTimePreset] = useState<TimeRangePreset>("all");
+  const [chesscomCustomStart, setChesscomCustomStart] = useState("");
+  const [chesscomCustomEnd, setChesscomCustomEnd] = useState("");
+
+  // Loading & Result states
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ImportSummary | null>(null);
+
+  // Load user session
   useEffect(() => {
     import("@/lib/supabase/client").then(({ createClient }) => {
       const sb = createClient();
@@ -68,39 +349,158 @@ function ImportContent() {
     }
   }, [paramPlayerId]);
 
-  // Selected player object
-  const selectedPlayer = players.find(p => p.id === selectedPlayerId);
+  // Load persisted Lichess token & account on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedToken = localStorage.getItem("lichess_token");
+      const savedUser = localStorage.getItem("lichess_username");
+      if (savedToken) {
+        setLichessToken(savedToken);
+        if (savedUser) {
+          setLichessAuthUser(savedUser);
+          setLichessUsername(savedUser);
+        }
+      }
+    }
+  }, []);
 
-  // PGN Upload states
-  const [pgnFile, setPgnFile] = useState<File | null>(null);
-  const [pgnText, setPgnText] = useState("");
-  const [datasetName, setDatasetName] = useState("");
-  const [detectedPlayer, setDetectedPlayer] = useState("");
+  // Handle Lichess OAuth redirect callback
+  useEffect(() => {
+    const code = searchParams.get("code");
+    const state = searchParams.get("state");
+    if (code && typeof window !== "undefined") {
+      const savedVerifier = localStorage.getItem("lichess_oauth_verifier");
+      const savedState = localStorage.getItem("lichess_oauth_state");
 
-  // Lichess states
-  const [lichessUsername, setLichessUsername] = useState("");
-  const [lichessMaxGames, setLichessMaxGames] = useState(50);
-  const [lichessRatedOnly, setLichessRatedOnly] = useState(true);
-  const [lichessPerfTypes, setLichessPerfTypes] = useState("blitz,rapid");
+      // Clean query parameters from URL
+      window.history.replaceState({}, document.title, window.location.pathname);
 
-  // Chess.com states
-  const [chesscomUsername, setChesscomUsername] = useState("");
-  const [chesscomMaxGames, setChesscomMaxGames] = useState(50);
-  const [chesscomRatedOnly, setChesscomRatedOnly] = useState(true);
-  const [chesscomPerfTypes, setChesscomPerfTypes] = useState("blitz,rapid");
+      if (savedState && state && savedState !== state) {
+        setError("OAuth state không khớp hoặc phiên đã hết hạn. Vui lòng thử lại.");
+        return;
+      }
 
-  // Loading & Result states
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ImportSummary | null>(null);
+      if (savedVerifier) {
+        setIsVerifyingLichess(true);
+        const redirectUri = `${window.location.origin}/import`;
+        apiClient
+          .exchangeLichessCode({
+            code,
+            code_verifier: savedVerifier,
+            redirect_uri: redirectUri,
+            client_id: window.location.origin,
+          })
+          .then((res) => {
+            if (res.access_token) {
+              setLichessToken(res.access_token);
+              localStorage.setItem("lichess_token", res.access_token);
+              if (res.username) {
+                setLichessAuthUser(res.username);
+                setLichessUsername(res.username);
+                localStorage.setItem("lichess_username", res.username);
+              }
+              setActiveTab("lichess");
+            } else {
+              setError(res.error || "Không thể xác thực OAuth với Lichess.");
+            }
+          })
+          .catch((err) => {
+            setError(err.message || "Lỗi khi trao đổi mã xác thực với Lichess.");
+          })
+          .finally(() => {
+            setIsVerifyingLichess(false);
+            localStorage.removeItem("lichess_oauth_verifier");
+            localStorage.removeItem("lichess_oauth_state");
+          });
+      }
+    }
+  }, [searchParams]);
+
+  const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
+
+  // Authorize Lichess via OAuth PKCE
+  const handleAuthorizeLichess = async () => {
+    try {
+      setError(null);
+      const verifier = generateRandomString(64);
+      const challenge = await generateCodeChallenge(verifier);
+      const state = generateRandomString(16);
+
+      localStorage.setItem("lichess_oauth_verifier", verifier);
+      localStorage.setItem("lichess_oauth_state", state);
+
+      const redirectUri = `${window.location.origin}/import`;
+      const clientId = window.location.origin;
+
+      const authUrl = new URL("https://lichess.org/oauth");
+      authUrl.searchParams.set("response_type", "code");
+      authUrl.searchParams.set("client_id", clientId);
+      authUrl.searchParams.set("redirect_uri", redirectUri);
+      authUrl.searchParams.set("code_challenge", challenge);
+      authUrl.searchParams.set("code_challenge_method", "S256");
+      authUrl.searchParams.set("scope", "");
+      authUrl.searchParams.set("state", state);
+
+      window.location.href = authUrl.toString();
+    } catch (err: any) {
+      setError("Không thể khởi tạo phiên xác thực Lichess: " + err.message);
+    }
+  };
+
+
+  // Disconnect / Revoke Lichess Authorization
+  const handleDisconnectLichess = () => {
+    setLichessToken("");
+    setLichessAuthUser("");
+    localStorage.removeItem("lichess_token");
+    localStorage.removeItem("lichess_username");
+  };
+
+  // Toggle perf types
+  const toggleLichessPerf = (id: string) => {
+    setLichessSelectedPerfs((prev) =>
+      prev.includes(id) ? (prev.length > 1 ? prev.filter((p) => p !== id) : prev) : [...prev, id]
+    );
+  };
+
+  const toggleChesscomPerf = (id: string) => {
+    setChesscomSelectedPerfs((prev) =>
+      prev.includes(id) ? (prev.length > 1 ? prev.filter((p) => p !== id) : prev) : [...prev, id]
+    );
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setPgnFile(file);
-      if (!datasetName) {
-        setDatasetName(file.name.replace(/\.[^/.]+$/, ""));
+
+      // Auto-extract all players from PGN file
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        if (content) {
+          const detected = extractPlayersFromPgn(content);
+          setDetectedPlayers(detected);
+          if (detected.length > 0) {
+            setSelectedFocusPlayer(detected[0].name);
+          }
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handlePgnTextChange = (text: string) => {
+    setPgnText(text);
+    if (text.trim().length > 15) {
+      const detected = extractPlayersFromPgn(text);
+      setDetectedPlayers(detected);
+      if (detected.length > 0 && (!selectedFocusPlayer || !detected.some((p) => p.name === selectedFocusPlayer))) {
+        setSelectedFocusPlayer(detected[0].name);
       }
+    } else if (!pgnFile) {
+      setDetectedPlayers([]);
+      setSelectedFocusPlayer("");
     }
   };
 
@@ -113,17 +513,39 @@ function ImportContent() {
     try {
       let res: ImportSummary;
       const targetId = selectedPlayerId ? selectedPlayerId : undefined;
+      const focusPlayer = selectedFocusPlayer ? selectedFocusPlayer.trim() : undefined;
+
+      // Find the cluster matching selectedFocusPlayer to get all raw corrupted/variant names
+      const selectedCluster = detectedPlayers.find(
+        (p) => p.name === selectedFocusPlayer || p.rawNames.includes(selectedFocusPlayer)
+      );
+
+      let aliasNames: string[] | undefined = undefined;
+      if (selectedCluster) {
+        const set = new Set<string>(selectedCluster.rawNames);
+        if (focusPlayer) set.add(focusPlayer);
+        aliasNames = Array.from(set);
+      } else if (focusPlayer) {
+        aliasNames = [focusPlayer];
+      }
+
+      const autoDataset = pgnFile
+        ? pgnFile.name.replace(/\.[^/.]+$/, "")
+        : focusPlayer
+        ? `${focusPlayer} PGN Import`
+        : "PGN Import";
+
       if (pgnFile) {
-        res = await apiClient.importPgnFile(pgnFile, targetId, 200, userId || undefined);
+        res = await apiClient.importPgnFile(pgnFile, targetId, 1000, userId || undefined, focusPlayer, aliasNames);
       } else if (pgnText.trim()) {
-        res = await apiClient.importPgnText(pgnText, datasetName || "PGN Text Import", targetId, 200, userId || undefined);
+        res = await apiClient.importPgnText(pgnText, autoDataset, targetId, 1000, userId || undefined, focusPlayer, aliasNames);
       } else {
         throw new Error("Vui lòng tải lên tệp .pgn hoặc dán văn bản PGN.");
       }
       setResult(res);
     } catch (err: any) {
       console.error("[Import] Error:", err);
-      setError(err.message || "Lỗi khi nhập dữ liệu PGN");
+      setError(err.message || "Lỗi khi nạp dữ liệu PGN");
     } finally {
       setIsLoading(false);
     }
@@ -140,19 +562,22 @@ function ImportContent() {
     setIsLoading(true);
 
     try {
-      const perfs = lichessPerfTypes.split(",").map(p => p.trim()).filter(Boolean);
+      const { since, until } = computeTimeBounds(lichessTimePreset, lichessCustomStart, lichessCustomEnd);
       const targetId = selectedPlayerId ? selectedPlayerId : undefined;
       const res = await apiClient.importLichess({
         player_id: targetId,
         user_id: userId || undefined,
         username: lichessUsername.trim(),
-        max_games: lichessMaxGames,
+        max_games: Math.min(1000, Math.max(1, Number(lichessMaxGames) || 100)),
         rated_only: lichessRatedOnly,
-        perf_types: perfs.length > 0 ? perfs : undefined
+        perf_types: lichessSelectedPerfs.length > 0 ? lichessSelectedPerfs : undefined,
+        since,
+        until,
+        token: lichessToken || undefined,
       });
       setResult(res);
     } catch (err: any) {
-      setError(err.message || "Lỗi khi đồng bộ ván đấu từ Lichess");
+      setError(err.message || "Lỗi khi nạp ván đấu từ Lichess.org");
     } finally {
       setIsLoading(false);
     }
@@ -169,35 +594,37 @@ function ImportContent() {
     setIsLoading(true);
 
     try {
-      const perfs = chesscomPerfTypes.split(",").map(p => p.trim()).filter(Boolean);
+      const { since, until } = computeTimeBounds(chesscomTimePreset, chesscomCustomStart, chesscomCustomEnd);
       const targetId = selectedPlayerId ? selectedPlayerId : undefined;
       const res = await apiClient.importChesscom({
         player_id: targetId,
         user_id: userId || undefined,
         username: chesscomUsername.trim(),
-        max_games: chesscomMaxGames,
+        max_games: Math.min(1000, Math.max(1, Number(chesscomMaxGames) || 100)),
         rated_only: chesscomRatedOnly,
-        perf_types: perfs.length > 0 ? perfs : undefined
+        perf_types: chesscomSelectedPerfs.length > 0 ? chesscomSelectedPerfs : undefined,
+        since,
+        until,
       });
       setResult(res);
     } catch (err: any) {
-      setError(err.message || "Lỗi khi đồng bộ ván đấu từ Chess.com");
+      setError(err.message || "Lỗi khi nạp ván đấu từ Chess.com");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-fade-in">
+    <div className="max-w-5xl mx-auto space-y-8 animate-fade-in pb-12">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-6">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-3">
             <Database className="w-8 h-8 text-primary" />
-            Nhập & Đồng bộ Dữ liệu Ván Đấu
+            Nạp & Đồng bộ Dữ liệu Ván Đấu
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Hỗ trợ tệp PGN tiêu chuẩn, Lichess API trực tiếp và Chess.com Public Archives.
+            Hỗ trợ nạp ván đấu tốc độ cao từ Lichess.org (với OAuth Authorization), Chess.com Public Archives và tệp PGN tiêu chuẩn (tối đa 1000 ván).
           </p>
         </div>
       </div>
@@ -272,30 +699,19 @@ function ImportContent() {
       {/* Source Selector Tabs */}
       <div className="grid grid-cols-3 p-1.5 rounded-xl bg-card border border-border/60 max-w-lg">
         <button
-          onClick={() => { setActiveTab("pgn"); setError(null); }}
-          className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-medium rounded-lg transition-all ${
-            activeTab === "pgn"
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          PGN File / Text
-        </button>
-        <button
           onClick={() => { setActiveTab("lichess"); setError(null); }}
-          className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-medium rounded-lg transition-all ${
+          className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-semibold rounded-lg transition-all ${
             activeTab === "lichess"
               ? "bg-primary text-primary-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
           <Globe className="w-4 h-4" />
-          Lichess Sync
+          Lichess.org
         </button>
         <button
           onClick={() => { setActiveTab("chesscom"); setError(null); }}
-          className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-medium rounded-lg transition-all ${
+          className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-semibold rounded-lg transition-all ${
             activeTab === "chesscom"
               ? "bg-primary text-primary-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
@@ -304,13 +720,424 @@ function ImportContent() {
           <User className="w-4 h-4" />
           Chess.com
         </button>
+        <button
+          onClick={() => { setActiveTab("pgn"); setError(null); }}
+          className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-semibold rounded-lg transition-all ${
+            activeTab === "pgn"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          PGN File / Text
+        </button>
       </div>
 
       {/* Main Content Box */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className={`grid grid-cols-1 ${result || error ? "lg:grid-cols-3" : ""} gap-8`}>
         {/* Left Form Area */}
-        <div className="lg:col-span-2">
+        <div className={result || error ? "lg:col-span-2" : ""}>
           <div className="bg-card border border-border/60 rounded-2xl p-6 sm:p-8 shadow-sm">
+            {/* TAB LICHESS.ORG */}
+            {activeTab === "lichess" && (
+              <div className="space-y-6">
+                {/* Lichess Authorization Card */}
+                <div className="rounded-2xl border border-amber-500/25 bg-gradient-to-br from-amber-500/5 via-transparent to-primary/5 p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start sm:items-center gap-3.5">
+                      {/* Lichess Horse Logo Icon */}
+                      <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-bold shrink-0 shadow-inner">
+                        <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                          <path d="M19.5 21a3 3 0 0 0 3-3v-4.5a3 3 0 0 0-3-3h-1.5V9a6 6 0 0 0-6-6H9a3 3 0 0 0-3 3v1.5H4.5a3 3 0 0 0-3 3V15a3 3 0 0 0 3 3H6v3h13.5zm-7.5-16.5a4.5 4.5 0 0 1 4.5 4.5v1.5H12a1.5 1.5 0 0 1-1.5-1.5V4.5zM7.5 6a1.5 1.5 0 0 1 1.5-1.5v4.5A3 3 0 0 0 12 12h4.5v1.5H4.5a1.5 1.5 0 0 1-1.5-1.5v-1.5a1.5 1.5 0 0 1 1.5-1.5H6V7.5A1.5 1.5 0 0 1 7.5 6zM6 16.5h12a1.5 1.5 0 0 1 1.5 1.5v1.5H6v-3z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-sm text-foreground">
+                            {lichessToken ? "Đã liên kết Lichess.org" : "Ủy quyền Lichess (Authorize)"}
+                          </h3>
+                          {lichessToken && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 flex items-center gap-1">
+                              <ShieldCheck className="w-3 h-3" />
+                              Tốc độ tối đa
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          {lichessToken ? (
+                            <span>
+                              Tài khoản: <b className="text-primary font-mono">{lichessAuthUser || lichessUsername}</b> — Nạp ván đấu không giới hạn tốc độ (Unthrottled rate-limit).
+                            </span>
+                          ) : (
+                            <span>
+                              Ủy quyền giúp nạp ván đấu với tốc độ cao, không bị giới hạn Rate Limit từ Lichess API (chỉ truy cập dữ liệu công khai).
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                      {lichessToken ? (
+                        <button
+                          type="button"
+                          onClick={handleDisconnectLichess}
+                          className="px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 border border-destructive/30 rounded-xl transition-all flex items-center gap-1.5"
+                          title="Hủy ủy quyền tài khoản Lichess"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          Hủy ủy quyền
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isVerifyingLichess}
+                          onClick={handleAuthorizeLichess}
+                          className="px-4 py-2 text-xs font-bold text-white bg-[#629924] hover:bg-[#52821d] active:scale-95 rounded-xl transition-all shadow-md flex items-center gap-2"
+                        >
+                          {isVerifyingLichess ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <ShieldCheck className="w-4 h-4" />
+                          )}
+                          Authorize Lichess.org
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <form onSubmit={handleLichessSync} className="space-y-6">
+                  {/* Lichess Username */}
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                      Lichess Username
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={lichessUsername}
+                      onChange={(e) => setLichessUsername(e.target.value)}
+                      placeholder="VD: magnuscarlsen, penguingm1, nganbanghe..."
+                      className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 font-medium"
+                    />
+                  </div>
+
+                  {/* Max Games & Rated Filter */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                        Số lượng ván đấu
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={1000}
+                        value={lichessMaxGames}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "") {
+                            setLichessMaxGames("");
+                          } else {
+                            const parsed = parseInt(val, 10);
+                            setLichessMaxGames(isNaN(parsed) ? "" : Math.min(1000, Math.max(1, parsed)));
+                          }
+                        }}
+                        placeholder="Tối đa 1000 ván"
+                        className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                        Chế độ xếp hạng
+                      </label>
+                      <div className="flex items-center gap-3 p-2.5 bg-card/60 border border-border/40 rounded-xl h-[42px]">
+                        <input
+                          type="checkbox"
+                          id="ratedOnlyLichess"
+                          checked={lichessRatedOnly}
+                          onChange={(e) => setLichessRatedOnly(e.target.checked)}
+                          className="w-4 h-4 rounded text-primary focus:ring-primary border-border cursor-pointer"
+                        />
+                        <label htmlFor="ratedOnlyLichess" className="text-xs text-foreground cursor-pointer select-none font-medium">
+                          Chỉ lấy ván đấu có tính điểm (Rated)
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Selectable Game Types (Thể loại) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Thể loại ván đấu (Game Types)
+                      </label>
+                      <span className="text-[11px] text-muted-foreground">
+                        Bấm để chọn / bỏ chọn thể loại
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {LICHESS_PERF_OPTIONS.map((perf) => {
+                        const isSelected = lichessSelectedPerfs.includes(perf.id);
+                        return (
+                          <button
+                            key={perf.id}
+                            type="button"
+                            onClick={() => toggleLichessPerf(perf.id)}
+                            className={`flex items-center justify-center py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
+                              isSelected
+                                ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                : "bg-card hover:bg-accent/40 text-muted-foreground border-border/60 hover:text-foreground"
+                            }`}
+                          >
+                            <span>{perf.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Time Range Filter (Khoảng thời gian) */}
+                  <div className="space-y-3">
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Khoảng thời gian của dữ liệu
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {TIME_PRESETS.map((preset) => {
+                        const isSelected = lichessTimePreset === preset.id;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => setLichessTimePreset(preset.id)}
+                            className={`py-1.5 px-3 rounded-lg border text-xs font-medium transition-all ${
+                              isSelected
+                                ? "bg-primary/10 text-primary border-primary font-bold shadow-xs"
+                                : "bg-card text-muted-foreground border-border/60 hover:text-foreground hover:bg-accent/30"
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {lichessTimePreset === "custom" && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 p-3 bg-accent/20 rounded-xl border border-border/40 animate-fade-in">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                            <Calendar className="w-3 h-3" /> Từ ngày:
+                          </label>
+                          <input
+                            type="date"
+                            value={lichessCustomStart}
+                            onChange={(e) => setLichessCustomStart(e.target.value)}
+                            className="w-full bg-background border border-border/60 rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                            <Calendar className="w-3 h-3" /> Đến ngày:
+                          </label>
+                          <input
+                            type="date"
+                            value={lichessCustomEnd}
+                            onChange={(e) => setLichessCustomEnd(e.target.value)}
+                            className="w-full bg-background border border-border/60 rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={isLoading || !lichessUsername.trim()}
+                    className="w-full py-3.5 px-6 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 shadow-md shadow-primary/20 text-sm"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Đang nạp ván đấu từ Lichess.org...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-5 h-5" />
+                        Nạp ván đấu từ Lichess.org
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* TAB CHESS.COM */}
+            {activeTab === "chesscom" && (
+              <form onSubmit={handleChesscomSync} className="space-y-6">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    Chess.com Username
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={chesscomUsername}
+                    onChange={(e) => setChesscomUsername(e.target.value)}
+                    placeholder="VD: hikaru, magnuscarlsen, gothamchess..."
+                    className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 font-medium"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                      Số lượng ván đấu
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={1000}
+                      value={chesscomMaxGames}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "") {
+                          setChesscomMaxGames("");
+                        } else {
+                          const parsed = parseInt(val, 10);
+                          setChesscomMaxGames(isNaN(parsed) ? "" : Math.min(1000, Math.max(1, parsed)));
+                        }
+                      }}
+                      placeholder="Tối đa 1000 ván"
+                      className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                      Chế độ xếp hạng
+                    </label>
+                    <div className="flex items-center gap-3 p-2.5 bg-card/60 border border-border/40 rounded-xl h-[42px]">
+                      <input
+                        type="checkbox"
+                        id="ratedOnlyChesscom"
+                        checked={chesscomRatedOnly}
+                        onChange={(e) => setChesscomRatedOnly(e.target.checked)}
+                        className="w-4 h-4 rounded text-primary focus:ring-primary border-border cursor-pointer"
+                      />
+                      <label htmlFor="ratedOnlyChesscom" className="text-xs text-foreground cursor-pointer select-none font-medium">
+                        Chỉ lấy ván đấu có tính điểm (Rated)
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Selectable Game Types (Thể loại) */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Thể loại ván đấu (Game Types)
+                    </label>
+                    <span className="text-[11px] text-muted-foreground">
+                      Bấm để chọn / bỏ chọn thể loại
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {CHESSCOM_PERF_OPTIONS.map((perf) => {
+                      const isSelected = chesscomSelectedPerfs.includes(perf.id);
+                      return (
+                        <button
+                          key={perf.id}
+                          type="button"
+                          onClick={() => toggleChesscomPerf(perf.id)}
+                          className={`flex items-center justify-center py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
+                            isSelected
+                              ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                              : "bg-card hover:bg-accent/40 text-muted-foreground border-border/60 hover:text-foreground"
+                          }`}
+                        >
+                          <span>{perf.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Time Range Filter (Khoảng thời gian) */}
+                <div className="space-y-3">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Khoảng thời gian của dữ liệu
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {TIME_PRESETS.map((preset) => {
+                      const isSelected = chesscomTimePreset === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => setChesscomTimePreset(preset.id)}
+                          className={`py-1.5 px-3 rounded-lg border text-xs font-medium transition-all ${
+                            isSelected
+                              ? "bg-primary/10 text-primary border-primary font-bold shadow-xs"
+                              : "bg-card text-muted-foreground border-border/60 hover:text-foreground hover:bg-accent/30"
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {chesscomTimePreset === "custom" && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 p-3 bg-accent/20 rounded-xl border border-border/40 animate-fade-in">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                          <Calendar className="w-3 h-3" /> Từ ngày:
+                        </label>
+                        <input
+                          type="date"
+                          value={chesscomCustomStart}
+                          onChange={(e) => setChesscomCustomStart(e.target.value)}
+                          className="w-full bg-background border border-border/60 rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                          <Calendar className="w-3 h-3" /> Đến ngày:
+                        </label>
+                        <input
+                          type="date"
+                          value={chesscomCustomEnd}
+                          onChange={(e) => setChesscomCustomEnd(e.target.value)}
+                          className="w-full bg-background border border-border/60 rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading || !chesscomUsername.trim()}
+                  className="w-full py-3.5 px-6 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 shadow-md shadow-primary/20 text-sm"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Đang nạp ván đấu từ Chess.com...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-5 h-5" />
+                      Nạp ván đấu từ Chess.com
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+
+            {/* TAB PGN */}
             {activeTab === "pgn" && (
               <form onSubmit={handlePgnImport} className="space-y-6">
                 <div className="border-2 border-dashed border-border/80 hover:border-primary/50 transition-colors rounded-xl p-6 text-center cursor-pointer relative bg-card/40">
@@ -327,7 +1154,7 @@ function ImportContent() {
                   <p className="text-xs text-muted-foreground mt-1">
                     {pgnFile
                       ? `${(pgnFile.size / 1024).toFixed(1)} KB`
-                      : "Hỗ trợ tệp PGN đơn hoặc đa ván (Multi-game PGN)"}
+                      : "Hỗ trợ tệp PGN đơn hoặc đa ván (Multi-game PGN lên tới 1000 ván)"}
                   </p>
                 </div>
 
@@ -347,207 +1174,103 @@ function ImportContent() {
                   <textarea
                     rows={4}
                     value={pgnText}
-                    onChange={(e) => setPgnText(e.target.value)}
+                    onChange={(e) => handlePgnTextChange(e.target.value)}
                     placeholder="[Event &quot;FIDE Candidates 2024&quot;]&#10;1. e4 e5 2. Nf3 Nc6..."
                     className="w-full bg-background border border-border/60 rounded-xl px-4 py-3 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/40"
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                      Tên Tập Dữ Liệu (Dataset)
-                    </label>
-                    <input
-                      type="text"
-                      value={datasetName}
-                      onChange={(e) => setDatasetName(e.target.value)}
-                      placeholder="VD: Candidates 2024"
-                      className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
+                {/* Detected Players in PGN */}
+                {detectedPlayers.length > 0 && (
+                  <div className="space-y-3 p-4 bg-accent/20 border border-border/60 rounded-2xl animate-fade-in">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <UserCheck className="w-4 h-4 text-primary" />
+                        <label className="text-xs font-bold text-foreground uppercase tracking-wider">
+                          Chọn kỳ thủ tạo hồ sơ & phân tích
+                        </label>
+                      </div>
+                      <span className="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full self-start sm:self-auto">
+                        Phát hiện {detectedPlayers.length} kỳ thủ trong tệp
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Hệ thống tự động quét danh sách các kỳ thủ trong tệp PGN. Hãy chọn kỳ thủ bạn muốn thiết lập hồ sơ khai cuộc:
+                    </p>
+
+                    {detectedPlayers.length > 6 && (
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={playerSearchFilter}
+                          onChange={(e) => setPlayerSearchFilter(e.target.value)}
+                          placeholder="Tìm nhanh tên kỳ thủ..."
+                          className="w-full bg-background border border-border/60 rounded-xl pl-8 pr-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
+                      {detectedPlayers
+                        .filter((p) => !playerSearchFilter || p.name.toLowerCase().includes(playerSearchFilter.toLowerCase()))
+                        .map((player) => {
+                          const isSelected = selectedFocusPlayer === player.name;
+                          return (
+                            <button
+                              key={player.name}
+                              type="button"
+                              onClick={() => setSelectedFocusPlayer(player.name)}
+                              className={`flex items-center justify-between p-2.5 rounded-xl border text-left transition-all ${
+                                isSelected
+                                  ? "bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/20"
+                                  : "bg-card hover:bg-accent/40 text-foreground border-border/70 hover:border-primary/40"
+                              }`}
+                            >
+                              <div className="min-w-0 pr-2">
+                                <div className="text-xs font-bold truncate">
+                                  {player.name}
+                                </div>
+                                <div className={`text-[10px] ${isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                                  {player.gameCount} ván ({player.whiteCount} Trắng / {player.blackCount} Đen)
+                                </div>
+                              </div>
+                              {isSelected ? (
+                                <CheckCircle2 className="w-4 h-4 shrink-0 text-primary-foreground" />
+                              ) : (
+                                <div className="w-3.5 h-3.5 rounded-full border border-muted-foreground/30 shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                    </div>
+
+                    {selectedFocusPlayer && (
+                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2.5 flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>
+                          Đã chọn: <b>{selectedFocusPlayer}</b> — Ván đấu sẽ được gán và phân tích theo góc nhìn kỳ thủ này.
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                      Tên Kỳ Thủ Tâm Điểm (Tùy chọn)
-                    </label>
-                    <input
-                      type="text"
-                      value={detectedPlayer}
-                      onChange={(e) => setDetectedPlayer(e.target.value)}
-                      placeholder="VD: Carlsen, Magnus"
-                      className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
-                  </div>
-                </div>
+                )}
 
                 <button
                   type="submit"
                   disabled={isLoading || (!pgnFile && !pgnText.trim())}
-                  className="w-full py-3 px-6 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-primary/20"
+                  className="w-full py-3.5 px-6 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-primary/20 text-sm"
                 >
                   {isLoading ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Đang xử lý & phân tách ván đấu...
+                      Đang nạp ván đấu từ PGN...
                     </>
                   ) : (
                     <>
                       <UploadCloud className="w-5 h-5" />
-                      Tiến hành Nhập PGN
-                    </>
-                  )}
-                </button>
-              </form>
-            )}
-
-            {activeTab === "lichess" && (
-              <form onSubmit={handleLichessSync} className="space-y-6">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                    Lichess Username
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={lichessUsername}
-                    onChange={(e) => setLichessUsername(e.target.value)}
-                    placeholder="VD: nganbanghe, magnuscarlsen, penguingm1"
-                    className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                      Số lượng ván đấu tối đa
-                    </label>
-                    <input
-                      type="number"
-                      min={5}
-                      max={200}
-                      value={lichessMaxGames}
-                      onChange={(e) => setLichessMaxGames(parseInt(e.target.value, 10) || 50)}
-                      className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                      Thể loại (Perf Types)
-                    </label>
-                    <input
-                      type="text"
-                      value={lichessPerfTypes}
-                      onChange={(e) => setLichessPerfTypes(e.target.value)}
-                      placeholder="blitz, rapid, classical"
-                      className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 p-3 bg-card/60 border border-border/40 rounded-xl">
-                  <input
-                    type="checkbox"
-                    id="ratedOnlyLichess"
-                    checked={lichessRatedOnly}
-                    onChange={(e) => setLichessRatedOnly(e.target.checked)}
-                    className="w-4 h-4 rounded text-primary focus:ring-primary border-border"
-                  />
-                  <label htmlFor="ratedOnlyLichess" className="text-xs text-foreground cursor-pointer select-none">
-                    Chỉ lấy ván đấu có tính điểm (Rated Matches)
-                  </label>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading || !lichessUsername.trim()}
-                  className="w-full py-3 px-6 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-primary/20"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Đang đồng bộ trực tiếp từ Lichess...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="w-5 h-5" />
-                      Bắt đầu Đồng bộ Lichess
-                    </>
-                  )}
-                </button>
-              </form>
-            )}
-
-            {activeTab === "chesscom" && (
-              <form onSubmit={handleChesscomSync} className="space-y-6">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                    Chess.com Username
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={chesscomUsername}
-                    onChange={(e) => setChesscomUsername(e.target.value)}
-                    placeholder="VD: hikaru, magnuscarlsen, gothamchess"
-                    className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                      Số lượng ván đấu tối đa
-                    </label>
-                    <input
-                      type="number"
-                      min={5}
-                      max={200}
-                      value={chesscomMaxGames}
-                      onChange={(e) => setChesscomMaxGames(parseInt(e.target.value, 10) || 50)}
-                      className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                      Thể loại (Perf Types)
-                    </label>
-                    <input
-                      type="text"
-                      value={chesscomPerfTypes}
-                      onChange={(e) => setChesscomPerfTypes(e.target.value)}
-                      placeholder="blitz, rapid, bullet"
-                      className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 p-3 bg-card/60 border border-border/40 rounded-xl">
-                  <input
-                    type="checkbox"
-                    id="ratedOnlyChesscom"
-                    checked={chesscomRatedOnly}
-                    onChange={(e) => setChesscomRatedOnly(e.target.checked)}
-                    className="w-4 h-4 rounded text-primary focus:ring-primary border-border"
-                  />
-                  <label htmlFor="ratedOnlyChesscom" className="text-xs text-foreground cursor-pointer select-none">
-                    Chỉ lấy ván đấu có tính điểm (Rated Matches)
-                  </label>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading || !chesscomUsername.trim()}
-                  className="w-full py-3 px-6 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-primary/20"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Đang đồng bộ trực tiếp từ Chess.com...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="w-5 h-5" />
-                      Bắt đầu Đồng bộ Chess.com
+                      Nạp ván đấu từ PGN
                     </>
                   )}
                 </button>
@@ -557,103 +1280,75 @@ function ImportContent() {
         </div>
 
         {/* Right Info / Result Panel */}
-        <div className="space-y-6">
-          {/* Status / Result Card */}
-          {result && (
-            <div className="bg-card border border-emerald-500/40 rounded-2xl p-6 shadow-sm animate-fade-in bg-gradient-to-br from-emerald-500/5 to-transparent">
-              <div className="flex items-center gap-3 text-emerald-500 mb-4">
-                <CheckCircle2 className="w-6 h-6" />
-                <h3 className="font-bold text-base text-foreground">Nhập dữ liệu thành công!</h3>
-              </div>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between py-1.5 border-b border-border/40">
-                  <span className="text-muted-foreground">Nguồn dữ liệu:</span>
-                  <span className="font-medium text-foreground uppercase">{result.source_type}</span>
+        {(result || error) && (
+          <div className="space-y-6">
+            {/* Status / Result Card */}
+            {result && (
+              <div className="bg-card border border-emerald-500/40 rounded-2xl p-6 shadow-sm animate-fade-in bg-gradient-to-br from-emerald-500/5 to-transparent">
+                <div className="flex items-center gap-3 text-emerald-500 mb-4">
+                  <CheckCircle2 className="w-6 h-6" />
+                  <h3 className="font-bold text-base text-foreground">Nạp dữ liệu thành công!</h3>
                 </div>
-                <div className="flex justify-between py-1.5 border-b border-border/40">
-                  <span className="text-muted-foreground">Tổng ván nhận:</span>
-                  <span className="font-bold text-foreground">{result.total_found}</span>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between py-1.5 border-b border-border/40">
+                    <span className="text-muted-foreground">Nguồn dữ liệu:</span>
+                    <span className="font-medium text-foreground uppercase">{result.source_type}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-border/40">
+                    <span className="text-muted-foreground">Tổng ván nhận:</span>
+                    <span className="font-bold text-foreground">{result.total_found}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-border/40">
+                    <span className="text-muted-foreground">Ván nạp thành công:</span>
+                    <span className="font-bold text-emerald-500">{result.imported_count}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-border/40">
+                    <span className="text-muted-foreground">Hồ sơ kỳ thủ:</span>
+                    <span className="font-bold text-primary">{result.primary_player || "Kỳ thủ"}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between py-1.5 border-b border-border/40">
-                  <span className="text-muted-foreground">Ván nhập thành công:</span>
-                  <span className="font-bold text-emerald-500">{result.imported_count}</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-border/40">
-                  <span className="text-muted-foreground">Hồ sơ kỳ thủ:</span>
-                  <span className="font-bold text-primary">{result.primary_player || "Kỳ thủ"}</span>
-                </div>
-              </div>
 
-              <div className="mt-6 pt-4 border-t border-border/60 space-y-2">
-                <Link
-                  href={result.player_id ? `/analyze?playerId=${result.player_id}&runId=${result.run_id || ""}` : "/analyze"}
-                  className="w-full py-2.5 px-4 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 text-sm shadow-md"
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  Mở Bàn Cờ & Cây Khai Cuộc
-                  <ArrowRight className="w-4 h-4 ml-1" />
-                </Link>
-
-                {result.player_id && (
+                <div className="mt-6 pt-4 border-t border-border/60 space-y-2">
                   <Link
-                    href={`/players/${result.player_id}`}
-                    className="w-full py-2 px-4 bg-secondary text-secondary-foreground font-semibold rounded-xl hover:bg-secondary/80 transition-all flex items-center justify-center gap-2 text-xs"
+                    href={result.player_id ? `/analyze?playerId=${result.player_id}&runId=${result.run_id || ""}` : "/analyze"}
+                    className="w-full py-2.5 px-4 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 text-sm shadow-md"
                   >
-                    <User className="w-3.5 h-3.5" />
-                    Xem Hồ Sơ & Thống Kê Kỳ Thủ
+                    <BarChart3 className="w-4 h-4" />
+                    Mở Bàn Cờ & Cây Khai Cuộc
+                    <ArrowRight className="w-4 h-4 ml-1" />
                   </Link>
-                )}
 
-                <Link
-                  href="/players"
-                  className="w-full py-1.5 px-4 text-center text-xs text-muted-foreground hover:text-foreground transition-colors block"
-                >
-                  Quay lại Thư viện Kỳ thủ
-                </Link>
+                  {result.player_id && (
+                    <Link
+                      href={`/players/${result.player_id}`}
+                      className="w-full py-2 px-4 bg-secondary text-secondary-foreground font-semibold rounded-xl hover:bg-secondary/80 transition-all flex items-center justify-center gap-2 text-xs"
+                    >
+                      <User className="w-3.5 h-3.5" />
+                      Xem Hồ Sơ & Thống Kê Kỳ Thủ
+                    </Link>
+                  )}
+
+                  <Link
+                    href="/players"
+                    className="w-full py-1.5 px-4 text-center text-xs text-muted-foreground hover:text-foreground transition-colors block"
+                  >
+                    Quay lại Thư viện Kỳ thủ
+                  </Link>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {error && (
-            <div className="bg-destructive/10 border border-destructive/40 rounded-2xl p-6 text-destructive animate-fade-in">
-              <div className="flex items-center gap-3 mb-2">
-                <AlertCircle className="w-6 h-6" />
-                <h3 className="font-bold text-base">Đã xảy ra lỗi</h3>
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/40 rounded-2xl p-6 text-destructive animate-fade-in">
+                <div className="flex items-center gap-3 mb-2">
+                  <AlertCircle className="w-6 h-6" />
+                  <h3 className="font-bold text-base">Đã xảy ra lỗi</h3>
+                </div>
+                <p className="text-xs leading-relaxed opacity-90">{error}</p>
               </div>
-              <p className="text-xs leading-relaxed opacity-90">{error}</p>
-            </div>
-          )}
-
-          {/* Quick Guide Card */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl p-6 space-y-4 shadow-xs">
-            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-              <Sparkles className="w-4 h-4" />
-              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white">
-                Quy Trình Phân Tích Dữ Liệu
-              </h4>
-            </div>
-            <ul className="space-y-3 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-              <li className="flex items-start gap-2.5">
-                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] shrink-0 mt-0.5">
-                  1
-                </span>
-                <span><b>Chọn hồ sơ & nạp ván:</b> Chọn đúng hồ sơ kỳ thủ cần phân tích để tránh tạo hồ sơ trùng lặp.</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] shrink-0 mt-0.5">
-                  2
-                </span>
-                <span><b>Chuẩn hóa & Bóc tách:</b> Hệ thống tự động trích xuất các biến khai cuộc, cấu trúc Tốt và phát hiện các nước sai lầm then chốt.</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] shrink-0 mt-0.5">
-                  3
-                </span>
-                <span><b>Khám phá & Cố vấn:</b> Xem cây khai cuộc trên Bàn cờ phân tích hoặc nhận lộ trình cải thiện từ Trợ lí AI.</span>
-              </li>
-            </ul>
+            )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -661,12 +1356,14 @@ function ImportContent() {
 
 export default function ImportPage() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center py-24 gap-3 text-muted-foreground">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="text-sm">Đang tải trang nhập dữ liệu...</span>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-24 gap-3 text-muted-foreground">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <span className="text-sm">Đang tải trang nạp dữ liệu...</span>
+        </div>
+      }
+    >
       <ImportContent />
     </Suspense>
   );

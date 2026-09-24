@@ -84,8 +84,8 @@ export default function RegisterPage() {
       const supabase = createClient();
 
       const redirectUrl = typeof window !== "undefined" 
-        ? `${window.location.origin}/auth/callback` 
-        : "/auth/callback";
+        ? `${window.location.origin}/auth/callback?next=/dashboard` 
+        : "/auth/callback?next=/dashboard";
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -186,7 +186,7 @@ export default function RegisterPage() {
                   />
                 </svg>
               )}
-              <span>Đăng ký nhanh với Google</span>
+              <span>Đăng nhập bằng Google</span>
             </button>
 
             <div className="relative">
@@ -194,7 +194,7 @@ export default function RegisterPage() {
                 <div className="w-full border-t border-border/40" />
               </div>
               <div className="relative flex justify-center text-[10px] uppercase">
-                <span className="bg-card px-3 text-muted-foreground font-semibold">Hoặc đăng ký bằng email</span>
+                <span className="bg-card px-3 text-muted-foreground font-semibold">Hoặc tạo tài khoản bằng email</span>
               </div>
             </div>
 

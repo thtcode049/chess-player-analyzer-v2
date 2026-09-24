@@ -65,14 +65,17 @@ def _normalize_chesscom_time_classes(perf_types: Optional[List[str]]) -> Optiona
 
 def fetch_lichess_games(
     username: str,
-    max_games: int = 100,
+    max_games: int = 1000,
     perf_types: Optional[List[str]] = None,
     rated: Optional[bool] = None,
-    token: Optional[str] = None
+    token: Optional[str] = None,
+    since: Optional[int] = None,
+    until: Optional[int] = None
 ) -> Tuple[Optional[bytes], Optional[str]]:
     """
     Tải PGN ván đấu từ Lichess API với đầy đủ thông tin (Opening, Evals, Clocks, Accuracy).
     Endpoint: https://lichess.org/api/games/user/{username}
+    Hỗ trợ Lichess Personal Access Token / OAuth Bearer để tăng tốc độ nạp ván đấu.
     """
     clean_user = username.strip()
     if not clean_user:
@@ -84,6 +87,10 @@ def fetch_lichess_games(
         url += f"&perfType={urllib.parse.quote(perf_param)}"
     if rated is not None:
         url += f"&rated={'true' if rated else 'false'}"
+    if since is not None:
+        url += f"&since={since}"
+    if until is not None:
+        url += f"&until={until}"
     
     headers = {
         "Accept": "application/x-chess-pgn",
@@ -94,7 +101,7 @@ def fetch_lichess_games(
 
     try:
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=90) as resp:
             if resp.status == 200:
                 raw_bytes = resp.read()
                 if not raw_bytes or len(raw_bytes.strip()) == 0:
@@ -112,9 +119,11 @@ def fetch_lichess_games(
 
 def fetch_chesscom_games(
     username: str,
-    max_games: int = 100,
+    max_games: int = 1000,
     perf_types: Optional[List[str]] = None,
-    rated: Optional[bool] = None
+    rated: Optional[bool] = None,
+    since: Optional[int] = None,
+    until: Optional[int] = None
 ) -> Tuple[Optional[bytes], Optional[str]]:
     """
     Tải PGN ván đấu từ Chess.com API.
@@ -147,6 +156,9 @@ def fetch_chesscom_games(
         pgn_list = []
         games_collected = 0
 
+        since_sec = (since // 1000) if (since and since > 10_000_000_000) else since
+        until_sec = (until // 1000) if (until and until > 10_000_000_000) else until
+
         for archive_url in reversed(archives):
             if games_collected >= max_games:
                 break
@@ -166,6 +178,14 @@ def fetch_chesscom_games(
                                 is_game_rated = g.get("rated", True)
                                 if is_game_rated != rated:
                                     continue
+                            # Timestamp range filter
+                            g_end = g.get("end_time")
+                            if g_end is not None:
+                                if since_sec and g_end < since_sec:
+                                    continue
+                                if until_sec and g_end > until_sec:
+                                    continue
+
                             raw_pgn = g["pgn"]
                             game_url = g.get("url", "").strip()
                             if game_url and "[Link " not in raw_pgn:

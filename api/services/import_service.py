@@ -37,7 +37,9 @@ class ImportService:
         max_games: int = 50,
         perf_types: Optional[List[str]] = None,
         rated: Optional[bool] = None,
-        token: Optional[str] = None
+        token: Optional[str] = None,
+        since: Optional[int] = None,
+        until: Optional[int] = None
     ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
         """
         Fetches games from Lichess Explorer API.
@@ -48,7 +50,9 @@ class ImportService:
             max_games=max_games,
             perf_types=perf_types or ["blitz", "rapid", "bullet"],
             rated=rated,
-            token=token
+            token=token,
+            since=since,
+            until=until
         )
         if err or not pgn_bytes:
             return [], err or "No games found from Lichess"
@@ -63,7 +67,9 @@ class ImportService:
         username: str,
         max_games: int = 50,
         perf_types: Optional[List[str]] = None,
-        rated: Optional[bool] = None
+        rated: Optional[bool] = None,
+        since: Optional[int] = None,
+        until: Optional[int] = None
     ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
         """
         Fetches games from Chess.com Public API.
@@ -73,7 +79,9 @@ class ImportService:
             username=username,
             max_games=max_games,
             perf_types=perf_types or ["blitz", "rapid", "bullet"],
-            rated=rated
+            rated=rated,
+            since=since,
+            until=until
         )
         if err or not pgn_bytes:
             return [], err or "No games found from Chess.com"
@@ -129,5 +137,8 @@ class ImportService:
             "ply_count": len(moves_list),
             "moves_san": moves_san_str,
             "raw_headers": headers,
-            "has_embedded_eval": has_embedded_eval
+            "has_embedded_eval": has_embedded_eval,
+            "white": raw_game.get("white", "White"),
+            "black": raw_game.get("black", "Black"),
+            "player_color": raw_game.get("player_color")
         }

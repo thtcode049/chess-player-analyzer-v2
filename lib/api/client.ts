@@ -175,12 +175,23 @@ export const apiClient = {
     return handleResponse<Game>(res);
   },
 
-  async importPgnFile(file: File, playerId?: string, maxGames = 200, userIdOverride?: string): Promise<ImportSummary> {
+  async importPgnFile(
+    file: File,
+    playerId?: string,
+    maxGames = 1000,
+    userIdOverride?: string,
+    playerName?: string,
+    aliasNames?: string[]
+  ): Promise<ImportSummary> {
     const authHeaders = await getAuthHeaders();
     const userId = userIdOverride || (await getUserId());
     const formData = new FormData();
     formData.append("file", file);
     if (playerId) formData.append("player_id", playerId);
+    if (playerName) formData.append("player_name", playerName);
+    if (aliasNames && aliasNames.length > 0) {
+      formData.append("alias_names", JSON.stringify(aliasNames));
+    }
     if (userId) formData.append("user_id", userId);
     formData.append("max_games", maxGames.toString());
 
@@ -192,13 +203,31 @@ export const apiClient = {
     return handleResponse<ImportSummary>(res);
   },
 
-  async importPgnText(text: string, datasetName?: string, playerId?: string, maxGames = 200, userIdOverride?: string): Promise<ImportSummary> {
+  async importPgnText(
+    text: string,
+    datasetName?: string,
+    playerId?: string,
+    maxGames = 1000,
+    userIdOverride?: string,
+    playerName?: string,
+    aliasNames?: string[]
+  ): Promise<ImportSummary> {
     const blob = new Blob([text], { type: "text/plain" });
     const file = new File([blob], `${datasetName || "import"}.pgn`, { type: "text/plain" });
-    return this.importPgnFile(file, playerId, maxGames, userIdOverride);
+    return this.importPgnFile(file, playerId, maxGames, userIdOverride, playerName, aliasNames);
   },
 
-  async importLichess(data: { player_id?: string; user_id?: string; username: string; max_games?: number; rated_only?: boolean; perf_types?: string[] }): Promise<ImportSummary> {
+  async importLichess(data: {
+    player_id?: string;
+    user_id?: string;
+    username: string;
+    max_games?: number;
+    rated_only?: boolean;
+    perf_types?: string[];
+    since?: number;
+    until?: number;
+    token?: string;
+  }): Promise<ImportSummary> {
     const authHeaders = await getAuthHeaders();
     const userId = data.user_id || (await getUserId());
     const res = await fetch(`${API_BASE}/api/import/lichess`, {
@@ -209,7 +238,39 @@ export const apiClient = {
     return handleResponse<ImportSummary>(res);
   },
 
-  async importChesscom(data: { player_id?: string; user_id?: string; username: string; max_games?: number; rated_only?: boolean; perf_types?: string[] }): Promise<ImportSummary> {
+  async exchangeLichessCode(data: {
+    code: string;
+    code_verifier: string;
+    redirect_uri: string;
+    client_id?: string;
+  }): Promise<{ access_token?: string; username?: string; valid: boolean; error?: string }> {
+    const res = await fetch(`${API_BASE}/api/import/lichess/oauth-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<{ access_token?: string; username?: string; valid: boolean; error?: string }>(res);
+  },
+
+  async verifyLichessToken(token: string): Promise<{ access_token?: string; username?: string; valid: boolean; error?: string }> {
+    const res = await fetch(`${API_BASE}/api/import/lichess/verify-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    return handleResponse<{ access_token?: string; username?: string; valid: boolean; error?: string }>(res);
+  },
+
+  async importChesscom(data: {
+    player_id?: string;
+    user_id?: string;
+    username: string;
+    max_games?: number;
+    rated_only?: boolean;
+    perf_types?: string[];
+    since?: number;
+    until?: number;
+  }): Promise<ImportSummary> {
     const authHeaders = await getAuthHeaders();
     const userId = data.user_id || (await getUserId());
     const res = await fetch(`${API_BASE}/api/import/chesscom`, {

@@ -108,3 +108,66 @@ def test_players_crud_endpoints():
     list_res = client.get("/api/players")
     assert list_res.status_code == 200
     assert len(list_res.json()["data"]) >= 1
+
+def test_lichess_verify_token_endpoint(monkeypatch):
+    import json
+    from unittest.mock import MagicMock
+
+    def mock_urlopen(req, timeout=10):
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.read.return_value = json.dumps({
+            "id": "trang66",
+            "username": "trang66"
+        }).encode("utf-8")
+        mock_resp.__enter__.return_value = mock_resp
+        return mock_resp
+
+    monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
+
+    res = client.post("/api/import/lichess/verify-token", json={"token": "lip_test_token_123"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["success"] is True
+    assert body["data"]["valid"] is True
+    assert body["data"]["username"] == "trang66"
+
+def test_lichess_oauth_exchange_endpoint(monkeypatch):
+    import json
+    from unittest.mock import MagicMock
+
+    call_count = 0
+    def mock_urlopen(req, timeout=15):
+        nonlocal call_count
+        call_count += 1
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        if call_count == 1:
+            # Token response
+            mock_resp.read.return_value = json.dumps({
+                "access_token": "lip_access_token_xyz",
+                "token_type": "Bearer"
+            }).encode("utf-8")
+        else:
+            # Account response
+            mock_resp.read.return_value = json.dumps({
+                "id": "trang66",
+                "username": "trang66"
+            }).encode("utf-8")
+        mock_resp.__enter__.return_value = mock_resp
+        return mock_resp
+
+    monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
+
+    payload = {
+        "code": "auth_code_123",
+        "code_verifier": "verifier_string_456",
+        "redirect_uri": "http://localhost:3000/import",
+        "client_id": "http://localhost:3000"
+    }
+    res = client.post("/api/import/lichess/oauth-token", json=payload)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["success"] is True
+    assert body["data"]["access_token"] == "lip_access_token_xyz"
+    assert body["data"]["username"] == "trang66"

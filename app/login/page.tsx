@@ -63,8 +63,8 @@ function LoginContent() {
       const supabase = createClient();
 
       const redirectUrl = typeof window !== "undefined" 
-        ? `${window.location.origin}/auth/callback` 
-        : "/auth/callback";
+        ? `${window.location.origin}/auth/callback?next=/dashboard` 
+        : "/auth/callback?next=/dashboard";
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",

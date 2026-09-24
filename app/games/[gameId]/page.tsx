@@ -13,6 +13,7 @@ import MoveHistory from "@/components/chess/MoveHistory";
 import CriticalPositionsList from "@/components/analysis/CriticalPositionsList";
 import { apiClient } from "@/lib/api/client";
 import { Game, CriticalPosition } from "@/lib/api/types";
+import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
 
 export default function GameViewerPage() {
   const params = useParams();
@@ -24,6 +25,9 @@ export default function GameViewerPage() {
   const [currentPly, setCurrentPly] = useState(0);
   const [currentFen, setCurrentFen] = useState("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
   const [criticalPositions, setCriticalPositions] = useState<CriticalPosition[]>([]);
+  const [evaluation, setEvaluation] = useState<EngineEvaluation | null>(null);
+  const [isThinking, setIsThinking] = useState(false);
+  const [isEngineEnabled, setIsEngineEnabled] = useState(true);
 
   useEffect(() => {
     if (!gameId) return;
@@ -140,6 +144,11 @@ export default function GameViewerPage() {
               moves={moves}
               currentPly={currentPly}
               onPositionChange={handlePositionChange}
+              onEvaluationChange={(ev, thinking) => {
+                setEvaluation(ev);
+                setIsThinking(thinking);
+              }}
+              isEngineEnabled={isEngineEnabled}
               height={480}
             />
           </div>
@@ -162,11 +171,16 @@ export default function GameViewerPage() {
 
         {/* Right: Move History & Critical Positions (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
-          <div className="h-[260px]">
+          <div className="h-[280px]">
             <MoveHistory
               moves={moves}
               currentPly={currentPly}
               onSelectPly={(ply) => setCurrentPly(ply)}
+              currentFen={currentFen}
+              evaluation={evaluation}
+              isThinking={isThinking}
+              isEngineEnabled={isEngineEnabled}
+              onToggleEngine={() => setIsEngineEnabled((prev) => !prev)}
             />
           </div>
 

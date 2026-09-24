@@ -13,6 +13,7 @@ import {
   Zap 
 } from "lucide-react";
 import { useStockfish } from "@/lib/stockfish/useStockfish";
+import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
 
 interface ChessBoardProps {
   initialFen?: string;
@@ -21,6 +22,8 @@ interface ChessBoardProps {
   orientation?: "white" | "black";
   onPositionChange?: (fen: string, ply: number) => void;
   onMovesChange?: (moves: string[], currentPly: number, fen: string) => void;
+  onEvaluationChange?: (evaluation: EngineEvaluation | null, isThinking: boolean) => void;
+  isEngineEnabled?: boolean;
   height?: number;
 }
 
@@ -31,6 +34,8 @@ export default function ChessBoard({
   orientation = "white",
   onPositionChange,
   onMovesChange,
+  onEvaluationChange,
+  isEngineEnabled = true,
   height = 480,
 }: ChessBoardProps) {
   const [game, setGame] = useState(new Chess(initialFen));
@@ -39,7 +44,24 @@ export default function ChessBoard({
   const [historyFens, setHistoryFens] = useState<string[]>([initialFen]);
   
   // Stockfish WASM client hook
-  const { evaluation, isThinking, evaluateFen } = useStockfish();
+  const { evaluation, isThinking, evaluateFen, stop } = useStockfish();
+
+  // Forward evaluation updates to parent for MoveHistory display
+  useEffect(() => {
+    if (onEvaluationChange) {
+      onEvaluationChange(isEngineEnabled ? evaluation : null, isEngineEnabled ? isThinking : false);
+    }
+  }, [evaluation, isThinking, isEngineEnabled, onEvaluationChange]);
+
+  // Stop or restart evaluation when isEngineEnabled changes
+  useEffect(() => {
+    if (!isEngineEnabled) {
+      stop();
+    } else {
+      const activeFen = historyFens[currentPly] || game.fen();
+      evaluateFen(activeFen, 25);
+    }
+  }, [isEngineEnabled, stop, evaluateFen, currentPly, historyFens, game]);
 
   // Reset or initialize if moves or initialFen prop changes
   useEffect(() => {
@@ -193,57 +215,43 @@ export default function ChessBoard({
   };
 
   // Calculate Eval Bar percentage (from White's perspective)
-  const scoreCp = evaluation?.score ?? 0;
-  const isMate = evaluation?.isMate ?? false;
+  const scoreCp = isEngineEnabled && evaluation ? evaluation.score : 0;
+  const isMate = isEngineEnabled && evaluation ? evaluation.isMate : false;
   let whiteWinningPct = 50;
-  if (isMate) {
-    whiteWinningPct = scoreCp > 0 ? 100 : 0;
-  } else {
-    // Normal sigmoid-like conversion: cp 0 = 50%, cp +300 = ~85%, cp -300 = ~15%
-    whiteWinningPct = Math.min(98, Math.max(2, 50 + (scoreCp / 1000) * 50));
+  if (isEngineEnabled && evaluation) {
+    if (isMate) {
+      whiteWinningPct = scoreCp > 0 ? 100 : 0;
+    } else {
+      // Normal sigmoid-like conversion: cp 0 = 50%, cp +300 = ~85%, cp -300 = ~15%
+      whiteWinningPct = Math.min(98, Math.max(2, 50 + (scoreCp / 1000) * 50));
+    }
   }
-
-  const evalDisplay = isMate
-    ? `#${evaluation?.mateIn ?? ""}`
-    : scoreCp > 0
-      ? `+${(scoreCp / 100).toFixed(1)}`
-      : `${(scoreCp / 100).toFixed(1)}`;
 
   return (
     <div className="flex flex-col items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full max-w-[540px]">
-      {/* Top Engine & Status Bar */}
+      {/* Top Status Bar: Perspective & Flip */}
       <div className="w-full flex items-center justify-between pb-3 text-xs text-slate-500 dark:text-slate-400">
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
-            <span className={`w-2.5 h-2.5 rounded-full border shadow-2xs ${boardOrientation === "white" ? "bg-white border-slate-300 dark:border-slate-500" : "bg-slate-900 border-slate-700"}`} />
+            <span
+              className={`w-2.5 h-2.5 rounded-full border shadow-2xs ${
+                boardOrientation === "white"
+                  ? "bg-white border-slate-300 dark:border-slate-500"
+                  : "bg-slate-900 border-slate-700"
+              }`}
+            />
             <span>Góc nhìn: {boardOrientation === "white" ? "Trắng" : "Đen"}</span>
           </span>
-          <span className="text-slate-300 dark:text-slate-700">•</span>
-          <span>Nước: {currentPly} / {historyFens.length - 1}</span>
         </div>
-        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700/60">
-          <div className="flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-emerald-500" />
-            <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400 font-bold">
-              {evalDisplay}
-            </span>
-          </div>
-          {evaluation?.depth ? (
-            <span
-              className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-700/60 px-1.5 py-0.5 rounded font-medium"
-              title={`Độ sâu tính toán: ${evaluation.depth}/25 (Tối đa)`}
-            >
-              d{evaluation.depth}/25
-            </span>
-          ) : null}
-          {isThinking ? (
-            <span title="Stockfish đang tính toán...">
-              <Zap className="w-3 h-3 text-amber-500 animate-pulse" />
-            </span>
-          ) : (
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" title="Stockfish sẵn sàng" />
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={handleFlip}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+          title="Đổi góc nhìn bàn cờ (Phím F)"
+        >
+          <RotateCw className="w-3.5 h-3.5" />
+          <span>Đổi bên (F)</span>
+        </button>
       </div>
 
       {/* Board with Left Evaluation Bar */}

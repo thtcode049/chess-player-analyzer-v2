@@ -101,7 +101,7 @@ export default function WasmAnalysisCard({
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
               <Cpu className="w-3.5 h-3.5" />
-              Stockfish 18 WASM • Multi-Worker (Độ sâu 10)
+              Stockfish 17 WASM • Multi-Worker (Độ sâu 10)
             </span>
 
             {hasFullAnalysis && (

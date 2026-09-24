@@ -419,7 +419,7 @@ export async function analyzeAllGamesWithWasm(
     syncPayload: {
       player_id: "", // Will be assigned by caller
       engine_status: "stockfish_wasm",
-      engine_name: "Stockfish 18 WASM (Browser Pool)",
+      engine_name: "Stockfish 17 WASM (Browser Pool)",
       engine_depth: depth,
       engine_coverage_pct: 100.0,
       engine_games_count: chains.length,

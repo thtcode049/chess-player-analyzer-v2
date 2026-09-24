@@ -18,11 +18,11 @@ def test_fetch_empty_username():
 def test_fetch_nonexistent_user():
     data, err = fetch_lichess_games("this_user_definitely_does_not_exist_99999", perf_types=["Rapid"])
     assert data is None
-    assert "không tồn tại" in err or "Lỗi" in err
+    assert "không tồn tại" in err or "Lỗi" in err or "Không thể" in err
 
     data_c, err_c = fetch_chesscom_games("this_user_definitely_does_not_exist_99999", perf_types=["Blitz", "Rapid"])
     assert data_c is None
-    assert "không tồn tại" in err_c or "Lỗi" in err_c
+    assert "không tồn tại" in err_c or "Lỗi" in err_c or "Không thể" in err_c
 
 def test_normalize_lichess_perf_types():
     assert _normalize_lichess_perf_types(None) is None

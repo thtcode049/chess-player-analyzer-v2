@@ -21,6 +21,7 @@ import MoveHistory from "@/components/chess/MoveHistory";
 import OpeningTreeTable from "@/components/analysis/OpeningTreeTable";
 import { apiClient } from "@/lib/api/client";
 import { Game, OpeningContinuation, Player, PawnStructureItem, PawnStructureGame } from "@/lib/api/types";
+import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
 
 function normalizePlayerName(name: string): string {
   return name
@@ -68,6 +69,9 @@ function AnalyzeContent() {
   const [currentPly, setCurrentPly] = useState(0);
   const [currentFen, setCurrentFen] = useState("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
   const [gameInfo, setGameInfo] = useState<Game | null>(null);
+  const [evaluation, setEvaluation] = useState<EngineEvaluation | null>(null);
+  const [isThinking, setIsThinking] = useState(false);
+  const [isEngineEnabled, setIsEngineEnabled] = useState(true);
 
   // Dynamic Opening Tree Continuations
   const [continuations, setContinuations] = useState<OpeningContinuation[]>([]);
@@ -579,6 +583,11 @@ function AnalyzeContent() {
               orientation={boardOrientation}
               onPositionChange={handlePositionChange}
               onMovesChange={handleMovesChange}
+              onEvaluationChange={(ev, thinking) => {
+                setEvaluation(ev);
+                setIsThinking(thinking);
+              }}
+              isEngineEnabled={isEngineEnabled}
               height={480}
             />
 
@@ -653,13 +662,18 @@ function AnalyzeContent() {
         {/* Right Column: Move History & Continuations (5 Cols) */}
         <div className="lg:col-span-5 space-y-5">
           {/* Move History Sheet */}
-          <div className="h-[240px]">
+          <div className="h-[280px]">
             <MoveHistory
               moves={moves}
               currentPly={currentPly}
               onSelectPly={(ply) => {
                 setCurrentPly(ply);
               }}
+              currentFen={currentFen}
+              evaluation={evaluation}
+              isThinking={isThinking}
+              isEngineEnabled={isEngineEnabled}
+              onToggleEngine={() => setIsEngineEnabled((prev) => !prev)}
             />
           </div>
 

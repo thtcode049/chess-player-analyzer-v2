@@ -376,7 +376,7 @@ export default function PlayerDetailPage() {
                 <div className="flex justify-between py-1 border-b border-border/40">
                   <span className="text-muted-foreground">Cơ chế engine:</span>
                   <span className="font-bold text-emerald-500">
-                    {analysisRun?.engine_name || (analysisRun?.engine_status === "stockfish_parallel" ? "Stockfish 18 Parallel" : analysisRun?.engine_status?.toUpperCase() || "STOCKFISH")}
+                    {analysisRun?.engine_name || (analysisRun?.engine_status === "stockfish_parallel" ? "Stockfish 17 Parallel" : analysisRun?.engine_status?.toUpperCase() || "STOCKFISH")}
                   </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-border/40">

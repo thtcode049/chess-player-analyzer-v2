@@ -73,7 +73,7 @@ export default function ChessBoard({
     const targetFen = fens[targetPly];
     setGame(new Chess(targetFen));
     setCurrentPly(targetPly);
-    evaluateFen(targetFen, 12);
+    evaluateFen(targetFen, 25);
   }, [moves, initialFen, evaluateFen]);
 
   // Synchronize with externalPly changes (e.g. from MoveHistory click or parent)
@@ -87,7 +87,7 @@ export default function ChessBoard({
       const targetFen = historyFens[externalPly];
       setGame(new Chess(targetFen));
       setCurrentPly(externalPly);
-      evaluateFen(targetFen, 12);
+      evaluateFen(targetFen, 25);
       if (onPositionChange) {
         onPositionChange(targetFen, externalPly);
       }
@@ -101,7 +101,7 @@ export default function ChessBoard({
     const updatedGame = new Chess(targetFen);
     setGame(updatedGame);
     setCurrentPly(targetPly);
-    evaluateFen(targetFen, 12);
+    evaluateFen(targetFen, 25);
     if (onPositionChange) {
       onPositionChange(targetFen, targetPly);
     }
@@ -163,7 +163,7 @@ export default function ChessBoard({
           newFens.push(newFen);
           setHistoryFens(newFens);
           setCurrentPly(nextPly);
-          evaluateFen(newFen, 12);
+          evaluateFen(newFen, 25);
 
           // Update move list and notify parent
           const updatedMoves = [...moves.slice(0, currentPly), result.san];
@@ -229,8 +229,11 @@ export default function ChessBoard({
             </span>
           </div>
           {evaluation?.depth ? (
-            <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-700/60 px-1.5 py-0.5 rounded font-medium">
-              d{evaluation.depth}
+            <span
+              className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-700/60 px-1.5 py-0.5 rounded font-medium"
+              title={`Độ sâu tính toán: ${evaluation.depth}/25 (Tối đa)`}
+            >
+              d{evaluation.depth}/25
             </span>
           ) : null}
           {isThinking ? (

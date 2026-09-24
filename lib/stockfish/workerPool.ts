@@ -141,7 +141,7 @@ export class StockfishWorkerPool {
 
       const finalEval: FenEvaluation = slot.lastParsedEval || {
         fen: slot.currentFen,
-        depth: 6,
+        depth: 10,
         scoreCp: 0,
         isMate: false,
       };
@@ -259,7 +259,7 @@ export class StockfishWorkerPool {
    */
   public async evaluateBatch(
     fens: string[],
-    depth = 6,
+    depth = 10,
     onProgress?: PoolProgressCallback
   ): Promise<Map<string, FenEvaluation>> {
     if (fens.length === 0) {

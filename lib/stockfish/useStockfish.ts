@@ -11,7 +11,7 @@ export function useStockfish() {
   useEffect(() => {
     const engine = new StockfishEngineController((evalData) => {
       setEvaluation({ ...evalData });
-      if (evalData.depth >= 12 || evalData.bestMove) {
+      if (evalData.depth >= 25 || evalData.bestMove) {
         setIsThinking(false);
       }
     });
@@ -24,7 +24,7 @@ export function useStockfish() {
     };
   }, []);
 
-  const evaluateFen = useCallback((fen: string, depth = 12) => {
+  const evaluateFen = useCallback((fen: string, depth = 25) => {
     if (!engineRef.current) return;
     setIsThinking(true);
     engineRef.current.evaluatePosition(fen, depth, (evalData) => {

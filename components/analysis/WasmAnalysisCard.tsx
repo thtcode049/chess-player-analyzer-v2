@@ -58,7 +58,7 @@ export default function WasmAnalysisCard({
         games,
         playerName,
         {
-          depth: 6,
+          depth: 10,
           onProgress: (prog) => {
             setProgress(prog);
           },
@@ -101,27 +101,27 @@ export default function WasmAnalysisCard({
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
               <Cpu className="w-3.5 h-3.5" />
-              Stockfish 18 WASM • Multi-Worker Engine
+              Stockfish 18 WASM • Multi-Worker (Độ sâu 10)
             </span>
 
             {hasFullAnalysis && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                 <CheckCircle2 className="w-3 h-3" />
-                100% Nước Đi Đã Phân Tích
+                100% Nước Đi Đã Phân Tích (Depth 10)
               </span>
             )}
           </div>
 
           <h3 className="text-base font-bold text-foreground flex items-center gap-2">
             {hasFullAnalysis
-              ? "Hồ Sơ Đã Có Đánh Giá Toàn Diện Bằng Engine"
-              : "Phân Tích Toàn Bộ 100% Nước Đi Bằng Stockfish Trình Duyệt"}
+              ? "Hồ Sơ Đã Có Đánh Giá Toàn Diện Bằng Engine (Depth 10)"
+              : "Phân Tích Toàn Bộ 100% Nước Đi Bằng Stockfish Trình Duyệt (Depth 10)"}
           </h3>
 
           <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed">
             {hasFullAnalysis
-              ? `Tất cả ${games.length} ván đấu (${currentRun?.games_analyzed_count} ván) đã được đánh giá trọn vẹn từng nước đi bằng cụm Stockfish WASM. Tỷ lệ chính xác trung bình: ${formatAccuracy(currentRun?.overall_acpl)}.`
-              : `Khử trùng lặp thế cờ (FEN Deduplication) và phân bổ song song qua 4-6 Web Workers trên máy của bạn. 0s chờ máy chủ, không giới hạn timeout, phân tích từ nước 1 đến nước cuối.`}
+              ? `Tất cả ${games.length} ván đấu (${currentRun?.games_analyzed_count} ván) đã được đánh giá trọn vẹn từng nước đi ở độ sâu 10 bằng cụm Stockfish WASM. Tỷ lệ chính xác trung bình: ${formatAccuracy(currentRun?.overall_acpl)}.`
+              : `Khử trùng lặp thế cờ (FEN Deduplication) và phân bổ song song qua 4-6 Web Workers trên máy của bạn ở độ sâu 10 (Depth 10). 0s chờ máy chủ, không giới hạn timeout, phân tích từ nước 1 đến nước cuối.`}
           </p>
         </div>
 

@@ -112,7 +112,7 @@ export async function analyzeAllGamesWithWasm(
   }
 ): Promise<FullAnalysisResult> {
   const startTime = Date.now();
-  const depth = options?.depth || 6;
+  const depth = options?.depth || 10;
   const onProgress = options?.onProgress;
 
   onProgress?.({
@@ -279,8 +279,8 @@ export async function analyzeAllGamesWithWasm(
         (ply % 2 === 0 && playerColor === "white") ||
         (ply % 2 === 1 && playerColor === "black");
 
-      const beforeEvalObj = fenCache.get(fenBefore) || { scoreCp: 20, isMate: false, depth: 6, fen: fenBefore };
-      const afterEvalObj = fenCache.get(fenAfter) || { scoreCp: 20, isMate: false, depth: 6, fen: fenAfter };
+      const beforeEvalObj = fenCache.get(fenBefore) || { scoreCp: 20, isMate: false, depth: 10, fen: fenBefore };
+      const afterEvalObj = fenCache.get(fenAfter) || { scoreCp: 20, isMate: false, depth: 10, fen: fenAfter };
 
       const whiteCpBefore = beforeEvalObj.scoreCp;
       const whiteCpAfter = afterEvalObj.scoreCp;

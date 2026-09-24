@@ -60,7 +60,7 @@ export class StockfishEngineController {
     }
   }
 
-  public evaluatePosition(fen: string, depth = 12, onEval?: EvaluationCallback) {
+  public evaluatePosition(fen: string, depth = 25, onEval?: EvaluationCallback) {
     if (!this.worker) {
       this.init();
     }

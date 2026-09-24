@@ -25,6 +25,7 @@ import StyleRadarChart from "@/components/profile/StyleRadarChart";
 import PawnStructureGrid from "@/components/profile/PawnStructureGrid";
 import AiCoachChat from "@/components/ai/AiCoachChat";
 import WasmAnalysisCard from "@/components/analysis/WasmAnalysisCard";
+import { formatAccuracy, acplToAccuracy } from "@/lib/utils";
 
 export default function PlayerDetailPage() {
   const params = useParams();
@@ -199,9 +200,9 @@ export default function PlayerDetailPage() {
               </span>
             </div>
             <div>
-              <span className="text-[11px] uppercase font-bold text-muted-foreground block">ACPL Độ chính xác</span>
+              <span className="text-[11px] uppercase font-bold text-muted-foreground block">Tỷ lệ chính xác</span>
               <span className="text-xl font-extrabold text-sky-500">
-                {analysisRun?.overall_acpl ? `${analysisRun.overall_acpl.toFixed(1)}` : "N/A"}
+                {formatAccuracy(analysisRun?.overall_acpl)}
               </span>
             </div>
           </div>
@@ -317,24 +318,50 @@ export default function PlayerDetailPage() {
               </div>
             </div>
 
-            {/* ACPL Phase Breakdown */}
+            {/* Phase Accuracy Breakdown */}
             <div className="bg-card border border-border/60 rounded-2xl p-6 shadow-sm">
               <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
                 <BarChart2 className="w-4 h-4 text-sky-500" />
-                Sai Số Centipawn (ACPL) Từng Giai Đoạn
+                Độ Chính Xác Từng Giai Đoạn (Accuracy %)
               </h3>
-              <div className="space-y-3 text-xs">
-                <div className="flex justify-between py-1 border-b border-border/40">
-                  <span className="text-muted-foreground">Khai cuộc (Opening ACPL):</span>
-                  <span className="font-bold text-foreground">{analysisRun?.acpl_opening?.toFixed(1) || "N/A"} cp</span>
+              <div className="space-y-3.5 text-xs">
+                <div>
+                  <div className="flex justify-between py-1 border-b border-border/40 mb-1">
+                    <span className="text-muted-foreground">Khai cuộc (Opening Accuracy):</span>
+                    <span className="font-bold text-foreground">{formatAccuracy(analysisRun?.acpl_opening)}</span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-secondary/80 overflow-hidden">
+                    <div 
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                      style={{ width: `${acplToAccuracy(analysisRun?.acpl_opening) || 0}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="flex justify-between py-1 border-b border-border/40">
-                  <span className="text-muted-foreground">Trung cuộc (Middlegame ACPL):</span>
-                  <span className="font-bold text-foreground">{analysisRun?.acpl_middlegame?.toFixed(1) || "N/A"} cp</span>
+
+                <div>
+                  <div className="flex justify-between py-1 border-b border-border/40 mb-1">
+                    <span className="text-muted-foreground">Trung cuộc (Middlegame Accuracy):</span>
+                    <span className="font-bold text-foreground">{formatAccuracy(analysisRun?.acpl_middlegame)}</span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-secondary/80 overflow-hidden">
+                    <div 
+                      className="h-full bg-sky-500 rounded-full transition-all duration-500"
+                      style={{ width: `${acplToAccuracy(analysisRun?.acpl_middlegame) || 0}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="flex justify-between py-1 border-b border-border/40">
-                  <span className="text-muted-foreground">Cờ tàn (Endgame ACPL):</span>
-                  <span className="font-bold text-foreground">{analysisRun?.acpl_endgame?.toFixed(1) || "N/A"} cp</span>
+
+                <div>
+                  <div className="flex justify-between py-1 border-b border-border/40 mb-1">
+                    <span className="text-muted-foreground">Cờ tàn (Endgame Accuracy):</span>
+                    <span className="font-bold text-foreground">{formatAccuracy(analysisRun?.acpl_endgame)}</span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-secondary/80 overflow-hidden">
+                    <div 
+                      className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+                      style={{ width: `${acplToAccuracy(analysisRun?.acpl_endgame) || 0}%` }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

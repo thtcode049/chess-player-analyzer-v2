@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Cpu, Zap, Loader2, CheckCircle2, Play, RefreshCw, BarChart2, ShieldCheck } from "lucide-react";
 import { Game, AnalysisRun } from "@/lib/api/types";
 import { apiClient } from "@/lib/api/client";
+import { formatAccuracy } from "@/lib/utils";
 import { analyzeAllGamesWithWasm, AnalyzerProgress, FullAnalysisResult } from "@/lib/stockfish/fullGameAnalyzer";
 
 interface WasmAnalysisCardProps {
@@ -119,7 +120,7 @@ export default function WasmAnalysisCard({
 
           <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed">
             {hasFullAnalysis
-              ? `Tất cả ${games.length} ván đấu (${currentRun?.games_analyzed_count} ván) đã được đánh giá trọn vẹn từng nước đi bằng cụm Stockfish WASM. ACPL trung bình: ${currentRun?.overall_acpl?.toFixed(1) || "?"} cp.`
+              ? `Tất cả ${games.length} ván đấu (${currentRun?.games_analyzed_count} ván) đã được đánh giá trọn vẹn từng nước đi bằng cụm Stockfish WASM. Tỷ lệ chính xác trung bình: ${formatAccuracy(currentRun?.overall_acpl)}.`
               : `Khử trùng lặp thế cờ (FEN Deduplication) và phân bổ song song qua 4-6 Web Workers trên máy của bạn. 0s chờ máy chủ, không giới hạn timeout, phân tích từ nước 1 đến nước cuối.`}
           </p>
         </div>

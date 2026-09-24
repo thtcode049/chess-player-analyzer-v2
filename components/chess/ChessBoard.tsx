@@ -24,6 +24,7 @@ interface ChessBoardProps {
   onMovesChange?: (moves: string[], currentPly: number, fen: string) => void;
   onEvaluationChange?: (evaluation: EngineEvaluation | null, isThinking: boolean) => void;
   isEngineEnabled?: boolean;
+  multiPv?: number;
   height?: number;
 }
 
@@ -36,6 +37,7 @@ export default function ChessBoard({
   onMovesChange,
   onEvaluationChange,
   isEngineEnabled = true,
+  multiPv = 3,
   height = 480,
 }: ChessBoardProps) {
   const [game, setGame] = useState(new Chess(initialFen));
@@ -53,15 +55,15 @@ export default function ChessBoard({
     }
   }, [evaluation, isThinking, isEngineEnabled, onEvaluationChange]);
 
-  // Stop or restart evaluation when isEngineEnabled changes
+  // Stop or restart evaluation when isEngineEnabled or multiPv changes
   useEffect(() => {
     if (!isEngineEnabled) {
       stop();
     } else {
       const activeFen = historyFens[currentPly] || game.fen();
-      evaluateFen(activeFen, 25);
+      evaluateFen(activeFen, 25, multiPv);
     }
-  }, [isEngineEnabled, stop, evaluateFen, currentPly, historyFens, game]);
+  }, [isEngineEnabled, multiPv, stop, evaluateFen, currentPly, historyFens, game]);
 
   // Reset or initialize if moves or initialFen prop changes
   useEffect(() => {
@@ -95,8 +97,11 @@ export default function ChessBoard({
     const targetFen = fens[targetPly];
     setGame(new Chess(targetFen));
     setCurrentPly(targetPly);
-    evaluateFen(targetFen, 25);
-  }, [moves, initialFen, evaluateFen]);
+    evaluateFen(targetFen, 25, multiPv);
+    if (onPositionChange) {
+      onPositionChange(targetFen, targetPly);
+    }
+  }, [moves, initialFen, evaluateFen, multiPv, onPositionChange]);
 
   // Synchronize with externalPly changes (e.g. from MoveHistory click or parent)
   useEffect(() => {
@@ -109,7 +114,7 @@ export default function ChessBoard({
       const targetFen = historyFens[externalPly];
       setGame(new Chess(targetFen));
       setCurrentPly(externalPly);
-      evaluateFen(targetFen, 25);
+      evaluateFen(targetFen, 25, multiPv);
       if (onPositionChange) {
         onPositionChange(targetFen, externalPly);
       }
@@ -123,7 +128,7 @@ export default function ChessBoard({
     const updatedGame = new Chess(targetFen);
     setGame(updatedGame);
     setCurrentPly(targetPly);
-    evaluateFen(targetFen, 25);
+    evaluateFen(targetFen, 25, multiPv);
     if (onPositionChange) {
       onPositionChange(targetFen, targetPly);
     }
@@ -185,7 +190,7 @@ export default function ChessBoard({
           newFens.push(newFen);
           setHistoryFens(newFens);
           setCurrentPly(nextPly);
-          evaluateFen(newFen, 25);
+          evaluateFen(newFen, 25, multiPv);
 
           // Update move list and notify parent
           const updatedMoves = [...moves.slice(0, currentPly), result.san];
@@ -229,7 +234,7 @@ export default function ChessBoard({
 
   return (
     <div className="flex flex-col items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full max-w-[540px]">
-      {/* Top Status Bar: Perspective & Flip */}
+      {/* Top Status Bar: Perspective only (Flip button removed as requested) */}
       <div className="w-full flex items-center justify-between pb-3 text-xs text-slate-500 dark:text-slate-400">
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
@@ -243,15 +248,6 @@ export default function ChessBoard({
             <span>Góc nhìn: {boardOrientation === "white" ? "Trắng" : "Đen"}</span>
           </span>
         </div>
-        <button
-          type="button"
-          onClick={handleFlip}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-          title="Đổi góc nhìn bàn cờ (Phím F)"
-        >
-          <RotateCw className="w-3.5 h-3.5" />
-          <span>Đổi bên (F)</span>
-        </button>
       </div>
 
       {/* Board with Left Evaluation Bar */}

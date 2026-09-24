@@ -72,6 +72,7 @@ function AnalyzeContent() {
   const [evaluation, setEvaluation] = useState<EngineEvaluation | null>(null);
   const [isThinking, setIsThinking] = useState(false);
   const [isEngineEnabled, setIsEngineEnabled] = useState(true);
+  const [multiPv, setMultiPv] = useState(3);
 
   // Dynamic Opening Tree Continuations
   const [continuations, setContinuations] = useState<OpeningContinuation[]>([]);
@@ -588,6 +589,7 @@ function AnalyzeContent() {
                 setIsThinking(thinking);
               }}
               isEngineEnabled={isEngineEnabled}
+              multiPv={multiPv}
               height={480}
             />
 
@@ -662,7 +664,7 @@ function AnalyzeContent() {
         {/* Right Column: Move History & Continuations (5 Cols) */}
         <div className="lg:col-span-5 space-y-5">
           {/* Move History Sheet */}
-          <div className="h-[280px]">
+          <div className="h-[340px]">
             <MoveHistory
               moves={moves}
               currentPly={currentPly}
@@ -674,6 +676,8 @@ function AnalyzeContent() {
               isThinking={isThinking}
               isEngineEnabled={isEngineEnabled}
               onToggleEngine={() => setIsEngineEnabled((prev) => !prev)}
+              multiPv={multiPv}
+              onMultiPvChange={(count) => setMultiPv(count)}
             />
           </div>
 

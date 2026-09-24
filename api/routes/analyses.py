@@ -456,7 +456,7 @@ async def sync_analysis_evaluations(
 
         # 2. Update engine evaluation metrics from client WASM
         cached["engine_status"] = req.engine_status or "stockfish_wasm"
-        cached["engine_name"] = req.engine_name or "Stockfish 17 WASM (Browser Pool)"
+        cached["engine_name"] = req.engine_name or "Stockfish 19 WASM (Browser Pool)"
         cached["engine_depth"] = req.engine_depth or 10
         cached["engine_coverage_pct"] = float(req.engine_coverage_pct or 100.0)
         cached["engine_games_count"] = int(req.engine_games_count or cached.get("games_analyzed_count", 0))

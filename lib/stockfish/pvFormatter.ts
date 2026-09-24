@@ -11,7 +11,11 @@ export function sanToFigurine(san: string): string {
     .replace(/^B/, "♗")
     .replace(/^R/, "♖")
     .replace(/^Q/, "♕")
-    .replace(/^K/, "♔");
+    .replace(/^K/, "♔")
+    .replace(/=N/g, "=♘")
+    .replace(/=B/g, "=♗")
+    .replace(/=R/g, "=♖")
+    .replace(/=Q/g, "=♕");
 }
 
 /**

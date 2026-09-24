@@ -128,7 +128,7 @@ export default function LandingPage() {
         <div className="mt-12 flex flex-wrap items-center justify-center gap-6 text-xs font-semibold text-slate-600 dark:text-slate-400">
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-            <span>Tích hợp Stockfish 17 thế hệ mới</span>
+            <span>Tích hợp Stockfish 19 thế hệ mới</span>
           </div>
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />

@@ -84,7 +84,7 @@ class AnalysisService:
             coverage_pct = round((analyzed_games_count / max(1, total_games)) * 100.0, 2)
             if source in ("parallel_stockfish", "hybrid_stockfish"):
                 engine_status = "stockfish_parallel"
-                engine_name = "Stockfish 17 Parallel"
+                engine_name = "Stockfish 19 Parallel"
                 engine_depth = 6
             else:  # embedded_pgn
                 engine_status = "embedded_eval"

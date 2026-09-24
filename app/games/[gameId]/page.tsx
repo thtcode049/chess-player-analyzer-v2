@@ -28,6 +28,7 @@ export default function GameViewerPage() {
   const [evaluation, setEvaluation] = useState<EngineEvaluation | null>(null);
   const [isThinking, setIsThinking] = useState(false);
   const [isEngineEnabled, setIsEngineEnabled] = useState(true);
+  const [multiPv, setMultiPv] = useState(3);
 
   useEffect(() => {
     if (!gameId) return;
@@ -149,6 +150,7 @@ export default function GameViewerPage() {
                 setIsThinking(thinking);
               }}
               isEngineEnabled={isEngineEnabled}
+              multiPv={multiPv}
               height={480}
             />
           </div>
@@ -171,7 +173,7 @@ export default function GameViewerPage() {
 
         {/* Right: Move History & Critical Positions (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
-          <div className="h-[280px]">
+          <div className="h-[340px]">
             <MoveHistory
               moves={moves}
               currentPly={currentPly}
@@ -181,6 +183,8 @@ export default function GameViewerPage() {
               isThinking={isThinking}
               isEngineEnabled={isEngineEnabled}
               onToggleEngine={() => setIsEngineEnabled((prev) => !prev)}
+              multiPv={multiPv}
+              onMultiPvChange={(count) => setMultiPv(count)}
             />
           </div>
 

@@ -75,7 +75,7 @@ class AnalysisRunSyncEvaluations(BaseModel):
     player_id: str
     run_id: Optional[str] = None
     engine_status: str = "stockfish_wasm"
-    engine_name: str = "Stockfish 17 WASM (Browser Pool)"
+    engine_name: str = "Stockfish 19 WASM (Browser Pool)"
     engine_depth: int = 10
     engine_coverage_pct: float = 100.0
     engine_games_count: int

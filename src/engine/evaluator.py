@@ -441,7 +441,7 @@ def get_comprehensive_move_evaluations(
     if (embedded_count >= len(games) and embedded_count > 0) or max_stockfish_games <= 0:
         return embedded_res
 
-    # 2. Phân tích các ván còn lại bằng cụm Stockfish 17 đa luồng song song
+    # 2. Phân tích các ván còn lại bằng cụm Stockfish 19 đa luồng song song
     stockfish_available = (engine and engine.is_available()) or StockfishEngine().is_available()
     if stockfish_available:
         target_max = min(len(games), max_stockfish_games) if max_stockfish_games > 0 else len(games)

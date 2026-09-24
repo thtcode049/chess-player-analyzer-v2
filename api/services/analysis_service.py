@@ -27,7 +27,8 @@ class AnalysisService:
         games: List[Dict[str, Any]],
         player_name: str,
         color_filter: str = "all",
-        run_label: str = "Complete Analytical Snapshot"
+        run_label: str = "Complete Analytical Snapshot",
+        max_stockfish_games: int = 0  # Default 0: Fast instant extraction (embedded only). Client WASM handles full batch.
     ) -> Dict[str, Any]:
         """
         Executes full deterministic analysis pipeline across game collection.
@@ -64,11 +65,12 @@ class AnalysisService:
         tree_root, fen_map = build_opening_tree(filtered_games, color=color_filter)
         repertoire_data = analyze_opening_repertoire(filtered_games)
 
-        # 4. Hybrid Evaluation: Embedded (Lichess [%eval]) + Stockfish 18 Parallel for ALL games
+        # 4. Hybrid Evaluation: Embedded (Lichess [%eval]) + Optional Stockfish
+        target_sf_games = max_stockfish_games if max_stockfish_games is not None else 0
         comp_res = get_comprehensive_move_evaluations(
             filtered_games,
             depth=6,
-            max_stockfish_games=len(filtered_games)  # Analyse 100% of games
+            max_stockfish_games=target_sf_games
         )
         move_evals = comp_res.get("move_evaluations", []) if comp_res.get("available") else None
 

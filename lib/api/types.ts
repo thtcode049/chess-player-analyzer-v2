@@ -71,7 +71,7 @@ export interface Game {
   critical_positions?: CriticalPosition[];
 }
 
-export type EngineStatus = 'statistical_only' | 'embedded_eval' | 'sampled_wasm' | 'full_engine' | 'stockfish_parallel' | 'hybrid_stockfish';
+export type EngineStatus = 'statistical_only' | 'embedded_eval' | 'sampled_wasm' | 'full_engine' | 'stockfish_parallel' | 'hybrid_stockfish' | 'stockfish_wasm';
 
 export interface OpeningContinuation {
   san: string;
@@ -206,4 +206,22 @@ export interface PawnStructureItem {
   assessment_color?: string;
   games?: PawnStructureGame[];
 }
+
+export interface AnalysisRunSyncRequest {
+  player_id: string;
+  run_id?: string;
+  engine_status?: EngineStatus;
+  engine_name?: string;
+  engine_depth?: number;
+  engine_coverage_pct?: number;
+  engine_games_count?: number;
+  overall_acpl?: number | null;
+  acpl_opening?: number | null;
+  acpl_middlegame?: number | null;
+  acpl_endgame?: number | null;
+  dominant_archetype?: string | null;
+  style_radar_metrics?: Record<string, any> | null;
+  critical_positions?: CriticalPosition[];
+}
+
 

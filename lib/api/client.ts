@@ -6,6 +6,7 @@ import {
   ImportSummary,
   OpeningTreeNode,
   PaginatedResult,
+  AnalysisRunSyncRequest,
 } from "./types";
 
 const API_BASE =
@@ -238,6 +239,16 @@ export const apiClient = {
     const authHeaders = await getAuthHeaders();
     const res = await fetch(`${API_BASE}/api/analysis/runs/${runId}`, {
       headers: authHeaders,
+    });
+    return handleResponse<AnalysisRun>(res);
+  },
+
+  async syncEvaluations(data: AnalysisRunSyncRequest): Promise<AnalysisRun> {
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(`${API_BASE}/api/analysis/runs/sync-evaluations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body: JSON.stringify(data),
     });
     return handleResponse<AnalysisRun>(res);
   },

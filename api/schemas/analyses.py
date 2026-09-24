@@ -69,3 +69,21 @@ class AnalysisRunResponse(BaseModel):
     
     status: str = "completed"
     created_at: Optional[datetime] = None
+
+
+class AnalysisRunSyncEvaluations(BaseModel):
+    player_id: str
+    run_id: Optional[str] = None
+    engine_status: str = "stockfish_wasm"
+    engine_name: str = "Stockfish 18 WASM (Browser Pool)"
+    engine_depth: int = 6
+    engine_coverage_pct: float = 100.0
+    engine_games_count: int
+    overall_acpl: Optional[float] = None
+    acpl_opening: Optional[float] = None
+    acpl_middlegame: Optional[float] = None
+    acpl_endgame: Optional[float] = None
+    dominant_archetype: Optional[str] = None
+    style_radar_metrics: Optional[Dict[str, Any]] = None
+    critical_positions: Optional[List[Dict[str, Any]]] = None
+

@@ -312,9 +312,9 @@ class DBService:
         if run_id:
             record["id"] = run_id
 
-        res = sb.table("analysis_runs").insert(record).execute()
+        res = sb.table("analysis_runs").upsert(record).execute()
         if not res.data:
-            raise RuntimeError(f"Failed to insert analysis run for player: {player_id}")
+            raise RuntimeError(f"Failed to upsert analysis run for player: {player_id}")
         return res.data[0]
 
     @staticmethod

@@ -24,6 +24,7 @@ import OpeningTreeTable from "@/components/analysis/OpeningTreeTable";
 import StyleRadarChart from "@/components/profile/StyleRadarChart";
 import PawnStructureGrid from "@/components/profile/PawnStructureGrid";
 import AiCoachChat from "@/components/ai/AiCoachChat";
+import WasmAnalysisCard from "@/components/analysis/WasmAnalysisCard";
 
 export default function PlayerDetailPage() {
   const params = useParams();
@@ -206,6 +207,17 @@ export default function PlayerDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Wasm Multi-Worker Analysis Card */}
+      <WasmAnalysisCard
+        playerId={playerId}
+        playerName={player?.canonical_name || "Player"}
+        games={games}
+        currentRun={analysisRun}
+        onAnalysisComplete={(updatedRun) => {
+          setAnalysisRun(updatedRun);
+        }}
+      />
 
       {/* Tabs Navigation */}
       <div className="flex border-b border-border/60 overflow-x-auto gap-2">

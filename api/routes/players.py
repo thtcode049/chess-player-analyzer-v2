@@ -332,6 +332,103 @@ async def list_player_games(
     )
 
 
+@router.put("/{player_id}", response_model=BaseResponse[PlayerResponse])
+async def update_player(
+    player_id: str,
+    req: PlayerUpdate,
+    x_user_id: Optional[str] = Header(None),
+    x_guest_session_id: Optional[str] = Header(None)
+):
+    """
+    Updates player information (canonical_name, fide_id, title, notes).
+    Updates guest session or DB accordingly.
+    """
+    now = datetime.now()
+    updated = False
+    player_data: Optional[Dict[str, Any]] = None
+
+    # 1. Check guest session
+    session = get_guest_session(x_guest_session_id)
+    if player_id in session["players"]:
+        p = session["players"][player_id]
+        if req.canonical_name is not None:
+            p["canonical_name"] = req.canonical_name.strip()
+        if req.title is not None:
+            p["title"] = req.title.strip() or None
+        if req.fide_id is not None:
+            p["fide_id"] = req.fide_id
+        if req.notes is not None:
+            p["notes"] = req.notes.strip() or None
+        p["updated_at"] = now
+        session["players"][player_id] = p
+        PLAYERS_STORE[player_id] = p
+        player_data = p
+        updated = True
+
+    # 2. Check PLAYERS_STORE
+    elif player_id in PLAYERS_STORE:
+        p = PLAYERS_STORE[player_id]
+        if req.canonical_name is not None:
+            p["canonical_name"] = req.canonical_name.strip()
+        if req.title is not None:
+            p["title"] = req.title.strip() or None
+        if req.fide_id is not None:
+            p["fide_id"] = req.fide_id
+        if req.notes is not None:
+            p["notes"] = req.notes.strip() or None
+        p["updated_at"] = now
+        PLAYERS_STORE[player_id] = p
+        player_data = p
+        updated = True
+
+    # 3. Update DB if logged-in user
+    updates = {}
+    if req.canonical_name is not None:
+        updates["canonical_name"] = req.canonical_name.strip()
+    if req.title is not None:
+        updates["title"] = req.title.strip() or None
+    if req.fide_id is not None:
+        updates["fide_id"] = req.fide_id
+    if req.notes is not None:
+        updates["notes"] = req.notes.strip() or None
+
+    if updates and x_user_id:
+        updates["updated_at"] = now.isoformat()
+        try:
+            db_res = DBService.update_player(player_id, updates, user_id=x_user_id)
+            if db_res:
+                player_data = db_res
+                updated = True
+        except Exception as e:
+            logger.warning(f"Error updating player in DB: {e}")
+
+    if not updated or not player_data:
+        raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ kỳ thủ cần chỉnh sửa")
+
+    # Count total games
+    total_g = 0
+    if not x_user_id:
+        total_g = len(session.get("games", {}).get(player_id, []))
+    if not total_g and player_id in GAMES_STORE:
+        total_g = len(GAMES_STORE.get(player_id, []))
+    if not total_g and "datasets" in player_data:
+        total_g = sum(d.get("games_count", 0) for d in player_data.get("datasets", []))
+
+    response_data = PlayerResponse(
+        id=player_data["id"],
+        user_id=player_data.get("user_id", x_user_id or "guest"),
+        canonical_name=player_data["canonical_name"],
+        fide_id=player_data.get("fide_id"),
+        title=player_data.get("title"),
+        notes=player_data.get("notes"),
+        total_games=total_g,
+        created_at=player_data.get("created_at") or now,
+        updated_at=player_data.get("updated_at") or now,
+        datasets=player_data.get("datasets", [])
+    )
+    return BaseResponse(success=True, message="Đã cập nhật hồ sơ kỳ thủ thành công", data=response_data)
+
+
 @router.delete("/{player_id}", response_model=BaseResponse[Dict[str, Any]])
 async def delete_player(
     player_id: str,
@@ -340,10 +437,18 @@ async def delete_player(
 ):
     """
     Deletes a player profile:
-    - If guest, removes from guest session.
-    - If user, removes from DB and user store.
+    - If guest, removes from guest session and memory.
+    - If user, cascades delete across datasets, games, analysis_runs in Supabase DB.
+    - Evicts any cached analysis snapshots.
     """
     deleted = False
+
+    # Evict cached snapshots
+    try:
+        from api.routes.analyses import RUN_SNAPSHOTS_CACHE
+        RUN_SNAPSHOTS_CACHE.pop(player_id, None)
+    except Exception:
+        pass
 
     # Remove from guest session
     session = get_guest_session(x_guest_session_id)
@@ -352,6 +457,8 @@ async def delete_player(
         deleted = True
     if player_id in session["games"]:
         del session["games"][player_id]
+    if "runs" in session and player_id in session["runs"]:
+        del session["runs"][player_id]
 
     if player_id in PLAYERS_STORE:
         del PLAYERS_STORE[player_id]
@@ -359,13 +466,17 @@ async def delete_player(
     if player_id in GAMES_STORE:
         del GAMES_STORE[player_id]
 
-    # Only delete from DB if user is logged in
+    # Delete from DB if logged-in user
     if x_user_id:
         try:
-            sb = DBService.get_supabase()
-            sb.table("players").delete().eq("id", player_id).eq("user_id", x_user_id).execute()
-            deleted = True
+            db_deleted = DBService.delete_player(player_id, user_id=x_user_id)
+            if db_deleted:
+                deleted = True
         except Exception as e:
             logger.warning(f"Error deleting player from DB: {e}")
 
-    return BaseResponse(success=True, message="Đã xóa hồ sơ kỳ thủ", data={"deleted": deleted, "player_id": player_id})
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ kỳ thủ cần xóa")
+
+    return BaseResponse(success=True, message="Đã xóa hồ sơ kỳ thủ thành công", data={"deleted": True, "player_id": player_id})
+

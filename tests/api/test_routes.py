@@ -109,6 +109,22 @@ def test_players_crud_endpoints():
     assert list_res.status_code == 200
     assert len(list_res.json()["data"]) >= 1
 
+    # Update player (PUT)
+    update_res = client.put(f"/api/players/{player_id}", json={"canonical_name": "Hikaru N.", "notes": "Grandmaster streamer"})
+    assert update_res.status_code == 200
+    updated_player = update_res.json()["data"]
+    assert updated_player["canonical_name"] == "Hikaru N."
+    assert updated_player["notes"] == "Grandmaster streamer"
+
+    # Delete player (DELETE)
+    del_res = client.delete(f"/api/players/{player_id}")
+    assert del_res.status_code == 200
+    assert del_res.json()["data"]["deleted"] is True
+
+    # Verify deleted (404)
+    get_after_del = client.get(f"/api/players/{player_id}")
+    assert get_after_del.status_code == 404
+
 def test_lichess_verify_token_endpoint(monkeypatch):
     import json
     from unittest.mock import MagicMock

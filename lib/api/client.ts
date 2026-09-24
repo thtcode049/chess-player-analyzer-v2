@@ -150,6 +150,28 @@ export const apiClient = {
     return handleResponse<Player>(res);
   },
 
+  async updatePlayer(
+    id: string,
+    data: { canonical_name?: string; title?: string; fide_id?: number; notes?: string }
+  ): Promise<Player> {
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(`${API_BASE}/api/players/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<Player>(res);
+  },
+
+  async deletePlayer(id: string): Promise<{ deleted: boolean; player_id: string }> {
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(`${API_BASE}/api/players/${id}`, {
+      method: "DELETE",
+      headers: authHeaders,
+    });
+    return handleResponse<{ deleted: boolean; player_id: string }>(res);
+  },
+
   async getPlayerGames(
     playerId: string,
     params: { page?: number; pageSize?: number; color?: string; eco?: string } = {}

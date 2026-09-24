@@ -16,7 +16,12 @@ import {
   Loader2,
   Sparkles,
   ExternalLink,
-  Check
+  Check,
+  Pencil,
+  Trash2,
+  AlertTriangle,
+  X,
+  CheckCircle2
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { Player, Game, AnalysisRun } from "@/lib/api/types";
@@ -38,6 +43,73 @@ export default function PlayerDetailPage() {
   const [analysisRun, setAnalysisRun] = useState<AnalysisRun | null>(null);
   const [loading, setLoading] = useState(true);
   const [runningAnalysis, setRunningAnalysis] = useState(false);
+
+  // Edit & Delete modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editFideId, setEditFideId] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [updating, setUpdating] = useState(false);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Toast notice state
+  const [notice, setNotice] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setNotice({ message, type });
+    setTimeout(() => {
+      setNotice(null);
+    }, 4000);
+  };
+
+  const handleOpenEdit = () => {
+    if (!player) return;
+    setEditName(player.canonical_name);
+    setEditTitle(player.title || "");
+    setEditFideId(player.fide_id ? String(player.fide_id) : "");
+    setEditNotes(player.notes || "");
+    setShowEditModal(true);
+  };
+
+  const handleUpdatePlayer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!player || !editName.trim()) return;
+
+    setUpdating(true);
+    try {
+      const updated = await apiClient.updatePlayer(playerId, {
+        canonical_name: editName.trim(),
+        title: editTitle.trim() || undefined,
+        fide_id: editFideId.trim() ? parseInt(editFideId.trim(), 10) : undefined,
+        notes: editNotes.trim() || undefined
+      });
+      setPlayer(prev => (prev ? { ...prev, ...updated } : updated));
+      setShowEditModal(false);
+      showToast(`Đã cập nhật hồ sơ kỳ thủ "${updated.canonical_name}" thành công`);
+    } catch (err: any) {
+      showToast(err.message || "Lỗi khi cập nhật hồ sơ kỳ thủ", "error");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    setDeleting(true);
+    try {
+      await apiClient.deletePlayer(playerId);
+      showToast("Đã xóa hồ sơ kỳ thủ thành công");
+      setShowDeleteModal(false);
+      setTimeout(() => {
+        router.push("/players");
+      }, 500);
+    } catch (err: any) {
+      showToast(err.message || "Lỗi khi xóa hồ sơ kỳ thủ", "error");
+      setDeleting(false);
+    }
+  };
 
   // Filter state for games tab
   const [gameColorFilter, setGameColorFilter] = useState<string>("all");
@@ -133,17 +205,57 @@ export default function PlayerDetailPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-fade-in pb-12">
+    <div className="max-w-7xl mx-auto space-y-8 animate-fade-in pb-12 relative">
+      {/* Toast Notification */}
+      {notice && (
+        <div
+          className={`fixed top-20 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border backdrop-blur-md transition-all animate-slide-in ${
+            notice.type === "success"
+              ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-emerald-300"
+              : "bg-rose-500/15 border-rose-500/40 text-rose-800 dark:text-rose-300"
+          }`}
+        >
+          {notice.type === "success" ? (
+            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+          ) : (
+            <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />
+          )}
+          <span className="text-xs font-semibold">{notice.message}</span>
+          <button
+            onClick={() => setNotice(null)}
+            className="ml-2 text-muted-foreground hover:text-foreground p-0.5 rounded-md"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Top Breadcrumb & Actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <Link
           href="/players"
           className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Quay lại Thư viện Kỳ thủ
+          Quay lại Hồ sơ Kỳ thủ
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            onClick={handleOpenEdit}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-border/60 text-xs font-semibold rounded-xl hover:bg-card hover:text-primary text-foreground transition-all shadow-xs"
+            title="Chỉnh sửa thông tin hồ sơ kỳ thủ"
+          >
+            <Pencil className="w-3.5 h-3.5 text-primary" />
+            Sửa Hồ Sơ
+          </button>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-rose-500/30 text-rose-500 hover:bg-rose-500/10 text-xs font-semibold rounded-xl transition-all shadow-xs"
+            title="Xóa hồ sơ kỳ thủ"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Xóa Hồ Sơ
+          </button>
           <button
             onClick={handleTriggerAnalysis}
             disabled={runningAnalysis}
@@ -179,6 +291,13 @@ export default function PlayerDetailPage() {
                     {player.title}
                   </span>
                 )}
+                <button
+                  onClick={handleOpenEdit}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                  title="Chỉnh sửa thông tin kỳ thủ"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
               </div>
               <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-xl leading-relaxed">
                 {player?.notes || "Kỳ thủ đang được theo dõi và phân tích chiến lược tự động."}
@@ -703,6 +822,158 @@ export default function PlayerDetailPage() {
               `Làm thế nào để khai thác điểm yếu cấu trúc Tốt của ${player?.canonical_name}?`,
             ]}
           />
+        </div>
+      )}
+
+      {/* Edit Player Modal Dialog */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-card border border-border/80 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-scale-in">
+            <div className="flex items-center justify-between border-b border-border/40 pb-4">
+              <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-primary" />
+                Chỉnh Sửa Hồ Sơ Kỳ Thủ
+              </h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-background"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdatePlayer} className="space-y-4 text-sm">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Tên Chính Thức (Canonical Name) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="VD: Carlsen, Magnus hoặc Hikaru Nakamura"
+                  className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    Danh Hiệu (Title)
+                  </label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="GM, IM, FM, CM..."
+                    className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    FIDE ID (Tùy chọn)
+                  </label>
+                  <input
+                    type="number"
+                    value={editFideId}
+                    onChange={(e) => setEditFideId(e.target.value)}
+                    placeholder="VD: 1503014"
+                    className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Ghi Chú Đặc Điểm Kỳ Thủ
+                </label>
+                <textarea
+                  rows={3}
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Đặc điểm phong cách, khai cuộc ưa chuộng, điểm mạnh/yếu cần theo dõi..."
+                  className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={updating || !editName.trim()}
+                  className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-primary/20"
+                >
+                  {updating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  Lưu Thay Đổi
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal Dialog */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-card border border-rose-500/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-scale-in">
+            <div className="flex items-center gap-3 text-rose-500 border-b border-border/40 pb-4">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-500" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-foreground">
+                  Xác Nhận Xóa Hồ Sơ Kỳ Thủ
+                </h3>
+                <p className="text-xs text-muted-foreground">Thao tác này sẽ xóa vĩnh viễn dữ liệu</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs leading-relaxed text-muted-foreground">
+              <p>
+                Bạn có chắc chắn muốn xóa hồ sơ của kỳ thủ{" "}
+                <strong className="text-foreground font-bold">
+                  {player?.canonical_name}
+                </strong>
+                ?
+              </p>
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 space-y-1">
+                <p className="font-semibold flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  Cảnh báo quan trọng:
+                </p>
+                <p className="text-[11px] leading-normal">
+                  Toàn bộ ván đấu, tập dữ liệu nhập vào (PGN / Lichess / Chess.com) và kết quả phân tích chiến lược liên quan đến kỳ thủ này sẽ bị xóa hoàn toàn khỏi hệ thống và không thể khôi phục.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleConfirmDelete}
+                className="px-5 py-2 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-rose-600/20 transition-all"
+              >
+                {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Xóa Vĩnh Viễn
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -161,6 +161,51 @@ class DBService:
         return res.data[0] if res.data else None
 
     @staticmethod
+    def update_player(player_id: str, updates: Dict[str, Any], user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Update player record by player_id and optionally user_id."""
+        try:
+            sb = get_supabase()
+            query = sb.table("players").update(updates).eq("id", player_id)
+            if user_id:
+                query = query.eq("user_id", user_id)
+            res = query.execute()
+            return res.data[0] if res.data else None
+        except Exception as e:
+            logger.warning(f"Failed to update player {player_id}: {e}")
+            return None
+
+    @staticmethod
+    def delete_player(player_id: str, user_id: Optional[str] = None) -> bool:
+        """Cascade delete a player and associated datasets, games, and analysis_runs."""
+        try:
+            sb = get_supabase()
+            # 1. Delete associated analysis_runs
+            try:
+                sb.table("analysis_runs").delete().eq("player_id", player_id).execute()
+            except Exception as e:
+                logger.warning(f"Error removing analysis_runs for player {player_id}: {e}")
+
+            # 2. Get datasets to delete linked games
+            try:
+                ds_res = sb.table("datasets").select("id").eq("player_id", player_id).execute()
+                ds_ids = [d["id"] for d in (ds_res.data or [])]
+                if ds_ids:
+                    sb.table("games").delete().in_("dataset_id", ds_ids).execute()
+                    sb.table("datasets").delete().eq("player_id", player_id).execute()
+            except Exception as e:
+                logger.warning(f"Error removing datasets/games for player {player_id}: {e}")
+
+            # 3. Delete player
+            q = sb.table("players").delete().eq("id", player_id)
+            if user_id:
+                q = q.eq("user_id", user_id)
+            res = q.execute()
+            return bool(res.data)
+        except Exception as e:
+            logger.warning(f"Failed to delete player {player_id}: {e}")
+            return False
+
+    @staticmethod
     def get_games(dataset_id: str, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         sb = get_supabase()
         res = (

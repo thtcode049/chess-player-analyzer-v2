@@ -94,7 +94,7 @@ export default function Navbar() {
 
   const navLinks = [
     { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
-    { href: "/players", label: "Kỳ thủ & Hồ sơ", icon: Users },
+    { href: "/players", label: "Hồ sơ kỳ thủ", icon: Users },
     { href: "/analyze", label: "Bàn cờ Phân tích", icon: Swords },
     { href: "/ai-coach", label: "Trợ lí AI", icon: Brain, badge: "AI" },
     { href: "/import", label: "Nạp ván đấu", icon: UploadCloud },

@@ -253,50 +253,75 @@ async def get_player(
 async def list_player_games(
     player_id: str,
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=1000),
+    page_size: int = Query(50, ge=1, le=50000),
     color: Optional[str] = Query(None),
     eco: Optional[str] = Query(None),
     result: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    all_games: bool = Query(False),
     x_user_id: Optional[str] = Header(None),
     x_guest_session_id: Optional[str] = Header(None)
 ):
     """
-    Queries games belonging to a player with pagination and filtering.
+    Queries games belonging to a player with pagination, full-text search, and filtering.
+    Supports all_games=True for loading the complete library without limit.
     """
     games: List[Dict[str, Any]] = []
 
-    # 1. Guest mode check
-    if not x_user_id:
-        session = get_guest_session(x_guest_session_id)
-        games = session.get("games", {}).get(player_id, [])
-
-    # 2. In-memory fallback
-    if not games:
-        games = GAMES_STORE.get(player_id, [])
-
-    # 3. DB query ONLY for logged in users
-    if not games and x_user_id:
+    # 1. DB query for logged in users first (fetches all unique games)
+    if x_user_id:
         try:
-            db_games = DBService.get_player_games(player_id, limit=1000)
+            db_games = DBService.get_player_games(player_id, limit=None)
             if db_games:
                 GAMES_STORE[player_id] = db_games
                 games = db_games
         except Exception as e:
             logger.warning(f"Error fetching player games from DB: {e}")
 
-    # Filter
+    # 2. In-memory fallback
+    if not games and player_id in GAMES_STORE:
+        games = GAMES_STORE[player_id]
+
+    # 3. Guest session fallback
+    if not games:
+        session = get_guest_session(x_guest_session_id)
+        games = session.get("games", {}).get(player_id, [])
+
+    # Filter by Color
     filtered = games
     if color and color.lower() in ["white", "black"]:
         filtered = [g for g in filtered if str(g.get("player_color", "")).lower() == color.lower()]
+
+    # Filter by ECO
     if eco:
         filtered = [g for g in filtered if str(g.get("eco", "")).upper().startswith(eco.upper())]
+
+    # Filter by Result
     if result:
         filtered = [g for g in filtered if g.get("result") == result]
 
+    # Search by opponent, player, ECO, opening, time control
+    if search:
+        s_low = search.strip().lower()
+        filtered = [
+            g for g in filtered
+            if s_low in str(g.get("white_player") or g.get("white", "")).lower()
+            or s_low in str(g.get("black_player") or g.get("black", "")).lower()
+            or s_low in str(g.get("eco", "")).lower()
+            or s_low in str(g.get("opening_name") or g.get("opening", "")).lower()
+            or s_low in str(g.get("result", "")).lower()
+            or s_low in str(g.get("time_control", "")).lower()
+        ]
+
     total = len(filtered)
-    start_idx = (page - 1) * page_size
-    end_idx = start_idx + page_size
-    paginated_games = filtered[start_idx:end_idx]
+    if all_games or page_size >= 10000:
+        paginated_games = filtered
+        page = 1
+        page_size = total if total > 0 else 1
+    else:
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_games = filtered[start_idx:end_idx]
 
     items = [
         GameResponse(

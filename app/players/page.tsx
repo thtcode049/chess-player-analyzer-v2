@@ -58,11 +58,23 @@ export default function PlayersPage() {
     }, 4000);
   };
 
-  const scrollToActionBox = () => {
-    setTimeout(() => {
-      document.getElementById("player-action-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
-  };
+  // Handle Escape key and body scroll locking when modal dialog is open
+  useEffect(() => {
+    if (activeAction !== "none") {
+      const originalStyle = window.getComputedStyle(document.body).overflow;
+      document.body.style.overflow = "hidden";
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "Escape") {
+          handleCloseAction();
+        }
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = originalStyle;
+        window.removeEventListener("keydown", handleKeyDown);
+      };
+    }
+  }, [activeAction]);
 
   useEffect(() => {
     import("@/lib/supabase/client").then(({ createClient }) => {
@@ -91,16 +103,11 @@ export default function PlayersPage() {
   }, []);
 
   const handleOpenCreate = () => {
-    if (activeAction === "create") {
-      setActiveAction("none");
-      return;
-    }
-    setActiveAction("create");
     setCanonicalName("");
     setTitle("");
     setFideId("");
     setNotes("");
-    scrollToActionBox();
+    setActiveAction("create");
   };
 
   const handleCreatePlayer = async (e: React.FormEvent) => {
@@ -130,18 +137,12 @@ export default function PlayersPage() {
   };
 
   const handleOpenEdit = (player: Player) => {
-    if (activeAction === "edit" && editingPlayer?.id === player.id) {
-      setActiveAction("none");
-      setEditingPlayer(null);
-      return;
-    }
     setEditingPlayer(player);
     setEditName(player.canonical_name);
     setEditTitle(player.title || "");
     setEditFideId(player.fide_id ? String(player.fide_id) : "");
     setEditNotes(player.notes || "");
     setActiveAction("edit");
-    scrollToActionBox();
   };
 
   const handleUpdatePlayer = async (e: React.FormEvent) => {
@@ -168,14 +169,8 @@ export default function PlayersPage() {
   };
 
   const handleOpenDelete = (player: Player) => {
-    if (activeAction === "delete" && deletingPlayer?.id === player.id) {
-      setActiveAction("none");
-      setDeletingPlayer(null);
-      return;
-    }
     setDeletingPlayer(player);
     setActiveAction("delete");
-    scrollToActionBox();
   };
 
   const handleConfirmDelete = async () => {
@@ -245,14 +240,10 @@ export default function PlayersPage() {
         </div>
         <button
           onClick={handleOpenCreate}
-          className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all shadow-md ${
-            activeAction === "create"
-              ? "bg-secondary text-foreground border border-border/60 hover:bg-card"
-              : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
-          }`}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all shadow-md bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
         >
           <UserPlus className="w-4 h-4" />
-          {activeAction === "create" ? "Đóng Form Thêm" : "Tạo Kỳ Thủ Mới"}
+          Tạo Kỳ Thủ Mới
         </button>
       </div>
 
@@ -269,279 +260,6 @@ export default function PlayersPage() {
         </div>
       )}
 
-      {/* Active On-Page Action Box (Thêm / Sửa / Xóa) - Hiển thị trực tiếp, rõ ràng trên trang, không có nền mờ */}
-      {activeAction !== "none" && (
-        <div id="player-action-section" className="scroll-mt-24 animate-scale-in">
-          {/* 1. Hộp Thêm Kỳ Thủ Mới */}
-          {activeAction === "create" && (
-            <div className="bg-card border-2 border-primary/40 rounded-3xl p-6 sm:p-7 shadow-xl shadow-primary/5 space-y-5">
-              <div className="flex items-center justify-between border-b border-border/40 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
-                    <UserPlus className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-lg text-foreground">
-                      Thêm Hồ Sơ Kỳ Thủ Mới
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Nhập thông tin định danh để tạo hồ sơ kỳ thủ và theo dõi hệ thống ván đấu.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleCloseAction}
-                  className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl hover:bg-background transition"
-                  title="Đóng hộp thao tác"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleCreatePlayer} className="space-y-4 text-sm">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Tên Chính Thức (Canonical Name) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={canonicalName}
-                    onChange={(e) => setCanonicalName(e.target.value)}
-                    placeholder="VD: Carlsen, Magnus hoặc Hikaru Nakamura"
-                    className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                      Danh Hiệu (Title)
-                    </label>
-                    <input
-                      type="text"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="GM, IM, FM, CM..."
-                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                      FIDE ID (Tùy chọn)
-                    </label>
-                    <input
-                      type="number"
-                      value={fideId}
-                      onChange={(e) => setFideId(e.target.value)}
-                      placeholder="VD: 1503014"
-                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Ghi Chú Đặc Điểm Kỳ Thủ
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Đặc điểm phong cách, khai cuộc ưa chuộng, điểm mạnh/yếu cần theo dõi..."
-                    className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  />
-                </div>
-
-                <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={handleCloseAction}
-                    className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={creating || !canonicalName.trim()}
-                    className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-primary/20 transition-all"
-                  >
-                    {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    Lưu Kỳ Thủ
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* 2. Hộp Chỉnh Sửa Hồ Sơ */}
-          {activeAction === "edit" && editingPlayer && (
-            <div className="bg-card border-2 border-primary/40 rounded-3xl p-6 sm:p-7 shadow-xl shadow-primary/5 space-y-5">
-              <div className="flex items-center justify-between border-b border-border/40 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
-                    <Pencil className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-lg text-foreground">
-                      Chỉnh Sửa Hồ Sơ Kỳ Thủ: {editingPlayer.canonical_name}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Cập nhật thông tin định danh, danh hiệu FIDE hoặc ghi chú chiến lược.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleCloseAction}
-                  className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl hover:bg-background transition"
-                  title="Đóng hộp thao tác"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleUpdatePlayer} className="space-y-4 text-sm">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Tên Chính Thức (Canonical Name) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    placeholder="VD: Carlsen, Magnus hoặc Hikaru Nakamura"
-                    className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                      Danh Hiệu (Title)
-                    </label>
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      placeholder="GM, IM, FM, CM..."
-                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                      FIDE ID (Tùy chọn)
-                    </label>
-                    <input
-                      type="number"
-                      value={editFideId}
-                      onChange={(e) => setEditFideId(e.target.value)}
-                      placeholder="VD: 1503014"
-                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Ghi Chú Đặc Điểm Kỳ Thủ
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={editNotes}
-                    onChange={(e) => setEditNotes(e.target.value)}
-                    placeholder="Đặc điểm phong cách, khai cuộc ưa chuộng, điểm mạnh/yếu cần theo dõi..."
-                    className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  />
-                </div>
-
-                <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={handleCloseAction}
-                    className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={updating || !editName.trim()}
-                    className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-primary/20 transition-all"
-                  >
-                    {updating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    Lưu Thay Đổi
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* 3. Hộp Xác Nhận Xóa Hồ Sơ */}
-          {activeAction === "delete" && deletingPlayer && (
-            <div className="bg-card border-2 border-rose-500/40 rounded-3xl p-6 sm:p-7 shadow-xl shadow-rose-500/10 space-y-5">
-              <div className="flex items-center justify-between border-b border-border/40 pb-4">
-                <div className="flex items-center gap-3 text-rose-500">
-                  <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
-                    <Trash2 className="w-5 h-5 text-rose-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-lg text-foreground">
-                      Xác Nhận Xóa Hồ Sơ Kỳ Thủ: {deletingPlayer.canonical_name}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">Thao tác này sẽ xóa vĩnh viễn dữ liệu</p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleCloseAction}
-                  className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl hover:bg-background transition"
-                  title="Đóng hộp thao tác"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="space-y-3 text-xs leading-relaxed text-muted-foreground">
-                <p>
-                  Bạn có chắc chắn muốn xóa hồ sơ của kỳ thủ{" "}
-                  <strong className="text-foreground font-bold text-sm">
-                    {deletingPlayer.canonical_name}
-                  </strong>
-                  ?
-                </p>
-                <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 space-y-1">
-                  <p className="font-semibold flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                    Cảnh báo quan trọng:
-                  </p>
-                  <p className="text-[11px] leading-normal">
-                    Toàn bộ ván đấu, tập dữ liệu nhập vào (PGN / Lichess / Chess.com) và kết quả phân tích chiến lược liên quan đến kỳ thủ này sẽ bị xóa hoàn toàn khỏi hệ thống và không thể khôi phục.
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  disabled={deleting}
-                  onClick={handleCloseAction}
-                  className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="button"
-                  disabled={deleting}
-                  onClick={handleConfirmDelete}
-                  className="px-5 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-rose-600/20 transition-all"
-                >
-                  {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Xóa Vĩnh Viễn
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Filter & Search Bar */}
       <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -741,6 +459,294 @@ export default function PlayersPage() {
               </div>
             );
           })}
+        </div>
+      )}
+      {/* Modal Hộp thoại nổi Thêm / Sửa / Xóa Hồ Sơ (Floating Modal Dialog + Dimmed/Blurred Backdrop) */}
+      {activeAction !== "none" && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+          onClick={handleCloseAction}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-card border border-border/80 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-scale-in relative max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 1. Hộp Thêm Kỳ Thủ Mới */}
+            {activeAction === "create" && (
+              <div className="space-y-5">
+                <div className="flex items-center justify-between border-b border-border/40 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                      <UserPlus className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-lg text-foreground">
+                        Thêm Hồ Sơ Kỳ Thủ Mới
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Nhập thông tin định danh để tạo hồ sơ kỳ thủ và theo dõi hệ thống ván đấu.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCloseAction}
+                    className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl hover:bg-secondary transition"
+                    title="Đóng hộp thoại"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleCreatePlayer} className="space-y-4 text-sm">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      Tên Chính Thức (Canonical Name) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={canonicalName}
+                      onChange={(e) => setCanonicalName(e.target.value)}
+                      placeholder="VD: Carlsen, Magnus hoặc Hikaru Nakamura"
+                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                        Danh Hiệu (Title)
+                      </label>
+                      <input
+                        type="text"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="GM, IM, FM, CM..."
+                        className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                        FIDE ID (Tùy chọn)
+                      </label>
+                      <input
+                        type="number"
+                        value={fideId}
+                        onChange={(e) => setFideId(e.target.value)}
+                        placeholder="VD: 1503014"
+                        className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      Ghi Chú Đặc Điểm Kỳ Thủ
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Đặc điểm phong cách, khai cuộc ưa chuộng, điểm mạnh/yếu cần theo dõi..."
+                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    />
+                  </div>
+
+                  <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={handleCloseAction}
+                      className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition hover:bg-secondary"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={creating || !canonicalName.trim()}
+                      className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-primary/20 transition-all"
+                    >
+                      {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      Lưu Kỳ Thủ
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* 2. Hộp Chỉnh Sửa Hồ Sơ */}
+            {activeAction === "edit" && editingPlayer && (
+              <div className="space-y-5">
+                <div className="flex items-center justify-between border-b border-border/40 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                      <Pencil className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-lg text-foreground">
+                        Chỉnh Sửa Hồ Sơ Kỳ Thủ
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {editingPlayer.canonical_name}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCloseAction}
+                    className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl hover:bg-secondary transition"
+                    title="Đóng hộp thoại"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleUpdatePlayer} className="space-y-4 text-sm">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      Tên Chính Thức (Canonical Name) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="VD: Carlsen, Magnus hoặc Hikaru Nakamura"
+                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                        Danh Hiệu (Title)
+                      </label>
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        placeholder="GM, IM, FM, CM..."
+                        className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                        FIDE ID (Tùy chọn)
+                      </label>
+                      <input
+                        type="number"
+                        value={editFideId}
+                        onChange={(e) => setEditFideId(e.target.value)}
+                        placeholder="VD: 1503014"
+                        className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      Ghi Chú Đặc Điểm Kỳ Thủ
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      placeholder="Đặc điểm phong cách, khai cuộc ưa chuộng, điểm mạnh/yếu cần theo dõi..."
+                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    />
+                  </div>
+
+                  <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={handleCloseAction}
+                      className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition hover:bg-secondary"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={updating || !editName.trim()}
+                      className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-primary/20 transition-all"
+                    >
+                      {updating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      Lưu Thay Đổi
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* 3. Hộp Xác Nhận Xóa Hồ Sơ */}
+            {activeAction === "delete" && deletingPlayer && (
+              <div className="space-y-5">
+                <div className="flex items-center justify-between border-b border-border/40 pb-4">
+                  <div className="flex items-center gap-3 text-rose-500">
+                    <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
+                      <Trash2 className="w-5 h-5 text-rose-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-lg text-foreground">
+                        Xác Nhận Xóa Hồ Sơ Kỳ Thủ
+                      </h3>
+                      <p className="text-xs text-rose-500/80 font-medium">Thao tác này sẽ xóa vĩnh viễn dữ liệu</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCloseAction}
+                    className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl hover:bg-secondary transition"
+                    title="Đóng hộp thoại"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-xs leading-relaxed text-muted-foreground">
+                  <p>
+                    Bạn có chắc chắn muốn xóa hồ sơ của kỳ thủ{" "}
+                    <strong className="text-foreground font-bold text-sm">
+                      {deletingPlayer.canonical_name}
+                    </strong>
+                    ?
+                  </p>
+                  <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 space-y-1">
+                    <p className="font-semibold flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      Cảnh báo quan trọng:
+                    </p>
+                    <p className="text-[11px] leading-normal">
+                      Toàn bộ ván đấu, tập dữ liệu nhập vào (PGN / Lichess / Chess.com) và kết quả phân tích chiến lược liên quan đến kỳ thủ này sẽ bị xóa hoàn toàn khỏi hệ thống và không thể khôi phục.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={handleCloseAction}
+                    className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition hover:bg-secondary"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={handleConfirmDelete}
+                    className="px-5 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-rose-600/20 transition-all"
+                  >
+                    {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Xóa Vĩnh Viễn
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

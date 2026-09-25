@@ -174,7 +174,7 @@ export const apiClient = {
 
   async getPlayerGames(
     playerId: string,
-    params: { page?: number; pageSize?: number; color?: string; eco?: string } = {}
+    params: { page?: number; pageSize?: number; color?: string; eco?: string; search?: string; allGames?: boolean } = {}
   ): Promise<PaginatedResult<Game>> {
     const authHeaders = await getAuthHeaders();
     const query = new URLSearchParams();
@@ -182,6 +182,8 @@ export const apiClient = {
     if (params.pageSize) query.set("page_size", params.pageSize.toString());
     if (params.color) query.set("color", params.color);
     if (params.eco) query.set("eco", params.eco);
+    if (params.search) query.set("search", params.search);
+    if (params.allGames) query.set("all_games", "true");
 
     const res = await fetch(`${API_BASE}/api/players/${playerId}/games?${query.toString()}`, {
       headers: authHeaders,

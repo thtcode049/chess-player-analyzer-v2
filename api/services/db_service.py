@@ -51,6 +51,53 @@ def determine_player_color(player_name: str, white: str, black: str) -> str:
     return "white"
 
 
+def get_game_fingerprint(g: Dict[str, Any]) -> str:
+    """
+    Computes a unique signature for a chess game to accurately detect duplicates.
+    1. If online platform URL/ID is present (Lichess, Chess.com), uses normalized URL.
+    2. Otherwise, uses White + Black + Date + Result + MD5 hash of normalized moves.
+    """
+    import hashlib
+    import re
+
+    site = (
+        g.get("site_url")
+        or g.get("external_id")
+        or g.get("link")
+        or g.get("site")
+        or ""
+    )
+    if isinstance(site, str) and site.strip():
+        s = site.strip()
+        if "lichess.org" in s or "chess.com" in s:
+            clean_url = s.split("?")[0].rstrip("/").lower()
+            return f"url:{clean_url}"
+
+    white = str(g.get("white_player") or g.get("white") or "").strip().lower()
+    black = str(g.get("black_player") or g.get("black") or "").strip().lower()
+    date_val = str(g.get("date") or g.get("played_at") or "").split("T")[0].replace(".", "-").strip()
+    result = str(g.get("result") or "*").strip()
+
+    moves = g.get("moves_san") or g.get("moves") or []
+    if isinstance(moves, list):
+        moves_str = " ".join([str(m) for m in moves])
+    else:
+        moves_str = str(moves).strip()
+
+    clean_moves = re.sub(r"\d+\.+", "", moves_str).strip()
+    clean_moves = " ".join(clean_moves.split())
+
+    if clean_moves:
+        m_hash = hashlib.md5(clean_moves.encode("utf-8")).hexdigest()
+        return f"sig:{white}|{black}|{date_val}|{result}|{m_hash}"
+    else:
+        raw_headers = g.get("raw_headers") or g.get("headers") or {}
+        event = str(raw_headers.get("Event") or g.get("event") or "").strip().lower()
+        round_no = str(raw_headers.get("Round") or g.get("round") or "").strip()
+        time_ctrl = str(g.get("time_control") or raw_headers.get("TimeControl") or "").strip()
+        return f"meta:{white}|{black}|{date_val}|{result}|{event}|{round_no}|{time_ctrl}"
+
+
 class DBService:
     """
     Server-side DB operations using SERVICE_ROLE key (bypasses RLS).
@@ -219,8 +266,12 @@ class DBService:
         return res.data or []
 
     @staticmethod
-    def get_player_games(player_id: str, limit: int = 1000, offset: int = 0) -> List[Dict[str, Any]]:
-        """Get all games for a player across all datasets."""
+    def get_player_games(player_id: str, limit: Optional[int] = None, offset: int = 0) -> List[Dict[str, Any]]:
+        """
+        Get games for a player across all datasets with optional limit.
+        If limit is None or <= 0: fetches ALL games without arbitrary 500 or 1000 limit.
+        Automatically deduplicates records by game fingerprint.
+        """
         try:
             sb = get_supabase()
             # Get all dataset_ids for player first
@@ -234,15 +285,44 @@ class DBService:
             if not dataset_ids:
                 return []
 
-            res = (
-                sb.table("games")
-                .select("*")
-                .in_("dataset_id", dataset_ids)
-                .order("played_at", desc=True, nullsfirst=False)
-                .range(offset, offset + limit - 1)
-                .execute()
-            )
-            return res.data or []
+            batch_size = 1000
+            current_offset = offset
+            all_raw_games: List[Dict[str, Any]] = []
+
+            while True:
+                fetch_count = batch_size
+                if limit is not None and limit > 0:
+                    remaining = limit - len(all_raw_games)
+                    if remaining <= 0:
+                        break
+                    fetch_count = min(batch_size, remaining)
+
+                res = (
+                    sb.table("games")
+                    .select("*")
+                    .in_("dataset_id", dataset_ids)
+                    .order("played_at", desc=True, nullsfirst=False)
+                    .range(current_offset, current_offset + fetch_count - 1)
+                    .execute()
+                )
+                batch = res.data or []
+                if not batch:
+                    break
+                all_raw_games.extend(batch)
+                current_offset += len(batch)
+                if len(batch) < fetch_count:
+                    break
+
+            # Deduplicate by fingerprint across datasets
+            seen_fps = set()
+            deduped_games: List[Dict[str, Any]] = []
+            for g in all_raw_games:
+                fp = get_game_fingerprint(g)
+                if fp not in seen_fps:
+                    seen_fps.add(fp)
+                    deduped_games.append(g)
+
+            return deduped_games
         except Exception as e:
             logger.warning(f"Failed to fetch games for player {player_id}: {e}")
             return []

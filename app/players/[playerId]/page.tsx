@@ -21,7 +21,11 @@ import {
   Trash2,
   AlertTriangle,
   X,
-  CheckCircle2
+  CheckCircle2,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Filter
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { Player, Game, AnalysisRun } from "@/lib/api/types";
@@ -63,34 +67,36 @@ export default function PlayerDetailPage() {
     }, 4000);
   };
 
-  const scrollToActionBox = () => {
-    setTimeout(() => {
-      document.getElementById("detail-action-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
-  };
+  // Handle Escape key and body scroll locking when modal dialog is open
+  useEffect(() => {
+    if (activeAction !== "none") {
+      const originalStyle = window.getComputedStyle(document.body).overflow;
+      document.body.style.overflow = "hidden";
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "Escape") {
+          handleCloseAction();
+        }
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = originalStyle;
+        window.removeEventListener("keydown", handleKeyDown);
+      };
+    }
+  }, [activeAction]);
 
   const handleOpenEdit = () => {
     if (!player) return;
-    if (activeAction === "edit") {
-      setActiveAction("none");
-      return;
-    }
     setEditName(player.canonical_name);
     setEditTitle(player.title || "");
     setEditFideId(player.fide_id ? String(player.fide_id) : "");
     setEditNotes(player.notes || "");
     setActiveAction("edit");
-    scrollToActionBox();
   };
 
   const handleOpenDelete = () => {
     if (!player) return;
-    if (activeAction === "delete") {
-      setActiveAction("none");
-      return;
-    }
     setActiveAction("delete");
-    scrollToActionBox();
   };
 
   const handleCloseAction = () => {
@@ -134,8 +140,12 @@ export default function PlayerDetailPage() {
     }
   };
 
-  // Filter state for games tab
+  // Filter & Search states for games tab (không giới hạn số lượng ván đấu)
   const [gameColorFilter, setGameColorFilter] = useState<string>("all");
+  const [gameResultFilter, setGameResultFilter] = useState<string>("all");
+  const [gameSearchQuery, setGameSearchQuery] = useState<string>("");
+  const [gamePage, setGamePage] = useState<number>(1);
+  const [gamesPerPage, setGamesPerPage] = useState<number>(50);
 
   useEffect(() => {
     if (!playerId) return;
@@ -161,8 +171,8 @@ export default function PlayerDetailPage() {
           });
         }
 
-        // Load games safely handling paginated or array response (up to 500 games)
-        const gRes = await apiClient.getPlayerGames(playerId, { pageSize: 500 }).catch(() => null);
+        // Load ALL games safely without hardcoded 500 limit (unlimited)
+        const gRes = await apiClient.getPlayerGames(playerId, { allGames: true, pageSize: 10000 }).catch(() => null);
         const gameItems = Array.isArray(gRes) ? gRes : ((gRes as any)?.items || []);
         setGames(gameItems);
 
@@ -208,15 +218,57 @@ export default function PlayerDetailPage() {
   };
 
   const safeGames = Array.isArray(games) ? games : [];
-  const filteredGames = safeGames.filter(g => {
+  const filteredGames = safeGames.filter((g) => {
     if (!g) return false;
     const pName = (player?.canonical_name || "").toLowerCase();
     const wPlayer = (g.white_player || "").toLowerCase();
     const bPlayer = (g.black_player || "").toLowerCase();
-    if (gameColorFilter === "white") return wPlayer.includes(pName);
-    if (gameColorFilter === "black") return bPlayer.includes(pName);
+    const isPlayerWhite = pName ? wPlayer.includes(pName) : false;
+    const isPlayerBlack = pName ? bPlayer.includes(pName) : false;
+
+    // Filter theo màu quân
+    if (gameColorFilter === "white" && !isPlayerWhite) return false;
+    if (gameColorFilter === "black" && !isPlayerBlack) return false;
+
+    // Filter theo kết quả (Thắng, Thua, Hòa)
+    if (gameResultFilter === "win") {
+      if (isPlayerWhite && g.result !== "1-0") return false;
+      if (isPlayerBlack && g.result !== "0-1") return false;
+      if (!isPlayerWhite && !isPlayerBlack && g.result !== "1-0") return false;
+    } else if (gameResultFilter === "loss") {
+      if (isPlayerWhite && g.result !== "0-1") return false;
+      if (isPlayerBlack && g.result !== "1-0") return false;
+      if (!isPlayerWhite && !isPlayerBlack && g.result !== "0-1") return false;
+    } else if (gameResultFilter === "draw") {
+      if (g.result !== "1/2-1/2") return false;
+    }
+
+    // Filter theo từ khóa tìm kiếm (search query)
+    if (gameSearchQuery.trim()) {
+      const q = gameSearchQuery.trim().toLowerCase();
+      const matchWhite = wPlayer.includes(q);
+      const matchBlack = bPlayer.includes(q);
+      const matchEco = (g.eco || "").toLowerCase().includes(q);
+      const matchOpening = (g.opening_name || "").toLowerCase().includes(q);
+      const matchResult = (g.result || "").toLowerCase().includes(q);
+      const matchDate = (g.played_at || (g.raw_headers as any)?.Date || "").toLowerCase().includes(q);
+      const matchEvent = ((g.raw_headers as any)?.Event || "").toLowerCase().includes(q);
+      const matchTimeControl = (g.time_control || "").toLowerCase().includes(q);
+
+      if (!matchWhite && !matchBlack && !matchEco && !matchOpening && !matchResult && !matchDate && !matchEvent && !matchTimeControl) {
+        return false;
+      }
+    }
+
     return true;
   });
+
+  const totalFiltered = filteredGames.length;
+  const totalPages = gamesPerPage === -1 ? 1 : Math.max(1, Math.ceil(totalFiltered / gamesPerPage));
+  const currentPage = Math.min(Math.max(1, gamePage), totalPages);
+  const paginatedGames = gamesPerPage === -1 
+    ? filteredGames 
+    : filteredGames.slice((currentPage - 1) * gamesPerPage, currentPage * gamesPerPage);
 
   if (loading) {
     return (
@@ -265,27 +317,19 @@ export default function PlayerDetailPage() {
         <div className="flex items-center gap-2.5 flex-wrap">
           <button
             onClick={handleOpenEdit}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 border text-xs font-semibold rounded-xl transition-all shadow-xs ${
-              activeAction === "edit"
-                ? "bg-primary text-primary-foreground border-primary"
-                : "border-border/60 hover:bg-card hover:text-primary text-foreground"
-            }`}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-border/60 hover:bg-card hover:text-primary text-foreground text-xs font-semibold rounded-xl transition-all shadow-xs"
             title="Chỉnh sửa thông tin hồ sơ kỳ thủ"
           >
             <Pencil className="w-3.5 h-3.5" />
-            {activeAction === "edit" ? "Đóng Form Sửa" : "Sửa Hồ Sơ"}
+            Sửa Hồ Sơ
           </button>
           <button
             onClick={handleOpenDelete}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 border text-xs font-semibold rounded-xl transition-all shadow-xs ${
-              activeAction === "delete"
-                ? "bg-rose-600 text-white border-rose-600"
-                : "border-rose-500/30 text-rose-500 hover:bg-rose-500/10"
-            }`}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-rose-500/30 text-rose-500 hover:bg-rose-500/10 text-xs font-semibold rounded-xl transition-all shadow-xs"
             title="Xóa hồ sơ kỳ thủ"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            {activeAction === "delete" ? "Đóng Hộp Xóa" : "Xóa Hồ Sơ"}
+            Xóa Hồ Sơ
           </button>
           <button
             onClick={handleTriggerAnalysis}
@@ -304,177 +348,6 @@ export default function PlayerDetailPage() {
         </div>
       </div>
 
-      {/* Active On-Page Action Box (Sửa / Xóa) - Hiển thị trực tiếp, rõ ràng trên trang, không có nền mờ */}
-      {activeAction !== "none" && player && (
-        <div id="detail-action-section" className="scroll-mt-24 animate-scale-in">
-          {/* Hộp Chỉnh Sửa Hồ Sơ */}
-          {activeAction === "edit" && (
-            <div className="bg-card border-2 border-primary/40 rounded-3xl p-6 sm:p-7 shadow-xl shadow-primary/5 space-y-5">
-              <div className="flex items-center justify-between border-b border-border/40 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
-                    <Pencil className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-lg text-foreground">
-                      Chỉnh Sửa Hồ Sơ Kỳ Thủ: {player.canonical_name}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Cập nhật thông tin định danh, danh hiệu FIDE hoặc ghi chú đặc điểm phong cách.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleCloseAction}
-                  className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl hover:bg-background transition"
-                  title="Đóng hộp thao tác"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleUpdatePlayer} className="space-y-4 text-sm">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Tên Chính Thức (Canonical Name) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    placeholder="VD: Carlsen, Magnus hoặc Hikaru Nakamura"
-                    className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                      Danh Hiệu (Title)
-                    </label>
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      placeholder="GM, IM, FM, CM..."
-                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                      FIDE ID (Tùy chọn)
-                    </label>
-                    <input
-                      type="number"
-                      value={editFideId}
-                      onChange={(e) => setEditFideId(e.target.value)}
-                      placeholder="VD: 1503014"
-                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Ghi Chú Đặc Điểm Kỳ Thủ
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={editNotes}
-                    onChange={(e) => setEditNotes(e.target.value)}
-                    placeholder="Đặc điểm phong cách, khai cuộc ưa chuộng, điểm mạnh/yếu cần theo dõi..."
-                    className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  />
-                </div>
-
-                <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={handleCloseAction}
-                    className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={updating || !editName.trim()}
-                    className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-primary/20 transition-all"
-                  >
-                    {updating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    Lưu Thay Đổi
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* Hộp Xác Nhận Xóa Hồ Sơ */}
-          {activeAction === "delete" && (
-            <div className="bg-card border-2 border-rose-500/40 rounded-3xl p-6 sm:p-7 shadow-xl shadow-rose-500/10 space-y-5">
-              <div className="flex items-center justify-between border-b border-border/40 pb-4">
-                <div className="flex items-center gap-3 text-rose-500">
-                  <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
-                    <Trash2 className="w-5 h-5 text-rose-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-lg text-foreground">
-                      Xác Nhận Xóa Hồ Sơ Kỳ Thủ: {player.canonical_name}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">Thao tác này sẽ xóa vĩnh viễn dữ liệu</p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleCloseAction}
-                  className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl hover:bg-background transition"
-                  title="Đóng hộp thao tác"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="space-y-3 text-xs leading-relaxed text-muted-foreground">
-                <p>
-                  Bạn có chắc chắn muốn xóa hồ sơ của kỳ thủ{" "}
-                  <strong className="text-foreground font-bold text-sm">
-                    {player.canonical_name}
-                  </strong>
-                  ?
-                </p>
-                <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 space-y-1">
-                  <p className="font-semibold flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                    Cảnh báo quan trọng:
-                  </p>
-                  <p className="text-[11px] leading-normal">
-                    Toàn bộ ván đấu, tập dữ liệu nhập vào (PGN / Lichess / Chess.com) và kết quả phân tích chiến lược liên quan đến kỳ thủ này sẽ bị xóa hoàn toàn khỏi hệ thống và không thể khôi phục.
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  disabled={deleting}
-                  onClick={handleCloseAction}
-                  className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="button"
-                  disabled={deleting}
-                  onClick={handleConfirmDelete}
-                  className="px-5 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-rose-600/20 transition-all"
-                >
-                  {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Xóa Vĩnh Viễn
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Player Dossier Banner */}
       <div className="bg-card border border-border/60 rounded-3xl p-6 sm:p-8 shadow-sm relative overflow-hidden">
@@ -920,104 +793,363 @@ export default function PlayerDetailPage() {
         </div>
       )}
 
-      {/* Tab 4: Games Library */}
+      {/* Tab 4: Games Library (Không giới hạn số lượng ván đấu & Hỗ trợ Tìm kiếm) */}
       {activeTab === "games" && (
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setGameColorFilter("all")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  gameColorFilter === "all" ? "bg-primary text-primary-foreground" : "bg-card border border-border/60 text-muted-foreground"
-                }`}
-              >
-                Tất cả ({games.length})
-              </button>
-              <button
-                onClick={() => setGameColorFilter("white")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  gameColorFilter === "white" ? "bg-primary text-primary-foreground" : "bg-card border border-border/60 text-muted-foreground"
-                }`}
-              >
-                Cầm Trắng
-              </button>
-              <button
-                onClick={() => setGameColorFilter("black")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  gameColorFilter === "black" ? "bg-primary text-primary-foreground" : "bg-card border border-border/60 text-muted-foreground"
-                }`}
-              >
-                Cầm Đen
-              </button>
+        <div className="space-y-5">
+          {/* Header & Search Bar & Filters */}
+          <div className="bg-card border border-border/60 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              {/* Search Bar */}
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={gameSearchQuery}
+                  onChange={(e) => {
+                    setGameSearchQuery(e.target.value);
+                    setGamePage(1);
+                  }}
+                  placeholder="Tìm kiếm theo đối thủ, mã ECO (VD: B90), tên khai cuộc (VD: Sicilian), ngày, giải đấu..."
+                  className="w-full bg-background border border-border/70 rounded-xl pl-10 pr-9 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
+                />
+                {gameSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGameSearchQuery("");
+                      setGamePage(1);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-md hover:bg-muted transition"
+                    title="Xóa từ khóa tìm kiếm"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Items Per Page Select */}
+              <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
+                <span className="text-xs text-muted-foreground">Hiển thị:</span>
+                <select
+                  value={gamesPerPage}
+                  onChange={(e) => {
+                    setGamesPerPage(Number(e.target.value));
+                    setGamePage(1);
+                  }}
+                  className="bg-background border border-border/70 rounded-xl px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer"
+                >
+                  <option value={25}>25 ván/trang</option>
+                  <option value={50}>50 ván/trang</option>
+                  <option value={100}>100 ván/trang</option>
+                  <option value={200}>200 ván/trang</option>
+                  <option value={-1}>Tất cả ({games.length})</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Quick Filter Buttons */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/40">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-muted-foreground mr-1">Màu quân:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGameColorFilter("all");
+                    setGamePage(1);
+                  }}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    gameColorFilter === "all"
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "bg-muted/50 hover:bg-muted text-muted-foreground"
+                  }`}
+                >
+                  Tất cả ({games.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGameColorFilter("white");
+                    setGamePage(1);
+                  }}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    gameColorFilter === "white"
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "bg-muted/50 hover:bg-muted text-muted-foreground"
+                  }`}
+                >
+                  ⚪ Cầm Trắng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGameColorFilter("black");
+                    setGamePage(1);
+                  }}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    gameColorFilter === "black"
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "bg-muted/50 hover:bg-muted text-muted-foreground"
+                  }`}
+                >
+                  ⚫ Cầm Đen
+                </button>
+
+                <div className="h-4 w-[1px] bg-border/60 mx-1 hidden sm:block" />
+
+                <span className="text-xs font-semibold text-muted-foreground mr-1">Kết quả:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGameResultFilter("all");
+                    setGamePage(1);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    gameResultFilter === "all"
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "bg-muted/50 hover:bg-muted text-muted-foreground"
+                  }`}
+                >
+                  Tất cả
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGameResultFilter("win");
+                    setGamePage(1);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    gameResultFilter === "win"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                  }`}
+                >
+                  Thắng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGameResultFilter("draw");
+                    setGamePage(1);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    gameResultFilter === "draw"
+                      ? "bg-amber-600 text-white shadow-xs"
+                      : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                  }`}
+                >
+                  Hòa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGameResultFilter("loss");
+                    setGamePage(1);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    gameResultFilter === "loss"
+                      ? "bg-rose-600 text-white shadow-xs"
+                      : "bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                  }`}
+                >
+                  Thua
+                </button>
+              </div>
+
+              {/* Status counter */}
+              <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <span>Khớp: <b className="text-foreground">{totalFiltered}</b> / {games.length} ván</span>
+                {(gameSearchQuery || gameColorFilter !== "all" || gameResultFilter !== "all") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGameSearchQuery("");
+                      setGameColorFilter("all");
+                      setGameResultFilter("all");
+                      setGamePage(1);
+                    }}
+                    className="text-primary hover:underline text-[11px] ml-1 font-medium"
+                  >
+                    (Đặt lại)
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="bg-card border border-border/60 rounded-2xl overflow-hidden shadow-sm">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-muted/40 text-muted-foreground font-bold uppercase tracking-wider border-b border-border/60">
-                <tr>
-                  <th className="px-4 py-3">Trắng</th>
-                  <th className="px-4 py-3">Đen</th>
-                  <th className="px-3 py-3">Kết quả</th>
-                  <th className="px-3 py-3">ECO / Khai cuộc</th>
-                  <th className="px-3 py-3">Engine Đánh giá</th>
-                  <th className="px-4 py-3 text-right">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40">
-                {filteredGames.length === 0 ? (
+          {/* Games Table Card */}
+          <div className="bg-card border border-border/60 rounded-2xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/40 text-muted-foreground font-bold uppercase tracking-wider border-b border-border/60">
                   <tr>
-                    <td colSpan={6} className="text-center py-12 text-muted-foreground">
-                      Không tìm thấy ván đấu nào phù hợp bộ lọc.
-                    </td>
+                    <th className="px-4 py-3.5">Trắng</th>
+                    <th className="px-4 py-3.5">Đen</th>
+                    <th className="px-3 py-3.5">Kết quả</th>
+                    <th className="px-3 py-3.5">ECO / Khai cuộc</th>
+                    <th className="px-3 py-3.5">Ngày / Sự kiện</th>
+                    <th className="px-3 py-3.5">Engine Đánh giá</th>
+                    <th className="px-4 py-3.5 text-right">Thao tác</th>
                   </tr>
-                ) : (
-                  filteredGames.map((g) => (
-                    <tr key={g.id} className="hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3 font-medium text-foreground">
-                        {g.white_player} {g.white_elo ? `(${g.white_elo})` : ""}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-foreground">
-                        {g.black_player} {g.black_elo ? `(${g.black_elo})` : ""}
-                      </td>
-                      <td className="px-3 py-3 font-mono font-bold">
-                        <span className={`px-2 py-0.5 rounded text-[11px] ${
-                          g.result === "1-0" ? "bg-emerald-500/10 text-emerald-500" :
-                          g.result === "0-1" ? "bg-rose-500/10 text-rose-500" : "bg-amber-500/10 text-amber-500"
-                        }`}>
-                          {g.result}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-muted-foreground">
-                        <span className="font-mono font-bold text-foreground mr-1.5">{g.eco || "---"}</span>
-                        <span className="truncate max-w-[140px] inline-block align-bottom">{g.opening_name || ""}</span>
-                      </td>
-                      <td className="px-3 py-3">
-                        {g.has_embedded_eval ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                            <Check className="w-3 h-3" />
-                            <span>Đã nạp sẵn</span>
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground">
-                            Phân tích On-demand
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Link
-                          href={`/analyze?gameId=${g.id}&playerId=${playerId}`}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-secondary text-secondary-foreground text-[11px] font-medium hover:bg-primary hover:text-primary-foreground transition-all"
-                        >
-                          Phân Tích
-                          <ExternalLink className="w-3 h-3" />
-                        </Link>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {paginatedGames.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-14 text-muted-foreground">
+                        <div className="space-y-1.5">
+                          <p className="font-semibold text-foreground text-sm">Không tìm thấy ván đấu nào</p>
+                          <p className="text-xs text-muted-foreground">
+                            {gameSearchQuery
+                              ? `Không có kết quả nào khớp với "${gameSearchQuery}". Hãy thử từ khóa khác hoặc đặt lại bộ lọc.`
+                              : "Kỳ thủ này chưa có ván đấu nào theo bộ lọc đã chọn."}
+                          </p>
+                        </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    paginatedGames.map((g, idx) => {
+                      const pName = (player?.canonical_name || "").toLowerCase();
+                      const isWhite = (g.white_player || "").toLowerCase().includes(pName);
+                      const isBlack = (g.black_player || "").toLowerCase().includes(pName);
+                      const dateStr = g.played_at || (g.raw_headers as any)?.Date || "";
+                      const eventStr = (g.raw_headers as any)?.Event || "";
+
+                      return (
+                        <tr key={g.id || `game-${idx}`} className="hover:bg-muted/20 transition-colors">
+                          <td className="px-4 py-3 font-medium text-foreground">
+                            <span className={isWhite ? "font-bold text-primary" : "text-foreground"}>
+                              {g.white_player}
+                            </span>
+                            {g.white_elo ? (
+                              <span className="text-[11px] text-muted-foreground ml-1.5 font-mono">
+                                ({g.white_elo})
+                              </span>
+                            ) : null}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-foreground">
+                            <span className={isBlack ? "font-bold text-primary" : "text-foreground"}>
+                              {g.black_player}
+                            </span>
+                            {g.black_elo ? (
+                              <span className="text-[11px] text-muted-foreground ml-1.5 font-mono">
+                                ({g.black_elo})
+                              </span>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-3 font-mono font-bold">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[11px] ${
+                                g.result === "1-0"
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                                  : g.result === "0-1"
+                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
+                                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                              }`}
+                            >
+                              {g.result}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-muted-foreground">
+                            <span className="font-mono font-bold text-foreground mr-1.5">{g.eco || "---"}</span>
+                            <span className="truncate max-w-[150px] inline-block align-bottom font-medium" title={g.opening_name || ""}>
+                              {g.opening_name || ""}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-muted-foreground text-[11px]">
+                            <div className="font-mono">{dateStr ? dateStr.replace(/\./g, "/") : "---"}</div>
+                            {eventStr && eventStr !== "?" && (
+                              <div className="truncate max-w-[120px] text-[10px] text-muted-foreground/80" title={eventStr}>
+                                {eventStr}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-3">
+                            {g.has_embedded_eval ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                <Check className="w-3 h-3" />
+                                <span>Đã nạp sẵn</span>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-muted text-muted-foreground">
+                                On-demand
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Link
+                              href={`/analyze?gameId=${g.id}&playerId=${playerId}`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:bg-primary hover:text-primary-foreground transition-all shadow-2xs"
+                            >
+                              Phân Tích
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && gamesPerPage !== -1 && (
+              <div className="px-4 py-3.5 bg-muted/20 border-t border-border/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                <div className="text-muted-foreground">
+                  Hiển thị ván <b className="text-foreground">{(currentPage - 1) * gamesPerPage + 1}</b> -{" "}
+                  <b className="text-foreground">{Math.min(currentPage * gamesPerPage, totalFiltered)}</b> trong tổng số{" "}
+                  <b className="text-foreground">{totalFiltered}</b> ván phù hợp
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={currentPage <= 1}
+                    onClick={() => setGamePage((prev) => Math.max(1, prev - 1))}
+                    className="p-1.5 rounded-lg border border-border/60 hover:bg-muted disabled:opacity-30 disabled:pointer-events-none transition text-muted-foreground hover:text-foreground"
+                    title="Trang trước"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  <div className="flex items-center gap-1 px-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let p = i + 1;
+                      if (totalPages > 5) {
+                        if (currentPage > 3 && currentPage < totalPages - 1) {
+                          p = currentPage - 2 + i;
+                        } else if (currentPage >= totalPages - 1) {
+                          p = totalPages - 4 + i;
+                        }
+                      }
+                      return (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setGamePage(p)}
+                          className={`w-7 h-7 rounded-lg text-xs font-semibold transition-all ${
+                            currentPage === p
+                              ? "bg-primary text-primary-foreground shadow-xs"
+                              : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setGamePage((prev) => Math.min(totalPages, prev + 1))}
+                    className="p-1.5 rounded-lg border border-border/60 hover:bg-muted disabled:opacity-30 disabled:pointer-events-none transition text-muted-foreground hover:text-foreground"
+                    title="Trang sau"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1034,6 +1166,190 @@ export default function PlayerDetailPage() {
               `Làm thế nào để khai thác điểm yếu cấu trúc Tốt của ${player?.canonical_name}?`,
             ]}
           />
+        </div>
+      )}
+      {/* Modal Hộp thoại nổi Sửa / Xóa Hồ Sơ (Floating Modal Dialog + Dimmed/Blurred Backdrop) */}
+      {activeAction !== "none" && player && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+          onClick={handleCloseAction}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-card border border-border/80 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-scale-in relative max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Hộp Chỉnh Sửa Hồ Sơ */}
+            {activeAction === "edit" && (
+              <div className="space-y-5">
+                <div className="flex items-center justify-between border-b border-border/40 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                      <Pencil className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-lg text-foreground">
+                        Chỉnh Sửa Hồ Sơ Kỳ Thủ
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {player.canonical_name}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCloseAction}
+                    className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl hover:bg-secondary transition"
+                    title="Đóng hộp thoại"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleUpdatePlayer} className="space-y-4 text-sm">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      Tên Chính Thức (Canonical Name) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="VD: Carlsen, Magnus hoặc Hikaru Nakamura"
+                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                        Danh Hiệu (Title)
+                      </label>
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        placeholder="GM, IM, FM, CM..."
+                        className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                        FIDE ID (Tùy chọn)
+                      </label>
+                      <input
+                        type="number"
+                        value={editFideId}
+                        onChange={(e) => setEditFideId(e.target.value)}
+                        placeholder="VD: 1503014"
+                        className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      Ghi Chú Đặc Điểm Kỳ Thủ
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      placeholder="Đặc điểm phong cách, khai cuộc ưa chuộng, điểm mạnh/yếu cần theo dõi..."
+                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    />
+                  </div>
+
+                  <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={handleCloseAction}
+                      className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition hover:bg-secondary"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={updating || !editName.trim()}
+                      className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-primary/20 transition-all"
+                    >
+                      {updating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      Lưu Thay Đổi
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Hộp Xác Nhận Xóa Hồ Sơ */}
+            {activeAction === "delete" && (
+              <div className="space-y-5">
+                <div className="flex items-center justify-between border-b border-border/40 pb-4">
+                  <div className="flex items-center gap-3 text-rose-500">
+                    <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
+                      <Trash2 className="w-5 h-5 text-rose-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-lg text-foreground">
+                        Xác Nhận Xóa Hồ Sơ Kỳ Thủ
+                      </h3>
+                      <p className="text-xs text-rose-500/80 font-medium">Thao tác này sẽ xóa vĩnh viễn dữ liệu</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCloseAction}
+                    className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl hover:bg-secondary transition"
+                    title="Đóng hộp thoại"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-xs leading-relaxed text-muted-foreground">
+                  <p>
+                    Bạn có chắc chắn muốn xóa hồ sơ của kỳ thủ{" "}
+                    <strong className="text-foreground font-bold text-sm">
+                      {player.canonical_name}
+                    </strong>
+                    ?
+                  </p>
+                  <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 space-y-1">
+                    <p className="font-semibold flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      Cảnh báo quan trọng:
+                    </p>
+                    <p className="text-[11px] leading-normal">
+                      Toàn bộ ván đấu, tập dữ liệu nhập vào (PGN / Lichess / Chess.com) và kết quả phân tích chiến lược liên quan đến kỳ thủ này sẽ bị xóa hoàn toàn khỏi hệ thống và không thể khôi phục.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={handleCloseAction}
+                    className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition hover:bg-secondary"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={handleConfirmDelete}
+                    className="px-5 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-rose-600/20 transition-all"
+                  >
+                    {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Xóa Vĩnh Viễn
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

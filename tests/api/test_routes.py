@@ -42,7 +42,30 @@ def test_import_pgn_file():
     data = res_data["data"]
     assert data["total_found"] == 1
     assert data["imported_count"] == 1
+    assert data["skipped_count"] == 0
     assert data["primary_player"] == "HeroPlayer"
+    player_id = data["player_id"]
+
+    # Deduplication test: re-importing the same game should skip duplicate!
+    file_bytes2 = io.BytesIO(SAMPLE_PGN.encode("utf-8"))
+    response2 = client.post(
+        "/api/import/pgn-file",
+        files={"file": ("sample2.pgn", file_bytes2, "application/x-chess-pgn")},
+        data={"player_id": player_id, "max_games": 10}
+    )
+    assert response2.status_code == 200
+    res_data2 = response2.json()
+    assert res_data2["data"]["imported_count"] == 0
+    assert res_data2["data"]["skipped_count"] == 1
+
+    # Search & unlimited games test
+    search_res = client.get(f"/api/players/{player_id}/games?search=HeroPlayer")
+    assert search_res.status_code == 200
+    assert len(search_res.json()["data"]["items"]) == 1
+
+    search_empty = client.get(f"/api/players/{player_id}/games?search=NonExistentOpponent")
+    assert search_empty.status_code == 200
+    assert len(search_empty.json()["data"]["items"]) == 0
 
 def test_create_and_query_analysis_run():
     # 1. Create Analysis Run

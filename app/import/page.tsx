@@ -1295,18 +1295,30 @@ function ImportContent() {
                     <span className="font-medium text-foreground uppercase">{result.source_type}</span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-border/40">
-                    <span className="text-muted-foreground">Tổng ván nhận:</span>
+                    <span className="text-muted-foreground">Tổng ván quét được:</span>
                     <span className="font-bold text-foreground">{result.total_found}</span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-border/40">
-                    <span className="text-muted-foreground">Ván nạp thành công:</span>
-                    <span className="font-bold text-emerald-500">{result.imported_count}</span>
+                    <span className="text-muted-foreground">Ván mới nạp thêm:</span>
+                    <span className="font-bold text-emerald-500">+{result.imported_count}</span>
                   </div>
+                  {Boolean(result.skipped_count && result.skipped_count > 0) && (
+                    <div className="flex justify-between py-1.5 border-b border-border/40">
+                      <span className="text-muted-foreground">Ván trùng lặp (bỏ qua):</span>
+                      <span className="font-bold text-amber-500">{result.skipped_count} ván trùng</span>
+                    </div>
+                  )}
                   <div className="flex justify-between py-1.5 border-b border-border/40">
                     <span className="text-muted-foreground">Hồ sơ kỳ thủ:</span>
                     <span className="font-bold text-primary">{result.primary_player || "Kỳ thủ"}</span>
                   </div>
                 </div>
+
+                {Boolean(result.skipped_count && result.skipped_count > 0) && (
+                  <div className="mt-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs">
+                    💡 <b>Khử trùng lặp tự động:</b> Hệ thống đã phát hiện {result.skipped_count} ván đã có trong hồ sơ trước đó và chỉ nạp thêm {result.imported_count} ván mới.
+                  </div>
+                )}
 
                 <div className="mt-6 pt-4 border-t border-border/60 space-y-2">
                   <Link

@@ -21,7 +21,7 @@ from api.schemas.imports import (
     LichessAuthResponse
 )
 from api.services.import_service import ImportService
-from api.services.db_service import DBService, determine_player_color, normalize_name_words
+from api.services.db_service import DBService, determine_player_color, normalize_name_words, get_game_fingerprint
 from api.routes.players import PLAYERS_STORE, GAMES_STORE, get_guest_session
 
 
@@ -153,37 +153,72 @@ async def import_pgn_file(
             else:
                 g["player_color"] = determine_player_color(final_player_name, g.get("white", ""), g.get("black", ""))
 
-        db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in player_games]
+        # --- Deduplication Against Existing Player Games ---
+        existing_games: List[Dict[str, Any]] = []
+        if effective_user_id and actual_player_id:
+            try:
+                existing_games = DBService.get_player_games(actual_player_id, limit=None)
+            except Exception as e:
+                logger.warning(f"[Import PGN] Could not fetch existing games from DB for dedup: {e}")
 
-        # --- Persist to Supabase if user is logged in ---
+        if not existing_games and actual_player_id in GAMES_STORE:
+            existing_games = GAMES_STORE[actual_player_id]
+        if not existing_games:
+            session = get_guest_session(x_guest_session_id)
+            existing_games = session.get("games", {}).get(actual_player_id, [])
+
+        existing_fps = {get_game_fingerprint(g) for g in existing_games}
+        new_unique_games = []
+        seen_in_batch = set()
+
+        for g in player_games:
+            fp = get_game_fingerprint(g)
+            if fp in existing_fps or fp in seen_in_batch:
+                continue
+            seen_in_batch.add(fp)
+            new_unique_games.append(g)
+
+        skipped_count = len(player_games) - len(new_unique_games)
+        logger.info(f"[Import PGN] Dedup: Total={len(player_games)}, New={len(new_unique_games)}, Skipped={skipped_count}")
+
+        # Combine all unique games
+        all_combined_games = existing_games + new_unique_games
+        db_games = []
+
+        # --- Persist new unique games to Supabase if user is logged in ---
         if effective_user_id:
             try:
-                dataset_rec = DBService.create_dataset(
-                    player_id=actual_player_id,
-                    source_type="pgn_upload",
-                    source_identifier=file.filename or "upload.pgn",
-                    games_count=len(player_games),
-                )
-                dataset_id = dataset_rec["id"]
+                if new_unique_games:
+                    dataset_rec = DBService.create_dataset(
+                        player_id=actual_player_id,
+                        source_type="pgn_upload",
+                        source_identifier=file.filename or "upload.pgn",
+                        games_count=len(new_unique_games),
+                    )
+                    dataset_id = dataset_rec["id"]
 
-                # Re-normalize with correct dataset_id from DB
-                db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in player_games]
-                inserted = DBService.bulk_insert_games(db_games, dataset_id=dataset_id)
-                logger.info(f"[Import PGN] Saved {inserted}/{len(player_games)} games to Supabase for user={effective_user_id}")
+                    # Normalize with correct dataset_id from DB
+                    db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
+                    inserted = DBService.bulk_insert_games(db_games, dataset_id=dataset_id)
+                    logger.info(f"[Import PGN] Saved {inserted}/{len(new_unique_games)} new unique games to Supabase (skipped {skipped_count} duplicates)")
+
+                # Update total games count for player
+                DBService.update_player(actual_player_id, {"total_games": len(all_combined_games)})
             except Exception as db_err:
                 logger.error(f"[Import PGN] DB save error: {db_err}")
         else:
-            logger.info("[Import PGN] Guest mode (no user_id) — games cached in session memory only")
+            logger.info(f"[Import PGN] Guest mode — {len(new_unique_games)} new games cached in session (skipped {skipped_count} duplicates)")
             session = get_guest_session(x_guest_session_id)
             session["players"][actual_player_id] = {
                 "id": actual_player_id,
                 "user_id": "guest",
                 "canonical_name": final_player_name,
                 "created_at": datetime.now(),
-                "updated_at": datetime.now()
+                "updated_at": datetime.now(),
+                "total_games": len(all_combined_games)
             }
-            curr_guest_games = session.get("games", {}).get(actual_player_id, [])
-            session["games"][actual_player_id] = curr_guest_games + player_games
+            session["games"][actual_player_id] = all_combined_games
+            db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
 
         # --- In-Memory Session & Analysis Pre-computation (Fast interactive session) ---
         PLAYERS_STORE[actual_player_id] = {
@@ -191,11 +226,9 @@ async def import_pgn_file(
             "user_id": effective_user_id or "guest",
             "canonical_name": final_player_name,
             "created_at": datetime.now(),
-            "updated_at": datetime.now()
+            "updated_at": datetime.now(),
+            "total_games": len(all_combined_games)
         }
-
-        curr_store_games = GAMES_STORE.get(actual_player_id, [])
-        all_combined_games = curr_store_games + player_games
         GAMES_STORE[actual_player_id] = all_combined_games
 
         run_id = str(uuid.uuid4())
@@ -244,12 +277,18 @@ async def import_pgn_file(
             player_id=actual_player_id,
             run_id=run_id,
             total_found=total_found,
-            imported_count=len(db_games),
+            imported_count=len(new_unique_games),
+            skipped_count=skipped_count,
             primary_player=final_player_name,
             source_type="pgn_upload",
-            sample_games=db_games[:5]
+            sample_games=db_games[:5] if db_games else [ImportService.normalize_game_for_db(g, dataset_id="existing") for g in all_combined_games[:5]]
         )
-        return BaseResponse(success=True, message=f"Successfully imported {len(db_games)} games", data=summary)
+        msg = (
+            f"Đã nạp {len(new_unique_games)} ván mới thành công! (Tự động loại bỏ {skipped_count} ván trùng lặp)"
+            if skipped_count > 0 else
+            f"Đã nạp thành công toàn bộ {len(new_unique_games)} ván đấu"
+        )
+        return BaseResponse(success=True, message=msg, data=summary)
     except HTTPException:
         raise
     except Exception as e:
@@ -329,46 +368,6 @@ async def import_lichess(
                 if pid in GAMES_STORE:
                     del GAMES_STORE[pid]
 
-        dataset_id = str(uuid.uuid4())
-        db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
-
-        # --- Persist to Supabase if logged in ---
-        if effective_user_id:
-            try:
-                dataset_rec = DBService.create_dataset(
-                    player_id=target_player_id,
-                    source_type="lichess",
-                    source_identifier=u_name,
-                    games_count=len(db_games),
-                )
-                dataset_id = dataset_rec["id"]
-
-                db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
-                inserted = DBService.bulk_insert_games(db_games, dataset_id=dataset_id)
-                logger.info(f"[Import Lichess] Saved {inserted}/{len(db_games)} games to Supabase for user={effective_user_id}")
-            except Exception as db_err:
-                logger.error(f"[Import Lichess] DB save error: {db_err}")
-        else:
-            logger.info("[Import Lichess] Guest mode (no user_id) — cached in session memory only")
-            session = get_guest_session(x_guest_session_id)
-            session["players"][target_player_id] = {
-                "id": target_player_id,
-                "user_id": "guest",
-                "canonical_name": player_display_name,
-                "created_at": datetime.now(),
-                "updated_at": datetime.now()
-            }
-            curr_guest_games = session.get("games", {}).get(target_player_id, [])
-            session["games"][target_player_id] = curr_guest_games + raw_games
-
-        PLAYERS_STORE[target_player_id] = {
-            "id": target_player_id,
-            "user_id": effective_user_id or "guest",
-            "canonical_name": player_display_name,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now()
-        }
-
         # Tag player color using Lichess username
         for g in raw_games:
             if u_lower in g.get("white", "").lower():
@@ -378,8 +377,78 @@ async def import_lichess(
             else:
                 g["player_color"] = "white"
 
-        curr_store_games = GAMES_STORE.get(target_player_id, [])
-        all_combined_games = curr_store_games + raw_games
+        # --- Deduplication Against Existing Player Games ---
+        existing_games: List[Dict[str, Any]] = []
+        if effective_user_id and target_player_id:
+            try:
+                existing_games = DBService.get_player_games(target_player_id, limit=None)
+            except Exception as e:
+                logger.warning(f"[Import Lichess] Could not fetch existing games from DB for dedup: {e}")
+
+        if not existing_games and target_player_id in GAMES_STORE:
+            existing_games = GAMES_STORE[target_player_id]
+        if not existing_games:
+            session = get_guest_session(x_guest_session_id)
+            existing_games = session.get("games", {}).get(target_player_id, [])
+
+        existing_fps = {get_game_fingerprint(g) for g in existing_games}
+        new_unique_games = []
+        seen_in_batch = set()
+
+        for g in raw_games:
+            fp = get_game_fingerprint(g)
+            if fp in existing_fps or fp in seen_in_batch:
+                continue
+            seen_in_batch.add(fp)
+            new_unique_games.append(g)
+
+        skipped_count = len(raw_games) - len(new_unique_games)
+        logger.info(f"[Import Lichess] Dedup: Total={len(raw_games)}, New={len(new_unique_games)}, Skipped={skipped_count}")
+
+        all_combined_games = existing_games + new_unique_games
+        db_games = []
+
+        # --- Persist new unique games to Supabase if logged in ---
+        if effective_user_id:
+            try:
+                if new_unique_games:
+                    dataset_rec = DBService.create_dataset(
+                        player_id=target_player_id,
+                        source_type="lichess",
+                        source_identifier=u_name,
+                        games_count=len(new_unique_games),
+                    )
+                    dataset_id = dataset_rec["id"]
+
+                    db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
+                    inserted = DBService.bulk_insert_games(db_games, dataset_id=dataset_id)
+                    logger.info(f"[Import Lichess] Saved {inserted}/{len(new_unique_games)} new games to Supabase (skipped {skipped_count} duplicates)")
+
+                DBService.update_player(target_player_id, {"total_games": len(all_combined_games)})
+            except Exception as db_err:
+                logger.error(f"[Import Lichess] DB save error: {db_err}")
+        else:
+            logger.info(f"[Import Lichess] Guest mode — {len(new_unique_games)} new games cached (skipped {skipped_count} duplicates)")
+            session = get_guest_session(x_guest_session_id)
+            session["players"][target_player_id] = {
+                "id": target_player_id,
+                "user_id": "guest",
+                "canonical_name": player_display_name,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+                "total_games": len(all_combined_games)
+            }
+            session["games"][target_player_id] = all_combined_games
+            db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
+
+        PLAYERS_STORE[target_player_id] = {
+            "id": target_player_id,
+            "user_id": effective_user_id or "guest",
+            "canonical_name": player_display_name,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+            "total_games": len(all_combined_games)
+        }
         GAMES_STORE[target_player_id] = all_combined_games
 
         run_id = str(uuid.uuid4())
@@ -426,12 +495,18 @@ async def import_lichess(
             player_id=target_player_id,
             run_id=run_id,
             total_found=len(raw_games),
-            imported_count=len(db_games),
+            imported_count=len(new_unique_games),
+            skipped_count=skipped_count,
             primary_player=player_display_name,
             source_type="lichess",
-            sample_games=db_games[:5]
+            sample_games=db_games[:5] if db_games else [ImportService.normalize_game_for_db(g, dataset_id="existing") for g in all_combined_games[:5]]
         )
-        return BaseResponse(success=True, message=f"Fetched {len(db_games)} games from Lichess into {player_display_name}", data=summary)
+        msg = (
+            f"Đã nạp {len(new_unique_games)} ván mới thành công từ Lichess! (Tự động loại bỏ {skipped_count} ván trùng lặp)"
+            if skipped_count > 0 else
+            f"Đã nạp thành công toàn bộ {len(new_unique_games)} ván từ Lichess"
+        )
+        return BaseResponse(success=True, message=msg, data=summary)
     except HTTPException:
         raise
     except Exception as e:
@@ -509,46 +584,6 @@ async def import_chesscom(
                 if pid in GAMES_STORE:
                     del GAMES_STORE[pid]
 
-        dataset_id = str(uuid.uuid4())
-        db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
-
-        # --- Persist to Supabase if logged in ---
-        if effective_user_id:
-            try:
-                dataset_rec = DBService.create_dataset(
-                    player_id=target_player_id,
-                    source_type="chesscom",
-                    source_identifier=u_name,
-                    games_count=len(db_games),
-                )
-                dataset_id = dataset_rec["id"]
-
-                db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in raw_games]
-                inserted = DBService.bulk_insert_games(db_games, dataset_id=dataset_id)
-                logger.info(f"[Import Chess.com] Saved {inserted}/{len(db_games)} games to Supabase for user={effective_user_id}")
-            except Exception as db_err:
-                logger.error(f"[Import Chess.com] DB save error: {db_err}")
-        else:
-            logger.info("[Import Chess.com] Guest mode (no user_id) — cached in session memory only")
-            session = get_guest_session(x_guest_session_id)
-            session["players"][target_player_id] = {
-                "id": target_player_id,
-                "user_id": "guest",
-                "canonical_name": player_display_name,
-                "created_at": datetime.now(),
-                "updated_at": datetime.now()
-            }
-            curr_guest_games = session.get("games", {}).get(target_player_id, [])
-            session["games"][target_player_id] = curr_guest_games + raw_games
-
-        PLAYERS_STORE[target_player_id] = {
-            "id": target_player_id,
-            "user_id": effective_user_id or "guest",
-            "canonical_name": player_display_name,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now()
-        }
-
         # Tag player color using Chess.com username
         for g in raw_games:
             if u_lower in g.get("white", "").lower():
@@ -558,8 +593,78 @@ async def import_chesscom(
             else:
                 g["player_color"] = "white"
 
-        curr_store_games = GAMES_STORE.get(target_player_id, [])
-        all_combined_games = curr_store_games + raw_games
+        # --- Deduplication Against Existing Player Games ---
+        existing_games: List[Dict[str, Any]] = []
+        if effective_user_id and target_player_id:
+            try:
+                existing_games = DBService.get_player_games(target_player_id, limit=None)
+            except Exception as e:
+                logger.warning(f"[Import Chess.com] Could not fetch existing games from DB for dedup: {e}")
+
+        if not existing_games and target_player_id in GAMES_STORE:
+            existing_games = GAMES_STORE[target_player_id]
+        if not existing_games:
+            session = get_guest_session(x_guest_session_id)
+            existing_games = session.get("games", {}).get(target_player_id, [])
+
+        existing_fps = {get_game_fingerprint(g) for g in existing_games}
+        new_unique_games = []
+        seen_in_batch = set()
+
+        for g in raw_games:
+            fp = get_game_fingerprint(g)
+            if fp in existing_fps or fp in seen_in_batch:
+                continue
+            seen_in_batch.add(fp)
+            new_unique_games.append(g)
+
+        skipped_count = len(raw_games) - len(new_unique_games)
+        logger.info(f"[Import Chess.com] Dedup: Total={len(raw_games)}, New={len(new_unique_games)}, Skipped={skipped_count}")
+
+        all_combined_games = existing_games + new_unique_games
+        db_games = []
+
+        # --- Persist new unique games to Supabase if logged in ---
+        if effective_user_id:
+            try:
+                if new_unique_games:
+                    dataset_rec = DBService.create_dataset(
+                        player_id=target_player_id,
+                        source_type="chesscom",
+                        source_identifier=u_name,
+                        games_count=len(new_unique_games),
+                    )
+                    dataset_id = dataset_rec["id"]
+
+                    db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
+                    inserted = DBService.bulk_insert_games(db_games, dataset_id=dataset_id)
+                    logger.info(f"[Import Chess.com] Saved {inserted}/{len(new_unique_games)} new games to Supabase (skipped {skipped_count} duplicates)")
+
+                DBService.update_player(target_player_id, {"total_games": len(all_combined_games)})
+            except Exception as db_err:
+                logger.error(f"[Import Chess.com] DB save error: {db_err}")
+        else:
+            logger.info(f"[Import Chess.com] Guest mode — {len(new_unique_games)} new games cached (skipped {skipped_count} duplicates)")
+            session = get_guest_session(x_guest_session_id)
+            session["players"][target_player_id] = {
+                "id": target_player_id,
+                "user_id": "guest",
+                "canonical_name": player_display_name,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+                "total_games": len(all_combined_games)
+            }
+            session["games"][target_player_id] = all_combined_games
+            db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
+
+        PLAYERS_STORE[target_player_id] = {
+            "id": target_player_id,
+            "user_id": effective_user_id or "guest",
+            "canonical_name": player_display_name,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+            "total_games": len(all_combined_games)
+        }
         GAMES_STORE[target_player_id] = all_combined_games
 
         run_id = str(uuid.uuid4())
@@ -606,12 +711,18 @@ async def import_chesscom(
             player_id=target_player_id,
             run_id=run_id,
             total_found=len(raw_games),
-            imported_count=len(db_games),
+            imported_count=len(new_unique_games),
+            skipped_count=skipped_count,
             primary_player=player_display_name,
             source_type="chesscom",
-            sample_games=db_games[:5]
+            sample_games=db_games[:5] if db_games else [ImportService.normalize_game_for_db(g, dataset_id="existing") for g in all_combined_games[:5]]
         )
-        return BaseResponse(success=True, message=f"Fetched {len(db_games)} games from Chess.com into {player_display_name}", data=summary)
+        msg = (
+            f"Đã nạp {len(new_unique_games)} ván mới thành công từ Chess.com! (Tự động loại bỏ {skipped_count} ván trùng lặp)"
+            if skipped_count > 0 else
+            f"Đã nạp thành công toàn bộ {len(new_unique_games)} ván từ Chess.com"
+        )
+        return BaseResponse(success=True, message=msg, data=summary)
     except HTTPException:
         raise
     except Exception as e:

@@ -229,8 +229,8 @@ function AnalyzeContent() {
       })
       .catch((err) => console.warn("Failed to load run structures:", err));
 
-    // Fetch player's games list for full moves_san
-    apiClient.getPlayerGames(targetPlayer, { pageSize: 500 })
+    // Fetch player's games list for full moves_san (unlimited)
+    apiClient.getPlayerGames(targetPlayer, { allGames: true, pageSize: 10000 })
       .then((res) => {
         if (res && res.items) {
           setPlayerGames(res.items);

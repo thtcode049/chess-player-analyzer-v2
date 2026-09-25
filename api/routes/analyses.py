@@ -70,7 +70,7 @@ def _resolve_games_for_player(
             else:
                 games = DBService.convert_db_games_to_analysis_games(raw_games, player_name)
         else:
-            db_games = DBService.get_player_games(player_id, limit=500)
+            db_games = DBService.get_player_games(player_id, limit=None)
             if db_games:
                 GAMES_STORE[player_id] = db_games
                 games = DBService.convert_db_games_to_analysis_games(db_games, player_name)

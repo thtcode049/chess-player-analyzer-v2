@@ -18,6 +18,15 @@ const config: Config = {
           light: "#D1FAE5",
           dark: "#065F46",
         },
+        card: {
+          DEFAULT: "var(--card)",
+          foreground: "var(--card-foreground)",
+        },
+        border: "var(--border)",
+        muted: {
+          DEFAULT: "var(--muted)",
+          foreground: "var(--muted-foreground)",
+        },
         chess: {
           dark: "#769656",
           light: "#eeeed2",

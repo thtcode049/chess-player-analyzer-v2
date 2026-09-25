@@ -461,31 +461,31 @@ export default function PlayersPage() {
           })}
         </div>
       )}
-      {/* Modal Hộp thoại nổi Thêm / Sửa / Xóa Hồ Sơ (Floating Modal Dialog + Dimmed/Blurred Backdrop) */}
+      {/* Modal Hộp thoại nổi Thêm / Sửa / Xóa Hồ Sơ (Solid White Background, No Backdrop Blur, High Contrast) */}
       {activeAction !== "none" && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fade-in"
           onClick={handleCloseAction}
           role="dialog"
           aria-modal="true"
         >
           <div
-            className="bg-card border border-border/80 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-scale-in relative max-h-[90vh] overflow-y-auto"
+            className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-scale-in relative max-h-[90vh] overflow-y-auto ring-1 ring-black/10 dark:ring-white/10"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 1. Hộp Thêm Kỳ Thủ Mới */}
             {activeAction === "create" && (
               <div className="space-y-5">
-                <div className="flex items-center justify-between border-b border-border/40 pb-4">
+                <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                       <UserPlus className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-lg text-foreground">
+                      <h3 className="font-extrabold text-lg text-zinc-900 dark:text-white">
                         Thêm Hồ Sơ Kỳ Thủ Mới
                       </h3>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
                         Nhập thông tin định danh để tạo hồ sơ kỳ thủ và theo dõi hệ thống ván đấu.
                       </p>
                     </div>
@@ -493,7 +493,7 @@ export default function PlayersPage() {
                   <button
                     type="button"
                     onClick={handleCloseAction}
-                    className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl hover:bg-secondary transition"
+                    className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white p-1.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
                     title="Đóng hộp thoại"
                   >
                     <X className="w-5 h-5" />
@@ -502,7 +502,7 @@ export default function PlayersPage() {
 
                 <form onSubmit={handleCreatePlayer} className="space-y-4 text-sm">
                   <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1.5">
                       Tên Chính Thức (Canonical Name) *
                     </label>
                     <input
@@ -511,14 +511,14 @@ export default function PlayersPage() {
                       value={canonicalName}
                       onChange={(e) => setCanonicalName(e.target.value)}
                       placeholder="VD: Carlsen, Magnus hoặc Hikaru Nakamura"
-                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800/90 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
                       autoFocus
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1.5">
                         Danh Hiệu (Title)
                       </label>
                       <input
@@ -526,11 +526,11 @@ export default function PlayersPage() {
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder="GM, IM, FM, CM..."
-                        className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800/90 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1.5">
                         FIDE ID (Tùy chọn)
                       </label>
                       <input
@@ -538,13 +538,13 @@ export default function PlayersPage() {
                         value={fideId}
                         onChange={(e) => setFideId(e.target.value)}
                         placeholder="VD: 1503014"
-                        className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800/90 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1.5">
                       Ghi Chú Đặc Điểm Kỳ Thủ
                     </label>
                     <textarea
@@ -552,15 +552,15 @@ export default function PlayersPage() {
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder="Đặc điểm phong cách, khai cuộc ưa chuộng, điểm mạnh/yếu cần theo dõi..."
-                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800/90 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
                     />
                   </div>
 
-                  <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
+                  <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-end gap-3">
                     <button
                       type="button"
                       onClick={handleCloseAction}
-                      className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition hover:bg-secondary"
+                      className="px-4 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold transition"
                     >
                       Hủy bỏ
                     </button>
@@ -580,16 +580,16 @@ export default function PlayersPage() {
             {/* 2. Hộp Chỉnh Sửa Hồ Sơ */}
             {activeAction === "edit" && editingPlayer && (
               <div className="space-y-5">
-                <div className="flex items-center justify-between border-b border-border/40 pb-4">
+                <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
                       <Pencil className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-lg text-foreground">
+                      <h3 className="font-extrabold text-lg text-zinc-900 dark:text-white">
                         Chỉnh Sửa Hồ Sơ Kỳ Thủ
                       </h3>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
                         {editingPlayer.canonical_name}
                       </p>
                     </div>
@@ -597,7 +597,7 @@ export default function PlayersPage() {
                   <button
                     type="button"
                     onClick={handleCloseAction}
-                    className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl hover:bg-secondary transition"
+                    className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white p-1.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
                     title="Đóng hộp thoại"
                   >
                     <X className="w-5 h-5" />
@@ -606,7 +606,7 @@ export default function PlayersPage() {
 
                 <form onSubmit={handleUpdatePlayer} className="space-y-4 text-sm">
                   <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1.5">
                       Tên Chính Thức (Canonical Name) *
                     </label>
                     <input
@@ -615,14 +615,14 @@ export default function PlayersPage() {
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       placeholder="VD: Carlsen, Magnus hoặc Hikaru Nakamura"
-                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800/90 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
                       autoFocus
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1.5">
                         Danh Hiệu (Title)
                       </label>
                       <input
@@ -630,11 +630,11 @@ export default function PlayersPage() {
                         value={editTitle}
                         onChange={(e) => setEditTitle(e.target.value)}
                         placeholder="GM, IM, FM, CM..."
-                        className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800/90 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1.5">
                         FIDE ID (Tùy chọn)
                       </label>
                       <input
@@ -642,13 +642,13 @@ export default function PlayersPage() {
                         value={editFideId}
                         onChange={(e) => setEditFideId(e.target.value)}
                         placeholder="VD: 1503014"
-                        className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800/90 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1.5">
                       Ghi Chú Đặc Điểm Kỳ Thủ
                     </label>
                     <textarea
@@ -656,15 +656,15 @@ export default function PlayersPage() {
                       value={editNotes}
                       onChange={(e) => setEditNotes(e.target.value)}
                       placeholder="Đặc điểm phong cách, khai cuộc ưa chuộng, điểm mạnh/yếu cần theo dõi..."
-                      className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800/90 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
                     />
                   </div>
 
-                  <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
+                  <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-end gap-3">
                     <button
                       type="button"
                       onClick={handleCloseAction}
-                      className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition hover:bg-secondary"
+                      className="px-4 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold transition"
                     >
                       Hủy bỏ
                     </button>
@@ -684,53 +684,53 @@ export default function PlayersPage() {
             {/* 3. Hộp Xác Nhận Xóa Hồ Sơ */}
             {activeAction === "delete" && deletingPlayer && (
               <div className="space-y-5">
-                <div className="flex items-center justify-between border-b border-border/40 pb-4">
+                <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-4">
                   <div className="flex items-center gap-3 text-rose-500">
                     <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
                       <Trash2 className="w-5 h-5 text-rose-500" />
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-lg text-foreground">
+                      <h3 className="font-extrabold text-lg text-zinc-900 dark:text-white">
                         Xác Nhận Xóa Hồ Sơ Kỳ Thủ
                       </h3>
-                      <p className="text-xs text-rose-500/80 font-medium">Thao tác này sẽ xóa vĩnh viễn dữ liệu</p>
+                      <p className="text-xs text-rose-500 font-medium">Thao tác này sẽ xóa vĩnh viễn dữ liệu</p>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={handleCloseAction}
-                    className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl hover:bg-secondary transition"
+                    className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white p-1.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
                     title="Đóng hộp thoại"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                <div className="space-y-3 text-xs leading-relaxed text-muted-foreground">
+                <div className="space-y-3 text-xs leading-relaxed text-zinc-700 dark:text-zinc-300">
                   <p>
                     Bạn có chắc chắn muốn xóa hồ sơ của kỳ thủ{" "}
-                    <strong className="text-foreground font-bold text-sm">
+                    <strong className="text-zinc-950 dark:text-white font-bold text-sm">
                       {deletingPlayer.canonical_name}
                     </strong>
                     ?
                   </p>
-                  <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 space-y-1">
-                    <p className="font-semibold flex items-center gap-1.5">
-                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-200 space-y-1.5">
+                    <p className="font-bold flex items-center gap-1.5 text-xs text-rose-700 dark:text-rose-300">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
                       Cảnh báo quan trọng:
                     </p>
-                    <p className="text-[11px] leading-normal">
+                    <p className="text-[11px] leading-relaxed opacity-95">
                       Toàn bộ ván đấu, tập dữ liệu nhập vào (PGN / Lichess / Chess.com) và kết quả phân tích chiến lược liên quan đến kỳ thủ này sẽ bị xóa hoàn toàn khỏi hệ thống và không thể khôi phục.
                     </p>
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-border/40 flex items-center justify-end gap-3">
+                <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-end gap-3">
                   <button
                     type="button"
                     disabled={deleting}
                     onClick={handleCloseAction}
-                    className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition hover:bg-secondary"
+                    className="px-4 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold transition"
                   >
                     Hủy bỏ
                   </button>
@@ -738,7 +738,7 @@ export default function PlayersPage() {
                     type="button"
                     disabled={deleting}
                     onClick={handleConfirmDelete}
-                    className="px-5 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-rose-600/20 transition-all"
+                    className="px-5 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-rose-600/30 transition-all"
                   >
                     {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     Xóa Vĩnh Viễn

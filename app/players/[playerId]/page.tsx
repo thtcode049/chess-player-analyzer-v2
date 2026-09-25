@@ -1168,16 +1168,16 @@ export default function PlayerDetailPage() {
           />
         </div>
       )}
-      {/* Modal Hộp thoại nổi Sửa / Xóa Hồ Sơ (Solid White Background, No Backdrop Blur, High Contrast) */}
+      {/* Modal Hộp thoại nổi Sửa / Xóa Hồ Sơ (Không có lớp phủ xám, Popup nổi với bóng đổ tách biệt) */}
       {activeAction !== "none" && player && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
           onClick={handleCloseAction}
           role="dialog"
           aria-modal="true"
         >
           <div
-            className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-scale-in relative max-h-[90vh] overflow-y-auto ring-1 ring-black/10 dark:ring-white/10"
+            className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-[0_25px_70px_-15px_rgba(0,0,0,0.35)] space-y-5 animate-scale-in relative max-h-[90vh] overflow-y-auto ring-1 ring-black/10 dark:ring-white/10"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Hộp Chỉnh Sửa Hồ Sơ */}

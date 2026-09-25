@@ -324,6 +324,7 @@ async def import_lichess(
         u_name = req.username.strip()
         u_lower = u_name.lower()
         player_display_name = u_name
+        dataset_id = str(uuid.uuid4())
 
         # 1. Resolve or reuse existing player
         existing_player = None
@@ -540,6 +541,7 @@ async def import_chesscom(
         u_name = req.username.strip()
         u_lower = u_name.lower()
         player_display_name = u_name
+        dataset_id = str(uuid.uuid4())
 
         # 1. Resolve or reuse existing player
         existing_player = None

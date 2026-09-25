@@ -23,10 +23,21 @@ import {
   LogOut,
   Download,
   Search,
-  Users
+  Users,
+  Sparkles,
+  X
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { ImportSummary, Player } from "@/lib/api/types";
+
+export interface ImportProgressState {
+  stage: number;
+  totalStages: number;
+  percent: number;
+  stageName: string;
+  detail: string;
+  elapsedSeconds: number;
+}
 
 export interface DetectedPlayerInfo {
   name: string;
@@ -313,6 +324,7 @@ function ImportContent() {
 
   // Loading & Result states
   const [isLoading, setIsLoading] = useState(false);
+  const [importProgress, setImportProgress] = useState<ImportProgressState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportSummary | null>(null);
 
@@ -504,11 +516,104 @@ function ImportContent() {
     }
   };
 
+  const handleTabChange = (tab: "lichess" | "chesscom" | "pgn") => {
+    if (isLoading || activeTab === tab) return;
+    setActiveTab(tab);
+    setError(null);
+    setResult(null);
+    setImportProgress(null);
+  };
+
+  const startProgress = (source: "lichess" | "chesscom" | "pgn") => {
+    const startTime = Date.now();
+    setImportProgress({
+      stage: 1,
+      totalStages: 4,
+      percent: 10,
+      stageName: "Kết nối & Tải dữ liệu",
+      detail:
+        source === "lichess"
+          ? "Đang kết nối tới Lichess.org & nạp danh sách ván đấu..."
+          : source === "chesscom"
+          ? "Đang kết nối tới Chess.com Archives & nạp dữ liệu..."
+          : "Đang đọc và phân tích cấu trúc tệp PGN...",
+      elapsedSeconds: 0,
+    });
+
+    const timer = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      const roundedSec = Math.floor(elapsed);
+
+      setImportProgress((prev) => {
+        if (!prev) return null;
+        let stage = 1;
+        let percent = 10;
+        let stageName = "Kết nối & Tải dữ liệu";
+        let detail = prev.detail;
+
+        if (elapsed < 1.6) {
+          stage = 1;
+          percent = Math.min(32, Math.floor(10 + (elapsed / 1.6) * 22));
+          stageName = "Kết nối & Tải dữ liệu";
+          detail =
+            source === "lichess"
+              ? "Đang tải dữ liệu ván đấu từ máy chủ Lichess.org..."
+              : source === "chesscom"
+              ? "Đang nạp kho lưu trữ ván đấu Chess.com..."
+              : "Đang đọc các bản ghi từ tệp PGN...";
+        } else if (elapsed < 3.8) {
+          stage = 2;
+          percent = Math.min(62, Math.floor(32 + ((elapsed - 1.6) / 2.2) * 30));
+          stageName = "Chuẩn hóa nước đi & Thế cờ";
+          detail = "Đang phân tích cú pháp SAN, thời gian đồng hồ & chuỗi FEN...";
+        } else if (elapsed < 6.0) {
+          stage = 3;
+          percent = Math.min(84, Math.floor(62 + ((elapsed - 3.8) / 2.2) * 22));
+          stageName = "Đối chiếu & Khử trùng lặp";
+          detail = "Đang kiểm tra trùng lặp với lịch sử dữ liệu kỳ thủ...";
+        } else {
+          stage = 4;
+          percent = Math.min(96, Math.floor(84 + Math.min(12, (elapsed - 6.0) * 1.5)));
+          stageName = "Dựng cây khai cuộc & Hồ sơ";
+          detail = "Đang tự động xây dựng cây khai cuộc và tổng hợp chỉ số...";
+        }
+
+        return {
+          stage,
+          totalStages: 4,
+          percent,
+          stageName,
+          detail,
+          elapsedSeconds: roundedSec,
+        };
+      });
+    }, 200);
+
+    return timer;
+  };
+
+  const finishProgress = async (timer: NodeJS.Timeout) => {
+    clearInterval(timer);
+    setImportProgress((prev) =>
+      prev
+        ? {
+            ...prev,
+            stage: 4,
+            percent: 100,
+            stageName: "Hoàn tất xử lý!",
+            detail: "Đã nạp và đồng bộ hóa toàn bộ ván đấu thành công!",
+          }
+        : null
+    );
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  };
+
   const handlePgnImport = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setResult(null);
     setIsLoading(true);
+    const timer = startProgress("pgn");
 
     try {
       let res: ImportSummary;
@@ -542,11 +647,15 @@ function ImportContent() {
       } else {
         throw new Error("Vui lòng tải lên tệp .pgn hoặc dán văn bản PGN.");
       }
+      await finishProgress(timer);
       setResult(res);
     } catch (err: any) {
+      clearInterval(timer);
+      setImportProgress(null);
       console.error("[Import] Error:", err);
       setError(err.message || "Lỗi khi nạp dữ liệu PGN");
     } finally {
+      clearInterval(timer);
       setIsLoading(false);
     }
   };
@@ -560,6 +669,7 @@ function ImportContent() {
     setError(null);
     setResult(null);
     setIsLoading(true);
+    const timer = startProgress("lichess");
 
     try {
       const { since, until } = computeTimeBounds(lichessTimePreset, lichessCustomStart, lichessCustomEnd);
@@ -575,10 +685,14 @@ function ImportContent() {
         until,
         token: lichessToken || undefined,
       });
+      await finishProgress(timer);
       setResult(res);
     } catch (err: any) {
+      clearInterval(timer);
+      setImportProgress(null);
       setError(err.message || "Lỗi khi nạp ván đấu từ Lichess.org");
     } finally {
+      clearInterval(timer);
       setIsLoading(false);
     }
   };
@@ -592,6 +706,7 @@ function ImportContent() {
     setError(null);
     setResult(null);
     setIsLoading(true);
+    const timer = startProgress("chesscom");
 
     try {
       const { since, until } = computeTimeBounds(chesscomTimePreset, chesscomCustomStart, chesscomCustomEnd);
@@ -606,10 +721,14 @@ function ImportContent() {
         since,
         until,
       });
+      await finishProgress(timer);
       setResult(res);
     } catch (err: any) {
+      clearInterval(timer);
+      setImportProgress(null);
       setError(err.message || "Lỗi khi nạp ván đấu từ Chess.com");
     } finally {
+      clearInterval(timer);
       setIsLoading(false);
     }
   };
@@ -699,34 +818,40 @@ function ImportContent() {
       {/* Source Selector Tabs */}
       <div className="grid grid-cols-3 p-1.5 rounded-xl bg-card border border-border/60 max-w-lg">
         <button
-          onClick={() => { setActiveTab("lichess"); setError(null); }}
+          type="button"
+          onClick={() => handleTabChange("lichess")}
+          disabled={isLoading}
           className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-semibold rounded-lg transition-all ${
             activeTab === "lichess"
               ? "bg-primary text-primary-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
-          }`}
+          } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
         >
           <Globe className="w-4 h-4" />
           Lichess.org
         </button>
         <button
-          onClick={() => { setActiveTab("chesscom"); setError(null); }}
+          type="button"
+          onClick={() => handleTabChange("chesscom")}
+          disabled={isLoading}
           className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-semibold rounded-lg transition-all ${
             activeTab === "chesscom"
               ? "bg-primary text-primary-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
-          }`}
+          } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
         >
           <User className="w-4 h-4" />
           Chess.com
         </button>
         <button
-          onClick={() => { setActiveTab("pgn"); setError(null); }}
+          type="button"
+          onClick={() => handleTabChange("pgn")}
+          disabled={isLoading}
           className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-semibold rounded-lg transition-all ${
             activeTab === "pgn"
               ? "bg-primary text-primary-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
-          }`}
+          } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
         >
           <FileText className="w-4 h-4" />
           PGN File / Text
@@ -734,9 +859,9 @@ function ImportContent() {
       </div>
 
       {/* Main Content Box */}
-      <div className={`grid grid-cols-1 ${result || error ? "lg:grid-cols-3" : ""} gap-8`}>
+      <div className={`grid grid-cols-1 ${result || error || (isLoading && importProgress) ? "lg:grid-cols-3" : ""} gap-8`}>
         {/* Left Form Area */}
-        <div className={result || error ? "lg:col-span-2" : ""}>
+        <div className={result || error || (isLoading && importProgress) ? "lg:col-span-2" : ""}>
           <div className="bg-card border border-border/60 rounded-2xl p-6 sm:p-8 shadow-sm">
             {/* TAB LICHESS.ORG */}
             {activeTab === "lichess" && (
@@ -951,6 +1076,30 @@ function ImportContent() {
                     )}
                   </div>
 
+                  {/* Inline Progress Bar */}
+                  {isLoading && importProgress && (
+                    <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-2.5 animate-fade-in shadow-inner">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-foreground flex items-center gap-2">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
+                          <span>{importProgress.stageName} ({importProgress.stage}/4)</span>
+                        </span>
+                        <span className="font-bold text-primary tabular-nums">
+                          {importProgress.percent}%
+                        </span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-secondary/80 overflow-hidden relative">
+                        <div
+                          className="h-full bg-gradient-to-r from-primary via-blue-500 to-emerald-500 transition-all duration-300 rounded-full"
+                          style={{ width: `${importProgress.percent}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {importProgress.detail}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Submit Button */}
                   <button
                     type="submit"
@@ -1117,6 +1266,30 @@ function ImportContent() {
                   )}
                 </div>
 
+                {/* Inline Progress Bar */}
+                {isLoading && importProgress && (
+                  <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-2.5 animate-fade-in shadow-inner">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-foreground flex items-center gap-2">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
+                        <span>{importProgress.stageName} ({importProgress.stage}/4)</span>
+                      </span>
+                      <span className="font-bold text-primary tabular-nums">
+                        {importProgress.percent}%
+                      </span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-secondary/80 overflow-hidden relative">
+                      <div
+                        className="h-full bg-gradient-to-r from-primary via-blue-500 to-emerald-500 transition-all duration-300 rounded-full"
+                        style={{ width: `${importProgress.percent}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {importProgress.detail}
+                    </p>
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={isLoading || !chesscomUsername.trim()}
@@ -1257,6 +1430,30 @@ function ImportContent() {
                   </div>
                 )}
 
+                {/* Inline Progress Bar */}
+                {isLoading && importProgress && (
+                  <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-2.5 animate-fade-in shadow-inner">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-foreground flex items-center gap-2">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
+                        <span>{importProgress.stageName} ({importProgress.stage}/4)</span>
+                      </span>
+                      <span className="font-bold text-primary tabular-nums">
+                        {importProgress.percent}%
+                      </span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-secondary/80 overflow-hidden relative">
+                      <div
+                        className="h-full bg-gradient-to-r from-primary via-blue-500 to-emerald-500 transition-all duration-300 rounded-full"
+                        style={{ width: `${importProgress.percent}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {importProgress.detail}
+                    </p>
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={isLoading || (!pgnFile && !pgnText.trim())}
@@ -1280,14 +1477,126 @@ function ImportContent() {
         </div>
 
         {/* Right Info / Result Panel */}
-        {(result || error) && (
+        {(result || error || (isLoading && importProgress)) && (
           <div className="space-y-6">
+            {/* Live Progress Card when importing */}
+            {isLoading && importProgress && (
+              <div className="bg-card border border-primary/30 rounded-2xl p-6 shadow-lg shadow-primary/5 space-y-5 animate-fade-in bg-gradient-to-br from-primary/5 via-card to-background">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary relative">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm text-foreground">Tiến trình nạp ván đấu</h3>
+                      <p className="text-[11px] text-muted-foreground">
+                        {activeTab === "lichess" && "Nguồn: Lichess.org"}
+                        {activeTab === "chesscom" && "Nguồn: Chess.com"}
+                        {activeTab === "pgn" && "Nguồn: Tệp PGN / Bản ghi"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-black text-primary tabular-nums tracking-tight">
+                      {importProgress.percent}%
+                    </div>
+                    <div className="text-[10px] text-muted-foreground font-mono">
+                      Thời gian: {String(Math.floor(importProgress.elapsedSeconds / 60)).padStart(2, "0")}:{String(importProgress.elapsedSeconds % 60).padStart(2, "0")}s
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress Bar Track */}
+                <div className="space-y-1.5">
+                  <div className="w-full h-2.5 rounded-full bg-secondary/80 overflow-hidden relative border border-border/40 p-0.5">
+                    <div
+                      className="h-full bg-gradient-to-r from-primary via-blue-500 to-emerald-500 transition-all duration-300 rounded-full relative"
+                      style={{ width: `${importProgress.percent}%` }}
+                    >
+                      <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span className="font-medium text-foreground">{importProgress.stageName}</span>
+                    <span>Bước {importProgress.stage}/{importProgress.totalStages}</span>
+                  </div>
+                </div>
+
+                {/* Detailed status note */}
+                <p className="text-xs text-muted-foreground bg-accent/20 border border-border/40 rounded-xl p-3 leading-relaxed">
+                  {importProgress.detail}
+                </p>
+
+                {/* 4 Process Stages Checklist */}
+                <div className="space-y-2 pt-1 border-t border-border/40">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Các giai đoạn xử lý
+                  </div>
+                  <div className="space-y-2">
+                    {[
+                      { id: 1, label: activeTab === "lichess" ? "Tải ván đấu từ Lichess" : activeTab === "chesscom" ? "Tải ván đấu từ Chess.com" : "Trích xuất ván đấu PGN" },
+                      { id: 2, label: "Chuẩn hóa nước đi & Thế cờ FEN" },
+                      { id: 3, label: "Kiểm tra & Khử trùng lặp" },
+                      { id: 4, label: "Tạo hồ sơ & Cây khai cuộc" }
+                    ].map((s) => {
+                      const isDone = importProgress.percent === 100 || importProgress.stage > s.id;
+                      const isCurrent = importProgress.stage === s.id && importProgress.percent < 100;
+                      return (
+                        <div
+                          key={s.id}
+                          className={`flex items-center justify-between p-2.5 rounded-xl border text-xs transition-all ${
+                            isDone
+                              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-medium"
+                              : isCurrent
+                              ? "bg-primary/10 border-primary/40 text-foreground font-semibold shadow-xs"
+                              : "bg-card/40 border-border/40 text-muted-foreground opacity-60"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            {isDone ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                            ) : isCurrent ? (
+                              <Loader2 className="w-4 h-4 text-primary animate-spin shrink-0" />
+                            ) : (
+                              <Clock className="w-4 h-4 text-muted-foreground/40 shrink-0" />
+                            )}
+                            <span>{s.label}</span>
+                          </div>
+                          {isDone && <span className="text-[10px] font-bold text-emerald-500">Đạt</span>}
+                          {isCurrent && <span className="text-[10px] font-bold text-primary animate-pulse">Đang chạy...</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Footer hint */}
+                <div className="text-[11px] text-muted-foreground/80 flex items-start gap-1.5 leading-tight pt-1">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                  <span>Hệ thống tự động trích xuất cấu trúc nước đi và xây dựng cây khai cuộc tự động.</span>
+                </div>
+              </div>
+            )}
+
             {/* Status / Result Card */}
-            {result && (
+            {result && !isLoading && (
               <div className="bg-card border border-emerald-500/40 rounded-2xl p-6 shadow-sm animate-fade-in bg-gradient-to-br from-emerald-500/5 to-transparent">
-                <div className="flex items-center gap-3 text-emerald-500 mb-4">
-                  <CheckCircle2 className="w-6 h-6" />
-                  <h3 className="font-bold text-base text-foreground">Nạp dữ liệu thành công!</h3>
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-3 text-emerald-500">
+                    <CheckCircle2 className="w-6 h-6 shrink-0" />
+                    <h3 className="font-bold text-base text-foreground">Nạp dữ liệu thành công!</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setResult(null)}
+                    title="Đóng bảng kết quả"
+                    className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-emerald-500/10 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between py-1.5 border-b border-border/40">
@@ -1340,6 +1649,14 @@ function ImportContent() {
                     </Link>
                   )}
 
+                  <button
+                    type="button"
+                    onClick={() => setResult(null)}
+                    className="w-full py-2 px-4 bg-card border border-border/70 hover:bg-accent/40 text-muted-foreground hover:text-foreground font-semibold rounded-xl transition-all flex items-center justify-center gap-2 text-xs"
+                  >
+                    Nạp thêm ván đấu khác
+                  </button>
+
                   <Link
                     href="/players"
                     className="w-full py-1.5 px-4 text-center text-xs text-muted-foreground hover:text-foreground transition-colors block"
@@ -1350,7 +1667,7 @@ function ImportContent() {
               </div>
             )}
 
-            {error && (
+            {error && !isLoading && (
               <div className="bg-destructive/10 border border-destructive/40 rounded-2xl p-6 text-destructive animate-fade-in">
                 <div className="flex items-center gap-3 mb-2">
                   <AlertCircle className="w-6 h-6" />

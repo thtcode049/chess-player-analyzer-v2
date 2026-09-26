@@ -156,19 +156,49 @@ class DBService:
         return res.data[0]
 
     @staticmethod
+    def update_dataset(dataset_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        try:
+            sb = get_supabase()
+            res = sb.table("datasets").update(updates).eq("id", dataset_id).execute()
+            return res.data[0] if res.data else None
+        except Exception as e:
+            logger.warning(f"Failed to update dataset {dataset_id}: {e}")
+            return None
+
+    VALID_GAME_COLUMNS = {
+        "dataset_id",
+        "external_id",
+        "site_url",
+        "played_at",
+        "white_player",
+        "black_player",
+        "white_elo",
+        "black_elo",
+        "result",
+        "eco",
+        "opening_name",
+        "time_control",
+        "ply_count",
+        "moves_san",
+        "raw_headers",
+        "has_embedded_eval"
+    }
+
+    @staticmethod
     def bulk_insert_games(games: List[Dict[str, Any]], dataset_id: str) -> int:
         """
         Insert a batch of normalized game dicts. Returns count inserted.
         Games must have dataset_id field set.
+        Guarantees that only valid schema columns are sent to Supabase.
         """
         if not games:
             return 0
 
         sb = get_supabase()
-        # Set correct dataset_id and remove None for played_at (Supabase rejects None differently)
         records = []
         for g in games:
-            rec = dict(g)
+            # Defensive column whitelist to prevent PostgREST PGRST204 errors
+            rec = {k: v for k, v in g.items() if k in DBService.VALID_GAME_COLUMNS}
             rec["dataset_id"] = dataset_id
             # Convert datetime to ISO string if needed
             if rec.get("played_at") and hasattr(rec["played_at"], "isoformat"):
@@ -185,8 +215,11 @@ class DBService:
         batch_size = 100
         for i in range(0, len(records), batch_size):
             batch = records[i:i + batch_size]
-            res = sb.table("games").insert(batch).execute()
-            inserted += len(res.data) if res.data else 0
+            try:
+                res = sb.table("games").insert(batch).execute()
+                inserted += len(res.data) if res.data else 0
+            except Exception as e:
+                logger.error(f"[DBService.bulk_insert_games] Batch insert failed ({i}..{i+len(batch)}): {e}")
         return inserted
 
     @staticmethod
@@ -214,8 +247,12 @@ class DBService:
     def update_player(player_id: str, updates: Dict[str, Any], user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Update player record by player_id and optionally user_id."""
         try:
+            valid_keys = {"canonical_name", "title", "fide_id", "notes"}
+            clean_updates = {k: v for k, v in updates.items() if k in valid_keys}
+            if not clean_updates:
+                return None
             sb = get_supabase()
-            query = sb.table("players").update(updates).eq("id", player_id)
+            query = sb.table("players").update(clean_updates).eq("id", player_id)
             if user_id:
                 query = query.eq("user_id", user_id)
             res = query.execute()

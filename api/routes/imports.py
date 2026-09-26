@@ -215,9 +215,12 @@ async def import_pgn_file(
                     db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
                     inserted = DBService.bulk_insert_games(db_games, dataset_id=dataset_id)
                     logger.info(f"[Import PGN] Saved {inserted}/{len(new_unique_games)} new unique games to Supabase (skipped {skipped_count} duplicates)")
+                    if inserted != len(new_unique_games):
+                        DBService.update_dataset(dataset_id, {"games_count": inserted})
 
-                # Update total games count for player
-                DBService.update_player(actual_player_id, {"total_games": len(all_combined_games)})
+                # Update total games count for player with verified inserted games
+                actual_total = len(existing_games) + (inserted if new_unique_games else 0)
+                DBService.update_player(actual_player_id, {"total_games": actual_total})
             except Exception as db_err:
                 logger.error(f"[Import PGN] DB save error: {db_err}")
         else:
@@ -471,8 +474,11 @@ async def import_lichess(
                     db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
                     inserted = DBService.bulk_insert_games(db_games, dataset_id=dataset_id)
                     logger.info(f"[Import Lichess] Saved {inserted}/{len(new_unique_games)} new games to Supabase (skipped {skipped_count} duplicates)")
+                    if inserted != len(new_unique_games):
+                        DBService.update_dataset(dataset_id, {"games_count": inserted})
 
-                DBService.update_player(target_player_id, {"total_games": len(all_combined_games)})
+                actual_total = len(existing_games) + (inserted if new_unique_games else 0)
+                DBService.update_player(target_player_id, {"total_games": actual_total})
             except Exception as db_err:
                 logger.error(f"[Import Lichess] DB save error: {db_err}")
         else:
@@ -721,8 +727,11 @@ async def import_chesscom(
                     db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
                     inserted = DBService.bulk_insert_games(db_games, dataset_id=dataset_id)
                     logger.info(f"[Import Chess.com] Saved {inserted}/{len(new_unique_games)} new games to Supabase (skipped {skipped_count} duplicates)")
+                    if inserted != len(new_unique_games):
+                        DBService.update_dataset(dataset_id, {"games_count": inserted})
 
-                DBService.update_player(target_player_id, {"total_games": len(all_combined_games)})
+                actual_total = len(existing_games) + (inserted if new_unique_games else 0)
+                DBService.update_player(target_player_id, {"total_games": actual_total})
             except Exception as db_err:
                 logger.error(f"[Import Chess.com] DB save error: {db_err}")
         else:

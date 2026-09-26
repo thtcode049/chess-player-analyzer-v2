@@ -137,8 +137,5 @@ class ImportService:
             "ply_count": len(moves_list),
             "moves_san": moves_san_str,
             "raw_headers": headers,
-            "has_embedded_eval": has_embedded_eval,
-            "white": raw_game.get("white", "White"),
-            "black": raw_game.get("black", "Black"),
-            "player_color": raw_game.get("player_color")
+            "has_embedded_eval": has_embedded_eval
         }

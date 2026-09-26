@@ -1,45 +1,85 @@
-# Virtual environment
+# ==============================================================================
+# CHESS PLAYER ANALYZER V2: GITIGNORE CONFIGURATION
+# ==============================================================================
+
+# 1. Virtual environments
 .venv/
 env/
 venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Python bytecode & cache
+# 2. Python bytecode, cache & testing artifacts
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage/
 
-# Streamlit config / state / secrets
-.streamlit/secrets.toml
+# 3. Environment variables, secrets & credentials (NEVER commit secrets!)
 .env
 .env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.streamlit/secrets.toml
 
-# OS files
+# 4. OS metadata files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Data files (processed output / temporary files)
-data/processed/*
-!data/processed/.gitkeep
-
-# Executables & Stockfish binaries (Streamlit Cloud uses packages.txt)
-/stockfish/
-*.exe
-!lib/stockfish/
-!public/stockfish/
-
-# IDE configs
+# 5. IDE & editor configs
 .vscode/
 .idea/
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+*~
 
-# Node & Next.js
+# 6. Scratch, debug & one-off testing scripts (Not needed for deploy)
+scratch/
+scratch_*.py
+test_import.py
+
+# 7. Node, Next.js & Frontend build artifacts
 node_modules/
 .next/
 out/
 build/
 dist/
 .tools/
+.turbo/
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Logs
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
+# 8. Temporary data & local uploads
+data/processed/*
+!data/processed/.gitkeep
+
+# 9. Executables & engine binaries (Streamlit/Vercel use cloud packages)
+/stockfish/
+*.exe
+!lib/stockfish/
+!public/stockfish/

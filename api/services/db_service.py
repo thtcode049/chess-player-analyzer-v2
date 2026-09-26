@@ -71,6 +71,7 @@ def get_game_fingerprint(g: Dict[str, Any]) -> str:
         s = site.strip()
         if "lichess.org" in s or "chess.com" in s:
             clean_url = s.split("?")[0].rstrip("/").lower()
+            clean_url = re.sub(r"/(white|black)$", "", clean_url)
             return f"url:{clean_url}"
 
     white = str(g.get("white_player") or g.get("white") or "").strip().lower()
@@ -105,22 +106,24 @@ class DBService:
     """
 
     @staticmethod
-    def upsert_player(user_id: str, canonical_name: str, title: str = "") -> Dict[str, Any]:
+    def upsert_player(user_id: str, canonical_name: str, title: str = "", force_new: bool = False) -> Dict[str, Any]:
         """
         Insert or return existing player by canonical_name for a given user.
+        If force_new is True, always inserts a new player record.
         """
         sb = get_supabase()
-        # Check if already exists
-        existing = (
-            sb.table("players")
-            .select("*")
-            .eq("user_id", user_id)
-            .ilike("canonical_name", canonical_name)
-            .limit(1)
-            .execute()
-        )
-        if existing.data:
-            return existing.data[0]
+        if not force_new:
+            # Check if already exists
+            existing = (
+                sb.table("players")
+                .select("*")
+                .eq("user_id", user_id)
+                .ilike("canonical_name", canonical_name)
+                .limit(1)
+                .execute()
+            )
+            if existing.data:
+                return existing.data[0]
 
         res = (
             sb.table("players")
@@ -201,7 +204,7 @@ class DBService:
     @staticmethod
     def get_player(player_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         sb = get_supabase()
-        query = sb.table("players").select("*").eq("id", player_id)
+        query = sb.table("players").select("*, datasets(*)").eq("id", player_id)
         if user_id:
             query = query.eq("user_id", user_id)
         res = query.limit(1).execute()

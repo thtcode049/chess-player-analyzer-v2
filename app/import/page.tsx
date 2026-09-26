@@ -49,6 +49,14 @@ export interface DetectedPlayerInfo {
   hasMergedVariants: boolean;
 }
 
+export interface DuplicatePromptState {
+  matchedPlayer: Player;
+  incomingName: string;
+  sourceType: "lichess" | "chesscom" | "pgn";
+  onConfirmMerge: () => Promise<void>;
+  onConfirmForceNew: () => Promise<void>;
+}
+
 function cleanPlayerName(name: string): string {
   // Normalize unicode NFD to strip diacritics
   let s = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -327,6 +335,7 @@ function ImportContent() {
   const [importProgress, setImportProgress] = useState<ImportProgressState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportSummary | null>(null);
+  const [duplicatePrompt, setDuplicatePrompt] = useState<DuplicatePromptState | null>(null);
 
   // Load user session
   useEffect(() => {
@@ -608,8 +617,24 @@ function ImportContent() {
     await new Promise((resolve) => setTimeout(resolve, 400));
   };
 
-  const handlePgnImport = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Helper to find a matching existing player
+  const findMatchingExistingPlayer = (candidateName: string): Player | undefined => {
+    if (!candidateName) return undefined;
+    const cleanCand = cleanPlayerName(candidateName);
+    const candLower = candidateName.trim().toLowerCase();
+    return players.find((p) => {
+      const pName = p.canonical_name.trim();
+      const pLower = pName.toLowerCase();
+      const cleanP = cleanPlayerName(pName);
+      return (
+        pLower === candLower ||
+        cleanP === cleanCand ||
+        arePlayerNamesSimilar(pName, candidateName)
+      );
+    });
+  };
+
+  const executePgnImport = async (targetId?: string, forceNewPlayer: boolean = false) => {
     setError(null);
     setResult(null);
     setIsLoading(true);
@@ -617,7 +642,6 @@ function ImportContent() {
 
     try {
       let res: ImportSummary;
-      const targetId = selectedPlayerId ? selectedPlayerId : undefined;
       const focusPlayer = selectedFocusPlayer ? selectedFocusPlayer.trim() : undefined;
 
       // Find the cluster matching selectedFocusPlayer to get all raw corrupted/variant names
@@ -641,9 +665,9 @@ function ImportContent() {
         : "PGN Import";
 
       if (pgnFile) {
-        res = await apiClient.importPgnFile(pgnFile, targetId, 1000, userId || undefined, focusPlayer, aliasNames);
+        res = await apiClient.importPgnFile(pgnFile, targetId, 1000, userId || undefined, focusPlayer, aliasNames, forceNewPlayer);
       } else if (pgnText.trim()) {
-        res = await apiClient.importPgnText(pgnText, autoDataset, targetId, 1000, userId || undefined, focusPlayer, aliasNames);
+        res = await apiClient.importPgnText(pgnText, autoDataset, targetId, 1000, userId || undefined, focusPlayer, aliasNames, forceNewPlayer);
       } else {
         throw new Error("Vui lòng tải lên tệp .pgn hoặc dán văn bản PGN.");
       }
@@ -660,12 +684,41 @@ function ImportContent() {
     }
   };
 
-  const handleLichessSync = async (e: React.FormEvent) => {
+  const handlePgnImport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!lichessUsername.trim()) {
-      setError("Vui lòng nhập Lichess username.");
+    if (!pgnFile && !pgnText.trim()) {
+      setError("Vui lòng tải lên tệp .pgn hoặc dán văn bản PGN.");
       return;
     }
+
+    const targetId = selectedPlayerId ? selectedPlayerId : undefined;
+    const candidateName = selectedFocusPlayer?.trim() || (detectedPlayers.length > 0 ? detectedPlayers[0].name : "");
+
+    // Check duplicate if no specific player profile was pre-selected
+    if (!targetId && candidateName) {
+      const matched = findMatchingExistingPlayer(candidateName);
+      if (matched) {
+        setDuplicatePrompt({
+          matchedPlayer: matched,
+          incomingName: candidateName,
+          sourceType: "pgn",
+          onConfirmMerge: async () => {
+            setDuplicatePrompt(null);
+            await executePgnImport(matched.id, false);
+          },
+          onConfirmForceNew: async () => {
+            setDuplicatePrompt(null);
+            await executePgnImport(undefined, true);
+          },
+        });
+        return;
+      }
+    }
+
+    await executePgnImport(targetId, false);
+  };
+
+  const executeLichessSync = async (targetId?: string, forceNewPlayer: boolean = false) => {
     setError(null);
     setResult(null);
     setIsLoading(true);
@@ -673,7 +726,6 @@ function ImportContent() {
 
     try {
       const { since, until } = computeTimeBounds(lichessTimePreset, lichessCustomStart, lichessCustomEnd);
-      const targetId = selectedPlayerId ? selectedPlayerId : undefined;
       const res = await apiClient.importLichess({
         player_id: targetId,
         user_id: userId || undefined,
@@ -684,6 +736,7 @@ function ImportContent() {
         since,
         until,
         token: lichessToken || undefined,
+        force_new_player: forceNewPlayer,
       });
       await finishProgress(timer);
       setResult(res);
@@ -697,12 +750,40 @@ function ImportContent() {
     }
   };
 
-  const handleChesscomSync = async (e: React.FormEvent) => {
+  const handleLichessSync = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chesscomUsername.trim()) {
-      setError("Vui lòng nhập Chess.com username.");
+    if (!lichessUsername.trim()) {
+      setError("Vui lòng nhập Lichess username.");
       return;
     }
+
+    const targetId = selectedPlayerId ? selectedPlayerId : undefined;
+    const candidateName = lichessUsername.trim();
+
+    if (!targetId && candidateName) {
+      const matched = findMatchingExistingPlayer(candidateName);
+      if (matched) {
+        setDuplicatePrompt({
+          matchedPlayer: matched,
+          incomingName: candidateName,
+          sourceType: "lichess",
+          onConfirmMerge: async () => {
+            setDuplicatePrompt(null);
+            await executeLichessSync(matched.id, false);
+          },
+          onConfirmForceNew: async () => {
+            setDuplicatePrompt(null);
+            await executeLichessSync(undefined, true);
+          },
+        });
+        return;
+      }
+    }
+
+    await executeLichessSync(targetId, false);
+  };
+
+  const executeChesscomSync = async (targetId?: string, forceNewPlayer: boolean = false) => {
     setError(null);
     setResult(null);
     setIsLoading(true);
@@ -710,7 +791,6 @@ function ImportContent() {
 
     try {
       const { since, until } = computeTimeBounds(chesscomTimePreset, chesscomCustomStart, chesscomCustomEnd);
-      const targetId = selectedPlayerId ? selectedPlayerId : undefined;
       const res = await apiClient.importChesscom({
         player_id: targetId,
         user_id: userId || undefined,
@@ -720,6 +800,7 @@ function ImportContent() {
         perf_types: chesscomSelectedPerfs.length > 0 ? chesscomSelectedPerfs : undefined,
         since,
         until,
+        force_new_player: forceNewPlayer,
       });
       await finishProgress(timer);
       setResult(res);
@@ -731,6 +812,39 @@ function ImportContent() {
       clearInterval(timer);
       setIsLoading(false);
     }
+  };
+
+  const handleChesscomSync = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chesscomUsername.trim()) {
+      setError("Vui lòng nhập Chess.com username.");
+      return;
+    }
+
+    const targetId = selectedPlayerId ? selectedPlayerId : undefined;
+    const candidateName = chesscomUsername.trim();
+
+    if (!targetId && candidateName) {
+      const matched = findMatchingExistingPlayer(candidateName);
+      if (matched) {
+        setDuplicatePrompt({
+          matchedPlayer: matched,
+          incomingName: candidateName,
+          sourceType: "chesscom",
+          onConfirmMerge: async () => {
+            setDuplicatePrompt(null);
+            await executeChesscomSync(matched.id, false);
+          },
+          onConfirmForceNew: async () => {
+            setDuplicatePrompt(null);
+            await executeChesscomSync(undefined, true);
+          },
+        });
+        return;
+      }
+    }
+
+    await executeChesscomSync(targetId, false);
   };
 
   return (
@@ -1679,6 +1793,110 @@ function ImportContent() {
           </div>
         )}
       </div>
+
+      {/* Modal Hỏi Xác Nhận Gộp Hồ Sơ Khi Trùng Tên */}
+      {duplicatePrompt && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
+          onClick={() => setDuplicatePrompt(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-[0_25px_70px_-15px_rgba(0,0,0,0.35)] space-y-5 animate-scale-in relative ring-1 ring-black/10 dark:ring-white/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-zinc-200 dark:border-zinc-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center border border-amber-500/20 shrink-0">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-zinc-950 dark:text-white">
+                    Phát Hiện Hồ Sơ Trùng Tên
+                  </h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Bạn có muốn gộp ván đấu vào hồ sơ hiện có không?
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDuplicatePrompt(null)}
+                className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white p-1.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                title="Đóng hộp thoại"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Matched profile comparison box */}
+            <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 space-y-3">
+              <div className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                Hệ thống phát hiện kỳ thủ đang nạp (<strong className="text-primary font-bold">{duplicatePrompt.incomingName}</strong>) có tên trùng khớp hoặc tương đương với hồ sơ hiện có:
+              </div>
+
+              <div className="bg-white dark:bg-zinc-800/80 p-3.5 rounded-xl border border-zinc-200/80 dark:border-zinc-700/60 flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <div className="font-bold text-sm text-foreground flex items-center gap-2">
+                    {duplicatePrompt.matchedPlayer.canonical_name}
+                    {duplicatePrompt.matchedPlayer.title && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-extrabold uppercase rounded bg-amber-500/10 text-amber-500 border border-amber-500/30">
+                        {duplicatePrompt.matchedPlayer.title}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground flex items-center gap-2">
+                    <span>{duplicatePrompt.matchedPlayer.total_games || 0} ván hiện có</span>
+                    <span>•</span>
+                    <span>{duplicatePrompt.matchedPlayer.datasets?.length || 1} nguồn dữ liệu</span>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="inline-flex items-center px-2 py-1 rounded-lg text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                    Đã có sẵn
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                💡 <strong>Gợi ý:</strong> Nếu đây là cùng một kỳ thủ, bạn nên chọn <strong>Gộp hồ sơ</strong> để hệ thống tự động khử trùng lặp các ván đấu đã có và phân tích phong cách thi đấu toàn diện hơn.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={duplicatePrompt.onConfirmMerge}
+                className="w-full py-3 px-4 rounded-2xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2"
+              >
+                <UserCheck className="w-4 h-4" />
+                Đồng ý gộp vào hồ sơ &quot;{duplicatePrompt.matchedPlayer.canonical_name}&quot;
+              </button>
+
+              <button
+                type="button"
+                onClick={duplicatePrompt.onConfirmForceNew}
+                className="w-full py-2.5 px-4 rounded-2xl bg-secondary text-secondary-foreground hover:bg-zinc-200 dark:hover:bg-zinc-800 font-semibold text-xs border border-border/60 transition-all flex items-center justify-center gap-2"
+              >
+                <Users className="w-4 h-4" />
+                Tạo hồ sơ mới riêng biệt (Không gộp)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDuplicatePrompt(null)}
+                className="w-full py-2 px-4 text-xs text-muted-foreground hover:text-foreground transition-colors font-medium text-center"
+              >
+                Hủy bỏ thao tác
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

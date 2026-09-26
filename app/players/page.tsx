@@ -15,7 +15,12 @@ import {
   Pencil,
   Trash2,
   AlertTriangle,
-  CheckCircle2
+  CheckCircle2,
+  Layers,
+  ExternalLink,
+  Database,
+  Globe,
+  FileText
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { Player } from "@/lib/api/types";
@@ -29,6 +34,7 @@ export default function PlayersPage() {
   // Active on-page action: "none" | "create" | "edit" | "delete"
   const [activeAction, setActiveAction] = useState<"none" | "create" | "edit" | "delete">("none");
   const [creating, setCreating] = useState(false);
+  const [viewingSourcesPlayer, setViewingSourcesPlayer] = useState<Player | null>(null);
 
   // Create Form state
   const [canonicalName, setCanonicalName] = useState("");
@@ -60,12 +66,13 @@ export default function PlayersPage() {
 
   // Handle Escape key and body scroll locking when modal dialog is open
   useEffect(() => {
-    if (activeAction !== "none") {
+    if (activeAction !== "none" || viewingSourcesPlayer !== null) {
       const originalStyle = window.getComputedStyle(document.body).overflow;
       document.body.style.overflow = "hidden";
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === "Escape") {
           handleCloseAction();
+          setViewingSourcesPlayer(null);
         }
       };
       window.addEventListener("keydown", handleKeyDown);
@@ -74,7 +81,7 @@ export default function PlayersPage() {
         window.removeEventListener("keydown", handleKeyDown);
       };
     }
-  }, [activeAction]);
+  }, [activeAction, viewingSourcesPlayer]);
 
   useEffect(() => {
     import("@/lib/supabase/client").then(({ createClient }) => {
@@ -433,9 +440,20 @@ export default function PlayersPage() {
                     </div>
                     <div>
                       <span className="text-muted-foreground block text-[11px]">Tập dữ liệu:</span>
-                      <span className="font-bold text-foreground text-sm">
-                        {player.datasets ? player.datasets.length : 1} Nguồn
-                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setViewingSourcesPlayer(player);
+                        }}
+                        className="inline-flex items-center gap-1.5 font-bold text-foreground text-sm hover:text-primary transition-all cursor-pointer group/src rounded px-1 -ml-1 hover:bg-primary/10"
+                        title="Bấm để xem danh sách chi tiết các nguồn dữ liệu ván đấu"
+                      >
+                        <span className="underline decoration-dotted underline-offset-2 group-hover/src:decoration-primary group-hover/src:text-primary">
+                          {player.datasets && player.datasets.length > 0 ? player.datasets.length : 1} Nguồn
+                        </span>
+                        <Layers className="w-3.5 h-3.5 text-muted-foreground group-hover/src:text-primary transition-colors shrink-0" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -746,6 +764,168 @@ export default function PlayersPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* Modal Xem Chi Tiết Nguồn Dữ Liệu */}
+      {viewingSourcesPlayer && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in"
+          onClick={() => setViewingSourcesPlayer(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-[0_25px_70px_-15px_rgba(0,0,0,0.35)] space-y-5 animate-scale-in relative max-h-[85vh] flex flex-col ring-1 ring-black/10 dark:ring-white/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-zinc-950 dark:text-white flex items-center gap-2">
+                    Nguồn Dữ Liệu Ván Đấu
+                  </h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Kỳ thủ: <span className="font-semibold text-zinc-900 dark:text-zinc-100">{viewingSourcesPlayer.canonical_name}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingSourcesPlayer(null)}
+                className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white p-1.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                title="Đóng hộp thoại"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Overall stat summary */}
+            <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/60 dark:border-zinc-700/50 text-xs">
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Tổng số ván đấu:</span>
+                <span className="font-bold text-foreground text-sm">
+                  {viewingSourcesPlayer.total_games ? viewingSourcesPlayer.total_games.toLocaleString() : "Chưa có"}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Tổng số nguồn nạp:</span>
+                <span className="font-bold text-foreground text-sm">
+                  {viewingSourcesPlayer.datasets && viewingSourcesPlayer.datasets.length > 0
+                    ? viewingSourcesPlayer.datasets.length
+                    : 1}{" "}
+                  nguồn
+                </span>
+              </div>
+            </div>
+
+            {/* List of Datasets */}
+            <div className="overflow-y-auto space-y-3 pr-1 max-h-[45vh] flex-1">
+              {viewingSourcesPlayer.datasets && viewingSourcesPlayer.datasets.length > 0 ? (
+                viewingSourcesPlayer.datasets.map((ds, idx) => {
+                  const isLichess = ds.source_type === "lichess";
+                  const isChesscom = ds.source_type === "chesscom";
+                  const isPgn = ds.source_type === "pgn_upload" || !ds.source_type;
+
+                  const profileUrl = isLichess
+                    ? `https://lichess.org/@/${ds.source_identifier}`
+                    : isChesscom
+                    ? `https://www.chess.com/member/${ds.source_identifier}`
+                    : null;
+
+                  return (
+                    <div
+                      key={ds.id || idx}
+                      className="p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/40 hover:border-primary/40 hover:bg-zinc-50 dark:hover:bg-zinc-800/70 transition-all space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {isLichess ? (
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 flex items-center gap-1">
+                              <Globe className="w-3 h-3" />
+                              Lichess.org
+                            </span>
+                          ) : isChesscom ? (
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                              <Globe className="w-3 h-3" />
+                              Chess.com
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 flex items-center gap-1">
+                              <FileText className="w-3 h-3" />
+                              Tệp PGN
+                            </span>
+                          )}
+
+                          <span className="font-mono text-xs font-semibold text-zinc-900 dark:text-zinc-100 truncate max-w-[200px]" title={ds.source_identifier}>
+                            {ds.source_identifier}
+                          </span>
+                        </div>
+
+                        {profileUrl && (
+                          <a
+                            href={profileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-medium shrink-0"
+                            title={`Mở hồ sơ trên ${isLichess ? "Lichess" : "Chess.com"}`}
+                          >
+                            <span>Xem liên kết</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs text-muted-foreground pt-1.5 border-t border-zinc-200/50 dark:border-zinc-800/50">
+                        <span className="flex items-center gap-1">
+                          <strong className="text-zinc-900 dark:text-zinc-100 font-semibold">{ds.games_count?.toLocaleString() || 0}</strong> ván đấu
+                        </span>
+                        {ds.imported_at && (
+                          <span className="text-[11px] text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+                            <Calendar className="w-3 h-3 inline" />
+                            {new Date(ds.imported_at).toLocaleDateString("vi-VN", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/40 space-y-1.5 text-center">
+                  <Database className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
+                  <p className="text-xs font-semibold text-foreground">1 Nguồn ván đấu</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Toàn bộ {(viewingSourcesPlayer.total_games || 0).toLocaleString()} ván đấu được nạp từ dữ liệu khởi tạo.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer action */}
+            <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">
+              <Link
+                href={`/import?playerId=${viewingSourcesPlayer.id}&playerName=${encodeURIComponent(viewingSourcesPlayer.canonical_name)}`}
+                className="px-3.5 py-2 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground text-xs font-semibold flex items-center gap-1.5 transition-all"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                Nạp thêm ván từ nguồn khác
+              </Link>
+              <button
+                type="button"
+                onClick={() => setViewingSourcesPlayer(null)}
+                className="px-4 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold transition"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -14,6 +14,7 @@ class LichessImportRequest(BaseModel):
     since: Optional[int] = None
     until: Optional[int] = None
     token: Optional[str] = None
+    force_new_player: Optional[bool] = False
 
 class ChesscomImportRequest(BaseModel):
     player_id: Optional[str] = None
@@ -24,6 +25,7 @@ class ChesscomImportRequest(BaseModel):
     rated_only: Optional[bool] = None
     since: Optional[int] = None
     until: Optional[int] = None
+    force_new_player: Optional[bool] = False
 
 class ImportSummaryResponse(BaseModel):
     dataset_id: Optional[str] = None

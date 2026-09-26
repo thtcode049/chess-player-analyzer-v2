@@ -54,8 +54,8 @@ async def list_players(
             db_players = DBService.get_players(x_user_id)
             for p in db_players:
                 p_id = p["id"]
-                datasets = p.get("datasets", [])
-                total_g = sum(d.get("games_count", 0) for d in datasets) if datasets else len(GAMES_STORE.get(p_id, []))
+                ds_sum = sum(d.get("games_count", 0) for d in datasets) if datasets else 0
+                total_g = max(p.get("total_games") or 0, ds_sum) or len(GAMES_STORE.get(p_id, []))
 
                 players_dict[p_id] = PlayerResponse(
                     id=p_id,
@@ -80,6 +80,16 @@ async def list_players(
 
     for p_id, p in guest_players.items():
         total_g = len(session.get("games", {}).get(p_id, []))
+        guest_datasets = p.get("datasets", [])
+        if not guest_datasets and total_g > 0:
+            guest_datasets = [{
+                "id": f"ds-{p_id}",
+                "player_id": p_id,
+                "source_type": "pgn_upload",
+                "source_identifier": "Bản ghi PGN cục bộ",
+                "games_count": total_g,
+                "imported_at": p.get("created_at") or datetime.now()
+            }]
         players_dict[p_id] = PlayerResponse(
             id=p_id,
             user_id="guest",
@@ -90,7 +100,7 @@ async def list_players(
             total_games=total_g,
             created_at=p.get("created_at", datetime.now()),
             updated_at=p.get("updated_at", datetime.now()),
-            datasets=[]
+            datasets=guest_datasets
         )
 
     return BaseResponse(success=True, data=list(players_dict.values()))
@@ -194,6 +204,16 @@ async def get_player(
         if player_id in session["players"]:
             p = session["players"][player_id]
             total_g = len(session.get("games", {}).get(player_id, []))
+            guest_datasets = p.get("datasets", [])
+            if not guest_datasets and total_g > 0:
+                guest_datasets = [{
+                    "id": f"ds-{player_id}",
+                    "player_id": player_id,
+                    "source_type": "pgn_upload",
+                    "source_identifier": "Bản ghi PGN cục bộ",
+                    "games_count": total_g,
+                    "imported_at": p.get("created_at") or datetime.now()
+                }]
             return BaseResponse(success=True, data=PlayerResponse(
                 id=p["id"],
                 user_id="guest",
@@ -204,13 +224,23 @@ async def get_player(
                 total_games=total_g,
                 created_at=p.get("created_at", datetime.now()),
                 updated_at=p.get("updated_at", datetime.now()),
-                datasets=[]
+                datasets=guest_datasets
             ))
 
     # 2. Check in-memory store
     if player_id in PLAYERS_STORE:
         p = PLAYERS_STORE[player_id]
         total_g = len(GAMES_STORE.get(player_id, []))
+        mem_datasets = p.get("datasets", [])
+        if not mem_datasets and total_g > 0:
+            mem_datasets = [{
+                "id": f"ds-{player_id}",
+                "player_id": player_id,
+                "source_type": "pgn_upload",
+                "source_identifier": "Bản ghi PGN cục bộ",
+                "games_count": total_g,
+                "imported_at": p.get("created_at") or datetime.now()
+            }]
         return BaseResponse(success=True, data=PlayerResponse(
             id=p["id"],
             user_id=p.get("user_id", x_user_id or "guest"),
@@ -221,7 +251,7 @@ async def get_player(
             total_games=total_g,
             created_at=p.get("created_at", datetime.now()),
             updated_at=p.get("updated_at", datetime.now()),
-            datasets=[]
+            datasets=mem_datasets
         ))
 
     # 3. Check DB ONLY if user is logged in

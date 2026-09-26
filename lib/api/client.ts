@@ -205,7 +205,8 @@ export const apiClient = {
     maxGames = 1000,
     userIdOverride?: string,
     playerName?: string,
-    aliasNames?: string[]
+    aliasNames?: string[],
+    forceNewPlayer = false
   ): Promise<ImportSummary> {
     const authHeaders = await getAuthHeaders();
     const userId = userIdOverride || (await getUserId());
@@ -218,6 +219,7 @@ export const apiClient = {
     }
     if (userId) formData.append("user_id", userId);
     formData.append("max_games", maxGames.toString());
+    if (forceNewPlayer) formData.append("force_new_player", "true");
 
     const res = await fetch(`${API_BASE}/api/import/pgn-file`, {
       method: "POST",
@@ -234,11 +236,12 @@ export const apiClient = {
     maxGames = 1000,
     userIdOverride?: string,
     playerName?: string,
-    aliasNames?: string[]
+    aliasNames?: string[],
+    forceNewPlayer = false
   ): Promise<ImportSummary> {
     const blob = new Blob([text], { type: "text/plain" });
     const file = new File([blob], `${datasetName || "import"}.pgn`, { type: "text/plain" });
-    return this.importPgnFile(file, playerId, maxGames, userIdOverride, playerName, aliasNames);
+    return this.importPgnFile(file, playerId, maxGames, userIdOverride, playerName, aliasNames, forceNewPlayer);
   },
 
   async importLichess(data: {
@@ -251,6 +254,7 @@ export const apiClient = {
     since?: number;
     until?: number;
     token?: string;
+    force_new_player?: boolean;
   }): Promise<ImportSummary> {
     const authHeaders = await getAuthHeaders();
     const userId = data.user_id || (await getUserId());
@@ -294,6 +298,7 @@ export const apiClient = {
     perf_types?: string[];
     since?: number;
     until?: number;
+    force_new_player?: boolean;
   }): Promise<ImportSummary> {
     const authHeaders = await getAuthHeaders();
     const userId = data.user_id || (await getUserId());

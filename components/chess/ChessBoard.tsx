@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Chess } from "chess.js";
+import { Chess, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { 
   RotateCw, 
@@ -49,6 +49,16 @@ export default function ChessBoard({
     }
     return height;
   });
+
+  // Click-to-move and legal move highlighting state
+  const [moveFrom, setMoveFrom] = useState<string | null>(null);
+  const [optionSquares, setOptionSquares] = useState<Record<string, React.CSSProperties>>({});
+
+  // Reset selection when ply or FEN changes
+  useEffect(() => {
+    setMoveFrom(null);
+    setOptionSquares({});
+  }, [currentPly, initialFen]);
 
   useEffect(() => {
     const updateSize = () => {
@@ -248,7 +258,102 @@ export default function ChessBoard({
     [game, currentPly, historyFens, moves, initialFen, isEngineEnabled, evaluateFen, onPositionChange, onMovesChange]
   );
 
+  // Calculate legal move visual styles (dots for moves, rings for captures)
+  const getMoveOptions = useCallback(
+    (square: string) => {
+      try {
+        const moves = game.moves({
+          square: square as Square,
+          verbose: true,
+        });
+
+        if (moves.length === 0) {
+          return {};
+        }
+
+        const options: Record<string, React.CSSProperties> = {};
+
+        // Highlight selected square (soft amber glow)
+        options[square] = {
+          background: "rgba(250, 204, 21, 0.4)",
+          boxShadow: "inset 0 0 0 2px rgba(234, 179, 8, 0.8)",
+          borderRadius: "6px",
+        };
+
+        moves.forEach((move) => {
+          const isCapture = Boolean(game.get(move.to as Square)) || move.captured;
+          options[move.to] = {
+            background: isCapture
+              ? "radial-gradient(circle, transparent 52%, rgba(239, 68, 68, 0.45) 54%, rgba(239, 68, 68, 0.7) 70%, transparent 72%)"
+              : "radial-gradient(circle, rgba(16, 185, 129, 0.75) 24%, transparent 25%)",
+            boxShadow: isCapture ? "inset 0 0 0 3px rgba(239, 68, 68, 0.65)" : undefined,
+            borderRadius: isCapture ? "8px" : "50%",
+            cursor: "pointer",
+          };
+        });
+
+        return options;
+      } catch {
+        return {};
+      }
+    },
+    [game]
+  );
+
+  // Click-to-move square click handler
+  const onSquareClick = useCallback(
+    (square: string) => {
+      // 1. If no piece was selected yet
+      if (!moveFrom) {
+        const piece = game.get(square as Square);
+        // Only select pieces belonging to the current side to move
+        if (piece && piece.color === game.turn()) {
+          setMoveFrom(square);
+          setOptionSquares(getMoveOptions(square));
+        }
+        return;
+      }
+
+      // 2. If clicking the exact same square -> Deselect
+      if (square === moveFrom) {
+        setMoveFrom(null);
+        setOptionSquares({});
+        return;
+      }
+
+      // 3. If clicking another friendly piece -> Switch selection
+      const piece = game.get(square as Square);
+      if (piece && piece.color === game.turn()) {
+        setMoveFrom(square);
+        setOptionSquares(getMoveOptions(square));
+        return;
+      }
+
+      // 4. Try making a move to the clicked square
+      const validMoves = game.moves({
+        square: moveFrom as Square,
+        verbose: true,
+      });
+      const isLegal = validMoves.some((m) => m.to === square);
+
+      if (isLegal) {
+        makeAMove({
+          from: moveFrom,
+          to: square,
+          promotion: "q",
+        });
+      }
+
+      // Always clear selection highlights after move attempt
+      setMoveFrom(null);
+      setOptionSquares({});
+    },
+    [moveFrom, game, getMoveOptions, makeAMove]
+  );
+
   const onDrop = (sourceSquare: string, targetSquare: string) => {
+    setMoveFrom(null);
+    setOptionSquares({});
     const move = makeAMove({
       from: sourceSquare,
       to: targetSquare,
@@ -303,6 +408,12 @@ export default function ChessBoard({
           <Chessboard
             position={game.fen()}
             onPieceDrop={onDrop}
+            onPieceDragBegin={() => {
+              setMoveFrom(null);
+              setOptionSquares({});
+            }}
+            onSquareClick={onSquareClick}
+            customSquareStyles={optionSquares}
             boardOrientation={boardOrientation}
             boardWidth={boardWidth}
             customBoardStyle={{

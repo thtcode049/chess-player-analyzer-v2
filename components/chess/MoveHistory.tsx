@@ -30,6 +30,7 @@ export default function MoveHistory({
   onToggleEngine,
 }: MoveHistoryProps) {
   const activeRef = useRef<HTMLButtonElement | null>(null);
+  const listContainerRef = useRef<HTMLDivElement | null>(null);
   const [internalEngineEnabled, setInternalEngineEnabled] = useState(true);
   const [showSettingsPopover, setShowSettingsPopover] = useState(false);
 
@@ -57,13 +58,22 @@ export default function MoveHistory({
     }
   }, [currentFen, moves, currentPly]);
 
-  // Auto-scroll to active move
+  // Auto-scroll strictly inside container only (prevents mobile page/viewport from jumping down)
   useEffect(() => {
-    if (activeRef.current) {
-      activeRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-      });
+    if (activeRef.current && listContainerRef.current) {
+      const container = listContainerRef.current;
+      const activeEl = activeRef.current;
+
+      const containerRect = container.getBoundingClientRect();
+      const activeRect = activeEl.getBoundingClientRect();
+
+      if (activeRect.top < containerRect.top) {
+        const diff = containerRect.top - activeRect.top + 8;
+        container.scrollBy({ top: -diff, behavior: "smooth" });
+      } else if (activeRect.bottom > containerRect.bottom) {
+        const diff = activeRect.bottom - containerRect.bottom + 8;
+        container.scrollBy({ top: diff, behavior: "smooth" });
+      }
     }
   }, [currentPly]);
 
@@ -207,7 +217,10 @@ export default function MoveHistory({
       </div>
 
       {/* Move list (Balanced 3-column layout matching Lichess) */}
-      <div className="flex-1 overflow-y-auto max-h-[380px] p-2 space-y-1 text-sm font-mono scroll-smooth">
+      <div 
+        ref={listContainerRef}
+        className="flex-1 overflow-y-auto max-h-[380px] p-2 space-y-1 text-sm font-mono scroll-smooth"
+      >
         {movePairs.length === 0 ? (
           <div className="text-center py-8 text-xs text-slate-400 font-sans">
             Chưa có nước đi nào

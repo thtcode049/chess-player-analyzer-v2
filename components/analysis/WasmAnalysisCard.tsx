@@ -92,13 +92,13 @@ export default function WasmAnalysisCard({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-card via-card/90 to-primary/5 p-6 shadow-md transition-all">
+    <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-card via-card/90 to-primary/5 p-4 sm:p-6 shadow-md transition-all">
       {/* Background ambient glow */}
       <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
               <Cpu className="w-3.5 h-3.5" />
               Stockfish 19 WASM • Multi-Worker (Độ sâu 10)
@@ -112,7 +112,7 @@ export default function WasmAnalysisCard({
             )}
           </div>
 
-          <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+          <h3 className="text-sm sm:text-base font-bold text-foreground flex items-center gap-2">
             {hasFullAnalysis
               ? "Hồ Sơ Đã Có Đánh Giá Toàn Diện Bằng Engine (Depth 10)"
               : "Phân Tích Toàn Bộ 100% Nước Đi Bằng Stockfish Trình Duyệt (Depth 10)"}
@@ -125,11 +125,11 @@ export default function WasmAnalysisCard({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0 w-full md:w-auto">
           <button
             onClick={handleStartAnalysis}
             disabled={isRunning || games.length === 0}
-            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all ${
+            className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all w-full md:w-auto ${
               hasFullAnalysis
                 ? "border border-border/80 bg-background/80 hover:bg-card text-foreground"
                 : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20 hover:scale-[1.02]"

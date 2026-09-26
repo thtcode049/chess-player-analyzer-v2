@@ -42,6 +42,29 @@ export default function ChessBoard({
   const [currentPly, setCurrentPly] = useState(0);
   const [historyFens, setHistoryFens] = useState<string[]>([initialFen]);
   const lastProcessedMoves = useRef<string>("");
+  const boardContainerRef = useRef<HTMLDivElement>(null);
+  const [boardWidth, setBoardWidth] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      return Math.min(height, Math.max(220, window.innerWidth - 80));
+    }
+    return height;
+  });
+
+  useEffect(() => {
+    const updateSize = () => {
+      if (boardContainerRef.current) {
+        const measured = boardContainerRef.current.clientWidth;
+        if (measured > 0) {
+          setBoardWidth(Math.min(height, measured));
+        }
+      } else if (typeof window !== "undefined") {
+        setBoardWidth(Math.min(height, Math.max(220, window.innerWidth - 80)));
+      }
+    };
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, [height]);
 
   // Stockfish WASM client hook
   const { evaluation, isThinking, evaluateFen, stop } = useStockfish();
@@ -276,12 +299,12 @@ export default function ChessBoard({
         </div>
 
         {/* The Chessboard */}
-        <div className="flex-1 overflow-hidden rounded-xl shadow-md border-2 border-slate-800/10 dark:border-slate-700/50">
+        <div ref={boardContainerRef} className="flex-1 overflow-hidden rounded-xl shadow-md border-2 border-slate-800/10 dark:border-slate-700/50 flex justify-center">
           <Chessboard
             position={game.fen()}
             onPieceDrop={onDrop}
             boardOrientation={boardOrientation}
-            boardWidth={height}
+            boardWidth={boardWidth}
             customBoardStyle={{
               borderRadius: "0.75rem",
             }}

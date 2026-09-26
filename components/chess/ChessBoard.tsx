@@ -3,12 +3,12 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Chess, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
-import { 
-  RotateCw, 
-  ChevronLeft, 
-  ChevronRight, 
-  ChevronsLeft, 
-  ChevronsRight 
+import {
+  RotateCw,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from "lucide-react";
 import { useStockfish } from "@/lib/stockfish/useStockfish";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
@@ -139,7 +139,7 @@ export default function ChessBoard({
       try {
         newGame.load(initialFen);
         fens[0] = newGame.fen();
-      } catch {}
+      } catch { }
     }
 
     setHistoryFens(fens);
@@ -277,7 +277,7 @@ export default function ChessBoard({
         options[square] = {
           background: "rgba(245, 246, 130, 0.45)",
           boxShadow: "inset 0 0 0 2px rgba(215, 218, 90, 0.7)",
-          borderRadius: "4px",
+          borderRadius: "5px",
         };
 
         moves.forEach((move) => {
@@ -381,11 +381,10 @@ export default function ChessBoard({
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
             <span
-              className={`w-2.5 h-2.5 rounded-full border shadow-2xs ${
-                boardOrientation === "white"
+              className={`w-2.5 h-2.5 rounded-full border shadow-2xs ${boardOrientation === "white"
                   ? "bg-white border-slate-300 dark:border-slate-500"
                   : "bg-slate-900 border-slate-700"
-              }`}
+                }`}
             />
             <span>Góc nhìn: {boardOrientation === "white" ? "Trắng" : "Đen"}</span>
           </span>

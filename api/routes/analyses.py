@@ -256,7 +256,7 @@ async def get_analysis_run(
                     "acpl_opening": float(db_run.get("acpl_opening")) if db_run.get("acpl_opening") is not None else None,
                     "acpl_middlegame": float(db_run.get("acpl_middlegame")) if db_run.get("acpl_middlegame") is not None else None,
                     "acpl_endgame": float(db_run.get("acpl_endgame")) if db_run.get("acpl_endgame") is not None else None,
-                    "dominant_archetype": db_run.get("dominant_archetype", "Universal Master"),
+                    "dominant_archetype": db_run.get("dominant_archetype"),
                     "repertoire_summary": db_run.get("repertoire_summary", {}),
                     "pawn_structures_summary": db_run.get("pawn_structures_summary", {}),
                     "style_radar_metrics": db_run.get("style_radar_metrics", {}),

@@ -468,7 +468,7 @@ class DBService:
             "acpl_opening": float(run_res.get("acpl_opening")) if run_res.get("acpl_opening") is not None else None,
             "acpl_middlegame": float(run_res.get("acpl_middlegame")) if run_res.get("acpl_middlegame") is not None else None,
             "acpl_endgame": float(run_res.get("acpl_endgame")) if run_res.get("acpl_endgame") is not None else None,
-            "dominant_archetype": run_res.get("dominant_archetype", "Universal Master"),
+            "dominant_archetype": run_res.get("dominant_archetype"),
             "repertoire_summary": run_res.get("repertoire_summary", {}),
             "pawn_structures_summary": run_res.get("pawn_structures_summary", {}),
             "style_radar_metrics": run_res.get("style_radar_metrics", {}),

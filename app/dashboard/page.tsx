@@ -258,14 +258,13 @@ export default function DashboardPage() {
                 <th className="px-4 py-3.5">Tỷ Lệ Thắng</th>
                 <th className="px-4 py-3.5">Điểm Số Chung</th>
                 <th className="px-4 py-3.5">Động Cơ Đánh Giá</th>
-                <th className="px-4 py-3.5">Phong Cách Thi Đấu</th>
                 <th className="px-5 py-3.5 text-right">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
               {recentRuns.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
+                  <td colSpan={6} className="px-5 py-12 text-center text-slate-400">
                     <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">
                       Chưa có báo cáo phân tích nào trong hệ thống.
                     </p>
@@ -303,9 +302,6 @@ export default function DashboardPage() {
                           <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
                           {badge.label}
                         </span>
-                      </td>
-                      <td className="px-4 py-4 font-medium text-slate-600 dark:text-slate-300">
-                        {run.dominant_archetype || "Toàn diện (Universal)"}
                       </td>
                       <td className="px-5 py-4 text-right space-x-2 whitespace-nowrap">
                         <Link

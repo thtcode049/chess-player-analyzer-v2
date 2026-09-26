@@ -583,13 +583,9 @@ export default function PlayerDetailPage() {
                     {analysisRun?.engine_name || (analysisRun?.engine_status === "stockfish_parallel" ? "Stockfish 19 Parallel" : analysisRun?.engine_status?.toUpperCase() || "STOCKFISH")}
                   </span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-border/40">
+                <div className="flex justify-between py-1">
                   <span className="text-muted-foreground">Độ phủ engine:</span>
                   <span className="font-bold text-foreground">{analysisRun?.engine_coverage_pct?.toFixed(1) || 0}% ván</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-border/40">
-                  <span className="text-muted-foreground">Hình mẫu chủ đạo:</span>
-                  <span className="font-bold text-amber-500">{analysisRun?.dominant_archetype || "Universal Master"}</span>
                 </div>
               </div>
             </div>
@@ -767,7 +763,7 @@ export default function PlayerDetailPage() {
               <div className="flex justify-center">
                 <StyleRadarChart
                   metrics={analysisRun?.style_radar_metrics as any}
-                  archetype={analysisRun?.dominant_archetype || undefined}
+                  archetype={analysisRun?.dominant_archetype && analysisRun.dominant_archetype !== "Universal Master" ? analysisRun.dominant_archetype : undefined}
                 />
               </div>
             </div>
@@ -987,14 +983,13 @@ export default function PlayerDetailPage() {
                     <th className="px-3 py-3.5">Kết quả</th>
                     <th className="px-3 py-3.5">ECO / Khai cuộc</th>
                     <th className="px-3 py-3.5">Ngày / Sự kiện</th>
-                    <th className="px-3 py-3.5">Engine Đánh giá</th>
                     <th className="px-4 py-3.5 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
                   {paginatedGames.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-14 text-muted-foreground">
+                      <td colSpan={6} className="text-center py-14 text-muted-foreground">
                         <div className="space-y-1.5">
                           <p className="font-semibold text-foreground text-sm">Không tìm thấy ván đấu nào</p>
                           <p className="text-xs text-muted-foreground">
@@ -1060,18 +1055,6 @@ export default function PlayerDetailPage() {
                               <div className="truncate max-w-[120px] text-[10px] text-muted-foreground/80" title={eventStr}>
                                 {eventStr}
                               </div>
-                            )}
-                          </td>
-                          <td className="px-3 py-3">
-                            {g.has_embedded_eval ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                                <Check className="w-3 h-3" />
-                                <span>Đã nạp sẵn</span>
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-muted text-muted-foreground">
-                                On-demand
-                              </span>
                             )}
                           </td>
                           <td className="px-4 py-3 text-right">

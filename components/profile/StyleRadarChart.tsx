@@ -70,10 +70,10 @@ export default function StyleRadarChart({
           </div>
           <div>
             <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
-              Hình mẫu Thi đấu
+              {archetype && archetype !== "Universal Master" ? "Hình mẫu Thi đấu" : "Đặc tính Phong cách"}
             </span>
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              {archetype || "\u2014"}
+              {archetype && archetype !== "Universal Master" ? archetype : "Phân Bố Chiến Lược"}
             </h3>
           </div>
         </div>

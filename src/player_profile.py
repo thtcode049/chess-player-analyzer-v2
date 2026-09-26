@@ -66,7 +66,8 @@ def analyze_opening_repertoire(
     total_losses = 0
 
     for game in filtered_games:
-        opening_name = game.get("opening", "Unknown Opening").strip()
+        raw_op = game.get("opening") or game.get("opening_name") or "Unknown Opening"
+        opening_name = str(raw_op).strip()
         if not opening_name:
             opening_name = "Unknown Opening"
 

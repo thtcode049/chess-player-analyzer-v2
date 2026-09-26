@@ -22,13 +22,20 @@ def analyze_opponent_responses(
     relevant_games = [g for g in filtered_games if g.get("player_color") == target_player_color]
 
     for game in relevant_games:
-        moves = game.get("moves", [])
+        moves = game.get("moves")
+        if (moves is None or len(moves) == 0) and game.get("moves_san"):
+            import re
+            tokens = str(game["moves_san"]).split()
+            moves = [re.sub(r"^\d+\.+", "", t).strip() for t in tokens if re.sub(r"^\d+\.+", "", t).strip() not in ["1-0", "0-1", "1/2-1/2", "*"]]
+        elif moves is None:
+            moves = []
+
         if not moves:
             continue
         
         first_move = moves[0]
         resp_move = moves[1] if len(moves) >= 2 else "Unknown"
-        opening_name = game.get("opening", "Unknown Opening")
+        opening_name = game.get("opening") or game.get("opening_name") or "Unknown Opening"
         result = game.get("result", "*")
 
         if result == "1/2-1/2":

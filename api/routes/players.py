@@ -255,27 +255,26 @@ async def get_player(
             datasets=mem_datasets
         ))
 
-    # 3. Check DB ONLY if user is logged in
-    if x_user_id:
-        try:
-            db_player = DBService.get_player(player_id, x_user_id)
-            if db_player:
-                datasets = db_player.get("datasets", [])
-                total_g = sum(d.get("games_count", 0) for d in datasets) if datasets else 0
-                return BaseResponse(success=True, data=PlayerResponse(
-                    id=db_player["id"],
-                    user_id=db_player.get("user_id", x_user_id),
-                    canonical_name=db_player["canonical_name"],
-                    fide_id=db_player.get("fide_id"),
-                    title=db_player.get("title"),
-                    notes=db_player.get("notes"),
-                    total_games=total_g,
-                    created_at=db_player.get("created_at") or datetime.now(),
-                    updated_at=db_player.get("updated_at") or datetime.now(),
-                    datasets=datasets
-                ))
-        except Exception as e:
-            logger.warning(f"Error fetching player from DB: {e}")
+    # 3. Check DB fallback (supports persisted players)
+    try:
+        db_player = DBService.get_player(player_id, x_user_id)
+        if db_player:
+            datasets = db_player.get("datasets", [])
+            total_g = sum(d.get("games_count", 0) for d in datasets) if datasets else 0
+            return BaseResponse(success=True, data=PlayerResponse(
+                id=db_player["id"],
+                user_id=db_player.get("user_id", x_user_id or "shared"),
+                canonical_name=db_player["canonical_name"],
+                fide_id=db_player.get("fide_id"),
+                title=db_player.get("title"),
+                notes=db_player.get("notes"),
+                total_games=total_g,
+                created_at=db_player.get("created_at") or datetime.now(),
+                updated_at=db_player.get("updated_at") or datetime.now(),
+                datasets=datasets
+            ))
+    except Exception as e:
+        logger.warning(f"Error fetching player from DB: {e}")
 
     raise HTTPException(status_code=404, detail="Player not found")
 
@@ -299,15 +298,14 @@ async def list_player_games(
     """
     games: List[Dict[str, Any]] = []
 
-    # 1. DB query for logged in users first (fetches all unique games)
-    if x_user_id:
-        try:
-            db_games = DBService.get_player_games(player_id, limit=None)
-            if db_games:
-                GAMES_STORE[player_id] = db_games
-                games = db_games
-        except Exception as e:
-            logger.warning(f"Error fetching player games from DB: {e}")
+    # 1. DB query first (fetches all unique games for player if in DB)
+    try:
+        db_games = DBService.get_player_games(player_id, limit=None)
+        if db_games:
+            GAMES_STORE[player_id] = db_games
+            games = db_games
+    except Exception as e:
+        logger.warning(f"Error fetching player games from DB: {e}")
 
     # 2. In-memory fallback
     if not games and player_id in GAMES_STORE:

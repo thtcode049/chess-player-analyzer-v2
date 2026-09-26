@@ -54,6 +54,7 @@ async def list_players(
             db_players = DBService.get_players(x_user_id)
             for p in db_players:
                 p_id = p["id"]
+                datasets = p.get("datasets", [])
                 ds_sum = sum(d.get("games_count", 0) for d in datasets) if datasets else 0
                 total_g = max(p.get("total_games") or 0, ds_sum) or len(GAMES_STORE.get(p_id, []))
 

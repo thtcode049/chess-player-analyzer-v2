@@ -277,7 +277,7 @@ export default function ChessBoard({
         options[square] = {
           background: "rgba(245, 246, 130, 0.45)",
           boxShadow: "inset 0 0 0 2px rgba(215, 218, 90, 0.7)",
-          borderRadius: "5px",
+          borderRadius: "4px",
         };
 
         moves.forEach((move) => {
@@ -285,7 +285,7 @@ export default function ChessBoard({
           options[move.to] = {
             background: isCapture
               ? "radial-gradient(circle, transparent 56%, rgba(0, 0, 0, 0.22) 57%, rgba(0, 0, 0, 0.22) 70%, transparent 71%)"
-              : "radial-gradient(circle, rgba(0, 0, 0, 0.22) 13%, transparent 14%)",
+              : "radial-gradient(circle, rgba(0, 0, 0, 0.22) 19%, transparent 20%)",
             borderRadius: "50%",
             cursor: "pointer",
           };
@@ -382,8 +382,8 @@ export default function ChessBoard({
           <span className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
             <span
               className={`w-2.5 h-2.5 rounded-full border shadow-2xs ${boardOrientation === "white"
-                  ? "bg-white border-slate-300 dark:border-slate-500"
-                  : "bg-slate-900 border-slate-700"
+                ? "bg-white border-slate-300 dark:border-slate-500"
+                : "bg-slate-900 border-slate-700"
                 }`}
             />
             <span>Góc nhìn: {boardOrientation === "white" ? "Trắng" : "Đen"}</span>

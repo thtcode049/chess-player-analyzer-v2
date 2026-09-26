@@ -273,21 +273,20 @@ export default function ChessBoard({
 
         const options: Record<string, React.CSSProperties> = {};
 
-        // Highlight selected square (soft amber glow)
+        // Highlight selected square (soft yellow-green tint matching the board)
         options[square] = {
-          background: "rgba(250, 204, 21, 0.4)",
-          boxShadow: "inset 0 0 0 2px rgba(234, 179, 8, 0.8)",
-          borderRadius: "6px",
+          background: "rgba(245, 246, 130, 0.45)",
+          boxShadow: "inset 0 0 0 2px rgba(215, 218, 90, 0.7)",
+          borderRadius: "4px",
         };
 
         moves.forEach((move) => {
           const isCapture = Boolean(game.get(move.to as Square)) || move.captured;
           options[move.to] = {
             background: isCapture
-              ? "radial-gradient(circle, transparent 52%, rgba(239, 68, 68, 0.45) 54%, rgba(239, 68, 68, 0.7) 70%, transparent 72%)"
-              : "radial-gradient(circle, rgba(16, 185, 129, 0.75) 24%, transparent 25%)",
-            boxShadow: isCapture ? "inset 0 0 0 3px rgba(239, 68, 68, 0.65)" : undefined,
-            borderRadius: isCapture ? "8px" : "50%",
+              ? "radial-gradient(circle, transparent 56%, rgba(0, 0, 0, 0.22) 57%, rgba(0, 0, 0, 0.22) 70%, transparent 71%)"
+              : "radial-gradient(circle, rgba(0, 0, 0, 0.22) 13%, transparent 14%)",
+            borderRadius: "50%",
             cursor: "pointer",
           };
         });

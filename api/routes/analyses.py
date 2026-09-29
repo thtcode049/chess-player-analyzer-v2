@@ -18,6 +18,7 @@ from api.services.analysis_service import AnalysisService
 from api.services.import_service import ImportService
 from api.services.db_service import DBService
 from api.routes.players import PLAYERS_STORE, GAMES_STORE, get_guest_session
+from api.services.lichess_masters_service import LichessMastersService
 from src.opening_tree import build_opening_tree
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,18 @@ def _resolve_games_for_player(
                 games = raw_games
             else:
                 games = DBService.convert_db_games_to_analysis_games(raw_games, player_name)
+        else:
+            # Fallback to DB if player was persisted in database
+            try:
+                db_player = DBService.get_player(player_id)
+                if db_player:
+                    player_name = db_player.get("canonical_name", player_name)
+                db_games = DBService.get_player_games(player_id, limit=None)
+                if db_games:
+                    GAMES_STORE[player_id] = db_games
+                    games = DBService.convert_db_games_to_analysis_games(db_games, player_name)
+            except Exception as e:
+                logger.warning(f"Error resolving games from DB fallback in guest mode: {e}")
     else:
         # 1. Resolve player name for authenticated user
         if player_id in PLAYERS_STORE:
@@ -198,7 +211,7 @@ async def get_analysis_run(
     Restores from Supabase DB only for logged-in users; guest mode strictly uses session memory.
     """
     if not x_user_id:
-        # GUEST MODE: Check memory cache and guest session runs only
+        # GUEST MODE: Check memory cache and guest session runs first
         guest_session = get_guest_session(x_guest_session_id)
         if run_id in RUN_SNAPSHOTS_CACHE:
             cached = RUN_SNAPSHOTS_CACHE[run_id]
@@ -206,29 +219,63 @@ async def get_analysis_run(
             cached = guest_session["runs"][run_id]
             RUN_SNAPSHOTS_CACHE[run_id] = cached
         else:
-            # Maybe run_id is a player_id in the guest session
-            games, player_name = _resolve_games_for_player(run_id, x_user_id=None, x_guest_session_id=x_guest_session_id)
-            if games:
-                run_res = AnalysisService.run_complete_analysis(
-                    games=games,
-                    player_name=player_name,
-                    color_filter="all",
-                    run_label=f"Hồ sơ {player_name}"
-                )
-                _, fm_all = build_opening_tree(games, color="all")
-                _, fm_w = build_opening_tree(games, color="white")
-                _, fm_b = build_opening_tree(games, color="black")
-                run_res["fen_map_all"] = fm_all
-                run_res["fen_map_white"] = fm_w
-                run_res["fen_map_black"] = fm_b
-                run_res["player_name"] = player_name
-                run_res["player_id"] = run_id
-                run_res["run_id"] = run_id
-                guest_session["runs"][run_id] = run_res
-                RUN_SNAPSHOTS_CACHE[run_id] = run_res
-                cached = run_res
+            # Check DB first for saved player run before expensive recalculation
+            db_run = DBService.get_analysis_run(run_id) or DBService.get_latest_analysis_run_for_player(run_id)
+            if db_run:
+                run_dict = {
+                    "id": db_run["id"],
+                    "player_id": db_run.get("player_id"),
+                    "run_label": db_run.get("run_label", "Analytical Snapshot"),
+                    "scope_filter": db_run.get("scope_filter", {}),
+                    "games_analyzed_count": db_run.get("games_analyzed_count", 0),
+                    "engine_status": db_run.get("engine_status", "statistical_only"),
+                    "engine_coverage_pct": float(db_run.get("engine_coverage_pct", 0.0)),
+                    "engine_games_count": db_run.get("engine_games_count", 0),
+                    "engine_name": db_run.get("engine_name"),
+                    "engine_depth": db_run.get("engine_depth"),
+                    "overall_win_rate": float(db_run.get("overall_win_rate", 0.0)) if db_run.get("overall_win_rate") is not None else None,
+                    "overall_score": float(db_run.get("overall_score", 0.0)) if db_run.get("overall_score") is not None else None,
+                    "white_score": float(db_run.get("white_score", 0.0)) if db_run.get("white_score") is not None else None,
+                    "black_score": float(db_run.get("black_score", 0.0)) if db_run.get("black_score") is not None else None,
+                    "overall_acpl": float(db_run.get("overall_acpl")) if db_run.get("overall_acpl") is not None else None,
+                    "acpl_opening": float(db_run.get("acpl_opening")) if db_run.get("acpl_opening") is not None else None,
+                    "acpl_middlegame": float(db_run.get("acpl_middlegame")) if db_run.get("acpl_middlegame") is not None else None,
+                    "acpl_endgame": float(db_run.get("acpl_endgame")) if db_run.get("acpl_endgame") is not None else None,
+                    "dominant_archetype": db_run.get("dominant_archetype"),
+                    "repertoire_summary": db_run.get("repertoire_summary", {}),
+                    "pawn_structures_summary": db_run.get("pawn_structures_summary", {}),
+                    "style_radar_metrics": db_run.get("style_radar_metrics", {}),
+                    "opening_tree_snapshot": db_run.get("opening_tree_snapshot", {}),
+                    "status": "completed"
+                }
+                RUN_SNAPSHOTS_CACHE[run_id] = run_dict
+                if db_run.get("player_id"):
+                    RUN_SNAPSHOTS_CACHE[db_run["player_id"]] = run_dict
+                cached = run_dict
             else:
-                raise HTTPException(status_code=404, detail="Analysis run not found")
+                # Fallback: maybe run_id is a player_id in guest session / memory
+                games, player_name = _resolve_games_for_player(run_id, x_user_id=None, x_guest_session_id=x_guest_session_id)
+                if games:
+                    run_res = AnalysisService.run_complete_analysis(
+                        games=games,
+                        player_name=player_name,
+                        color_filter="all",
+                        run_label=f"Hồ sơ {player_name}"
+                    )
+                    _, fm_all = build_opening_tree(games, color="all")
+                    _, fm_w = build_opening_tree(games, color="white")
+                    _, fm_b = build_opening_tree(games, color="black")
+                    run_res["fen_map_all"] = fm_all
+                    run_res["fen_map_white"] = fm_w
+                    run_res["fen_map_black"] = fm_b
+                    run_res["player_name"] = player_name
+                    run_res["player_id"] = run_id
+                    run_res["run_id"] = run_id
+                    guest_session["runs"][run_id] = run_res
+                    RUN_SNAPSHOTS_CACHE[run_id] = run_res
+                    cached = run_res
+                else:
+                    raise HTTPException(status_code=404, detail="Analysis run not found")
     else:
         # LOGGED-IN MODE: Query DB if not cached
         if run_id not in RUN_SNAPSHOTS_CACHE:
@@ -329,42 +376,105 @@ async def query_opening_tree_branch(
     run_id: str,
     fen: str = Query("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -", description="FEN position to query"),
     color: str = Query("all", description="Color filter: all, white, black"),
+    player_id: Optional[str] = Query(None, description="Optional player ID for direct resolution"),
     x_user_id: Optional[str] = Header(None),
     x_guest_session_id: Optional[str] = Header(None)
 ):
     """
     Queries next available continuations from the opening tree for any given FEN position.
     Supports color filtering (all, white, black) with Transposition-Safe EPD matching.
+    Automatically reconstructs color-specific tree branches if not already in memory.
     """
-    if run_id not in RUN_SNAPSHOTS_CACHE:
-        # Check guest session first if not logged in
-        if not x_user_id:
-            guest_session = get_guest_session(x_guest_session_id)
-            if run_id in guest_session.get("runs", {}):
-                RUN_SNAPSHOTS_CACHE[run_id] = guest_session["runs"][run_id]
+    cached = None
+    if run_id in RUN_SNAPSHOTS_CACHE:
+        cached = RUN_SNAPSHOTS_CACHE[run_id]
+    elif player_id and player_id in RUN_SNAPSHOTS_CACHE:
+        cached = RUN_SNAPSHOTS_CACHE[player_id]
 
-        if run_id not in RUN_SNAPSHOTS_CACHE:
-            # Check if run_id is a player_id
-            games, player_name = _resolve_games_for_player(run_id, x_user_id=x_user_id, x_guest_session_id=x_guest_session_id)
-            if games:
-                run_res = AnalysisService.run_complete_analysis(games=games, player_name=player_name)
-                _, fm_all = build_opening_tree(games, color="all")
-                _, fm_w = build_opening_tree(games, color="white")
-                _, fm_b = build_opening_tree(games, color="black")
-                run_res["fen_map_all"] = fm_all
-                run_res["fen_map_white"] = fm_w
-                run_res["fen_map_black"] = fm_b
-                run_res["run_id"] = run_id
-                RUN_SNAPSHOTS_CACHE[run_id] = run_res
-                if not x_user_id:
-                    get_guest_session(x_guest_session_id)["runs"][run_id] = run_res
-            else:
-                raise HTTPException(status_code=404, detail="Analysis run not found")
+    if not cached and not x_user_id:
+        guest_session = get_guest_session(x_guest_session_id)
+        if run_id in guest_session.get("runs", {}):
+            cached = guest_session["runs"][run_id]
+        elif player_id and player_id in guest_session.get("runs", {}):
+            cached = guest_session["runs"][player_id]
 
-    cached = RUN_SNAPSHOTS_CACHE[run_id]
+    # Check DB if not found in memory
+    if not cached:
+        db_run = DBService.get_analysis_run(run_id) or DBService.get_latest_analysis_run_for_player(player_id or run_id)
+        if db_run:
+            cached = {
+                "id": db_run["id"],
+                "player_id": db_run.get("player_id"),
+                "opening_tree_snapshot": db_run.get("opening_tree_snapshot", {}),
+                "games_analyzed_count": db_run.get("games_analyzed_count", 0),
+            }
+            RUN_SNAPSHOTS_CACHE[run_id] = cached
+            if db_run.get("player_id"):
+                RUN_SNAPSHOTS_CACHE[db_run["player_id"]] = cached
+
+    target_player_id = player_id or (cached.get("player_id") if cached else None) or run_id
+
+    # Fast-path: If querying starting position with 'all' color and cached root snapshot has continuations,
+    # return immediately in 0.001s without waiting 15s to rebuild entire tree from 1000 games!
+    from src.utils import normalize_fen
+    norm_fen = normalize_fen(fen)
+    root_epd = normalize_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+    is_root = (norm_fen == root_epd)
+    c_lower = (color or "all").lower()
+
+    if is_root and c_lower == "all" and cached and cached.get("opening_tree_snapshot"):
+        snap = cached.get("opening_tree_snapshot") or {}
+        if snap.get("continuations"):
+            pos_details = snap
+            continuations = [
+                OpeningContinuation(
+                    san=c["san"],
+                    games_count=c["games_count"],
+                    usage_pct=c["usage_pct"],
+                    win_pct=c["win_pct"],
+                    draw_pct=c["draw_pct"],
+                    loss_pct=c["loss_pct"],
+                    score_pct=c["score_pct"],
+                    single_game_info=c.get("single_game_info")
+                )
+                for c in pos_details.get("continuations", [])
+            ]
+            return BaseResponse(
+                success=True,
+                data=OpeningTreeNodeResponse(
+                    fen=pos_details.get("fen", fen),
+                    games_count=pos_details.get("total_games", pos_details.get("games_count", 0)),
+                    in_pgn=pos_details.get("in_pgn", True),
+                    total_games=pos_details.get("total_games", 0),
+                    score_pct=pos_details.get("score_pct", 0.0),
+                    wins=pos_details.get("wins", 0),
+                    draws=pos_details.get("draws", 0),
+                    losses=pos_details.get("losses", 0),
+                    continuations=continuations
+                )
+            )
+
+    # If fen_map_all is missing (e.g. loaded from DB without full tree map) and deep or color branch is requested,
+    # build the complete opening tree maps and populate cache!
+    if not cached or "fen_map_all" not in cached or not cached.get("fen_map_all"):
+        games, player_name = _resolve_games_for_player(target_player_id, x_user_id=x_user_id, x_guest_session_id=x_guest_session_id)
+        if games:
+            _, fm_all = build_opening_tree(games, color="all")
+            _, fm_w = build_opening_tree(games, color="white")
+            _, fm_b = build_opening_tree(games, color="black")
+            if not cached:
+                cached = {"player_id": target_player_id, "run_id": run_id}
+            cached["fen_map_all"] = fm_all
+            cached["fen_map_white"] = fm_w
+            cached["fen_map_black"] = fm_b
+            cached["player_name"] = player_name
+            RUN_SNAPSHOTS_CACHE[run_id] = cached
+            if target_player_id:
+                RUN_SNAPSHOTS_CACHE[target_player_id] = cached
+        elif not cached:
+            raise HTTPException(status_code=404, detail="Analysis run or games not found")
 
     # Select color-specific fen_map
-    c_lower = (color or "all").lower()
     if c_lower == "white":
         fen_map = cached.get("fen_map_white") or cached.get("fen_map", {})
     elif c_lower == "black":
@@ -373,6 +483,12 @@ async def query_opening_tree_branch(
         fen_map = cached.get("fen_map_all") or cached.get("fen_map", {})
 
     pos_details = AnalysisService.query_tree_position(fen_map, fen)
+
+    # Seamless fallback for initial root position if pos_details is empty
+    if not pos_details.get("continuations") and is_root:
+        snap = cached.get("opening_tree_snapshot") or {}
+        if snap and snap.get("continuations"):
+            pos_details = snap
 
     continuations = [
         OpeningContinuation(
@@ -399,6 +515,22 @@ async def query_opening_tree_branch(
         losses=pos_details.get("losses", 0),
         continuations=continuations
     )
+    return BaseResponse(success=True, data=result)
+
+
+@router.get("/lichess-masters", response_model=BaseResponse[Dict[str, Any]])
+async def get_lichess_masters_stats(
+    fen: str = Query("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", description="FEN position to query"),
+    token: Optional[str] = Query(None, description="Optional Lichess API Token"),
+    x_lichess_token: Optional[str] = Header(None, description="Optional Lichess Token Header")
+):
+    """
+    Returns Lichess Masters Database statistics (GM/IM/FM OTB games) for a given FEN position.
+    Supports authenticated live requests to explorer.lichess.ovh/masters with high-speed in-memory caching
+    and fallback to authentic precomputed master book.
+    """
+    user_token = (x_lichess_token or token or "").strip() or None
+    result = LichessMastersService.get_masters_continuations(fen, user_token=user_token)
     return BaseResponse(success=True, data=result)
 
 

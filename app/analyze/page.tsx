@@ -181,10 +181,10 @@ function AnalyzeContent() {
   }, [queryMove, moves.length]);
 
   // 3. Fetch real Opening Tree Continuations whenever FEN, activeRunId, or colorFilter changes
-  const fetchTreeContinuations = useCallback((runId: string, fen: string, color: string) => {
-    if (!runId) return;
+  const fetchTreeContinuations = useCallback((runId: string, fen: string, color: string, playerId?: string) => {
+    if (!runId && !playerId) return;
     setTreeLoading(true);
-    apiClient.getOpeningTreeBranch(runId, fen, color)
+    apiClient.getOpeningTreeBranch(runId || playerId || "", fen, color, playerId)
       .then((treeNode) => {
         if (treeNode && treeNode.continuations) {
           setContinuations(treeNode.continuations);
@@ -201,19 +201,26 @@ function AnalyzeContent() {
 
   useEffect(() => {
     const targetRun = activeRunId || selectedPlayerId;
-    if (targetRun) {
-      fetchTreeContinuations(targetRun, currentFen, colorFilter);
+    const targetPlayer = selectedPlayerId || queryPlayerId || undefined;
+    if (targetRun || targetPlayer) {
+      fetchTreeContinuations(targetRun, currentFen, colorFilter, targetPlayer);
     }
-  }, [activeRunId, selectedPlayerId, currentFen, colorFilter, fetchTreeContinuations]);
+  }, [activeRunId, selectedPlayerId, queryPlayerId, currentFen, colorFilter, fetchTreeContinuations]);
 
   // 4. Fetch Analysis Run (Pawn Structures) and Player Games when selectedPlayerId changes
   useEffect(() => {
     const targetPlayer = queryPlayerId || selectedPlayerId;
     if (!targetPlayer) return;
 
-    // Fetch analysis run for pawn structures
+    // Fetch analysis run for pawn structures and instant opening continuations
     apiClient.getAnalysisRun(targetPlayer)
       .then((run) => {
+        if (run?.id) {
+          setActiveRunId(run.id);
+        }
+        if (run?.opening_tree_snapshot?.continuations && run.opening_tree_snapshot.continuations.length > 0 && moves.length === 0 && colorFilter === "all") {
+          setContinuations(run.opening_tree_snapshot.continuations);
+        }
         const structs: PawnStructureItem[] = run?.pawn_structures_summary?.structures || [];
         setAvailableStructures(structs);
 
@@ -734,8 +741,10 @@ function AnalyzeContent() {
             <OpeningTreeTable
               continuations={continuations}
               totalGames={continuations.reduce((acc, c) => acc + c.games_count, 0)}
+              currentFen={currentFen}
               onSelectMove={handleSelectMove}
               onLoadGame={handleLoadSingleGame}
+              playerName={currentPlayerObj?.canonical_name}
             />
           </div>
         </div>

@@ -7,6 +7,7 @@ import {
   OpeningTreeNode,
   PaginatedResult,
   AnalysisRunSyncRequest,
+  LichessMastersResponse,
 } from "./types";
 
 const API_BASE =
@@ -343,13 +344,29 @@ export const apiClient = {
     return handleResponse<AnalysisRun>(res);
   },
 
-  async getOpeningTreeBranch(runId: string, fen: string, color: string = "all"): Promise<OpeningTreeNode> {
+  async getOpeningTreeBranch(runId: string, fen: string, color: string = "all", playerId?: string): Promise<OpeningTreeNode> {
     const authHeaders = await getAuthHeaders();
     const query = new URLSearchParams({ fen, color });
+    if (playerId) {
+      query.set("player_id", playerId);
+    }
     const res = await fetch(`${API_BASE}/api/analysis/runs/${runId}/tree?${query.toString()}`, {
       headers: authHeaders,
     });
     return handleResponse<OpeningTreeNode>(res);
+  },
+
+  async getLichessMasters(fen: string, token?: string): Promise<LichessMastersResponse> {
+    const authHeaders = await getAuthHeaders();
+    const query = new URLSearchParams({ fen });
+    const localToken = token || (typeof window !== "undefined" ? localStorage.getItem("lichess_token") || "" : "");
+    if (localToken) {
+      authHeaders["X-Lichess-Token"] = localToken;
+    }
+    const res = await fetch(`${API_BASE}/api/analysis/lichess-masters?${query.toString()}`, {
+      headers: authHeaders,
+    });
+    return handleResponse<LichessMastersResponse>(res);
   },
 
   async getAiBriefing(runId: string, perspectiveMode: "self" | "opponent" = "self"): Promise<StrategicBriefing> {

@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { ImportSummary, Player } from "@/lib/api/types";
+import { initiateLichessOAuth, disconnectLichessAuth } from "@/lib/auth/lichess";
 
 export interface ImportProgressState {
   stage: number;
@@ -370,22 +371,30 @@ function ImportContent() {
     }
   }, [paramPlayerId]);
 
-  // Load persisted Lichess token & account on mount
+  // Load and synchronize persisted Lichess token & account on mount and across tabs
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedToken = localStorage.getItem("lichess_token");
-      const savedUser = localStorage.getItem("lichess_username");
-      if (savedToken) {
-        setLichessToken(savedToken);
-        if (savedUser) {
-          setLichessAuthUser(savedUser);
-          setLichessUsername(savedUser);
+    const syncLichessToken = () => {
+      if (typeof window !== "undefined") {
+        const savedToken = localStorage.getItem("lichess_token");
+        const savedUser = localStorage.getItem("lichess_username");
+        if (savedToken) {
+          setLichessToken(savedToken);
+          if (savedUser) {
+            setLichessAuthUser(savedUser);
+            setLichessUsername(savedUser);
+          }
+        } else {
+          setLichessToken("");
+          setLichessAuthUser("");
         }
       }
-    }
+    };
+    syncLichessToken();
+    window.addEventListener("storage", syncLichessToken);
+    return () => window.removeEventListener("storage", syncLichessToken);
   }, []);
 
-  // Handle Lichess OAuth redirect callback
+  // Handle Lichess OAuth redirect callback (fallback for direct callbacks)
   useEffect(() => {
     const code = searchParams.get("code");
     const state = searchParams.get("state");
@@ -439,30 +448,11 @@ function ImportContent() {
 
   const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
 
-  // Authorize Lichess via OAuth PKCE
+  // Authorize Lichess via Unified OAuth PKCE (1-Click)
   const handleAuthorizeLichess = async () => {
     try {
       setError(null);
-      const verifier = generateRandomString(64);
-      const challenge = await generateCodeChallenge(verifier);
-      const state = generateRandomString(16);
-
-      localStorage.setItem("lichess_oauth_verifier", verifier);
-      localStorage.setItem("lichess_oauth_state", state);
-
-      const redirectUri = `${window.location.origin}/import`;
-      const clientId = window.location.origin;
-
-      const authUrl = new URL("https://lichess.org/oauth");
-      authUrl.searchParams.set("response_type", "code");
-      authUrl.searchParams.set("client_id", clientId);
-      authUrl.searchParams.set("redirect_uri", redirectUri);
-      authUrl.searchParams.set("code_challenge", challenge);
-      authUrl.searchParams.set("code_challenge_method", "S256");
-      authUrl.searchParams.set("scope", "");
-      authUrl.searchParams.set("state", state);
-
-      window.location.href = authUrl.toString();
+      await initiateLichessOAuth(window.location.href);
     } catch (err: any) {
       setError("Không thể khởi tạo phiên xác thực Lichess: " + err.message);
     }
@@ -471,10 +461,9 @@ function ImportContent() {
 
   // Disconnect / Revoke Lichess Authorization
   const handleDisconnectLichess = () => {
+    disconnectLichessAuth();
     setLichessToken("");
     setLichessAuthUser("");
-    localStorage.removeItem("lichess_token");
-    localStorage.removeItem("lichess_username");
   };
 
   // Toggle perf types

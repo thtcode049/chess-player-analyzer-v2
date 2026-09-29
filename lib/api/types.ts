@@ -224,4 +224,26 @@ export interface AnalysisRunSyncRequest {
   critical_positions?: CriticalPosition[];
 }
 
+export interface LichessMasterMove {
+  san: string;
+  uci: string;
+  games_count: number;
+  white: number;
+  draws: number;
+  black: number;
+  win_pct: number;
+  draw_pct: number;
+  loss_pct: number;
+  score_pct: number;
+  average_rating?: number;
+}
+
+export interface LichessMastersResponse {
+  authenticated: boolean;
+  total_games: number;
+  moves: LichessMasterMove[];
+  is_book?: boolean;
+  message?: string;
+}
+
 

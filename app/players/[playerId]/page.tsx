@@ -46,6 +46,7 @@ export default function PlayerDetailPage() {
   const [games, setGames] = useState<Game[]>([]);
   const [analysisRun, setAnalysisRun] = useState<AnalysisRun | null>(null);
   const [loading, setLoading] = useState(true);
+  const [gamesLoading, setGamesLoading] = useState(false);
   const [runningAnalysis, setRunningAnalysis] = useState(false);
 
   // Active on-page action: "none" | "edit" | "delete"
@@ -153,8 +154,20 @@ export default function PlayerDetailPage() {
     const loadData = async () => {
       try {
         setLoading(true);
-        // Load player info
-        const p = await apiClient.getPlayer(playerId).catch(() => null);
+
+        // 1. Fetch player info and analysis run concurrently with Promise.all
+        const [p, run] = await Promise.all([
+          apiClient.getPlayer(playerId).catch(() => null),
+          apiClient.getAnalysisRun(playerId).catch(async () => {
+            try {
+              return await apiClient.createAnalysisRun({ player_id: playerId });
+            } catch (runErr) {
+              console.warn("Could not get or create analysis run:", runErr);
+              return null;
+            }
+          }),
+        ]);
+
         if (p) {
           setPlayer(p);
         } else {
@@ -171,28 +184,30 @@ export default function PlayerDetailPage() {
           });
         }
 
-        // Load ALL games safely without hardcoded 500 limit (unlimited)
-        const gRes = await apiClient.getPlayerGames(playerId, { allGames: true, pageSize: 10000 }).catch(() => null);
-        const gameItems = Array.isArray(gRes) ? gRes : ((gRes as any)?.items || []);
-        setGames(gameItems);
-
-        // Load real analysis run from API
-        let run: AnalysisRun | null = null;
-        try {
-          run = await apiClient.getAnalysisRun(playerId);
-        } catch {
-          try {
-            run = await apiClient.createAnalysisRun({ player_id: playerId });
-          } catch (runErr) {
-            console.warn("Could not get or create analysis run:", runErr);
-          }
-        }
         if (run) {
           setAnalysisRun(run);
         }
+
+        // 2. UNBLOCK UI IMMEDIATELY: Overview, Stats, Radar chart, and Opening Tree render in sub-second!
+        setLoading(false);
+
+        // 3. Load games library in background without blocking initial page display
+        setGamesLoading(true);
+        apiClient
+          .getPlayerGames(playerId, { allGames: true, pageSize: 10000 })
+          .then((gRes) => {
+            const gameItems = Array.isArray(gRes) ? gRes : ((gRes as any)?.items || []);
+            setGames(gameItems);
+          })
+          .catch((err) => {
+            console.warn("Lỗi tải danh sách ván đấu nền:", err);
+          })
+          .finally(() => {
+            setGamesLoading(false);
+          });
+
       } catch (err: any) {
         console.error("Lỗi khi tải thông tin kỳ thủ:", err);
-      } finally {
         setLoading(false);
       }
     };
@@ -598,7 +613,9 @@ export default function PlayerDetailPage() {
               <OpeningTreeTable
                 continuations={analysisRun.opening_tree_snapshot.continuations}
                 totalGames={analysisRun.games_analyzed_count}
+                currentFen={analysisRun.opening_tree_snapshot.fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}
                 onSelectMove={(san) => router.push(`/analyze?playerId=${playerId}&runId=${analysisRun?.id || ""}&move=${san}`)}
+                playerName={player?.canonical_name}
               />
             </div>
           )}
@@ -735,7 +752,9 @@ export default function PlayerDetailPage() {
               <OpeningTreeTable
                 continuations={analysisRun.opening_tree_snapshot.continuations}
                 totalGames={analysisRun.games_analyzed_count}
+                currentFen={analysisRun.opening_tree_snapshot.fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}
                 onSelectMove={(san) => router.push(`/analyze?playerId=${playerId}&runId=${analysisRun.id}&move=${san}`)}
+                playerName={player?.canonical_name}
               />
             ) : (
               <div className="p-8 text-center bg-card border border-border/40 rounded-2xl text-muted-foreground text-sm">
@@ -990,14 +1009,22 @@ export default function PlayerDetailPage() {
                   {paginatedGames.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="text-center py-14 text-muted-foreground">
-                        <div className="space-y-1.5">
-                          <p className="font-semibold text-foreground text-sm">Không tìm thấy ván đấu nào</p>
-                          <p className="text-xs text-muted-foreground">
-                            {gameSearchQuery
-                              ? `Không có kết quả nào khớp với "${gameSearchQuery}". Hãy thử từ khóa khác hoặc đặt lại bộ lọc.`
-                              : "Kỳ thủ này chưa có ván đấu nào theo bộ lọc đã chọn."}
-                          </p>
-                        </div>
+                        {gamesLoading ? (
+                          <div className="flex flex-col items-center justify-center gap-2.5">
+                            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                            <p className="font-semibold text-foreground text-sm">Đang tải danh sách ván đấu...</p>
+                            <p className="text-xs text-muted-foreground">Dữ liệu ván đấu đang được đồng bộ ở nền.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <p className="font-semibold text-foreground text-sm">Không tìm thấy ván đấu nào</p>
+                            <p className="text-xs text-muted-foreground">
+                              {gameSearchQuery
+                                ? `Không có kết quả nào khớp với "${gameSearchQuery}". Hãy thử từ khóa khác hoặc đặt lại bộ lọc.`
+                                : "Kỳ thủ này chưa có ván đấu nào theo bộ lọc đã chọn."}
+                            </p>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ) : (

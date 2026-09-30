@@ -238,11 +238,50 @@ export interface LichessMasterMove {
   average_rating?: number;
 }
 
+export interface LichessMasterTopGame {
+  id: string;
+  white: {
+    name: string;
+    rating?: number;
+  };
+  black: {
+    name: string;
+    rating?: number;
+  };
+  year?: number;
+  month?: string;
+  winner?: "white" | "black" | null;
+  result: string;
+  uci?: string;
+}
+
+export interface LichessGameDetail {
+  id: string;
+  white: string;
+  white_elo?: number;
+  black: string;
+  black_elo?: number;
+  result: string;
+  moves: string[];
+  moves_san: string;
+  event?: string;
+  date?: string;
+  site?: string;
+  eco?: string;
+  opening?: string;
+}
+
 export interface LichessMastersResponse {
   authenticated: boolean;
   total_games: number;
   moves: LichessMasterMove[];
+  top_games?: LichessMasterTopGame[];
+  opening?: {
+    eco?: string;
+    name?: string;
+  } | null;
   is_book?: boolean;
+  is_rate_limited?: boolean;
   message?: string;
 }
 

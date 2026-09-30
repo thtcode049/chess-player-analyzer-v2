@@ -3,13 +3,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Chess, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
-import {
-  RotateCw,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight
-} from "lucide-react";
 import { useStockfish } from "@/lib/stockfish/useStockfish";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
 
@@ -24,6 +17,7 @@ interface ChessBoardProps {
   isEngineEnabled?: boolean;
   multiPv?: number;
   height?: number;
+  onBoardWidthChange?: (width: number) => void;
 }
 
 export default function ChessBoard({
@@ -35,17 +29,21 @@ export default function ChessBoard({
   onMovesChange,
   onEvaluationChange,
   isEngineEnabled = true,
-  height = 480,
+  height = 680,
+  onBoardWidthChange,
 }: ChessBoardProps) {
   const [game, setGame] = useState(new Chess(initialFen));
   const [boardOrientation, setBoardOrientation] = useState<"white" | "black">(orientation);
   const [currentPly, setCurrentPly] = useState(0);
   const [historyFens, setHistoryFens] = useState<string[]>([initialFen]);
   const lastProcessedMoves = useRef<string>("");
+  const rootRef = useRef<HTMLDivElement>(null);
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const [boardWidth, setBoardWidth] = useState<number>(() => {
     if (typeof window !== "undefined") {
-      return Math.min(height, Math.max(220, window.innerWidth - 80));
+      const estCol = Math.min(window.innerWidth - 80, 680);
+      const estHeight = window.innerHeight - 92;
+      return Math.min(height, Math.max(240, estCol - 24), Math.max(240, estHeight));
     }
     return height;
   });
@@ -61,20 +59,52 @@ export default function ChessBoard({
   }, [currentPly, initialFen]);
 
   useEffect(() => {
-    const updateSize = () => {
-      if (boardContainerRef.current) {
-        const measured = boardContainerRef.current.clientWidth;
-        if (measured > 0) {
-          setBoardWidth(Math.min(height, measured));
-        }
+    const updateSize = (measuredWidth?: number) => {
+      const containerWidth = measuredWidth ?? rootRef.current?.clientWidth ?? 0;
+      if (containerWidth > 0) {
+        // 14px eval bar + 8px gap + 2px buffer = 24px
+        const availableWidth = Math.max(200, containerWidth - 24);
+        // Max vertical space in viewport without scrolling:
+        // innerHeight - Navbar (64) - top spacing (12) - bottom buffer (16) = ~92px
+        const availableHeight = typeof window !== "undefined"
+          ? Math.max(240, window.innerHeight - 92)
+          : height;
+        const optimal = Math.floor(Math.min(height, availableWidth, availableHeight));
+        const newSize = Math.max(240, optimal);
+
+        setBoardWidth(newSize);
+        onBoardWidthChange?.(newSize);
       } else if (typeof window !== "undefined") {
-        setBoardWidth(Math.min(height, Math.max(220, window.innerWidth - 80)));
+        const fallbackAvailable = Math.max(200, Math.min(window.innerWidth - 80, 680) - 24);
+        const fallbackHeight = Math.max(240, window.innerHeight - 92);
+        const newSize = Math.floor(Math.min(height, fallbackAvailable, fallbackHeight));
+        setBoardWidth(newSize);
+        onBoardWidthChange?.(newSize);
       }
     };
+
     updateSize();
-    window.addEventListener("resize", updateSize);
-    return () => window.removeEventListener("resize", updateSize);
-  }, [height]);
+
+    const handleWindowResize = () => updateSize();
+    window.addEventListener("resize", handleWindowResize);
+
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && rootRef.current) {
+      observer = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.contentRect.width > 0) {
+            updateSize(entry.contentRect.width);
+          }
+        }
+      });
+      observer.observe(rootRef.current);
+    }
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", handleWindowResize);
+    };
+  }, [height, onBoardWidthChange]);
 
   // Stockfish WASM client hook
   const { evaluation, isThinking, evaluateFen, stop } = useStockfish();
@@ -375,35 +405,28 @@ export default function ChessBoard({
   }
 
   return (
-    <div className="flex flex-col items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full max-w-[540px]">
-      {/* Top Status Bar: Perspective only (Flip button removed as requested) */}
-      <div className="w-full flex items-center justify-between pb-3 text-xs text-slate-500 dark:text-slate-400">
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
-            <span
-              className={`w-2.5 h-2.5 rounded-full border shadow-2xs ${boardOrientation === "white"
-                ? "bg-white border-slate-300 dark:border-slate-500"
-                : "bg-slate-900 border-slate-700"
-                }`}
-            />
-            <span>Góc nhìn: {boardOrientation === "white" ? "Trắng" : "Đen"}</span>
-          </span>
-        </div>
-      </div>
-
+    <div ref={rootRef} className="flex flex-col items-center w-full">
       {/* Board with Left Evaluation Bar */}
-      <div className="flex items-stretch gap-2.5 w-full">
+      <div
+        className="flex items-stretch gap-2 justify-center"
+        style={{ height: `${boardWidth}px` }}
+      >
         {/* Eval Bar */}
-        <div className="w-4 bg-slate-800 rounded-full overflow-hidden flex flex-col-reverse shadow-inner my-1">
+        <div className="w-3.5 bg-slate-900 rounded-[3px] overflow-hidden flex flex-col-reverse shrink-0 border border-slate-500 dark:border-slate-500 shadow-xs ring-1 ring-black/10 dark:ring-white/10">
           <div
-            className="w-full bg-white transition-all duration-300 rounded-full"
+            className="w-full bg-white transition-all duration-300 border-t border-slate-400/80 dark:border-slate-600"
             style={{ height: `${whiteWinningPct}%` }}
           />
         </div>
 
         {/* The Chessboard */}
-        <div ref={boardContainerRef} className="flex-1 overflow-hidden rounded-xl shadow-md border-2 border-slate-800/10 dark:border-slate-700/50 flex justify-center">
+        <div
+          ref={boardContainerRef}
+          style={{ width: `${boardWidth}px`, height: `${boardWidth}px` }}
+          className="overflow-hidden rounded-[3px] flex justify-center shrink-0"
+        >
           <Chessboard
+            key={`board-${boardWidth}`}
             position={game.fen()}
             onPieceDrop={onDrop}
             onPieceDragBegin={() => {
@@ -415,55 +438,12 @@ export default function ChessBoard({
             boardOrientation={boardOrientation}
             boardWidth={boardWidth}
             customBoardStyle={{
-              borderRadius: "0.75rem",
+              borderRadius: "3px",
             }}
             customDarkSquareStyle={{ backgroundColor: "#779952" }}
             customLightSquareStyle={{ backgroundColor: "#edeed1" }}
           />
         </div>
-      </div>
-
-      {/* Navigation Controls Bar */}
-      <div className="w-full flex items-center justify-center gap-2 pt-4">
-        <button
-          onClick={handleFirst}
-          disabled={currentPly === 0}
-          className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-slate-100 dark:disabled:hover:bg-slate-800/80 disabled:hover:text-slate-700 border border-slate-200/60 dark:border-slate-700/60 transition-all shadow-xs"
-          title="Nước đầu tiên (Home)"
-        >
-          <ChevronsLeft className="w-4 h-4" />
-        </button>
-        <button
-          onClick={handlePrev}
-          disabled={currentPly === 0}
-          className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-slate-100 dark:disabled:hover:bg-slate-800/80 disabled:hover:text-slate-700 border border-slate-200/60 dark:border-slate-700/60 transition-all shadow-xs"
-          title="Lùi 1 nước (←)"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <button
-          onClick={handleNext}
-          disabled={currentPly >= historyFens.length - 1}
-          className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-slate-100 dark:disabled:hover:bg-slate-800/80 disabled:hover:text-slate-700 border border-slate-200/60 dark:border-slate-700/60 transition-all shadow-xs"
-          title="Tiến 1 nước (→)"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-        <button
-          onClick={handleLast}
-          disabled={currentPly >= historyFens.length - 1}
-          className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-slate-100 dark:disabled:hover:bg-slate-800/80 disabled:hover:text-slate-700 border border-slate-200/60 dark:border-slate-700/60 transition-all shadow-xs"
-          title="Nước cuối cùng (End)"
-        >
-          <ChevronsRight className="w-4 h-4" />
-        </button>
-        <button
-          onClick={handleFlip}
-          className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white border border-slate-200/60 dark:border-slate-700/60 transition-all shadow-xs"
-          title="Xoay bàn cờ (F)"
-        >
-          <RotateCw className="w-4 h-4" />
-        </button>
       </div>
     </div>
   );

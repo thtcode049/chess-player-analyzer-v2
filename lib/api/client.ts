@@ -8,6 +8,9 @@ import {
   PaginatedResult,
   AnalysisRunSyncRequest,
   LichessMastersResponse,
+  LichessGameDetail,
+  LichessMasterMove,
+  LichessMasterTopGame,
 } from "./types";
 
 const API_BASE =
@@ -357,17 +360,201 @@ export const apiClient = {
   },
 
   async getLichessMasters(fen: string, token?: string): Promise<LichessMastersResponse> {
-    const authHeaders = await getAuthHeaders();
-    const query = new URLSearchParams({ fen });
-    const localToken = token || (typeof window !== "undefined" ? localStorage.getItem("lichess_token") || "" : "");
-    if (localToken) {
-      authHeaders["X-Lichess-Token"] = localToken;
+    const localToken =
+      token ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("lichess_token") || ""
+        : "");
+
+    if (!localToken || localToken.length < 10) {
+      return {
+        authenticated: false,
+        total_games: 0,
+        moves: [],
+        top_games: [],
+        is_book: false,
+        message:
+          "Chưa kết nối tài khoản Lichess. Vui lòng bấm 'Ủy quyền Lichess' để xem dữ liệu Kiện tướng quốc tế.",
+      };
     }
-    const res = await fetch(`${API_BASE}/api/analysis/lichess-masters?${query.toString()}`, {
+
+    try {
+      // 1. Direct high-speed call from Browser to Lichess Explorer (Zero backend proxy delay)
+      const encodedFen = encodeURIComponent(fen.trim());
+      const res = await fetch(
+        `https://explorer.lichess.ovh/masters?fen=${encodedFen}&moves=15&topGames=15`,
+        {
+          headers: {
+            Authorization: `Bearer ${localToken}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (res.status === 401) {
+        return {
+          authenticated: false,
+          total_games: 0,
+          moves: [],
+          top_games: [],
+          is_book: false,
+          message:
+            "Phiên ủy quyền Lichess đã hết hạn hoặc token không hợp lệ. Vui lòng ủy quyền lại.",
+        };
+      }
+
+      if (res.status === 429) {
+        console.warn("[Lichess] Direct call hit 429 rate limit, falling back to backend proxy...");
+        // Do not return empty data! Fall through to backend proxy which has its own cache.
+      } else if (res.ok) {
+        const rawData = await res.json();
+        const wTot = rawData.white || 0;
+        const dTot = rawData.draws || 0;
+        const bTot = rawData.black || 0;
+        const totalG = wTot + dTot + bTot;
+
+        const parsedMoves: LichessMasterMove[] = [];
+        for (const m of rawData.moves || []) {
+          const mw = m.white || 0;
+          const md = m.draws || 0;
+          const mb = m.black || 0;
+          const mg = mw + md + mb;
+          if (mg === 0) continue;
+          parsedMoves.push({
+            san: m.san || "",
+            uci: m.uci || "",
+            games_count: mg,
+            white: mw,
+            draws: md,
+            black: mb,
+            win_pct: Number(((mw / mg) * 100).toFixed(1)),
+            draw_pct: Number(((md / mg) * 100).toFixed(1)),
+            loss_pct: Number(((mb / mg) * 100).toFixed(1)),
+            score_pct: Number((((mw + 0.5 * md) / mg) * 100).toFixed(1)),
+            average_rating: m.averageRating,
+          });
+        }
+
+        const rawTopGames = rawData.topGames || [];
+        const parsedTopGames: LichessMasterTopGame[] = [];
+        for (const g of rawTopGames) {
+          const wObj = g.white || {};
+          const bObj = g.black || {};
+          const winner = g.winner;
+          const resStr =
+            winner === "white" ? "1-0" : winner === "black" ? "0-1" : "½-½";
+          parsedTopGames.push({
+            id: String(g.id || ""),
+            white: {
+              name: wObj.name || "Unknown White",
+              rating: wObj.rating,
+            },
+            black: {
+              name: bObj.name || "Unknown Black",
+              rating: bObj.rating,
+            },
+            year: g.year,
+            month: g.month,
+            winner,
+            result: resStr,
+            uci: g.uci,
+          });
+        }
+
+        const rawOpening = rawData.opening || null;
+
+        return {
+          authenticated: true,
+          total_games: totalG,
+          moves: parsedMoves,
+          top_games: parsedTopGames,
+          opening: rawOpening ? { eco: rawOpening.eco || "", name: rawOpening.name || "" } : null,
+          is_book: false,
+          message: undefined,
+        };
+      }
+    } catch (directErr) {
+      console.warn("Direct Lichess fetch encountered error, attempting fallback via backend proxy:", directErr);
+    }
+
+    // 2. Fallback to backend proxy if direct fetch fails (e.g. adblocker, strict network)
+    try {
+      const authHeaders = await getAuthHeaders();
+      const query = new URLSearchParams({ fen });
+      if (localToken) {
+        authHeaders["X-Lichess-Token"] = localToken;
+      }
+      const res = await fetch(`${API_BASE}/api/analysis/lichess-masters?${query.toString()}`, {
+        headers: authHeaders,
+      });
+      return handleResponse<LichessMastersResponse>(res);
+    } catch (fallbackErr) {
+      console.error("Both direct Lichess and proxy failed:", fallbackErr);
+      return {
+        authenticated: true,
+        total_games: 0,
+        moves: [],
+        top_games: [],
+        is_book: false,
+        is_rate_limited: true,
+        message: "Lichess giới hạn tần suất truy vấn (1 req/giây). Vui lòng đợi 2-3 giây rồi bấm Thử lại.",
+      };
+    }
+  },
+
+  async getLichessGame(gameId: string): Promise<LichessGameDetail> {
+    // 1. Direct high-speed fetch from Lichess public export API
+    try {
+      const directRes = await fetch(
+        `https://lichess.org/game/export/${encodeURIComponent(gameId)}?moves=true&tags=true&clocks=false&evals=false`,
+        {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "ChessPlayerAnalyzer/2.0",
+          },
+        }
+      );
+      if (directRes.ok) {
+        const data = await directRes.json();
+        const players = data.players || {};
+        const wPlayer = players.white || {};
+        const bPlayer = players.black || {};
+        const wName = (wPlayer.user?.name) || wPlayer.name || "Trắng";
+        const bName = (bPlayer.user?.name) || bPlayer.name || "Đen";
+        const winner = data.winner;
+        const result = winner === "white" ? "1-0" : winner === "black" ? "0-1" : "½-½";
+        const rawMoves = data.moves || "";
+        const movesList = rawMoves.split(" ").filter(Boolean);
+        const openingInfo = data.opening || {};
+
+        return {
+          id: data.id || gameId,
+          white: wName,
+          white_elo: wPlayer.rating,
+          black: bName,
+          black_elo: bPlayer.rating,
+          result,
+          moves: movesList,
+          moves_san: rawMoves,
+          event: data.event || openingInfo.name || "Lichess Master Game",
+          date: String(data.createdAt || data.lastMoveAt || ""),
+          site: `https://lichess.org/${gameId}`,
+          eco: openingInfo.eco || "",
+          opening: openingInfo.name || "",
+        };
+      }
+    } catch (err) {
+      console.warn("Direct Lichess game export failed, falling back to backend proxy:", err);
+    }
+
+    // 2. Fallback to backend proxy
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(`${API_BASE}/api/analysis/lichess-game/${encodeURIComponent(gameId)}`, {
       headers: authHeaders,
     });
-    return handleResponse<LichessMastersResponse>(res);
+    return handleResponse<LichessGameDetail>(res);
   },
+
 
   async getAiBriefing(runId: string, perspectiveMode: "self" | "opponent" = "self"): Promise<StrategicBriefing> {
     const res = await fetch(`${API_BASE}/api/ai/briefing`, {

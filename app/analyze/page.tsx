@@ -73,6 +73,9 @@ function AnalyzeContent() {
   const [isThinking, setIsThinking] = useState(false);
   const [isEngineEnabled, setIsEngineEnabled] = useState(true);
   const [multiPv, setMultiPv] = useState(3);
+  
+  // Dynamically synchronized board and panel size measured directly from ChessBoard DOM container
+  const [boardSize, setBoardSize] = useState<number>(560);
 
   // Dynamic Opening Tree Continuations
   const [continuations, setContinuations] = useState<OpeningContinuation[]>([]);
@@ -309,19 +312,7 @@ function AnalyzeContent() {
     setMoves(gMoves);
     setCurrentPly(0);
     setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-    setGameInfo({
-      id: "single_branch",
-      dataset_id: "ds_branch",
-      white_player: sg.white || "White",
-      black_player: sg.black || "Black",
-      white_elo: sg.white_elo,
-      black_elo: sg.black_elo,
-      result: sg.result || "*",
-      eco: sg.eco || "",
-      opening_name: sg.opening || "",
-      moves_san: gMoves.join(" "),
-      has_embedded_eval: false,
-    });
+    setGameInfo(null);
   };
 
   // Load a structure game onto the board
@@ -455,66 +446,7 @@ function AnalyzeContent() {
   const currentPlayerObj = players.find((p) => p.id === selectedPlayerId);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 animate-fade-in pb-16">
-      {/* Top Header & Context Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/dashboard"
-              className="text-xs font-semibold text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mr-2"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Bảng điều khiển
-            </Link>
-            <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-              ● Stockfish WASM Web Worker Active
-            </span>
-          </div>
-          <h1 className="text-2xl font-black text-foreground tracking-tight mt-1 flex items-center gap-2.5">
-            <Cpu className="w-6 h-6 text-primary" />
-            Phòng Phân Tích Thế Cờ Tương Tác
-          </h1>
-          {gameInfo ? (
-            <p className="text-xs text-muted-foreground mt-0.5 font-medium">
-              Ván đấu: <b>{gameInfo.white_player}</b> ({gameInfo.white_elo || "?"}) vs <b>{gameInfo.black_player}</b> ({gameInfo.black_elo || "?"}) • Kết quả: <b className="text-primary">{gameInfo.result}</b> • Khai cuộc: <b>{gameInfo.opening_name || "---"}</b>
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Cây khai cuộc chống chuyển vị (Transposition-Safe EPD) • Phân tích trực tiếp trên trình duyệt.
-            </p>
-          )}
-        </div>
-
-        {/* Global Player Selector & PGN upload button */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {players.length > 0 && (
-            <div className="flex items-center gap-2 bg-card border border-border/60 rounded-xl px-3 py-1.5 shadow-sm">
-              <User className="w-3.5 h-3.5 text-primary" />
-              <span className="text-xs font-semibold text-muted-foreground">Kỳ thủ:</span>
-              <select
-                value={selectedPlayerId}
-                onChange={(e) => handlePlayerChange(e.target.value)}
-                className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer pr-2"
-              >
-                {players.map((p) => (
-                  <option key={p.id} value={p.id} className="bg-card text-foreground">
-                    {p.canonical_name} ({p.total_games || 0} ván)
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <button
-            onClick={() => setShowPgnInput(true)}
-            className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-border/60 hover:bg-card text-foreground transition-all flex items-center gap-1.5 shadow-sm"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            Dán PGN / FEN
-          </button>
-        </div>
-      </div>
+    <div className="max-w-7xl mx-auto animate-fade-in pb-4 -mt-3 sm:-mt-6 space-y-3">
 
       {/* MODE B: STRUCTURE EXPLORER HEADER BANNER */}
       {selectedStructure && (
@@ -581,97 +513,33 @@ function AnalyzeContent() {
 
       {/* Main Analysis Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Interactive ChessBoard & Bottom Actions (7 Cols) */}
-        <div className="lg:col-span-7 space-y-4">
-          <div className="bg-card border border-border/60 rounded-3xl p-4 sm:p-6 shadow-sm">
-            <ChessBoard
-              initialFen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-              moves={moves}
-              currentPly={currentPly}
-              orientation={boardOrientation}
-              onPositionChange={handlePositionChange}
-              onMovesChange={handleMovesChange}
-              onEvaluationChange={(ev, thinking) => {
-                setEvaluation(ev);
-                setIsThinking(thinking);
-              }}
-              isEngineEnabled={isEngineEnabled}
-              multiPv={multiPv}
-              height={480}
-            />
-
-            {/* Player Profile Link */}
-            {(gameInfo || currentPlayerObj) && (
-              <div className="mt-3 pt-2.5 border-t border-border/40 flex flex-wrap items-center justify-end gap-3 text-xs">
-                {gameInfo ? (
-                  (() => {
-                    const whiteP = players.find((p) => isPlayerNameMatch(p.canonical_name, gameInfo.white_player));
-                    const blackP = players.find((p) => isPlayerNameMatch(p.canonical_name, gameInfo.black_player));
-                    const matched = [whiteP, blackP].filter((p): p is Player => !!p);
-
-                    if (matched.length > 0) {
-                      return matched.map((p) => (
-                        <Link
-                          key={p.id}
-                          href={`/players/${p.id}`}
-                          className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                        >
-                          Xem Hồ sơ {p.canonical_name} →
-                        </Link>
-                      ));
-                    }
-
-                    if (queryPlayerId && currentPlayerObj) {
-                      return (
-                        <Link
-                          href={`/players/${currentPlayerObj.id}`}
-                          className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                        >
-                          Xem Hồ sơ {currentPlayerObj.canonical_name} →
-                        </Link>
-                      );
-                    }
-
-                    return null;
-                  })()
-                ) : (
-                  currentPlayerObj && (
-                    <Link
-                      href={`/players/${currentPlayerObj.id}`}
-                      className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                    >
-                      Xem Hồ sơ {currentPlayerObj.canonical_name} →
-                    </Link>
-                  )
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Current FEN Bar */}
-          <div className="bg-card/60 border border-border/40 rounded-2xl p-3 flex items-center justify-between gap-3 text-xs shadow-sm">
-            <div className="flex items-center gap-2 truncate">
-              <span className="font-bold text-muted-foreground uppercase text-[10px]">FEN:</span>
-              <span className="font-mono text-foreground truncate select-all">
-                {currentFen}
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(currentFen);
-                alert("Đã sao chép FEN vào clipboard!");
-              }}
-              className="px-2.5 py-1 rounded-lg bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground font-semibold text-[11px] whitespace-nowrap transition-all flex-shrink-0"
-            >
-              Sao chép
-            </button>
-          </div>
+        {/* Left Column: Interactive ChessBoard (7 Cols) */}
+        <div className="lg:col-span-7 flex flex-col items-center w-full">
+          <ChessBoard
+            initialFen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+            moves={moves}
+            currentPly={currentPly}
+            orientation={boardOrientation}
+            onPositionChange={handlePositionChange}
+            onMovesChange={handleMovesChange}
+            onEvaluationChange={(ev, thinking) => {
+              setEvaluation(ev);
+              setIsThinking(thinking);
+            }}
+            isEngineEnabled={isEngineEnabled}
+            multiPv={multiPv}
+            height={740}
+            onBoardWidthChange={(size) => setBoardSize(size)}
+          />
         </div>
 
-        {/* Right Column: Move History & Continuations (5 Cols) */}
-        <div className="lg:col-span-5 space-y-5">
-          {/* Move History Sheet */}
-          <div className="h-[340px]">
+        {/* Right Column: Unified Move History & Opening Variations Panel (Like Lichess) */}
+        <div
+          style={{ height: `${boardSize}px` }}
+          className="lg:col-span-5 flex flex-col bg-card border border-border/60 rounded-2xl shadow-sm overflow-hidden"
+        >
+          {/* Top: Move History (Notation + Stockfish Eval) - 50% equal height */}
+          <div className="flex-1 min-h-0 border-b border-border/50 flex flex-col overflow-hidden">
             <MoveHistory
               moves={moves}
               currentPly={currentPly}
@@ -685,58 +553,65 @@ function AnalyzeContent() {
               onToggleEngine={() => setIsEngineEnabled((prev) => !prev)}
               multiPv={multiPv}
               onMultiPvChange={(count) => setMultiPv(count)}
+              embedded={true}
             />
           </div>
 
-          {/* Color Filter Controls */}
-          <div className="flex items-center gap-2 p-1.5 bg-card/80 border border-border/60 rounded-2xl shadow-sm">
-            <button
-              onClick={() => setColorFilter("all")}
-              className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                colorFilter === "all"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Tất cả</span>
-            </button>
-            <button
-              onClick={() => {
-                setColorFilter("white");
-                setBoardOrientation("white");
-              }}
-              className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                colorFilter === "white"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              }`}
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-white border border-slate-300 dark:border-slate-500 shadow-2xs" />
-              <span>Cầm Trắng</span>
-            </button>
-            <button
-              onClick={() => {
-                setColorFilter("black");
-                setBoardOrientation("black");
-              }}
-              className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                colorFilter === "black"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              }`}
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-600 shadow-2xs" />
-              <span>Cầm Đen</span>
-            </button>
+          {/* Middle: Compact Color Filter / Perspective Toolbar */}
+          <div className="px-3.5 py-1 bg-slate-50/80 dark:bg-slate-800/40 border-b border-border/50 flex items-center justify-between shrink-0 text-xs">
+            <div className="flex items-center gap-1.5 text-muted-foreground font-semibold text-[11px]">
+              <Layers className="w-3.5 h-3.5 text-primary" />
+              <span>Góc nhìn:</span>
+            </div>
+            <div className="flex items-center gap-1 p-0.5 bg-secondary/60 rounded-lg">
+              <button
+                onClick={() => setColorFilter("all")}
+                className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition ${
+                  colorFilter === "all"
+                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                }`}
+              >
+                Tất cả
+              </button>
+              <button
+                onClick={() => {
+                  setColorFilter("white");
+                  setBoardOrientation("white");
+                }}
+                className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${
+                  colorFilter === "white"
+                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-white border border-slate-300 dark:border-slate-500 shadow-2xs" />
+                <span>Trắng</span>
+              </button>
+              <button
+                onClick={() => {
+                  setColorFilter("black");
+                  setBoardOrientation("black");
+                }}
+                className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${
+                  colorFilter === "black"
+                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-600 shadow-2xs" />
+                <span>Đen</span>
+              </button>
+            </div>
           </div>
 
-          {/* Opening Continuations Tree Table */}
-          <div className="relative">
+          {/* Bottom: Opening Continuations & Master Database - 50% equal height */}
+          <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden">
             {treeLoading && (
-              <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-10 rounded-2xl flex items-center justify-center">
-                <Loader2 className="w-5 h-5 animate-spin text-primary" />
-              </div>
+              <div
+                className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-primary to-blue-500 animate-pulse z-30 pointer-events-none"
+                title="Đang cập nhật biến thể..."
+              />
             )}
             <OpeningTreeTable
               continuations={continuations}
@@ -745,7 +620,48 @@ function AnalyzeContent() {
               onSelectMove={handleSelectMove}
               onLoadGame={handleLoadSingleGame}
               playerName={currentPlayerObj?.canonical_name}
+              players={players}
+              selectedPlayerId={selectedPlayerId}
+              onSelectPlayer={handlePlayerChange}
+              embedded={true}
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Current FEN Bar & Action Buttons (Centered directly under the chessboard) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 pt-1">
+        <div className="lg:col-span-7 flex flex-col items-center">
+          <div
+            style={{ width: `${boardSize + 22}px`, maxWidth: "100%" }}
+            className="bg-card/60 border border-border/40 rounded-xl p-2.5 flex items-center justify-between gap-2 text-xs shadow-xs"
+          >
+            <div className="flex items-center gap-2 truncate min-w-0">
+              <span className="font-bold text-muted-foreground uppercase text-[10px] shrink-0">FEN:</span>
+              <span className="font-mono text-foreground truncate select-all text-[11px]">
+                {currentFen}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(currentFen);
+                  alert("Đã sao chép FEN vào clipboard!");
+                }}
+                className="px-2.5 py-1 rounded-lg bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground font-semibold text-[11px] whitespace-nowrap transition-all cursor-pointer"
+                title="Sao chép FEN"
+              >
+                Sao chép
+              </button>
+              <button
+                onClick={() => setShowPgnInput(true)}
+                className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white font-semibold text-[11px] whitespace-nowrap transition-all flex items-center gap-1 cursor-pointer border border-emerald-500/20"
+                title="Dán PGN hoặc FEN để nạp vào bàn cờ"
+              >
+                <Upload className="w-3 h-3" />
+                <span>Dán PGN / FEN</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

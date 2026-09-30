@@ -235,6 +235,16 @@ def test_lichess_masters_endpoint(monkeypatch):
         "moves": [
             {"san": "e4", "uci": "e2e4", "white": 50000, "draws": 40000, "black": 35000, "averageRating": 2550},
             {"san": "d4", "uci": "d2d4", "white": 40000, "draws": 35000, "black": 25000, "averageRating": 2560}
+        ],
+        "topGames": [
+            {
+                "id": "master123",
+                "white": {"name": "Carlsen, Magnus", "rating": 2882},
+                "black": {"name": "Nakamura, Hikaru", "rating": 2875},
+                "year": 2024,
+                "month": "2024-05",
+                "winner": "white"
+            }
         ]
     }
 
@@ -264,6 +274,12 @@ def test_lichess_masters_endpoint(monkeypatch):
     assert auth_data["authenticated"] is True
     assert auth_data["total_games"] == 250000
     assert len(auth_data["moves"]) == 2
+    assert len(auth_data.get("top_games", [])) == 1
+
+    top_g = auth_data["top_games"][0]
+    assert top_g["id"] == "master123"
+    assert top_g["white"]["name"] == "Carlsen, Magnus"
+    assert top_g["result"] == "1-0"
 
     e4_move = next(m for m in auth_data["moves"] if m["san"] == "e4")
     assert e4_move["games_count"] == 125000
@@ -272,6 +288,45 @@ def test_lichess_masters_endpoint(monkeypatch):
     assert e4_move["loss_pct"] == 28.0
     assert e4_move["score_pct"] == 56.0
     assert e4_move["average_rating"] == 2550
+
+
+def test_lichess_game_detail_endpoint(monkeypatch):
+    mock_game_data = {
+        "id": "qa7Qe0Pd",
+        "players": {
+            "white": {"user": {"name": "Kasparov, Garry"}, "rating": 2812},
+            "black": {"user": {"name": "Karpov, Anatoly"}, "rating": 2775}
+        },
+        "winner": "white",
+        "moves": "e4 c5 Nf3 d6 d4 cxd4 Nxd4",
+        "createdAt": 1700000000,
+        "event": "World Championship",
+        "opening": {"eco": "B90", "name": "Sicilian Defense"}
+    }
+
+    class MockGameResp:
+        status = 200
+        def read(self):
+            return json.dumps(mock_game_data).encode("utf-8")
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=10: MockGameResp())
+
+    res = client.get("/api/analysis/lichess-game/qa7Qe0Pd")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["success"] is True
+    g_data = body["data"]
+    assert g_data["id"] == "qa7Qe0Pd"
+    assert g_data["white"] == "Kasparov, Garry"
+    assert g_data["black"] == "Karpov, Anatoly"
+    assert g_data["result"] == "1-0"
+    assert len(g_data["moves"]) == 7
+    assert g_data["moves"][0] == "e4"
+
 
 
 def test_opening_tree_branch_reconstruction():

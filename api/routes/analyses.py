@@ -534,6 +534,20 @@ async def get_lichess_masters_stats(
     return BaseResponse(success=True, data=result)
 
 
+@router.get("/lichess-game/{game_id}", response_model=BaseResponse[Dict[str, Any]])
+async def get_lichess_master_game_detail(game_id: str):
+    """
+    Fetches full game details and complete move sequence from Lichess by game ID.
+    Used to view and replay full master games in the analysis board.
+    """
+    try:
+        game_detail = LichessMastersService.get_master_game(game_id)
+        return BaseResponse(success=True, data=game_detail)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+
 @router.post("/runs/sync-evaluations", response_model=BaseResponse[AnalysisRunResponse])
 async def sync_analysis_evaluations(
     req: AnalysisRunSyncEvaluations,

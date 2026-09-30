@@ -31,9 +31,6 @@ export default function RootLayout({
         <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 pb-24 md:pb-8">
           {children}
         </main>
-        <footer className="border-t border-slate-200/80 dark:border-slate-800/80 py-6 mb-16 md:mb-0 text-center text-xs text-slate-500 dark:text-slate-400 bg-white/50 dark:bg-slate-900/50">
-          <p>© 2026 ChessLook. Nền tảng phân tích ván đấu & cố vấn chiến thuật chuyên sâu dành cho kỳ thủ.</p>
-        </footer>
         <MobileBottomNav />
       </body>
     </html>

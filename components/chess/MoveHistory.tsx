@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, useMemo } from "react";
 import { Chess } from "chess.js";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
 import { sanToFigurine } from "@/lib/stockfish/pvFormatter";
+import { FigurineMove } from "./FigurineMove";
 import { Check, Settings, Loader2 } from "lucide-react";
 
 interface MoveHistoryProps {
@@ -17,6 +18,7 @@ interface MoveHistoryProps {
   onToggleEngine?: () => void;
   multiPv?: number;
   onMultiPvChange?: (count: number) => void;
+  embedded?: boolean;
 }
 
 export default function MoveHistory({
@@ -28,6 +30,7 @@ export default function MoveHistory({
   isThinking = false,
   isEngineEnabled = true,
   onToggleEngine,
+  embedded = false,
 }: MoveHistoryProps) {
   const activeRef = useRef<HTMLButtonElement | null>(null);
   const listContainerRef = useRef<HTMLDivElement | null>(null);
@@ -120,9 +123,15 @@ export default function MoveHistory({
   }
 
   return (
-    <div className="flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm h-full">
+    <div
+      className={
+        embedded
+          ? "flex flex-col h-full w-full overflow-hidden bg-transparent"
+          : "flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm h-full"
+      }
+    >
       {/* Top Engine & Eval Header */}
-      <div className="px-3.5 py-2.5 bg-slate-50/90 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800">
+      <div className="px-3.5 py-2 bg-slate-50/90 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Engine On/Off Toggle Switch */}
@@ -219,7 +228,7 @@ export default function MoveHistory({
       {/* Move list (Balanced 3-column layout matching Lichess) */}
       <div 
         ref={listContainerRef}
-        className="flex-1 overflow-y-auto max-h-[380px] p-2 space-y-1 text-sm font-mono scroll-smooth"
+        className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1 text-xs scroll-smooth"
       >
         {movePairs.length === 0 ? (
           <div className="text-center py-8 text-xs text-slate-400 font-sans">
@@ -239,10 +248,10 @@ export default function MoveHistory({
             return (
               <div
                 key={idx}
-                className="grid grid-cols-[36px_1fr_1fr] items-center gap-1.5 rounded-lg text-xs"
+                className="grid grid-cols-[34px_1fr_1fr] items-center gap-1.5 rounded-lg text-xs"
               >
                 {/* Gutter: Move Number */}
-                <span className="text-center font-semibold text-slate-400 bg-slate-100/70 dark:bg-slate-800/70 rounded py-1 select-none text-[11px]">
+                <span className="text-center font-semibold text-slate-400 bg-slate-100/70 dark:bg-slate-800/70 rounded py-1 select-none text-[13px]">
                   {pair.number}
                 </span>
 
@@ -252,13 +261,15 @@ export default function MoveHistory({
                   onClick={() => onSelectPly(whitePly)}
                   className={`px-2.5 py-1.5 rounded text-left transition flex items-center justify-between cursor-pointer ${
                     isWhiteActive
-                      ? "bg-sky-600 text-white font-bold shadow-xs"
-                      : "text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium"
+                      ? "bg-sky-600 text-white shadow-xs font-normal"
+                      : "text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 font-normal"
                   }`}
                 >
-                  <span className="font-semibold text-xs">{whiteFigurine}</span>
+                  <span className="font-normal text-[15px]">
+                    <FigurineMove san={pair.white} />
+                  </span>
                   {isWhiteActive && isEngineOn && evalText !== "—" && (
-                    <span className="text-[10px] font-mono opacity-90 pl-1 font-bold">
+                    <span className="text-[11px] font-mono opacity-90 pl-1 font-bold">
                       {evalText}
                     </span>
                   )}
@@ -271,13 +282,15 @@ export default function MoveHistory({
                     onClick={() => onSelectPly(blackPly)}
                     className={`px-2.5 py-1.5 rounded text-left transition flex items-center justify-between cursor-pointer ${
                       isBlackActive
-                        ? "bg-sky-600 text-white font-bold shadow-xs"
-                        : "text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium"
+                        ? "bg-sky-600 text-white shadow-xs font-normal"
+                        : "text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 font-normal"
                     }`}
                   >
-                    <span className="font-semibold text-xs">{blackFigurine}</span>
+                    <span className="font-normal text-[15px]">
+                      <FigurineMove san={pair.black} />
+                    </span>
                     {isBlackActive && isEngineOn && evalText !== "—" && (
-                      <span className="text-[10px] font-mono opacity-90 pl-1 font-bold">
+                      <span className="text-[11px] font-mono opacity-90 pl-1 font-bold">
                         {evalText}
                       </span>
                     )}

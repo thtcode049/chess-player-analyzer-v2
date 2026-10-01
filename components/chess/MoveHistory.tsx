@@ -5,7 +5,7 @@ import { Chess } from "chess.js";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
 import { sanToFigurine } from "@/lib/stockfish/pvFormatter";
 import { FigurineMove } from "./FigurineMove";
-import { Check, Settings, Loader2 } from "lucide-react";
+import { Check, Settings, Loader2, Cloud } from "lucide-react";
 
 interface MoveHistoryProps {
   moves: string[];
@@ -173,10 +173,14 @@ export default function MoveHistory({
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-500/10 px-1 py-0.2 rounded font-mono">
-                  + Độ sâu {isEngineOn ? evaluation?.depth || 14 : 0}
+                  + Độ sâu {isEngineOn ? (evaluation?.depth ?? (isThinking ? "..." : 14)) : 0}
                 </span>
                 {evaluation?.isCloud ? (
-                  <span className="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-500/15 px-1.5 py-0.2 rounded tracking-wide">
+                  <span
+                    className="inline-flex items-center gap-1 text-[9px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.2 rounded tracking-wide shadow-xs"
+                    title="Đánh giá từ Cloud Eval độ sâu tuyệt đối (Lichess Master DB)"
+                  >
+                    <Cloud className="w-2.5 h-2.5 fill-emerald-500/30 text-emerald-600 dark:text-emerald-400" />
                     CLOUD
                   </span>
                 ) : (

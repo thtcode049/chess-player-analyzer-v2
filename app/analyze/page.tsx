@@ -3,16 +3,16 @@
 import React, { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Chess } from "chess.js";
-import { 
-  Play, 
-  Layers, 
-  Cpu, 
-  Upload, 
-  FileText, 
-  ArrowLeft, 
-  Loader2, 
-  User, 
-  Search, 
+import {
+  Play,
+  Layers,
+  Cpu,
+  Upload,
+  FileText,
+  ArrowLeft,
+  Loader2,
+  User,
+  Search,
   Check
 } from "lucide-react";
 import Link from "next/link";
@@ -73,7 +73,7 @@ function AnalyzeContent() {
   const [isThinking, setIsThinking] = useState(false);
   const [isEngineEnabled, setIsEngineEnabled] = useState(true);
   const [multiPv, setMultiPv] = useState(3);
-  
+
   // Dynamically synchronized board and panel size measured directly from ChessBoard DOM container
   const [boardSize, setBoardSize] = useState<number>(560);
 
@@ -228,7 +228,7 @@ function AnalyzeContent() {
         setAvailableStructures(structs);
 
         if (queryStructure) {
-          const matched = structs.find((s) => 
+          const matched = structs.find((s) =>
             s.name.toLowerCase().trim() === queryStructure.toLowerCase().trim() ||
             (s.structure_key && s.structure_key.toLowerCase() === queryStructure.toLowerCase().trim())
           );
@@ -252,7 +252,7 @@ function AnalyzeContent() {
   // 4b. Sync selectedStructure if queryStructure changes
   useEffect(() => {
     if (queryStructure && availableStructures.length > 0) {
-      const matched = availableStructures.find((s) => 
+      const matched = availableStructures.find((s) =>
         s.name.toLowerCase().trim() === queryStructure.toLowerCase().trim() ||
         (s.structure_key && s.structure_key.toLowerCase() === queryStructure.toLowerCase().trim())
       );
@@ -328,7 +328,7 @@ function AnalyzeContent() {
       fullGame = playerGames[structGame.game_index];
     }
     if (!fullGame) {
-      fullGame = playerGames.find((pg) => 
+      fullGame = playerGames.find((pg) =>
         isPlayerNameMatch(pg.white_player, structGame.white) &&
         isPlayerNameMatch(pg.black_player, structGame.black) &&
         pg.result === structGame.result
@@ -566,11 +566,10 @@ function AnalyzeContent() {
             <div className="flex items-center gap-1 p-0.5 bg-secondary/60 rounded-lg">
               <button
                 onClick={() => setColorFilter("all")}
-                className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition ${
-                  colorFilter === "all"
+                className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition ${colorFilter === "all"
                     ? "bg-primary text-primary-foreground shadow-2xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                }`}
+                  }`}
               >
                 Tất cả
               </button>
@@ -579,11 +578,10 @@ function AnalyzeContent() {
                   setColorFilter("white");
                   setBoardOrientation("white");
                 }}
-                className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${
-                  colorFilter === "white"
+                className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${colorFilter === "white"
                     ? "bg-primary text-primary-foreground shadow-2xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                }`}
+                  }`}
               >
                 <span className="w-2 h-2 rounded-full bg-white border border-slate-300 dark:border-slate-500 shadow-2xs" />
                 <span>Trắng</span>
@@ -593,11 +591,10 @@ function AnalyzeContent() {
                   setColorFilter("black");
                   setBoardOrientation("black");
                 }}
-                className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${
-                  colorFilter === "black"
+                className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${colorFilter === "black"
                     ? "bg-primary text-primary-foreground shadow-2xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                }`}
+                  }`}
               >
                 <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-600 shadow-2xs" />
                 <span>Đen</span>
@@ -698,41 +695,37 @@ function AnalyzeContent() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setStructureFilter("all")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                structureFilter === "all"
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${structureFilter === "all"
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "bg-secondary/60 text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               Tất cả ({selectedStructure.games?.length || 0})
             </button>
             <button
               onClick={() => setStructureFilter("wins")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                structureFilter === "wins"
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${structureFilter === "wins"
                   ? "bg-emerald-500 text-white shadow-sm"
                   : "bg-secondary/60 text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               Ván Thắng ({selectedStructure.wins})
             </button>
             <button
               onClick={() => setStructureFilter("draws")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                structureFilter === "draws"
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${structureFilter === "draws"
                   ? "bg-amber-500 text-white shadow-sm"
                   : "bg-secondary/60 text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               Ván Hòa ({selectedStructure.draws})
             </button>
             <button
               onClick={() => setStructureFilter("losses")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                structureFilter === "losses"
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${structureFilter === "losses"
                   ? "bg-rose-500 text-white shadow-sm"
                   : "bg-secondary/60 text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               Ván Thua ({selectedStructure.losses})
             </button>
@@ -815,11 +808,10 @@ function AnalyzeContent() {
                           <button
                             onClick={() => handleLoadStructureGame(g, g.game_index ?? idx)}
                             disabled={isCurrent}
-                            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition shadow-sm ${
-                              isCurrent
+                            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition shadow-sm ${isCurrent
                                 ? "bg-emerald-500 text-white cursor-default"
                                 : "bg-primary text-primary-foreground hover:bg-primary/90"
-                            }`}
+                              }`}
                           >
                             {isCurrent ? (
                               <>

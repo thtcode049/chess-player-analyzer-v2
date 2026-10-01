@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
-import { Cpu, Zap, Loader2, CheckCircle2, Play, RefreshCw, BarChart2, ShieldCheck } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Cpu, Zap, Loader2, CheckCircle2, Play, RefreshCw, BarChart2, ShieldCheck, Sliders, Leaf } from "lucide-react";
 import { Game, AnalysisRun } from "@/lib/api/types";
 import { apiClient } from "@/lib/api/client";
 import { formatAccuracy } from "@/lib/utils";
 import { analyzeAllGamesWithWasm, AnalyzerProgress, FullAnalysisResult } from "@/lib/stockfish/fullGameAnalyzer";
+import { detectOptimalWorkers, DeviceWorkerProfile } from "@/lib/stockfish/workerPool";
 
 interface WasmAnalysisCardProps {
   playerId: string;
@@ -30,11 +31,19 @@ export default function WasmAnalysisCard({
     cacheHits: number;
   } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [profile, setProfile] = useState<DeviceWorkerProfile | null>(null);
+  const [workerMode, setWorkerMode] = useState<"eco" | "optimal" | "safeMax">("optimal");
+
+  useEffect(() => {
+    setProfile(detectOptimalWorkers());
+  }, []);
 
   const hasFullAnalysis =
     currentRun?.engine_coverage_pct === 100 &&
     currentRun?.overall_acpl !== null &&
     currentRun?.overall_acpl !== undefined;
+
+  const activeWorkerCount = profile ? profile[workerMode] : 6;
 
   const handleStartAnalysis = async () => {
     if (games.length === 0) {
@@ -50,7 +59,7 @@ export default function WasmAnalysisCard({
       totalFens: 0,
       uniqueFensCount: 0,
       percent: 0,
-      workerCount: 0,
+      workerCount: activeWorkerCount,
     });
 
     try {
@@ -59,6 +68,7 @@ export default function WasmAnalysisCard({
         playerName,
         {
           depth: 10,
+          workerCount: activeWorkerCount,
           onProgress: (prog) => {
             setProgress(prog);
           },
@@ -96,13 +106,20 @@ export default function WasmAnalysisCard({
       {/* Background ambient glow */}
       <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1.5">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+        <div className="space-y-2 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
               <Cpu className="w-3.5 h-3.5" />
-              Stockfish 19 WASM • Multi-Worker (Độ sâu 10)
+              Stockfish 19 WASM • Đa luồng Client (Độ sâu 10)
             </span>
+
+            {profile && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground border border-border">
+                <ShieldCheck className="w-3 h-3 text-sky-500" />
+                {profile.cores} Luồng CPU • {profile.ramGb}GB RAM {profile.isMobile ? "(Di động)" : ""}
+              </span>
+            )}
 
             {hasFullAnalysis && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
@@ -121,11 +138,60 @@ export default function WasmAnalysisCard({
           <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed">
             {hasFullAnalysis
               ? `Tất cả ${games.length} ván đấu (${currentRun?.games_analyzed_count} ván) đã được đánh giá trọn vẹn từng nước đi ở độ sâu 10 bằng cụm Stockfish WASM. Tỷ lệ chính xác trung bình: ${formatAccuracy(currentRun?.overall_acpl)}.`
-              : `Khử trùng lặp thế cờ (FEN Deduplication) và phân bổ song song qua 4-6 Web Workers trên máy của bạn ở độ sâu 10 (Depth 10). 0s chờ máy chủ, không giới hạn timeout, phân tích từ nước 1 đến nước cuối.`}
+              : `Khử trùng lặp thế cờ (FEN Deduplication) và phân bổ song song qua ${activeWorkerCount} Web Workers trên máy của bạn ở độ sâu 10 (Depth 10). 0s chờ máy chủ, không giới hạn timeout, phân tích từ nước 1 đến nước cuối.`}
           </p>
+
+          {/* Worker Mode Selector */}
+          {profile && !isRunning && (
+            <div className="pt-1 flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="text-muted-foreground text-[11px] font-medium mr-1 flex items-center gap-1">
+                <Sliders className="w-3 h-3" /> Cấu hình tải:
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setWorkerMode("eco")}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1 border ${
+                  workerMode === "eco"
+                    ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30 shadow-xs"
+                    : "bg-background/60 text-muted-foreground border-border hover:bg-muted"
+                }`}
+              >
+                <Leaf className="w-3 h-3" />
+                Êm ái ({profile.eco}w)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setWorkerMode("optimal")}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1 border ${
+                  workerMode === "optimal"
+                    ? "bg-primary/15 text-primary border-primary/30 shadow-xs"
+                    : "bg-background/60 text-muted-foreground border-border hover:bg-muted"
+                }`}
+              >
+                <Zap className="w-3 h-3" />
+                Cân bằng ({profile.optimal}w)
+                <span className="text-[9px] opacity-80 uppercase tracking-wider font-bold">Khuyên dùng</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setWorkerMode("safeMax")}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1 border ${
+                  workerMode === "safeMax"
+                    ? "bg-amber-500/15 text-amber-500 border-amber-500/30 shadow-xs"
+                    : "bg-background/60 text-muted-foreground border-border hover:bg-muted"
+                }`}
+              >
+                <Cpu className="w-3 h-3" />
+                Tối đa an toàn ({profile.safeMax}w)
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0 w-full md:w-auto">
+        <div className="flex items-center gap-2 flex-shrink-0 w-full md:w-auto md:self-center">
           <button
             onClick={handleStartAnalysis}
             disabled={isRunning || games.length === 0}
@@ -143,12 +209,12 @@ export default function WasmAnalysisCard({
             ) : hasFullAnalysis ? (
               <>
                 <RefreshCw className="w-4 h-4" />
-                <span>Phân Tích Lại Bằng WASM</span>
+                <span>Phân Tích Lại ({activeWorkerCount}w)</span>
               </>
             ) : (
               <>
                 <Zap className="w-4 h-4 fill-current" />
-                <span>Kích Hoạt Phân Tích 100% Ván</span>
+                <span>Kích Hoạt Phân Tích ({activeWorkerCount}w)</span>
               </>
             )}
           </button>

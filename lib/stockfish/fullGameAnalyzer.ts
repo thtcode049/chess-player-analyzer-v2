@@ -160,8 +160,9 @@ export async function analyzeAllGamesWithWasm(
     if (sanMoves.length === 0) continue;
 
     const chess = new Chess();
-    const fens: string[] = [chess.fen()];
-    uniqueFensSet.add(chess.fen());
+    const startFen = chess.fen();
+    const fens: string[] = [startFen];
+    uniqueFensSet.add(startFen);
 
     for (const m of sanMoves) {
       try {
@@ -183,7 +184,6 @@ export async function analyzeAllGamesWithWasm(
     });
   }
 
-  // 2. Identify FENs that need evaluation
   const allUniqueFens = Array.from(uniqueFensSet);
   const fensToCompute: string[] = [];
 
@@ -195,7 +195,7 @@ export async function analyzeAllGamesWithWasm(
     }
   }
 
-  // 3. Batch evaluate missing FENs using Multi-Worker WASM Pool
+  // 2. Batch evaluate missing FENs using Multi-Worker WASM Pool
   const workerPool = new StockfishWorkerPool(options?.workerCount);
   let evalStartTime = Date.now();
 

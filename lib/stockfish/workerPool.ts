@@ -17,6 +17,82 @@ export interface FenEvaluation {
 
 export type PoolProgressCallback = (completed: number, total: number, workerCount: number) => void;
 
+export interface DeviceWorkerProfile {
+  eco: number;          // Tiết kiệm pin, máy mát, quạt êm
+  optimal: number;      // Cân bằng, khuyến nghị tốt nhất
+  safeMax: number;      // Tối đa an toàn cho phần cứng
+  cores: number;        // Số luồng CPU phát hiện được
+  ramGb: number;        // RAM ước tính (GB)
+  isMobile: boolean;    // Thiết bị di động hay máy tính
+}
+
+/**
+ * Tự động phát hiện cấu hình phần cứng và đề xuất số lượng Web Worker an toàn nhất.
+ * Đảm bảo:
+ * - Luôn chừa luồng cho UI / OS không bị giật lag
+ * - Tránh hiện tượng bóp xung nhịp do nhiệt (Thermal Throttling) trên laptop
+ * - Ngăn tràn RAM trên các thiết bị cấu hình thấp
+ */
+export function detectOptimalWorkers(): DeviceWorkerProfile {
+  if (typeof window === "undefined") {
+    return { eco: 1, optimal: 2, safeMax: 2, cores: 2, ramGb: 4, isMobile: false };
+  }
+
+  const cores = navigator.hardwareConcurrency || 4;
+  const ramGb = (navigator as any).deviceMemory || 8;
+  const isMobile =
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && window.innerWidth < 768);
+
+  // 1. Thiết bị di động (tản nhiệt thụ động, pin giới hạn)
+  if (isMobile) {
+    const max = Math.max(1, Math.min(2, Math.floor(cores / 2)));
+    return { eco: 1, optimal: max, safeMax: max, cores, ramGb, isMobile: true };
+  }
+
+  // 2. Phân tầng theo số luồng CPU trên Desktop / Laptop
+  let eco: number;
+  let optimal: number;
+  let safeMax: number;
+
+  if (cores <= 2) {
+    eco = 1;
+    optimal = 1;
+    safeMax = 1;
+  } else if (cores <= 4) {
+    eco = 1;
+    optimal = 2;
+    safeMax = 2;
+  } else if (cores <= 8) {
+    eco = Math.max(2, cores - 4);
+    optimal = Math.max(2, cores - 3);
+    safeMax = Math.max(2, cores - 2);
+  } else if (cores <= 14) {
+    // Laptop hiện đại lai P-core & E-core (như Intel Gen 12/13/14 dòng U/P)
+    eco = 4;
+    optimal = 6;
+    safeMax = 8;
+  } else {
+    // Máy bàn / Workstation mạnh (>= 16 luồng)
+    eco = 6;
+    optimal = 8;
+    safeMax = Math.min(14, cores - 4);
+  }
+
+  // 3. Ràng buộc theo dung lượng RAM (tránh crash Out of Memory)
+  if (ramGb <= 2) {
+    safeMax = Math.min(safeMax, 2);
+    optimal = Math.min(optimal, 1);
+    eco = 1;
+  } else if (ramGb <= 4) {
+    safeMax = Math.min(safeMax, 4);
+    optimal = Math.min(optimal, 3);
+    eco = Math.min(eco, 2);
+  }
+
+  return { eco, optimal, safeMax, cores, ramGb, isMobile: false };
+}
+
 interface WorkerSlot {
   id: number;
   worker: Worker;
@@ -47,8 +123,8 @@ export class StockfishWorkerPool {
 
   constructor(requestedWorkers?: number) {
     if (typeof window !== "undefined") {
-      const hardware = navigator.hardwareConcurrency || 4;
-      this.numWorkers = requestedWorkers || Math.min(Math.max(2, hardware - 1), 6);
+      const profile = detectOptimalWorkers();
+      this.numWorkers = requestedWorkers || profile.optimal;
     } else {
       this.numWorkers = 2;
     }

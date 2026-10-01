@@ -10,6 +10,7 @@ import {
   SlidersHorizontal
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { getLichessAuth, initiateLichessOAuth, disconnectLichessAuth } from "@/lib/auth/lichess";
 
 export default function SettingsPage() {
   const supabase = createClient();
@@ -18,6 +19,7 @@ export default function SettingsPage() {
   const [email, setEmail] = useState("");
   const [lichessUser, setLichessUser] = useState("");
   const [chesscomUser, setChesscomUser] = useState("");
+  const [lichessAuth, setLichessAuth] = useState({ isAuthorized: false, token: "", username: "" });
   const [geminiKey, setGeminiKey] = useState("");
   const [engineDepth, setEngineDepth] = useState(12);
   const [saved, setSaved] = useState(false);
@@ -43,7 +45,18 @@ export default function SettingsPage() {
 
     const savedChesscom = localStorage.getItem("setting_chesscom_user");
     if (savedChesscom) setChesscomUser(savedChesscom);
+
+    setLichessAuth(getLichessAuth());
   }, []);
+
+  const handleAuthorizeLichess = async () => {
+    await initiateLichessOAuth(window.location.href);
+  };
+
+  const handleDisconnectLichess = () => {
+    disconnectLichessAuth();
+    setLichessAuth({ isAuthorized: false, token: "", username: "" });
+  };
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,6 +157,45 @@ export default function SettingsPage() {
                 placeholder="VD: hikaru, magnuscarlsen"
                 className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
               />
+            </div>
+
+            <div className="sm:col-span-2 pt-3 border-t border-border/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Ủy Quyền Lichess (OAuth 2.0 PKCE 1-Click)
+                  </label>
+                  {lichessAuth.isAuthorized && (
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Đã liên kết
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground max-w-lg">
+                  {lichessAuth.isAuthorized
+                    ? `Đang liên kết với tài khoản Lichess @${lichessAuth.username || lichessUser || "User"}. Hệ thống tự động sử dụng phiên này để tăng tốc độ nạp ván và mở rộng hạn ngạch Cloud Eval (15 req/s).`
+                    : "Ủy quyền 1-click trực tiếp qua tài khoản Lichess để tăng tốc độ nạp ván đấu và mở rộng hạn mức Cloud Eval lên 15 req/s (miễn nhiễm giới hạn IP)."}
+                </p>
+              </div>
+              <div className="shrink-0">
+                {lichessAuth.isAuthorized ? (
+                  <button
+                    type="button"
+                    onClick={handleDisconnectLichess}
+                    className="px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-lg transition cursor-pointer border border-destructive/20"
+                  >
+                    Hủy liên kết
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleAuthorizeLichess}
+                    className="px-4 py-2 text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl transition shadow-xs cursor-pointer flex items-center gap-1.5"
+                  >
+                    Kết nối Lichess 1-Click
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

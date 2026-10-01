@@ -35,9 +35,17 @@ export function normalizeFen(fen: string): string {
 async function fetchCloudEval(fen: string, abortSignal?: AbortSignal): Promise<EngineEvaluation | null> {
   try {
     const encoded = encodeURIComponent(fen.trim());
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("lichess_token");
+      if (token) {
+        headers["Authorization"] = `Bearer ${token.trim()}`;
+      }
+    }
+
     const res = await fetch(`https://lichess.org/api/cloud-eval?fen=${encoded}`, {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers,
       signal: abortSignal,
     });
 
@@ -94,6 +102,7 @@ export class StockfishEngineController {
   private evalCache = new Map<string, EngineEvaluation>();
   private searchTimeout: any = null;
   private cloudAbortController: AbortController | null = null;
+  private cloudDebounceTimer: any = null;
 
   public get ready(): boolean {
     return this.isReady;
@@ -138,7 +147,7 @@ export class StockfishEngineController {
   /**
    * Evaluates a chess position using Lichess & Chess.com hybrid architecture:
    * 1. Check local in-memory cache (0ms instant response)
-   * 2. Query Lichess Cloud Eval API in parallel (instant depth 50-75+)
+   * 2. Query Lichess Cloud Eval API in parallel with debounce (instant depth 50-75+)
    * 3. Run client Stockfish 19 Web Worker with progressive deepening
    */
   public evaluatePosition(fen: string, targetDepth = 20, onEval?: EvaluationCallback) {
@@ -155,6 +164,10 @@ export class StockfishEngineController {
       this.cloudAbortController.abort();
       this.cloudAbortController = null;
     }
+    if (this.cloudDebounceTimer) {
+      clearTimeout(this.cloudDebounceTimer);
+      this.cloudDebounceTimer = null;
+    }
 
     // 1. Instant Cache Hit
     const cached = this.evalCache.get(normKey);
@@ -168,19 +181,21 @@ export class StockfishEngineController {
       }
     }
 
-    // 2. Query Lichess Cloud Eval asynchronously
-    const abortCtrl = new AbortController();
-    this.cloudAbortController = abortCtrl;
-    fetchCloudEval(cleanFen, abortCtrl.signal).then((cloudData) => {
-      if (cloudData && this.currentReqId === reqId) {
-        this.evalCache.set(normKey, cloudData);
-        if (this.onEvaluation) {
-          this.onEvaluation(cloudData);
+    // 2. Query Lichess Cloud Eval asynchronously with 120ms debounce (prevents 429 when arrow key is held)
+    this.cloudDebounceTimer = setTimeout(() => {
+      const abortCtrl = new AbortController();
+      this.cloudAbortController = abortCtrl;
+      fetchCloudEval(cleanFen, abortCtrl.signal).then((cloudData) => {
+        if (cloudData && this.currentReqId === reqId) {
+          this.evalCache.set(normKey, cloudData);
+          if (this.onEvaluation) {
+            this.onEvaluation(cloudData);
+          }
+          // Stop local worker search since we already have superior cloud depth
+          this.stopLocalSearch();
         }
-        // Stop local worker search since we already have superior cloud depth
-        this.stopLocalSearch();
-      }
-    });
+      });
+    }, 120);
 
     // 3. Start local Stockfish 19 WASM evaluation
     if (!this.worker) {
@@ -243,6 +258,10 @@ export class StockfishEngineController {
   }
 
   public stop() {
+    if (this.cloudDebounceTimer) {
+      clearTimeout(this.cloudDebounceTimer);
+      this.cloudDebounceTimer = null;
+    }
     if (this.cloudAbortController) {
       this.cloudAbortController.abort();
       this.cloudAbortController = null;

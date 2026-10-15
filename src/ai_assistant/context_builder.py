@@ -138,6 +138,7 @@ def build_opponent_ai_context(
     selected_player: str = "Kỳ thủ",
     analyzed_games_count: Optional[int] = None,
     total_games_count: Optional[int] = None,
+    is_board_open: bool = True,
     current_fen: Optional[str] = None,
     engine_eval: Optional[Dict[str, Any]] = None,
     games: Optional[List[Dict[str, Any]]] = None
@@ -163,9 +164,9 @@ def build_opponent_ai_context(
             f"Hệ thống hiện mới chỉ phân tích mẫu **{analyzed_games_count}/{total_games_count} ván**.\n"
         )
 
-    # 1. THẾ CỜ TRÊN BÀN CỜ TƯƠNG TÁC (NẾU ĐANG THAO TÁC)
-    if current_fen:
-        ctx_parts.append("## ♟️ THẾ CỜ HIỆN TẠI TRÊN BÀN CỜ TƯƠNG TÁC")
+    # 1. THẾ CỜ TRÊN BÀN CỜ TƯƠNG TÁC
+    if is_board_open and current_fen:
+        ctx_parts.append("## ♟️ THẾ CỜ HIỆN TẠI TRÊN BÀN CỜ TƯƠNG TÁC (BÀN CỜ ĐANG MỞ)")
         ctx_parts.append(f"- **Chuỗi FEN**: `{current_fen}`")
         fen_parts = current_fen.split(" ")
         active_color = "Trắng (White)" if len(fen_parts) > 1 and fen_parts[1] == "w" else "Đen (Black)"
@@ -173,12 +174,30 @@ def build_opponent_ai_context(
         if engine_eval:
             score = engine_eval.get("score")
             score_type = engine_eval.get("scoreType", "cp")
-            eval_str = f"Chiếu bí trong {score} nước (#M{score})" if score_type == "mate" else f"{score:+.2f} điểm" if isinstance(score, (int, float)) else str(score)
+            is_mate = engine_eval.get("isMate") or score_type == "mate"
+            mate_in = engine_eval.get("mateIn")
+
+            if is_mate:
+                eval_str = f"Chiếu bí sau {mate_in or score} nước (#M{mate_in or score})"
+            elif isinstance(score, (int, float)):
+                # Stockfish client sends centipawns (e.g. 64 cp = +0.64 pawns)
+                pawn_val = score / 100.0 if abs(score) >= 10 else float(score)
+                adv = "Trắng ưu thế nhẹ" if pawn_val > 0.3 else "Đen ưu thế nhẹ" if pawn_val < -0.3 else "Thế cờ cân bằng"
+                eval_str = f"{pawn_val:+.2f} Tốt ({int(score)} centipawns - {adv})"
+            else:
+                eval_str = str(score)
+
             ctx_parts.append(f"- **Đánh giá Stockfish**: `{eval_str}`")
-            if engine_eval.get("bestMove"):
-                ctx_parts.append(f"- **Nước đi tối ưu Stockfish đề xuất**: `{engine_eval.get('bestMove')}`")
+            best_move = engine_eval.get("bestMoveSan") or engine_eval.get("bestMove")
+            if best_move:
+                ctx_parts.append(f"- **Nước đi tối ưu Stockfish đề xuất**: `{best_move}`")
             if engine_eval.get("pv"):
-                ctx_parts.append(f"- **Biến thể dự tính chính (PV line)**: `{' '.join(engine_eval.get('pv')[:8])}`")
+                ctx_parts.append(f"- **Biến thể dự tính chính (PV line)**: `{' '.join(engine_eval.get('pv')[:6])}`")
+        ctx_parts.append("")
+    elif not is_board_open:
+        ctx_parts.append("## ♟️ TRẠNG THÁI BÀN CỜ TƯƠNG TÁC")
+        ctx_parts.append("- **Bàn cờ hiện tại**: ĐANG ĐÓNG.")
+        ctx_parts.append("- **Quy tắc**: Bạn KHÔNG cần bình luận về thế cờ hay điểm số Stockfish nếu người dùng chỉ hỏi về ván đấu hoặc lý thuyết. NẾU người dùng hỏi về một thế cờ cụ thể hoặc bạn thấy cần thiết phải mở bàn cờ để minh họa một hình cờ, hãy viết mã `[OPEN_BOARD]` hoặc `[OPEN_BOARD: <chuỗi FEN>]` trong câu trả lời để hệ thống tự động mở bàn cờ cho người dùng.")
         ctx_parts.append("")
 
     # 2. Thống kê cơ bản

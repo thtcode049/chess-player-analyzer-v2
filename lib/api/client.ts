@@ -574,6 +574,7 @@ export const apiClient = {
       history?: Array<{ role: string; content: string }>;
       current_fen?: string;
       engine_eval?: any;
+      is_board_open?: boolean;
     },
     callbacks: {
       onChunk: (chunk: string) => void;

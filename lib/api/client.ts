@@ -569,9 +569,11 @@ export const apiClient = {
     data: {
       run_id: string;
       message: string;
-      perspective_mode?: "self" | "opponent";
+      player_id?: string;
+      perspective_mode?: string;
       history?: Array<{ role: string; content: string }>;
       current_fen?: string;
+      engine_eval?: any;
     },
     callbacks: {
       onChunk: (chunk: string) => void;

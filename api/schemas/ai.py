@@ -21,6 +21,8 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     run_id: str
     message: str
-    perspective_mode: str = "self"
+    perspective_mode: Optional[str] = "neutral"
     history: List[ChatMessage] = []
     current_fen: Optional[str] = None
+    engine_eval: Optional[Dict[str, Any]] = None
+    player_id: Optional[str] = None

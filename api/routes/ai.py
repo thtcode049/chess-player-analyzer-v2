@@ -3,7 +3,7 @@ AI Coach Route Handlers (Briefings & Streaming Tactical Chat)
 """
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, List
 import json
 import logging
 
@@ -19,9 +19,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ai", tags=["AI Coach"])
 
 
-def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], str]:
+def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], str, List[Dict[str, Any]]]:
     """
-    Resolves (stats, deep_profile, player_name) from RAM cache, DB analysis_runs,
+    Resolves (stats, deep_profile, player_name, games) from RAM cache, DB analysis_runs,
     or on-demand player games analysis.
     """
     clean_id = run_id[4:] if run_id.startswith("run-") else run_id
@@ -29,7 +29,13 @@ def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], 
     # 1. Check in-memory cache
     cached = RUN_SNAPSHOTS_CACHE.get(run_id) or RUN_SNAPSHOTS_CACHE.get(clean_id)
     if cached and cached.get("stats_raw") and cached.get("deep_profile_raw"):
-        return cached["stats_raw"], cached["deep_profile_raw"], cached.get("player_name", "Kỳ thủ")
+        games = cached.get("games") or []
+        if not games and cached.get("player_id"):
+            try:
+                games, _ = _resolve_games_for_player(cached["player_id"])
+            except Exception:
+                games = []
+        return cached["stats_raw"], cached["deep_profile_raw"], cached.get("player_name", "Kỳ thủ"), games
 
     # 2. Query Supabase analysis_runs table
     import re
@@ -40,6 +46,12 @@ def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], 
     if db_run:
         player_id = db_run.get("player_id") or clean_id
         player_name = "Kỳ thủ"
+        games: List[Dict[str, Any]] = []
+        try:
+            games, _ = _resolve_games_for_player(player_id)
+        except Exception:
+            games = []
+
         try:
             for p in DBService.get_all_players():
                 if p.get("id") == player_id:
@@ -48,7 +60,7 @@ def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], 
         except Exception as e:
             logger.warning(f"Error fetching player name: {e}")
 
-        total_games = int(db_run.get("games_analyzed_count") or 0)
+        total_games = int(db_run.get("games_analyzed_count") or len(games) or 0)
         win_rate = float(db_run.get("overall_win_rate") or 50.0)
         overall_score = float(db_run.get("overall_score") or 50.0)
         white_score = float(db_run.get("white_score") or 50.0)
@@ -113,14 +125,15 @@ def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], 
             "deep_profile_raw": deep_profile,
             "player_name": player_name,
             "player_id": player_id,
-            "run_id": db_run.get("id", run_id)
+            "run_id": db_run.get("id", run_id),
+            "games": games
         }
         RUN_SNAPSHOTS_CACHE[run_id] = snapshot
         RUN_SNAPSHOTS_CACHE[clean_id] = snapshot
         if db_run.get("id"):
             RUN_SNAPSHOTS_CACHE[db_run["id"]] = snapshot
 
-        return stats, deep_profile, player_name
+        return stats, deep_profile, player_name, games
 
     # 3. Fallback: try resolving games for player and running complete analysis
     if re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", clean_id, re.I):
@@ -135,16 +148,17 @@ def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], 
                 )
                 run_res["player_name"] = player_name
                 run_res["player_id"] = clean_id
+                run_res["games"] = games
                 RUN_SNAPSHOTS_CACHE[run_id] = run_res
                 RUN_SNAPSHOTS_CACHE[clean_id] = run_res
-                return run_res.get("stats_raw", {}), run_res.get("deep_profile_raw", {}), player_name
+                return run_res.get("stats_raw", {}), run_res.get("deep_profile_raw", {}), player_name, games
         except Exception as e:
             logger.warning(f"Error on-demand analyzing games for player {clean_id}: {e}")
 
     # 4. Final default empty state if no player or games exist
     stats = {"total_games": 0, "score_percentage": 50.0, "win_rate": 50.0}
     deep_profile = {"style_profile": {"archetype": {"primary": "Toàn diện (Universal)"}}}
-    return stats, deep_profile, "Player"
+    return stats, deep_profile, "Player", []
 
 
 @router.post("/briefing", response_model=BaseResponse[BriefingResponse])
@@ -152,7 +166,7 @@ async def generate_briefing(req: BriefingRequest):
     """
     Generates a proactive strategic briefing (Self or Opponent view) based on an analysis run.
     """
-    stats, deep_profile, player_name = _resolve_run_snapshot(req.run_id)
+    stats, deep_profile, player_name, _ = _resolve_run_snapshot(req.run_id)
 
     briefing_text, suggested_q = AIService.generate_briefing(
         player_name=player_name,
@@ -175,14 +189,17 @@ async def chat_with_ai_coach(req: ChatRequest):
     """
     Server-Sent Events (SSE) streaming endpoint for real-time tactical chess coaching.
     """
-    stats, deep_profile, player_name = _resolve_run_snapshot(req.run_id)
+    target_id = req.player_id or req.run_id
+    stats, deep_profile, player_name, games = _resolve_run_snapshot(target_id)
 
-    # Build structured Ground Truth context
+    # Build structured Ground Truth context with PGN games & current interactive board state
     context = AIService.build_prompt_context(
         player_name=player_name,
         stats=stats,
         deep_profile=deep_profile,
-        current_fen=req.current_fen
+        current_fen=req.current_fen,
+        engine_eval=req.engine_eval,
+        games=games
     )
 
     history_dicts = [{"role": m.role, "content": m.content} for m in req.history]
@@ -195,7 +212,7 @@ async def chat_with_ai_coach(req: ChatRequest):
                 stats=stats,
                 deep_profile=deep_profile,
                 chat_history=history_dicts,
-                perspective_mode=req.perspective_mode,
+                perspective_mode=req.perspective_mode or "neutral",
                 player_name=player_name
             ):
                 payload = json.dumps({"chunk": chunk})

@@ -40,19 +40,22 @@ class AIService:
         player_name: str,
         stats: Dict[str, Any],
         deep_profile: Dict[str, Any],
-        current_fen: Optional[str] = None
+        current_fen: Optional[str] = None,
+        engine_eval: Optional[Dict[str, Any]] = None,
+        games: Optional[List[Dict[str, Any]]] = None
     ) -> str:
         """
-        Creates structured Ground Truth text to prevent LLM hallucinations.
+        Creates structured Ground Truth text to prevent LLM hallucinations,
+        including player stats, full PGN games, and current interactive board state.
         """
-        context = build_player_ai_context(
+        return build_player_ai_context(
             deep_profile=deep_profile,
             stats=stats,
-            selected_player=player_name
+            selected_player=player_name,
+            current_fen=current_fen,
+            engine_eval=engine_eval,
+            games=games
         )
-        if current_fen:
-            context += f"\n\n[CURRENT BOARD FEN POSITION]: {current_fen}"
-        return context
 
     @staticmethod
     def stream_chat_response(

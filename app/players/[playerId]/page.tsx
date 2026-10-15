@@ -1169,7 +1169,8 @@ export default function PlayerDetailPage() {
         <div className="space-y-4">
           <AiCoachChat
             runId={analysisRun?.id || `run-${playerId}`}
-            initialBriefing=""
+            playerId={playerId}
+            playerName={player?.canonical_name}
             suggestedQuestions={[
               `Những khai cuộc sở trường nhất của ${player?.canonical_name}?`,
               `Kỳ thủ này phản ứng thế nào khi gặp biến thể cờ mở nhiều rủi ro?`,

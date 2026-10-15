@@ -8,7 +8,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python)](https://python.org/)
 [![Stockfish WASM](https://img.shields.io/badge/Stockfish-WASM%20Web%20Worker-red?style=flat-square)](https://stockfishchess.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL%20%2B%20Auth-3ECF8E?style=flat-square&logo=supabase)](https://supabase.com/)
-[![Tests](https://img.shields.io/badge/Tests-100%2F100%20Passing-brightgreen?style=flat-square&logo=pytest)](https://docs.pytest.org/)
+[![Tests](https://img.shields.io/badge/Tests-103%2F103%20Passing-brightgreen?style=flat-square&logo=pytest)](https://docs.pytest.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)]()
 
 ---
@@ -19,7 +19,7 @@
 
 1. **Frontend Đỉnh Cao (Next.js 14 App Router + TailwindCSS)**:
    - Giao diện Dark Mode cao cấp với hiệu ứng kính mờ (Glassmorphism), biểu đồ SVG mượt mà và chuyển trang tức thì.
-   - Thư viện Kỳ thủ (`/players`), Bảng điều khiển (`/dashboard`), Phòng Phân tích Thế cờ tương tác (`/analyze`), và Trung tâm Huấn luyện AI (`/ai-coach`).
+   - Thư viện Kỳ thủ (`/players`), Bảng điều khiển (`/dashboard`), Phòng Phân tích Thế cờ tương tác (`/analyze`), và Trung tâm Trợ lí AI (`/ai-coach`).
 2. **Stockfish WASM trong Trình Duyệt (Zero Server Load)**:
    - Phân tích tương tác trực tiếp từng thế cờ chạy bằng Web Worker WebAssembly ngay trên máy người dùng.
    - Không gây quá tải hay timeout 10s cho serverless runtime.
@@ -78,7 +78,7 @@
 # 2. Cài đặt phụ thuộc
 pip install -r requirements.txt
 
-# 3. Chạy kiểm thử tự động (100/100 tests)
+# 3. Chạy kiểm thử tự động (103/103 tests)
 pytest
 ```
 

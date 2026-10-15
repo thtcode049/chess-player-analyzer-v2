@@ -32,7 +32,7 @@ import { Player, Game, AnalysisRun } from "@/lib/api/types";
 import OpeningTreeTable from "@/components/analysis/OpeningTreeTable";
 import StyleRadarChart from "@/components/profile/StyleRadarChart";
 import PawnStructureGrid from "@/components/profile/PawnStructureGrid";
-import AiCoachChat from "@/components/ai/AiCoachChat";
+import AiAssistantChat from "@/components/ai/AiAssistantChat";
 import WasmAnalysisCard from "@/components/analysis/WasmAnalysisCard";
 import { formatAccuracy, acplToAccuracy } from "@/lib/utils";
 
@@ -1167,7 +1167,7 @@ export default function PlayerDetailPage() {
       {/* Tab 5: AI Coach */}
       {activeTab === "ai" && (
         <div className="space-y-4">
-          <AiCoachChat
+          <AiAssistantChat
             runId={analysisRun?.id || `run-${playerId}`}
             playerId={playerId}
             playerName={player?.canonical_name}

@@ -16,7 +16,7 @@ from api.services.analysis_service import AnalysisService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/ai", tags=["AI Coach"])
+router = APIRouter(prefix="/api/ai", tags=["AI Assistant"])
 
 
 def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], str, List[Dict[str, Any]]]:

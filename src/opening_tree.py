@@ -237,3 +237,105 @@ def get_position_details(
         "continuations": continuations_list,
     }
 
+
+def find_common_move_prefix(games: list) -> list:
+    """Tìm chuỗi nước đi SAN đầu tiên giống nhau (longest common prefix) giữa tất cả các ván đấu."""
+    if not games:
+        return []
+    all_game_moves = [g.get("moves", []) for g in games if g.get("moves")]
+    if not all_game_moves:
+        return []
+
+    common = []
+    min_len = min(len(m) for m in all_game_moves)
+    for i in range(min_len):
+        move_i = all_game_moves[0][i]
+        if all(m[i] == move_i for m in all_game_moves):
+            common.append(move_i)
+        else:
+            break
+    return common
+
+
+def find_representative_line_for_games(games: list) -> list:
+    """
+    Phân tích thế cờ (position & transposition analysis) trong nhóm ván đấu để tìm
+    thế cờ đặc trưng (canonical position) xuất hiện phổ biến nhất và sinh chuỗi
+    nước đi đại diện (representative line) dẫn đến thế cờ đó.
+    Sử dụng EPD key (quân cờ + lượt đi + nhập thành + bắt tốt qua đường) để khớp transposition chuẩn xác.
+    """
+    if not games:
+        return []
+    if len(games) == 1:
+        return games[0].get("moves", [])
+
+    fen_info = {}
+    start_key = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -"
+
+    for g_idx, game in enumerate(games):
+        moves = game.get("moves", [])
+        if not moves:
+            continue
+        board = chess.Board()
+        root_key = " ".join(board.fen().split()[:4])
+
+        if root_key not in fen_info:
+            fen_info[root_key] = {"games": set(), "paths": {}}
+        fen_info[root_key]["games"].add(g_idx)
+        fen_info[root_key]["paths"][()] = fen_info[root_key]["paths"].get((), 0) + 1
+
+        current_path = []
+        for san in moves:
+            try:
+                move_obj = board.parse_san(san)
+                board.push(move_obj)
+                current_path.append(san)
+                next_key = " ".join(board.fen().split()[:4])
+
+                if next_key not in fen_info:
+                    fen_info[next_key] = {"games": set(), "paths": {}}
+                fen_info[next_key]["games"].add(g_idx)
+                path_tuple = tuple(current_path)
+                fen_info[next_key]["paths"][path_tuple] = (
+                    fen_info[next_key]["paths"].get(path_tuple, 0) + 1
+                )
+            except ValueError:
+                break
+
+    if not fen_info:
+        return []
+
+    non_root_counts = [
+        len(info["games"]) for key, info in fen_info.items() if key != start_key
+    ]
+    if not non_root_counts:
+        return []
+
+    max_games_count = max(non_root_counts)
+    threshold = max(2, int(max_games_count * 0.75))
+
+    best_key = None
+    max_depth = -1
+
+    for key, info in fen_info.items():
+        if key == start_key:
+            continue
+        g_count = len(info["games"])
+        if g_count >= threshold:
+            for path_tuple in info["paths"].keys():
+                depth = len(path_tuple)
+                if depth > max_depth:
+                    max_depth = depth
+                    best_key = key
+                elif depth == max_depth and best_key is not None:
+                    if g_count > len(fen_info[best_key]["games"]):
+                        best_key = key
+
+    if not best_key:
+        return find_common_move_prefix(games)
+
+    best_paths = fen_info[best_key]["paths"]
+    most_common_path = max(best_paths.items(), key=lambda x: x[1])[0]
+    return list(most_common_path)
+
+

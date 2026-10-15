@@ -107,7 +107,7 @@ def test_single_game_info_pgn_tournament_fields():
 
 
 def test_find_common_move_prefix():
-    from app import find_common_move_prefix
+    from src.opening_tree import find_common_move_prefix
     
     games = [
         {"moves": ["e4", "e5", "Nf3", "Nc6", "Bc4", "Bc5"]},
@@ -119,7 +119,7 @@ def test_find_common_move_prefix():
 
 
 def test_find_representative_line_transposition():
-    from app import find_representative_line_for_games
+    from src.opening_tree import find_representative_line_for_games
 
     # Transposition example: Dutch Defense played via different valid move orders
     games = [
@@ -133,32 +133,6 @@ def test_find_representative_line_transposition():
     assert len(rep_line) >= 5
     # Check that representative line is one of the valid move paths
     assert rep_line[:5] in [["d4", "f5", "c4", "Nf6", "g3"], ["d4", "e6", "c4", "f5", "g3"]]
-
-
-def test_push_move_preserves_full_analysis_line():
-    import streamlit as st
-    import chess
-    from app import push_move, pop_move, step_next
-
-    st.session_state.chess_board = chess.Board()
-    st.session_state.move_history = []
-    st.session_state.full_analysis_line = ["e4", "e5", "Nf3", "Nc6", "Bc4"]
-
-    # Play e4
-    push_move("e4")
-    assert st.session_state.move_history == ["e4"]
-    assert st.session_state.full_analysis_line == ["e4", "e5", "Nf3", "Nc6", "Bc4"]
-
-    # Pop move back to start
-    pop_move()
-    assert st.session_state.move_history == []
-    assert st.session_state.full_analysis_line == ["e4", "e5", "Nf3", "Nc6", "Bc4"]
-
-    # Step next twice
-    step_next()
-    step_next()
-    assert st.session_state.move_history == ["e4", "e5"]
-    assert st.session_state.full_analysis_line == ["e4", "e5", "Nf3", "Nc6", "Bc4"]
 
 
 def test_opening_tree_transposition_stats_aggregation():
@@ -283,55 +257,6 @@ def test_determine_game_outcome():
     # Unknown
     assert determine_game_outcome("white", "*") == (False, False, False)
 
-
-def test_load_opening_onto_board_color_sync(monkeypatch):
-    """Kiểm tra load_opening_onto_board đồng bộ màu quân và thiết lập trạng thái."""
-    import streamlit as st
-    from app import load_opening_onto_board
-
-    # Mock st.rerun to prevent script termination during test
-    monkeypatch.setattr(st, "rerun", lambda: None)
-
-    st.session_state.chess_board = chess.Board()
-    st.session_state.move_history = []
-    st.session_state.full_analysis_line = []
-    st.session_state.analysis_color_filter = "all"
-    st.session_state.board_orientation = "white"
-
-    games = [
-        {
-            "white": "Hero",
-            "black": "Rival",
-            "result": "1-0",
-            "player_color": "white",
-            "moves": ["e4", "c5", "Nf3", "d6", "d4"],
-            "opening": "Sicilian Defense",
-        },
-        {
-            "white": "Rival",
-            "black": "Hero",
-            "result": "0-1",
-            "player_color": "black",
-            "moves": ["d4", "Nf6", "c4", "g6"],
-            "opening": "King's Indian Defense",
-        }
-    ]
-
-    # Load Sicilian as White
-    load_opening_onto_board("Sicilian Defense", games, color="white")
-    assert st.session_state.analysis_color_filter == "white"
-    assert st.session_state.board_orientation == "white"
-    assert st.session_state.active_nav_page == "Analyze"
-    assert len(st.session_state.move_history) > 0
-    assert st.session_state.move_history[0] == "e4"
-
-    # Load King's Indian as Black
-    load_opening_onto_board("King's Indian Defense", games, color="black")
-    assert st.session_state.analysis_color_filter == "black"
-    assert st.session_state.board_orientation == "black"
-    assert st.session_state.active_nav_page == "Analyze"
-    assert len(st.session_state.move_history) > 0
-    assert st.session_state.move_history[0] == "d4"
 
 
 

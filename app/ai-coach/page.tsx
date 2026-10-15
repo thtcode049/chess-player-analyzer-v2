@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { Chess } from "chess.js";
 import ChessBoard from "@/components/chess/ChessBoard";
-import AiCoachChat from "@/components/ai/AiCoachChat";
+import AiAssistantChat from "@/components/ai/AiAssistantChat";
 import { apiClient } from "@/lib/api/client";
 import { Player, Game } from "@/lib/api/types";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
@@ -742,7 +742,7 @@ export default function AiCoachPage() {
         {/* Right/Full Area: AI Coach Chat Box */}
         <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
           {activeSession ? (
-            <AiCoachChat
+            <AiAssistantChat
               key={activeSession.id}
               runId={`run-${activeSession.playerId}`}
               playerId={activeSession.playerId}

@@ -37,7 +37,7 @@ from api.routes.ai import router as ai_router
 
 app = FastAPI(
     title="Chess Player Analyzer V2 API",
-    description="High-Performance Chess Data Analytics, Transposition-Safe Opening Trees, Empirical Bayesian Shrinkage & AI Coaching.",
+    description="High-Performance Chess Data Analytics, Transposition-Safe Opening Trees, Empirical Bayesian Shrinkage & AI Assistant.",
     version="2.0.0",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json"

@@ -25,7 +25,7 @@ interface Message {
   content: string;
 }
 
-interface AiCoachChatProps {
+interface AiAssistantChatProps {
   runId?: string;
   playerId?: string;
   playerName?: string;
@@ -233,7 +233,7 @@ function ThinkingState() {
   );
 }
 
-export default function AiCoachChat({
+export default function AiAssistantChat({
   runId = "default_run",
   playerId = "",
   playerName = "Kỳ thủ",
@@ -254,7 +254,7 @@ export default function AiCoachChat({
   onNewChat,
   suggestedQuestions,
   heightClass,
-}: AiCoachChatProps) {
+}: AiAssistantChatProps) {
   const [internalMessages, setInternalMessages] = useState<Message[]>([
     {
       role: "assistant",

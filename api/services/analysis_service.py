@@ -114,10 +114,7 @@ class AnalysisService:
         middlegame_acpl = middlegame_acpl if middlegame_acpl else None
         endgame_acpl = endgame_acpl if endgame_acpl else None
 
-        style_profile = deep_profile.get("style_profile", {})
-        radar_metrics = style_profile.get("raw_metrics", {})
-        # dominant_archetype: giữ giá trị hiện có, không thêm logic mới
-        dominant_archetype = style_profile.get("dominant_archetype") or style_profile.get("archetype", {}).get("primary") or None
+        dominant_archetype = None
 
         # 6. Extract Critical Positions (Blunders & Eval Swings)
         critical_positions = find_critical_positions(move_evals, max_positions=15) if move_evals else []
@@ -153,17 +150,7 @@ class AnalysisService:
             # Snapshots
             "repertoire_summary": repertoire_data,
             "pawn_structures_summary": deep_profile.get("structures", {}),
-            # style_radar_metrics: ánh xạ sang keys chuẩn cho frontend + giữ raw keys
-            "style_radar_metrics": {
-                "volatility": radar_metrics.get("volatility_score", 50.0),
-                "sacrifice": radar_metrics.get("sacrifice_rate", 0.0),
-                "simplification": radar_metrics.get("simplification_rate", 0.0),
-                "resilience": radar_metrics.get("resilience_rate", 50.0),
-                "open_preference": radar_metrics.get("open_preference", 33.3),
-                "semi_open_preference": radar_metrics.get("semi_open_preference", 33.3),
-                "closed_preference": radar_metrics.get("closed_preference", 33.4),
-                **radar_metrics,  # giữ raw keys (volatility_score, sacrifice_rate, ...) cho backward compatibility
-            },
+            "style_radar_metrics": {},
             "opening_tree_snapshot": root_details,
             
             # Additional rich state

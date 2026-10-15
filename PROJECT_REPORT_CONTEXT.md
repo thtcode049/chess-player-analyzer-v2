@@ -27,12 +27,12 @@ Tuy nhiên, việc khai phá dữ liệu PGN hiện nay đang gặp phải các 
 - **Thiếu tính định hướng hành động (Actionable Insights):** Các công cụ hiện tại chỉ dừng lại ở các con số thống kê khô khan (tỷ lệ thắng, số ván) mà thiếu đi khả năng suy luận chiến lược: *"Tôi cần tập luyện bài tập gì?", "Lỗ hổng khai cuộc nào cần sửa?", "Trước đối thủ này nên ép vào thế cờ nào?"*.
 
 ### 1.2. Giải pháp: Chess Player Analyzer
-**Chess Player Analyzer** là nền tảng Web ứng dụng phân tích dữ liệu cờ vua toàn diện kết hợp cùng **Trợ lí Trí tuệ Nhân tạo (AI Coach & Tactical Advisor)**. Ứng dụng biến hàng trăm ván cờ PGN thô thành:
+**Chess Player Analyzer** là nền tảng Web ứng dụng phân tích dữ liệu cờ vua toàn diện kết hợp cùng **Trợ lí Trí tuệ Nhân tạo (AI Assistant)**. Ứng dụng biến hàng trăm ván cờ PGN thô thành:
 1. Cây khai cuộc trực quan với khả năng chống chuyển vị (Transposition-safe Opening Tree).
-2. Hồ sơ phong cách kỳ thủ thực nghiệm (Độ biến động thế cờ, Tỉ lệ thí quân, Xu hướng đơn giản hóa, Khả năng chịu ép, Thế trận thường dùng).
+2. Phân tích hiệu suất trên các cấu trúc Tốt điển hình (IQP, Carlsbad, Tốt treo, Cấu trúc Pháp, Nhím).
 3. Đánh giá độ chính xác từng giai đoạn ván đấu theo chuẩn động cơ Stockfish (ACPL).
 4. Khắc phục thiên lệch mẫu bằng mô hình toán học **Co ngót Bayes (Empirical Bayesian Shrinkage)**.
-5. **Trợ lí AI Chiến lược** đưa ra bản tóm tắt suy luận mở đầu tự động (Proactive Strategic Briefing) và đàm thoại đa chiều theo 2 góc nhìn linh hoạt.
+5. **Trợ lí AI Phân tích** tương tác trực tiếp với bàn cờ và giải đáp chuyên sâu dựa trên dữ liệu thực tế.
 
 ---
 
@@ -203,12 +203,6 @@ $$\text{Adjusted Score (\%)} = \frac{\text{Points} + \text{Prior Points}}{\text{
 - **`src/analysis/game_dynamics.py`**:
   - *Ý nghĩa:* Phân tích động lực học ván đấu và tâm lý thời gian.
   - *Chức năng:* Đo lường độ dài trung bình của ván đấu, phân bổ thời gian suy nghĩ trên từng nước cờ, tần suất đảo chiều thế cờ (Swings/Turnarounds) để nhận định độ bền tâm lý thi đấu.
-- **`src/analysis/style_metrics.py`**:
-  - *Ý nghĩa:* Đo lường các chỉ số phong cách thi đấu thực nghiệm.
-  - *Chức năng:* Trích xuất các chỉ số định lượng: Độ biến động (Volatility Score), Tỉ lệ thí quân (Sacrifice Rate), Xu hướng đơn giản hóa (Simplification Rate), Khả năng kiên cường chịu ép (Resilience Rate), Thế trận thường dùng (Dominant Structure - Open/Semi-Open/Closed).
-- **`src/analysis/style_classifier.py`**:
-  - *Ý nghĩa:* Phân loại hình mẫu kỳ thủ (Player Archetype).
-  - *Chức năng:* So sánh điểm phong cách với các hình mẫu huyền thoại: *Attacker* (như Mikhail Tal), *Positional Master* (như Anatoly Karpov), *Universal* (như Magnus Carlsen), *Solid Defender* (như Tigran Petrosian).
 
 ---
 

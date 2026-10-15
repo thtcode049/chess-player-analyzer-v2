@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Lock, Mail, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { Lock, Mail, ArrowRight, Loader2, User } from "lucide-react";
 
 function LoginContent() {
   const router = useRouter();
@@ -221,7 +221,7 @@ function LoginContent() {
           onClick={handleDemoLogin}
           className="w-full py-2.5 px-4 bg-secondary text-secondary-foreground font-semibold rounded-xl hover:bg-secondary/80 transition-all flex items-center justify-center gap-2 text-xs"
         >
-          <Sparkles className="w-4 h-4 text-amber-500" />
+          <User className="w-4 h-4 text-emerald-500" />
           Vào Trực Tiếp (Chế Độ Khách / Guest)
         </button>
 

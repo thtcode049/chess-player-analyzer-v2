@@ -14,7 +14,6 @@ import {
   ArrowLeft, 
   Play, 
   Loader2,
-  Sparkles,
   ExternalLink,
   Check,
   Pencil,
@@ -30,7 +29,6 @@ import {
 import { apiClient } from "@/lib/api/client";
 import { Player, Game, AnalysisRun } from "@/lib/api/types";
 import OpeningTreeTable from "@/components/analysis/OpeningTreeTable";
-import StyleRadarChart from "@/components/profile/StyleRadarChart";
 import PawnStructureGrid from "@/components/profile/PawnStructureGrid";
 import AiAssistantChat from "@/components/ai/AiAssistantChat";
 import WasmAnalysisCard from "@/components/analysis/WasmAnalysisCard";
@@ -472,7 +470,7 @@ export default function PlayerDetailPage() {
           }`}
         >
           <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          Cấu Trúc Tốt & Radar Phong Cách
+          Cấu Trúc Tốt Điển Hình
         </button>
         <button
           onClick={() => setActiveTab("games")}
@@ -494,7 +492,7 @@ export default function PlayerDetailPage() {
           }`}
         >
           <Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          Trợ Lí AI Tham Mưu
+          Trợ Lí AI Phân Tích
         </button>
       </div>
 
@@ -766,45 +764,32 @@ export default function PlayerDetailPage() {
       )}
 
 
-      {/* Tab 3: Structures & Style */}
+      {/* Tab 3: Pawn Structures Performance */}
       {activeTab === "structures" && (
-        <div className="space-y-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-            {/* Style Radar */}
-            <div className="bg-card border border-border/60 rounded-3xl p-6 shadow-sm">
-              <h3 className="text-base font-bold text-foreground mb-1 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-primary" />
-                Biểu Đồ Radar Phong Cách 8 Trục
-              </h3>
-              <p className="text-xs text-muted-foreground mb-6">
-                Xác định thiên hướng tấn công, kiên cường, chiến thuật và xử lý cấu trúc Tốt.
-              </p>
-              <div className="flex justify-center">
-                <StyleRadarChart
-                  metrics={analysisRun?.style_radar_metrics as any}
-                  archetype={analysisRun?.dominant_archetype && analysisRun.dominant_archetype !== "Universal Master" ? analysisRun.dominant_archetype : undefined}
-                />
-              </div>
-            </div>
-
-            {/* Pawn Structures Grid */}
-            <div className="space-y-4">
+        <div className="space-y-6">
+          <div className="bg-card border border-border/60 rounded-2xl p-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-base font-bold text-foreground flex items-center gap-2">
                   <Layers className="w-5 h-5 text-primary" />
-                  Hiệu Suất Trên Cấu Trúc Tốt Điển Hình
+                  Hiệu Suất Trên Cấu Trúc Tốt Điển Hình (Pawn Formations)
                 </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Đánh giá tương quan thắng/hòa/thua so với trung bình cơ sở để tìm điểm mạnh và điểm yếu.
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Phân loại thế trận Tốt kinh điển (IQP, Carlsbad, Tốt treo, Cấu trúc Pháp, Nhím, Trung tâm mở) và đánh giá độ chênh lệch điểm số thực tế so với trung bình cơ sở.
                 </p>
               </div>
-
-              <PawnStructureGrid
-                structures={analysisRun?.pawn_structures_summary?.structures || []}
-                playerId={playerId}
-              />
+              <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                <span className="px-3 py-1.5 rounded-xl bg-secondary font-mono font-semibold text-foreground">
+                  {analysisRun?.pawn_structures_summary?.structures?.length || 0} Cấu trúc
+                </span>
+              </div>
             </div>
           </div>
+
+          <PawnStructureGrid
+            structures={analysisRun?.pawn_structures_summary?.structures || []}
+            playerId={playerId}
+          />
         </div>
       )}
 

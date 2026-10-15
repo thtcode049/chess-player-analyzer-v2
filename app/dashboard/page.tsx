@@ -10,7 +10,7 @@ import {
   Trophy, 
   ArrowUpRight,
   Layers,
-  Sparkles
+  ShieldCheck
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { Player, AnalysisRun } from "@/lib/api/types";
@@ -92,12 +92,12 @@ export default function DashboardPage() {
           <h1 className="mt-2 text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight drop-shadow-xs">
             {user 
               ? `Chào mừng trở lại, ${user.user_metadata?.full_name || user.user_metadata?.name || user.user_metadata?.display_name || user.email?.split("@")[0] || "Kỳ thủ"}!` 
-              : "Khám Phá Phân Tích & Cố Vấn Cờ Vua Thông Minh"}
+              : "Nền Tảng Phân Tích Dữ Liệu Cờ Vua Chuyên Sâu"}
           </h1>
           <p className="mt-3 text-sm sm:text-base text-emerald-50/95 leading-relaxed drop-shadow-xs">
             {user
-              ? "Hệ thống đã sẵn sàng hỗ trợ nạp dữ liệu từ Lichess/Chess.com, bóc tách Repertoire khai cuộc, và đồng hành cùng Trợ lí AI Đại kiện tướng để hoàn thiện chiến lược thi đấu."
-              : "Nền tảng hỗ trợ nạp ván cờ từ tệp PGN hoặc đồng bộ trực tiếp từ Lichess/Chess.com để bóc tách khai cuộc, vẽ radar phong cách và đồng hành cùng Trợ lí AI."}
+              ? "Hệ thống đã sẵn sàng hỗ trợ nạp dữ liệu từ Lichess/Chess.com, bóc tách Repertoire khai cuộc, phân tích cấu trúc Tốt và trao đổi cùng Trợ lí AI."
+              : "Nền tảng hỗ trợ nạp ván cờ từ tệp PGN hoặc đồng bộ trực tiếp từ Lichess/Chess.com để bóc tách cây khai cuộc, cấu trúc Tốt và trao đổi cùng Trợ lí AI."}
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -130,7 +130,7 @@ export default function DashboardPage() {
       {isGuest && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-xs text-foreground shadow-xs animate-fade-in">
           <div className="flex items-center gap-2.5">
-            <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>
               Bạn đang sử dụng ở <b>Chế độ Khách (Guest)</b>. Ván đấu nạp vào sẽ được lưu tạm thời trong phiên trình duyệt này.
             </span>

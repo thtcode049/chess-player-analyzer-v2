@@ -271,8 +271,6 @@ def generate_deep_opponent_profile(
     from src.analysis.phase_analysis import analyze_phase_performance
     from src.analysis.game_dynamics import analyze_game_dynamics
     from src.analysis.simplification import analyze_simplification_performance
-    from src.analysis.style_metrics import extract_all_style_metrics
-    from src.analysis.style_classifier import classify_player_style
     from src.analysis.critical_positions import find_critical_positions
 
     baseline = stats.get("score_percentage", 50.0) if stats else 50.0
@@ -281,23 +279,6 @@ def generate_deep_opponent_profile(
     phases_data = analyze_phase_performance(filtered_games, move_evaluations=move_evaluations)
     dynamics_data = analyze_game_dynamics(filtered_games, move_evaluations=move_evaluations)
     simplification_data = analyze_simplification_performance(filtered_games, move_evaluations=move_evaluations)
-    
-    analyzed_indices = set(e["game_index"] for e in (move_evaluations or []) if "game_index" in e)
-    analyzed_games_count = len(analyzed_indices)
-    total_games_count = len(filtered_games)
-
-    style_raw_metrics = extract_all_style_metrics(
-        filtered_games,
-        stats,
-        move_evaluations=move_evaluations,
-        phases_data=phases_data
-    )
-    style_profile = classify_player_style(
-        style_raw_metrics,
-        sample_size=total_games_count,
-        analyzed_games_count=analyzed_games_count,
-        total_games_count=total_games_count
-    )
     
     critical_positions = find_critical_positions(move_evaluations, max_positions=5)
     rule_insights = generate_player_insights(filtered_games, stats, repertoire_data, {})
@@ -313,7 +294,7 @@ def generate_deep_opponent_profile(
         "phases": phases_data,
         "dynamics": dynamics_data,
         "simplification": simplification_data,
-        "style_profile": style_profile,
+        "style_profile": {},
         "critical_positions": critical_positions,
         "rule_insights": rule_insights,
         "has_engine_data": bool(move_evaluations),

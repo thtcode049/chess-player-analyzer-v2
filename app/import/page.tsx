@@ -24,7 +24,6 @@ import {
   Download,
   Search,
   Users,
-  Sparkles,
   X
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
@@ -1678,7 +1677,7 @@ function ImportContent() {
 
                 {/* Footer hint */}
                 <div className="text-[11px] text-muted-foreground/80 flex items-start gap-1.5 leading-tight pt-1">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
                   <span>Hệ thống tự động trích xuất cấu trúc nước đi và xây dựng cây khai cuộc tự động.</span>
                 </div>
               </div>

@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { UserPlus, Mail, Lock, User, ArrowRight, Loader2, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
+import { UserPlus, Mail, Lock, User, ArrowRight, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();

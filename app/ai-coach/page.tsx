@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Brain,
-  Sparkles,
   RotateCcw,
   Layers,
   RotateCw,
@@ -731,8 +730,8 @@ export default function AiCoachPage() {
                   title="Gửi thế cờ này cho Trợ lí AI phân tích"
                   className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Hỏi AI về thế cờ ↗</span>
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Gửi thế cờ vào chat ↗</span>
                 </button>
               </div>
             </div>

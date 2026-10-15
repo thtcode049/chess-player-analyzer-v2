@@ -6,7 +6,7 @@ import {
   Users,
   UserPlus,
   Search,
-  Sparkles,
+  ShieldCheck,
   ChevronRight,
   Calendar,
   X,
@@ -258,7 +258,7 @@ export default function PlayersPage() {
       {isGuest && (
         <div className="flex items-center justify-between p-3.5 bg-card/70 border border-primary/20 rounded-xl text-xs text-muted-foreground shadow-sm animate-fade-in">
           <div className="flex items-center gap-2.5">
-            <Sparkles className="w-4 h-4 text-primary shrink-0" />
+            <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
             <span>Bạn đang sử dụng ở <b>chế độ Khách</b>. Dữ liệu chỉ lưu tạm thời trong bộ nhớ phiên làm việc.</span>
           </div>
           <Link href="/login" className="font-semibold text-primary hover:underline shrink-0 ml-3">
@@ -309,7 +309,7 @@ export default function PlayersPage() {
         ) : isGuest ? (
           <div className="text-center py-16 bg-card/60 border border-primary/20 rounded-2xl p-8 max-w-xl mx-auto space-y-4 shadow-sm animate-fade-in">
             <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto text-primary">
-              <Sparkles className="w-7 h-7" />
+              <Users className="w-7 h-7" />
             </div>
             <div>
               <h3 className="text-lg font-extrabold text-foreground">Chưa có hồ sơ trong phiên khách</h3>

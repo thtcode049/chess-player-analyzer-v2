@@ -5,11 +5,11 @@ import { useState, useEffect } from "react";
 import { 
   Brain, 
   ArrowRight, 
-  Sparkles, 
+  BarChart3, 
   BookOpen,
   Target,
   Upload,
-  Activity,
+  Layers,
   CheckCircle2
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -57,8 +57,8 @@ export default function LandingPage() {
 
         {/* Brand Pill Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-6 backdrop-blur-sm">
-          <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-          <span>ChessLook • Nền Tảng Phân Tích & Cố Vấn Cờ Vua Thông Minh</span>
+          <BarChart3 className="w-3.5 h-3.5 text-emerald-500" />
+          <span>ChessLook • Nền Tảng Phân Tích Dữ Liệu Ván Đấu & Hỗ Trợ Kỳ Thủ</span>
         </div>
 
         {/* Main Hero Title */}
@@ -72,7 +72,7 @@ export default function LandingPage() {
         {/* Subtitle */}
         <p className="mt-6 text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
           Chuyển hóa dữ liệu ván đấu thô từ Lichess và Chess.com thành cây khai cuộc trực quan, 
-          radar 8 chiều phong cách, phân tích cấu trúc Tốt và bản tham mưu chiến thuật cá nhân hóa cùng AI.
+          phân tích cấu trúc Tốt, đo lường sai số từng giai đoạn và tương tác trực quan cùng Trợ lí AI.
         </p>
 
         {/* Dual Primary CTA Buttons */}
@@ -169,29 +169,29 @@ export default function LandingPage() {
           </p>
         </div>
 
-        {/* Pillar 3: Style Radar & Pawn Structures */}
-        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm hover:border-purple-500/40 hover:shadow-md transition-all duration-300 group">
-          <div className="p-3 w-fit rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 mb-4 group-hover:scale-110 transition-transform">
-            <Activity className="w-6 h-6" />
+        {/* Pillar 3: Pawn Structures Performance */}
+        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm hover:border-emerald-500/40 hover:shadow-md transition-all duration-300 group">
+          <div className="p-3 w-fit rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mb-4 group-hover:scale-110 transition-transform">
+            <Layers className="w-6 h-6" />
           </div>
           <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">
-            Radar Phong Cách 8 Chiều
+            Phân Tích Cấu Trúc Tốt
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            Khắc họa chân dung phong cách: độ chủ động, sắc bén chiến thuật, kỹ năng tàn cuộc và hiệu suất thi đấu trên các cấu trúc Tốt điển hình.
+            Nhận diện thế trận Tốt kinh điển (IQP, Carlsbad, Tốt treo, Cấu trúc Pháp, Nhím) và đánh giá độ chênh lệch hiệu suất điểm số thực tế.
           </p>
         </div>
 
-        {/* Pillar 4: AI Coach */}
-        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm hover:border-amber-500/40 hover:shadow-md transition-all duration-300 group">
-          <div className="p-3 w-fit rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 mb-4 group-hover:scale-110 transition-transform">
+        {/* Pillar 4: AI Assistant */}
+        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm hover:border-teal-500/40 hover:shadow-md transition-all duration-300 group">
+          <div className="p-3 w-fit rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 mb-4 group-hover:scale-110 transition-transform">
             <Brain className="w-6 h-6" />
           </div>
           <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">
-            Cố Vấn Chiến Lược AI
+            Trợ Lí AI Phân Tích
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            Nhận bản báo cáo phân tích chiến thuật tự động, chuẩn bị phương án đối đầu với bất kỳ đối thủ nào và đàm thoại chiến thuật trực tiếp cùng AI.
+            Tương tác trực tiếp trên bàn cờ, đọc hiểu biên bản PGN và giải thích ý tưởng đằng sau các nước cờ bằng ngôn ngữ cờ vua tự nhiên.
           </p>
         </div>
       </div>

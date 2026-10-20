@@ -359,6 +359,17 @@ export const apiClient = {
     return handleResponse<OpeningTreeNode>(res);
   },
 
+  async getCanonicalOpening(name?: string, moves?: string[]): Promise<any> {
+    const authHeaders = await getAuthHeaders();
+    const query = new URLSearchParams();
+    if (name) query.set("name", name);
+    if (moves && moves.length > 0) query.set("moves", moves.join(","));
+    const res = await fetch(`${API_BASE}/api/analysis/openings/canonical?${query.toString()}`, {
+      headers: authHeaders,
+    });
+    return handleResponse<any>(res);
+  },
+
   async getLichessMasters(fen: string, token?: string): Promise<LichessMastersResponse> {
     const localToken =
       token ||

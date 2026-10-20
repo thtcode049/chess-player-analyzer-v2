@@ -135,6 +135,24 @@ def test_find_representative_line_transposition():
     assert rep_line[:5] in [["d4", "f5", "c4", "Nf6", "g3"], ["d4", "e6", "c4", "f5", "g3"]]
 
 
+def test_find_representative_line_branching():
+    from src.opening_tree import find_representative_line_for_games
+
+    # London System with branching at ply 2 (Black plays 1...Nf6 in 20 games, 1...d5 in 16 games)
+    games = []
+    for _ in range(20):
+        games.append({"moves": ["d4", "Nf6", "Bf4", "e6", "e3"]})
+    for _ in range(16):
+        games.append({"moves": ["d4", "d5", "Bf4", "Nf6", "e3"]})
+
+    rep_line = find_representative_line_for_games(games)
+    # Must NOT get truncated to ['d4']! It must reach at least 2. Bf4 (ply 3)
+    assert len(rep_line) >= 3
+    assert rep_line[0] == "d4"
+    assert rep_line[2] == "Bf4"
+
+
+
 def test_opening_tree_transposition_stats_aggregation():
     """Kiểm tra không bị ghi đè FEN khi chuyển vị (transposition) và thống kê chính xác."""
     # Game 1: 1. d4 Nf6 2. c4 e6 3. Nf3 (White Win)

@@ -678,3 +678,28 @@ async def sync_analysis_evaluations(
         logger.error(f"[Analysis Sync] Failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to sync evaluations: {str(e)}")
 
+
+@router.get("/openings/canonical", response_model=BaseResponse[Dict[str, Any]])
+def get_canonical_opening(
+    name: Optional[str] = Query(None, description="Opening name to look up"),
+    moves: Optional[str] = Query(None, description="Comma-separated or space-separated SAN moves")
+):
+    """
+    Tra cứu thông tin khai cuộc chuẩn (ECO, moves, FEN, PGN) từ bộ dữ liệu Lichess Openings (3,865 biến thể).
+    """
+    from src.pgn_parser import find_opening_by_name, find_opening_by_moves
+
+    if moves:
+        moves_list = [m.strip() for m in moves.replace(",", " ").split() if m.strip()]
+        matched = find_opening_by_moves(moves_list)
+        if matched:
+            return BaseResponse(success=True, data=matched)
+
+    if name:
+        matched = find_opening_by_name(name)
+        if matched:
+            return BaseResponse(success=True, data=matched)
+
+    raise HTTPException(status_code=404, detail="Opening not found in Lichess openings database")
+
+

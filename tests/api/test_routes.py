@@ -356,3 +356,25 @@ def test_opening_tree_branch_reconstruction():
     tree_data = tree_res.json()["data"]
     assert len(tree_data["continuations"]) >= 1
     assert tree_data["continuations"][0]["san"] == "e4"
+
+
+def test_canonical_opening_endpoint():
+    # 1. Lookup by name
+    res = client.get("/api/analysis/openings/canonical?name=London%20System")
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert "London System" in data["name"]
+    assert "moves" in data
+    assert "fen" in data
+
+    # 2. Lookup by moves
+    res2 = client.get("/api/analysis/openings/canonical?moves=e4,c5,Nf3,d6,d4,cxd4,Nxd4,Nf6,Nc3,a6")
+    assert res2.status_code == 200
+    data2 = res2.json()["data"]
+    assert data2["eco"] == "B90"
+    assert "Sicilian Defense" in data2["name"]
+
+    # 3. Not found
+    res3 = client.get("/api/analysis/openings/canonical?name=NonExistentOpeningXYZ123")
+    assert res3.status_code == 404
+

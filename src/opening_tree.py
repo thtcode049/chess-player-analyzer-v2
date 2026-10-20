@@ -257,12 +257,42 @@ def find_common_move_prefix(games: list) -> list:
     return common
 
 
+def find_most_frequent_line(games: list, max_plies: int = 12) -> list:
+    """
+    Đi theo nhánh nước đi phổ biến nhất của kỳ thủ ở từng nước (greedy tree walk).
+    Giúp xác định dòng biến chính xác kể cả khi đối thủ phân nhánh sớm.
+    """
+    if not games:
+        return []
+    current_games = games
+    line = []
+    for ply in range(max_plies):
+        move_counts: Dict[str, int] = {}
+        for g in current_games:
+            m_list = g.get("moves", [])
+            if len(m_list) > ply:
+                mv = m_list[ply]
+                move_counts[mv] = move_counts.get(mv, 0) + 1
+        if not move_counts:
+            break
+        best_move, count = max(move_counts.items(), key=lambda x: x[1])
+        # Tiếp tục nếu có ít nhất 2 ván và chiếm ít nhất 25% nhánh hiện tại
+        if count < max(2, int(len(current_games) * 0.25)):
+            break
+        line.append(best_move)
+        current_games = [
+            g for g in current_games
+            if len(g.get("moves", [])) > ply and g.get("moves", [])[ply] == best_move
+        ]
+    return line
+
+
 def find_representative_line_for_games(games: list) -> list:
     """
     Phân tích thế cờ (position & transposition analysis) trong nhóm ván đấu để tìm
     thế cờ đặc trưng (canonical position) xuất hiện phổ biến nhất và sinh chuỗi
     nước đi đại diện (representative line) dẫn đến thế cờ đó.
-    Sử dụng EPD key (quân cờ + lượt đi + nhập thành + bắt tốt qua đường) để khớp transposition chuẩn xác.
+    Sử dụng EPD key để khớp transposition và kết hợp greedy tree walk tránh bị kẹt ở nước 1.
     """
     if not games:
         return []
@@ -303,13 +333,13 @@ def find_representative_line_for_games(games: list) -> list:
                 break
 
     if not fen_info:
-        return []
+        return find_most_frequent_line(games) or find_common_move_prefix(games)
 
     non_root_counts = [
         len(info["games"]) for key, info in fen_info.items() if key != start_key
     ]
     if not non_root_counts:
-        return []
+        return find_most_frequent_line(games) or find_common_move_prefix(games)
 
     max_games_count = max(non_root_counts)
     threshold = max(2, int(max_games_count * 0.75))
@@ -331,11 +361,19 @@ def find_representative_line_for_games(games: list) -> list:
                     if g_count > len(fen_info[best_key]["games"]):
                         best_key = key
 
-    if not best_key:
-        return find_common_move_prefix(games)
+    candidate = []
+    if best_key:
+        best_paths = fen_info[best_key]["paths"]
+        most_common_path = max(best_paths.items(), key=lambda x: x[1])[0]
+        candidate = list(most_common_path)
 
-    best_paths = fen_info[best_key]["paths"]
-    most_common_path = max(best_paths.items(), key=lambda x: x[1])[0]
-    return list(most_common_path)
+    # Nếu phân nhánh khiến candidate bị cụt (<= 1 nước đi), dùng greedy tree walk
+    if len(candidate) <= 1:
+        frequent = find_most_frequent_line(games)
+        if len(frequent) > len(candidate):
+            return frequent
+
+    return candidate if candidate else (find_most_frequent_line(games) or find_common_move_prefix(games))
+
 
 

@@ -7,70 +7,131 @@ Tự động suy luận tên khai cuộc từ các nước đi nếu file PGN kh
 """
 
 import io
+import json
+import logging
 from pathlib import Path
 from typing import List, Dict, Any, Union, Tuple, Optional
 import chess.pgn
 
-# Bảng tra cứu suy luận Khai cuộc (Opening Heuristic Lookup) dựa trên các nước đi đầu tiên
-OPENING_LOOKUP: List[Tuple[Tuple[str, ...], str, str]] = [
-    (("e4", "c5"), "B20", "Sicilian Defense"),
-    (("e4", "e5", "Nf3", "Nc6", "Bb5"), "C60", "Ruy Lopez"),
-    (("e4", "e5", "Nf3", "Nc6", "Bc4"), "C50", "Italian Game"),
-    (("e4", "e5", "Nf3", "Nc6", "d4"), "C44", "Scotch Game"),
-    (("e4", "e5", "Nf3", "Nc6"), "C40", "King's Pawn Game (Four Knights)"),
-    (("e4", "e5", "Nf3", "Nf6"), "C42", "Petrov's Defense"),
-    (("e4", "e5", "Nf3"), "C40", "King's Knight Opening"),
-    (("e4", "e5", "f4"), "C23", "King's Gambit"),
-    (("e4", "e5", "Nc3"), "C25", "Vienna Game"),
-    (("e4", "e5"), "C20", "King's Pawn Game"),
-    (("e4", "e6", "d4", "d5"), "C00", "French Defense"),
-    (("e4", "e6"), "C00", "French Defense"),
-    (("e4", "c6", "d4", "d5"), "B10", "Caro-Kann Defense"),
-    (("e4", "c6"), "B10", "Caro-Kann Defense"),
-    (("e4", "d5"), "B01", "Scandinavian Defense"),
-    (("e4", "g6"), "B06", "Modern Defense"),
-    (("e4", "Nf6"), "B02", "Alekhine's Defense"),
-    (("e4", "d6"), "B07", "Pirc Defense"),
-    (("d4", "Nf6", "c4", "e6", "Nf3"), "E10", "Queen's Indian Defense"),
-    (("d4", "Nf6", "c4", "e6", "Nc3"), "E20", "Nimzo-Indian Defense"),
-    (("d4", "Nf6", "c4", "g6"), "E60", "King's Indian Defense"),
-    (("d4", "Nf6", "c4", "c5"), "A56", "Benoni Defense"),
-    (("d4", "Nf6", "c4"), "A45", "Indian Defense"),
-    (("d4", "Nf6", "Bg5"), "A45", "Trompowsky Attack"),
-    (("d4", "Nf6", "Bf4"), "A45", "London System"),
-    (("d4", "Nf6"), "A45", "Indian Defense"),
-    (("d4", "d5", "c4", "e6"), "D30", "Queen's Gambit Declined"),
-    (("d4", "d5", "c4", "c6"), "D10", "Slav Defense"),
-    (("d4", "d5", "c4", "dxc4"), "D20", "Queen's Gambit Accepted"),
-    (("d4", "d5", "c4"), "D06", "Queen's Gambit"),
-    (("d4", "d5", "Bf4"), "D00", "London System"),
-    (("d4", "d5", "Nf3"), "D02", "Queen's Pawn Game"),
-    (("d4", "d5"), "D00", "Queen's Pawn Game"),
-    (("d4", "f5"), "A80", "Dutch Defense"),
-    (("c4", "e5"), "A20", "English Opening (Reversed Sicilian)"),
-    (("c4", "c5"), "A30", "English Opening (Symmetrical)"),
-    (("c4", "Nf6"), "A15", "English Opening"),
-    (("c4",), "A10", "English Opening"),
-    (("Nf3", "d5"), "A06", "Reti Opening"),
-    (("Nf3", "Nf6"), "A04", "Zukertort Opening"),
-    (("Nf3",), "A04", "Zukertort Opening"),
-    (("g3",), "A00", "Hungarian Opening"),
-    (("b3",), "A00", "Nimzo-Larsen Attack"),
-    (("f4",), "A02", "Bird's Opening"),
-    (("b4",), "A00", "Sokolsky (Polish) Opening"),
-]
+logger = logging.getLogger(__name__)
+
+# Cấu trúc Trie và bộ chỉ mục tra cứu từ lichess-org/chess-openings (3,865 biến thể ECO quốc tế)
+_LICHESS_OPENINGS_TRIE: Optional[Dict[str, Any]] = None
+_LICHESS_OPENINGS_BY_NAME: Optional[Dict[str, Dict[str, Any]]] = None
+_LICHESS_OPENINGS_BY_EPD: Optional[Dict[str, Dict[str, Any]]] = None
+
+
+def _get_lichess_openings_path() -> Path:
+    p1 = Path(__file__).resolve().parent.parent / "data" / "lichess_openings.json"
+    if p1.exists():
+        return p1
+    p2 = Path("data/lichess_openings.json")
+    if p2.exists():
+        return p2
+    return p1
+
+
+def load_lichess_openings() -> None:
+    """
+    Tải bộ dữ liệu khai cuộc chuẩn từ lichess-org/chess-openings (3,865 biến thể ECO A00-E99).
+    Xây dựng cây Trie tiền tố nước đi và từ điển tra cứu theo tên/EPD cho độ phức tạp O(k).
+    """
+    global _LICHESS_OPENINGS_TRIE, _LICHESS_OPENINGS_BY_NAME, _LICHESS_OPENINGS_BY_EPD
+    if _LICHESS_OPENINGS_TRIE is not None:
+        return
+
+    trie: Dict[str, Any] = {}
+    by_name: Dict[str, Dict[str, Any]] = {}
+    by_epd: Dict[str, Dict[str, Any]] = {}
+
+    path = _get_lichess_openings_path()
+    if path.exists():
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                openings_data = json.load(f)
+            for entry in openings_data:
+                # Thêm vào Trie nước đi
+                node = trie
+                for m in entry.get("moves", []):
+                    if m not in node:
+                        node[m] = {}
+                    node = node[m]
+                node["__opening__"] = entry
+
+                # Thêm vào bảng tra cứu tên chuẩn hóa (ưu tiên chuỗi nước đi ngắn nhất làm hình cờ chuẩn)
+                name = entry.get("name", "").strip()
+                if name:
+                    name_key = name.lower()
+                    if name_key not in by_name or len(entry.get("moves", [])) < len(by_name[name_key].get("moves", [])):
+                        by_name[name_key] = entry
+
+                # Thêm vào bảng tra cứu EPD
+                epd = entry.get("epd", "").strip()
+                if epd and epd not in by_epd:
+                    by_epd[epd] = entry
+        except Exception as e:
+            logger.warning(f"Could not load lichess_openings.json from {path}: {e}")
+
+    _LICHESS_OPENINGS_TRIE = trie
+    _LICHESS_OPENINGS_BY_NAME = by_name
+    _LICHESS_OPENINGS_BY_EPD = by_epd
+
+
+def find_opening_by_moves(moves: List[str]) -> Optional[Dict[str, Any]]:
+    """
+    Tra cứu khai cuộc từ chuỗi nước đi SAN (Longest Matching Prefix) dựa trên 3,865 biến của Lichess.
+    Trả về Dict gồm: {eco, name, pgn, moves, fen, epd} hoặc None nếu không khớp.
+    """
+    if not moves:
+        return None
+    if _LICHESS_OPENINGS_TRIE is None:
+        load_lichess_openings()
+
+    node = _LICHESS_OPENINGS_TRIE or {}
+    best_match = None
+    for m in moves:
+        if m in node:
+            node = node[m]
+            if "__opening__" in node:
+                best_match = node["__opening__"]
+        else:
+            break
+    return best_match
+
+
+def find_opening_by_name(name: str) -> Optional[Dict[str, Any]]:
+    """
+    Tra cứu thông tin khai cuộc chuẩn (moves, FEN, ECO, PGN) theo tên từ Lichess Openings.
+    Hỗ trợ khớp chính xác hoặc khớp mở rộng (substring).
+    """
+    if not name:
+        return None
+    if _LICHESS_OPENINGS_BY_NAME is None:
+        load_lichess_openings()
+
+    by_name = _LICHESS_OPENINGS_BY_NAME or {}
+    clean_name = name.strip().lower()
+    if clean_name in by_name:
+        return by_name[clean_name]
+
+    # Partial / substring match (ưu tiên biến thể ngắn gọn nhất nếu trùng nhiều)
+    matches = [entry for k, entry in by_name.items() if clean_name in k or k in clean_name]
+    if matches:
+        return min(matches, key=lambda x: len(x.get("moves", [])))
+    return None
 
 
 def infer_opening_from_moves(moves: List[str]) -> Tuple[str, str]:
     """
-    Suy luận mã ECO và tên Khai cuộc dựa trên các nước đi SAN đầu tiên nếu PGN thiếu tag [Opening].
+    Suy luận mã ECO và tên Khai cuộc dựa trên chuẩn quốc tế lichess-org/chess-openings.
+    Thay thế hoàn toàn bảng tra cứu tĩnh sơ sài cũ.
     """
     if not moves:
         return ("", "Unknown Opening")
-    moves_tuple = tuple(moves)
-    for prefix, eco, name in OPENING_LOOKUP:
-        if moves_tuple[: len(prefix)] == prefix:
-            return (eco, name)
+
+    match = find_opening_by_moves(moves)
+    if match:
+        return (match.get("eco", ""), match.get("name", "Unknown Opening"))
 
     if len(moves) >= 2:
         return ("", f"1.{moves[0]} {moves[1]}")

@@ -208,4 +208,41 @@ def test_pgn_metadata_and_link_extraction():
     assert g3["link"] == "https://lichess.org/AbCdEfGh"
 
 
+def test_lichess_openings_inference():
+    from src.pgn_parser import infer_opening_from_moves, find_opening_by_moves, find_opening_by_name
+
+    # 1. Test London System moves
+    eco_lon1, name_lon1 = infer_opening_from_moves(["d4", "Nf6", "Bf4"])
+    assert eco_lon1 == "A45"
+    assert "London System" in name_lon1
+
+    eco_lon2, name_lon2 = infer_opening_from_moves(["d4", "d5", "Bf4"])
+    assert eco_lon2 == "D00"
+    assert "London System" in name_lon2
+
+    eco_lon3, name_lon3 = infer_opening_from_moves(["d4", "d5", "Nf3", "Nf6", "Bf4"])
+    assert eco_lon3 == "D02"
+    assert "London System" in name_lon3
+
+    # 2. Test Sicilian Najdorf
+    match_najdorf = find_opening_by_moves(["e4", "c5", "Nf3", "d6", "d4", "cxd4", "Nxd4", "Nf6", "Nc3", "a6"])
+    assert match_najdorf is not None
+    assert match_najdorf["eco"] == "B90"
+    assert match_najdorf["name"] == "Sicilian Defense: Najdorf Variation"
+    assert "fen" in match_najdorf
+    assert "moves" in match_najdorf
+
+    # 3. Test find_opening_by_name
+    match_by_name = find_opening_by_name("Queen's Pawn Game: London System")
+    assert match_by_name is not None
+    assert match_by_name["eco"] == "D02"
+    assert match_by_name["moves"] == ["d4", "d5", "Nf3", "Nf6", "Bf4"]
+
+    # 4. Empty and fallback
+    assert infer_opening_from_moves([]) == ("", "Unknown Opening")
+    assert infer_opening_from_moves(["Zz9", "Xx9"]) == ("", "1.Zz9 Xx9")
+    assert infer_opening_from_moves(["Zz9"]) == ("", "1.Zz9")
+
+
+
 

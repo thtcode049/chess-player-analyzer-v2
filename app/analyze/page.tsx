@@ -30,6 +30,7 @@ import {
   OpeningRepertoireItem
 } from "@/lib/api/types";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
+import { getCanonicalOpeningByName } from "@/lib/chess/canonicalOpenings";
 
 function parseSanMoves(movesSan?: string | null): string[] {
   if (!movesSan) return [];
@@ -88,13 +89,48 @@ function findLongestCommonPrefix(movesList: string[][]): string[] {
   return common;
 }
 
-function findRepresentativeLineForGames(games: Game[]): string[] {
+function findMostFrequentLine(parsedGamesMoves: string[][], maxPlies: number = 12): string[] {
+  if (parsedGamesMoves.length === 0) return [];
+  let currentGames = parsedGamesMoves;
+  const line: string[] = [];
+
+  for (let ply = 0; ply < maxPlies; ply++) {
+    const moveCounts: Record<string, number> = {};
+    for (const m of currentGames) {
+      if (m.length > ply) {
+        const mv = m[ply];
+        moveCounts[mv] = (moveCounts[mv] || 0) + 1;
+      }
+    }
+    const entries = Object.entries(moveCounts);
+    if (entries.length === 0) break;
+
+    entries.sort((a, b) => b[1] - a[1]);
+    const [bestMove, count] = entries[0];
+    const minRequired = Math.max(2, Math.floor(currentGames.length * 0.25));
+    if (currentGames.length > 1 && count < minRequired) break;
+
+    line.push(bestMove);
+    currentGames = currentGames.filter((m) => m.length > ply && m[ply] === bestMove);
+  }
+  return line;
+}
+
+function findRepresentativeLineForGames(games: Game[], openingName?: string): string[] {
   if (!games || games.length === 0) {
+    if (openingName) {
+      const canonical = getCanonicalOpeningByName(openingName);
+      if (canonical && canonical.moves.length > 0) return canonical.moves;
+    }
     return [];
   }
 
   const parsedGamesMoves = games.map((g) => parseSanMoves(g.moves_san)).filter((m) => m.length > 0);
   if (parsedGamesMoves.length === 0) {
+    if (openingName) {
+      const canonical = getCanonicalOpeningByName(openingName);
+      if (canonical && canonical.moves.length > 0) return canonical.moves;
+    }
     return [];
   }
   if (parsedGamesMoves.length === 1) {
@@ -132,7 +168,8 @@ function findRepresentativeLineForGames(games: Game[]): string[] {
 
   const nonRootEntries = Object.entries(fenInfo).filter(([key]) => key !== startKey);
   if (nonRootEntries.length === 0) {
-    return findLongestCommonPrefix(parsedGamesMoves);
+    const frequent = findMostFrequentLine(parsedGamesMoves);
+    return frequent.length > 0 ? frequent : findLongestCommonPrefix(parsedGamesMoves);
   }
 
   const maxGamesCount = Math.max(...nonRootEntries.map(([_, info]) => info.games.size));
@@ -158,21 +195,36 @@ function findRepresentativeLineForGames(games: Game[]): string[] {
     }
   }
 
-  if (!bestKey) {
-    return findLongestCommonPrefix(parsedGamesMoves);
+  let line: string[] = [];
+  if (bestKey) {
+    const bestPaths = fenInfo[bestKey].paths;
+    let mostCommonPath = "";
+    let highestCount = -1;
+    for (const [pathStr, count] of Object.entries(bestPaths)) {
+      if (count > highestCount) {
+        highestCount = count;
+        mostCommonPath = pathStr;
+      }
+    }
+    line = mostCommonPath ? mostCommonPath.split(" ") : [];
   }
 
-  const bestPaths = fenInfo[bestKey].paths;
-  let mostCommonPath = "";
-  let highestCount = -1;
-  for (const [pathStr, count] of Object.entries(bestPaths)) {
-    if (count > highestCount) {
-      highestCount = count;
-      mostCommonPath = pathStr;
+  // If candidate is too short (<= 1 ply) due to branching (e.g. 1. d4 with Black replying 1...Nf6 or 1...d5 in London System),
+  // fallback to the player's most frequent line or canonical opening line
+  if (line.length <= 1) {
+    const frequent = findMostFrequentLine(parsedGamesMoves);
+    if (frequent.length > line.length) {
+      line = frequent;
     }
   }
 
-  const line = mostCommonPath ? mostCommonPath.split(" ") : [];
+  if (line.length <= 1 && openingName) {
+    const canonical = getCanonicalOpeningByName(openingName);
+    if (canonical && canonical.moves.length > line.length) {
+      return canonical.moves;
+    }
+  }
+
   if (line.length > 0) {
     return line;
   }
@@ -662,7 +714,13 @@ function AnalyzeContent() {
       setActiveOpeningGameId(null);
 
       const matchingGames = playerGames.filter((g) => isOpeningMatch(g, queryOpening));
-      const line = findRepresentativeLineForGames(matchingGames);
+      let line = findRepresentativeLineForGames(matchingGames, queryOpening);
+      if (line.length === 0) {
+        const canonical = getCanonicalOpeningByName(queryOpening);
+        if (canonical && canonical.moves.length > 0) {
+          line = canonical.moves;
+        }
+      }
       setOpeningRepresentativeLine(line);
 
       // Apply line moves to board to display canonical opening formation
@@ -678,6 +736,29 @@ function AnalyzeContent() {
       setCurrentPly(line.length);
       setCurrentFen(chess.fen());
       setGameInfo(null);
+
+      // Async fallback to Lichess Openings API (3,865 ECO entries) if local line was empty
+      if (line.length === 0) {
+        apiClient.getCanonicalOpening(queryOpening)
+          .then((canonicalData) => {
+            if (canonicalData && canonicalData.moves && canonicalData.moves.length > 0) {
+              const apiLine: string[] = canonicalData.moves;
+              setOpeningRepresentativeLine(apiLine);
+              const apiChess = new Chess();
+              for (const m of apiLine) {
+                try {
+                  apiChess.move(m);
+                } catch {
+                  break;
+                }
+              }
+              setMoves(apiLine);
+              setCurrentPly(apiLine.length);
+              setCurrentFen(apiChess.fen());
+            }
+          })
+          .catch(() => {});
+      }
 
       // Determine orientation based on player games or defense naming
       if (matchingGames.length > 0 && currentPlayerObj?.canonical_name) {

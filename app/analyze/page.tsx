@@ -31,55 +31,6 @@ import {
 } from "@/lib/api/types";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
 
-// Standard ECO & Opening lookup for instant canonical line derivation
-const OPENING_LOOKUP: Array<[string[], string, string]> = [
-  [["e4", "c5"], "B20", "Sicilian Defense"],
-  [["e4", "e5", "Nf3", "Nc6", "Bb5"], "C60", "Ruy Lopez"],
-  [["e4", "e5", "Nf3", "Nc6", "Bc4"], "C50", "Italian Game"],
-  [["e4", "e5", "Nf3", "Nc6", "d4"], "C44", "Scotch Game"],
-  [["e4", "e5", "Nf3", "Nc6"], "C40", "King's Pawn Game (Four Knights)"],
-  [["e4", "e5", "Nf3", "Nf6"], "C42", "Petrov's Defense"],
-  [["e4", "e5", "Nf3"], "C40", "King's Knight Opening"],
-  [["e4", "e5", "f4"], "C23", "King's Gambit"],
-  [["e4", "e5", "Nc3"], "C25", "Vienna Game"],
-  [["e4", "e5"], "C20", "King's Pawn Game"],
-  [["e4", "e6", "d4", "d5"], "C00", "French Defense"],
-  [["e4", "e6"], "C00", "French Defense"],
-  [["e4", "c6", "d4", "d5"], "B10", "Caro-Kann Defense"],
-  [["e4", "c6"], "B10", "Caro-Kann Defense"],
-  [["e4", "d5"], "B01", "Scandinavian Defense"],
-  [["e4", "g6"], "B06", "Modern Defense"],
-  [["e4", "Nf6"], "B02", "Alekhine's Defense"],
-  [["e4", "d6"], "B07", "Pirc Defense"],
-  [["d4", "Nf6", "c4", "e6", "Nf3"], "E10", "Queen's Indian Defense"],
-  [["d4", "Nf6", "c4", "e6", "Nc3"], "E20", "Nimzo-Indian Defense"],
-  [["d4", "Nf6", "c4", "g6"], "E60", "King's Indian Defense"],
-  [["d4", "Nf6", "c4", "c5"], "A56", "Benoni Defense"],
-  [["d4", "Nf6", "c4"], "A45", "Indian Defense"],
-  [["d4", "Nf6", "Bg5"], "A45", "Trompowsky Attack"],
-  [["d4", "Nf6", "Bf4"], "A45", "London System"],
-  [["d4", "Nf6"], "A45", "Indian Defense"],
-  [["d4", "d5", "c4", "e6"], "D30", "Queen's Gambit Declined"],
-  [["d4", "d5", "c4", "c6"], "D10", "Slav Defense"],
-  [["d4", "d5", "c4", "dxc4"], "D20", "Queen's Gambit Accepted"],
-  [["d4", "d5", "c4"], "D06", "Queen's Gambit"],
-  [["d4", "d5", "Bf4"], "D00", "London System"],
-  [["d4", "d5", "Nf3"], "D02", "Queen's Pawn Game"],
-  [["d4", "d5"], "D00", "Queen's Pawn Game"],
-  [["d4", "f5"], "A80", "Dutch Defense"],
-  [["c4", "e5"], "A20", "English Opening (Reversed Sicilian)"],
-  [["c4", "c5"], "A30", "English Opening (Symmetrical)"],
-  [["c4", "Nf6"], "A15", "English Opening"],
-  [["c4"], "A10", "English Opening"],
-  [["Nf3", "d5"], "A06", "Reti Opening"],
-  [["Nf3", "Nf6"], "A04", "Zukertort Opening"],
-  [["Nf3"], "A04", "Zukertort Opening"],
-  [["g3"], "A00", "Hungarian Opening"],
-  [["b3"], "A00", "Nimzo-Larsen Attack"],
-  [["f4"], "A02", "Bird's Opening"],
-  [["b4"], "A00", "Sokolsky (Polish) Opening"],
-];
-
 function parseSanMoves(movesSan?: string | null): string[] {
   if (!movesSan) return [];
   return movesSan
@@ -115,32 +66,11 @@ function isOpeningMatch(game: Game, opName: string): boolean {
   if (!opName) return false;
   const target = opName.toLowerCase().trim();
   const gOp = (game.opening_name || game.raw_headers?.Opening || (game as any).opening || "").toLowerCase().trim();
-  if (gOp) {
-    if (gOp === target || gOp.includes(target) || target.includes(gOp)) return true;
-    const baseGOp = gOp.split(/[:,\-]/)[0].trim();
-    const baseTarget = target.split(/[:,\-]/)[0].trim();
-    if (baseGOp === baseTarget || (baseGOp.length >= 4 && (baseGOp.includes(baseTarget) || baseTarget.includes(baseGOp)))) {
-      return true;
-    }
-  }
-  // Try matching ECO prefix lookup
-  for (const [prefix, , name] of OPENING_LOOKUP) {
-    const nameLow = name.toLowerCase();
-    if (nameLow === target || nameLow.includes(target) || target.includes(nameLow)) {
-      const moves = parseSanMoves(game.moves_san);
-      if (prefix.length <= moves.length) {
-        let match = true;
-        for (let i = 0; i < prefix.length; i++) {
-          if (moves[i] !== prefix[i]) {
-            match = false;
-            break;
-          }
-        }
-        if (match) return true;
-      }
-    }
-  }
-  return false;
+  if (!gOp) return false;
+  if (gOp === target || gOp.includes(target) || target.includes(gOp)) return true;
+  const baseGOp = gOp.split(/[:,\-]/)[0].trim();
+  const baseTarget = target.split(/[:,\-]/)[0].trim();
+  return baseGOp === baseTarget || (baseGOp.length >= 4 && (baseGOp.includes(baseTarget) || baseTarget.includes(baseGOp)));
 }
 
 function findLongestCommonPrefix(movesList: string[][]): string[] {
@@ -158,26 +88,14 @@ function findLongestCommonPrefix(movesList: string[][]): string[] {
   return common;
 }
 
-function findRepresentativeLineForGames(games: Game[], targetOpeningName?: string): string[] {
-  const fallbackFromLookup = (): string[] => {
-    if (targetOpeningName) {
-      const clean = targetOpeningName.toLowerCase().trim();
-      const found = OPENING_LOOKUP.find(([_, __, name]) => {
-        const n = name.toLowerCase();
-        return n === clean || n.includes(clean) || clean.includes(n);
-      });
-      if (found) return [...found[0]];
-    }
-    return [];
-  };
-
+function findRepresentativeLineForGames(games: Game[]): string[] {
   if (!games || games.length === 0) {
-    return fallbackFromLookup();
+    return [];
   }
 
   const parsedGamesMoves = games.map((g) => parseSanMoves(g.moves_san)).filter((m) => m.length > 0);
   if (parsedGamesMoves.length === 0) {
-    return fallbackFromLookup();
+    return [];
   }
   if (parsedGamesMoves.length === 1) {
     return parsedGamesMoves[0].slice(0, Math.min(parsedGamesMoves[0].length, 12));
@@ -214,8 +132,7 @@ function findRepresentativeLineForGames(games: Game[], targetOpeningName?: strin
 
   const nonRootEntries = Object.entries(fenInfo).filter(([key]) => key !== startKey);
   if (nonRootEntries.length === 0) {
-    const lcp = findLongestCommonPrefix(parsedGamesMoves);
-    return lcp.length > 0 ? lcp : fallbackFromLookup();
+    return findLongestCommonPrefix(parsedGamesMoves);
   }
 
   const maxGamesCount = Math.max(...nonRootEntries.map(([_, info]) => info.games.size));
@@ -242,8 +159,7 @@ function findRepresentativeLineForGames(games: Game[], targetOpeningName?: strin
   }
 
   if (!bestKey) {
-    const lcp = findLongestCommonPrefix(parsedGamesMoves);
-    return lcp.length > 0 ? lcp : fallbackFromLookup();
+    return findLongestCommonPrefix(parsedGamesMoves);
   }
 
   const bestPaths = fenInfo[bestKey].paths;
@@ -261,8 +177,7 @@ function findRepresentativeLineForGames(games: Game[], targetOpeningName?: strin
     return line;
   }
 
-  const lcp = findLongestCommonPrefix(parsedGamesMoves);
-  return lcp.length > 0 ? lcp : fallbackFromLookup();
+  return findLongestCommonPrefix(parsedGamesMoves);
 }
 
 function getGamePlayerOutcome(
@@ -747,7 +662,7 @@ function AnalyzeContent() {
       setActiveOpeningGameId(null);
 
       const matchingGames = playerGames.filter((g) => isOpeningMatch(g, queryOpening));
-      const line = findRepresentativeLineForGames(matchingGames, queryOpening);
+      const line = findRepresentativeLineForGames(matchingGames);
       setOpeningRepresentativeLine(line);
 
       // Apply line moves to board to display canonical opening formation

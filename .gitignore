@@ -83,3 +83,7 @@ data/processed/*
 *.exe
 !lib/stockfish/
 !public/stockfish/
+
+# 10. AI Assistant & Agent local configs (Local coder only, not for repo)
+.agents/
+.gemini/

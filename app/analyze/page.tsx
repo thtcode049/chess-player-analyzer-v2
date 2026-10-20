@@ -747,10 +747,14 @@ function AnalyzeContent() {
       setActiveOpeningGameId(null);
 
       const matchingGames = playerGames.filter((g) => isOpeningMatch(g, queryOpening));
-      let line = findRepresentativeLineForGames(matchingGames, queryOpening);
+
+      // 1. Ưu tiên hàng đầu: Nạp trực tiếp thế cờ chuẩn (Canonical Moves & FEN) từ Lichess Openings
       const canonical = getCanonicalOpeningByName(queryOpening);
-      if (canonical && canonical.moves.length > line.length) {
-        line = canonical.moves;
+      let line = canonical ? canonical.moves : [];
+
+      // 2. Nếu chưa có trong từ điển chuẩn, fallback suy luận từ nhóm ván đấu của kỳ thủ
+      if (line.length === 0) {
+        line = findRepresentativeLineForGames(matchingGames, queryOpening);
       }
       setOpeningRepresentativeLine(line);
 

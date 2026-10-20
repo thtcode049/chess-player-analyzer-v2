@@ -167,6 +167,13 @@ export const CANONICAL_OPENINGS: Record<string, CanonicalOpening> = {
   },
 
   // Indian Defenses (1. d4 Nf6)
+  // Indian Defenses (1. d4 Nf6)
+  "indian defense": {
+    eco: "A45",
+    name: "Indian Defense",
+    moves: ["d4", "Nf6"],
+    fen: "rnbqkb1r/pppppppp/5n2/8/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 1 2",
+  },
   "king's indian defense": {
     eco: "E61",
     name: "King's Indian Defense",
@@ -243,7 +250,13 @@ export function getCanonicalOpeningByName(name: string): CanonicalOpening | null
     return CANONICAL_OPENINGS[clean];
   }
 
-  // 2. Special case for London System variations
+  // 2. Base family name match (strip variation after ':' or ',' or ' - ')
+  const base = clean.split(/[:]|,|\s+-\s+/)[0].trim();
+  if (CANONICAL_OPENINGS[base]) {
+    return CANONICAL_OPENINGS[base];
+  }
+
+  // 3. Special case for London System variations
   if (clean.includes("london")) {
     if (clean.includes("accelerated") || clean.includes("indian")) {
       return CANONICAL_OPENINGS["indian defense: accelerated london system"];
@@ -251,9 +264,9 @@ export function getCanonicalOpeningByName(name: string): CanonicalOpening | null
     return CANONICAL_OPENINGS["queen's pawn game: london system"] || CANONICAL_OPENINGS["london system"];
   }
 
-  // 3. Substring match
+  // 4. Exact prefix matching (avoids "nimzo-indian" matching "indian defense")
   for (const [key, op] of Object.entries(CANONICAL_OPENINGS)) {
-    if (clean.includes(key) || key.includes(clean)) {
+    if (clean.startsWith(key) || key.startsWith(base)) {
       return op;
     }
   }

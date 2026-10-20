@@ -63,15 +63,48 @@ function isPlayerNameMatch(nameA?: string | null, nameB?: string | null): boolea
   return matches.length >= 2 || (tokensA.length === 1 && matches.length === 1);
 }
 
+function normalizeOpeningName(name: string): string {
+  return name.toLowerCase().replace(/['"`]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function getOpeningBaseName(name: string): string {
+  // Cut at ":" or "," or " - ", NOT at hyphen "-" to preserve "Nimzo-Indian", "King's Indian", etc.
+  const base = name.split(/[:]|,|\s+-\s+/)[0].trim();
+  return normalizeOpeningName(base);
+}
+
 function isOpeningMatch(game: Game, opName: string): boolean {
   if (!opName) return false;
-  const target = opName.toLowerCase().trim();
-  const gOp = (game.opening_name || game.raw_headers?.Opening || (game as any).opening || "").toLowerCase().trim();
-  if (!gOp) return false;
-  if (gOp === target || gOp.includes(target) || target.includes(gOp)) return true;
-  const baseGOp = gOp.split(/[:,\-]/)[0].trim();
-  const baseTarget = target.split(/[:,\-]/)[0].trim();
-  return baseGOp === baseTarget || (baseGOp.length >= 4 && (baseGOp.includes(baseTarget) || baseTarget.includes(baseGOp)));
+  const rawGOp = game.opening_name || game.raw_headers?.Opening || (game as any).opening || "";
+  if (!rawGOp) return false;
+
+  const target = normalizeOpeningName(opName);
+  const gOp = normalizeOpeningName(rawGOp);
+
+  // 1. Exact match
+  if (target === gOp) return true;
+
+  // 2. Base opening family match (e.g. "Nimzo-Indian Defense: Classical" matches "Nimzo-Indian Defense")
+  const baseTarget = getOpeningBaseName(opName);
+  const baseGOp = getOpeningBaseName(rawGOp);
+
+  if (baseTarget === baseGOp) return true;
+
+  // 3. Family prefix match (e.g. target is "Sicilian Defense" and gOp is "Sicilian Defense: Najdorf")
+  // MUST NOT use substring includes! "nimzo-indian" must not match "indian defense"
+  if (gOp.startsWith(baseTarget + ":") || gOp.startsWith(baseTarget + ",") || gOp.startsWith(baseTarget + " -")) {
+    return true;
+  }
+  if (target.startsWith(baseGOp + ":") || target.startsWith(baseGOp + ",") || target.startsWith(baseGOp + " -")) {
+    return true;
+  }
+
+  // 4. London System alias matching
+  if (baseTarget.includes("london") && baseGOp.includes("london")) {
+    return true;
+  }
+
+  return false;
 }
 
 function findLongestCommonPrefix(movesList: string[][]): string[] {
@@ -209,20 +242,20 @@ function findRepresentativeLineForGames(games: Game[], openingName?: string): st
     line = mostCommonPath ? mostCommonPath.split(" ") : [];
   }
 
-  // If candidate is too short (<= 1 ply) due to branching (e.g. 1. d4 with Black replying 1...Nf6 or 1...d5 in London System),
-  // fallback to the player's most frequent line or canonical opening line
-  if (line.length <= 1) {
+  const canonical = openingName ? getCanonicalOpeningByName(openingName) : null;
+  const minRequiredLength = canonical ? canonical.moves.length : 2;
+
+  // If candidate is shorter than canonical defining moves or <= 1 ply,
+  // try player's most frequent line first, then canonical moves
+  if (line.length < minRequiredLength) {
     const frequent = findMostFrequentLine(parsedGamesMoves);
     if (frequent.length > line.length) {
       line = frequent;
     }
   }
 
-  if (line.length <= 1 && openingName) {
-    const canonical = getCanonicalOpeningByName(openingName);
-    if (canonical && canonical.moves.length > line.length) {
-      return canonical.moves;
-    }
+  if (canonical && line.length < canonical.moves.length) {
+    return canonical.moves;
   }
 
   if (line.length > 0) {
@@ -715,11 +748,9 @@ function AnalyzeContent() {
 
       const matchingGames = playerGames.filter((g) => isOpeningMatch(g, queryOpening));
       let line = findRepresentativeLineForGames(matchingGames, queryOpening);
-      if (line.length === 0) {
-        const canonical = getCanonicalOpeningByName(queryOpening);
-        if (canonical && canonical.moves.length > 0) {
-          line = canonical.moves;
-        }
+      const canonical = getCanonicalOpeningByName(queryOpening);
+      if (canonical && canonical.moves.length > line.length) {
+        line = canonical.moves;
       }
       setOpeningRepresentativeLine(line);
 

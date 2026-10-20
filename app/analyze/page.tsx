@@ -817,38 +817,36 @@ function AnalyzeContent() {
 
       {/* MODE A: OPENING EXPLORER HEADER BANNER */}
       {selectedOpening && !selectedStructure && (
-        <div className="bg-primary/10 border border-primary/30 rounded-3xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm animate-fade-in">
-          <div className="flex items-center gap-3.5">
-            <div className="p-3 rounded-2xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
-              <BookOpen className="w-6 h-6" />
+        <div className="bg-card/70 border border-border/50 rounded-xl px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+              <BookOpen className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-primary uppercase tracking-wider">
-                  Opening Explorer Mode
+                <span className="text-[11px] font-bold text-primary uppercase tracking-wide">
+                  Khám phá Khai cuộc
                 </span>
                 {currentOpeningItem?.assessment_badge && (
                   <span
-                    className="px-2.5 py-0.5 rounded-full text-[10px] font-bold"
+                    className="px-2 py-0.5 rounded-md text-[10px] font-semibold border"
                     style={{
-                      backgroundColor: `${currentOpeningItem.assessment_color ?? "#94A3B8"}20`,
+                      backgroundColor: `${currentOpeningItem.assessment_color ?? "#94A3B8"}15`,
                       color: currentOpeningItem.assessment_color ?? "#94A3B8",
-                      border: `1px solid ${currentOpeningItem.assessment_color ?? "#94A3B8"}40`
+                      borderColor: `${currentOpeningItem.assessment_color ?? "#94A3B8"}30`
                     }}
                   >
                     {currentOpeningItem.assessment_badge}
                   </span>
                 )}
               </div>
-              <h2 className="text-xl font-black text-foreground mt-0.5">
+              <h2 className="text-base font-bold text-foreground">
                 {selectedOpening}
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Đang xem <b>{matchingOpeningGames.length}</b> ván đấu thực tế của hệ thống khai cuộc này •{" "}
+                Đang xem <b>{matchingOpeningGames.length}</b> ván thực tế •{" "}
                 {currentOpeningItem?.adjusted_score_pct !== undefined && (
-                  <>
-                    Điểm Bayes: <b>{currentOpeningItem.adjusted_score_pct.toFixed(1)}%</b> •{" "}
-                  </>
+                  <>Điểm Bayes: <b>{currentOpeningItem.adjusted_score_pct.toFixed(1)}%</b> • </>
                 )}
                 Thắng: <b className="text-emerald-500">{openingStats.wins}</b> •{" "}
                 Hòa: <b className="text-amber-500">{openingStats.draws}</b> •{" "}
@@ -857,14 +855,14 @@ function AnalyzeContent() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             {availableOpenings.length > 1 && (
-              <div className="flex items-center gap-1.5 bg-card border border-border/60 rounded-xl px-2.5 py-1.5 shadow-sm">
-                <span className="text-[11px] font-semibold text-muted-foreground">Đổi khai cuộc:</span>
+              <div className="flex items-center gap-1.5 bg-card border border-border/50 rounded-lg px-2.5 py-1 text-xs">
+                <span className="text-[11px] text-muted-foreground">Khai cuộc:</span>
                 <select
                   value={selectedOpening}
                   onChange={(e) => handleSelectOpening(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer"
+                  className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
                 >
                   {availableOpenings.map((op) => (
                     <option key={op.name} value={op.name} className="bg-card text-foreground">
@@ -877,10 +875,10 @@ function AnalyzeContent() {
 
             <button
               onClick={handleExitOpeningExplorer}
-              className="px-3.5 py-2 rounded-xl border border-border/60 hover:bg-secondary text-foreground text-xs font-semibold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+              className="px-3 py-1.5 rounded-lg border border-border/50 hover:bg-secondary text-foreground text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              Trở về Phân tích Thường
+              Thoát chế độ
             </button>
           </div>
         </div>
@@ -888,46 +886,47 @@ function AnalyzeContent() {
 
       {/* MODE B: STRUCTURE EXPLORER HEADER BANNER */}
       {selectedStructure && (
-        <div className="bg-primary/10 border border-primary/30 rounded-3xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm animate-fade-in">
-          <div className="flex items-center gap-3.5">
-            <div className="p-3 rounded-2xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
-              <Layers className="w-6 h-6" />
+        <div className="bg-card/70 border border-border/50 rounded-xl px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+              <Layers className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-primary uppercase tracking-wider">
-                  Structure Explorer Mode
+                <span className="text-[11px] font-bold text-primary uppercase tracking-wide">
+                  Khám phá Cấu trúc Tốt
                 </span>
                 <span
-                  className="px-2.5 py-0.5 rounded-full text-[10px] font-bold"
+                  className="px-2 py-0.5 rounded-md text-[10px] font-semibold border"
                   style={{
-                    backgroundColor: `${selectedStructure.assessment_color ?? "#94A3B8"}20`,
+                    backgroundColor: `${selectedStructure.assessment_color ?? "#94A3B8"}15`,
                     color: selectedStructure.assessment_color ?? "#94A3B8",
+                    borderColor: `${selectedStructure.assessment_color ?? "#94A3B8"}30`
                   }}
                 >
                   {selectedStructure.assessment_badge || "Cấu trúc Tốt"}
                 </span>
               </div>
-              <h2 className="text-xl font-black text-foreground mt-0.5">
+              <h2 className="text-base font-bold text-foreground">
                 {selectedStructure.name}
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Đang xem <b>{selectedStructure.games?.length || selectedStructure.games_count}</b> ván đấu thực tế có cấu trúc Tốt này • Hình thành quanh nước {selectedStructure.typical_formation_move || 12} • Điểm Bayes: <b>{(selectedStructure.adjusted_score_pct ?? selectedStructure.score_pct).toFixed(1)}%</b>
+                Đang xem <b>{selectedStructure.games?.length || selectedStructure.games_count}</b> ván thực tế • Nước hình thành ~{selectedStructure.typical_formation_move || 12} • Điểm Bayes: <b>{(selectedStructure.adjusted_score_pct ?? selectedStructure.score_pct).toFixed(1)}%</b>
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             {availableStructures.length > 1 && (
-              <div className="flex items-center gap-1.5 bg-card border border-border/60 rounded-xl px-2.5 py-1.5 shadow-sm">
-                <span className="text-[11px] font-semibold text-muted-foreground">Đổi cấu trúc:</span>
+              <div className="flex items-center gap-1.5 bg-card border border-border/50 rounded-lg px-2.5 py-1 text-xs">
+                <span className="text-[11px] text-muted-foreground">Cấu trúc:</span>
                 <select
                   value={selectedStructure.name}
                   onChange={(e) => {
                     const target = availableStructures.find((s) => s.name === e.target.value);
                     if (target) handleSelectStructure(target);
                   }}
-                  className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer"
+                  className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
                 >
                   {availableStructures.map((s) => (
                     <option key={s.name} value={s.name} className="bg-card text-foreground">
@@ -940,10 +939,10 @@ function AnalyzeContent() {
 
             <button
               onClick={handleExitStructureExplorer}
-              className="px-3.5 py-2 rounded-xl border border-border/60 hover:bg-secondary text-foreground text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
+              className="px-3 py-1.5 rounded-lg border border-border/50 hover:bg-secondary text-foreground text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              Trở về Phân tích Thường
+              Thoát chế độ
             </button>
           </div>
         </div>
@@ -974,7 +973,7 @@ function AnalyzeContent() {
         {/* Right Column: Unified Move History & Opening Variations Panel (Like Lichess) */}
         <div
           style={{ height: `${boardSize}px`, minHeight: "500px" }}
-          className="lg:col-span-5 flex flex-col bg-card border border-border/60 rounded-2xl shadow-sm overflow-hidden"
+          className="lg:col-span-5 flex flex-col bg-card border border-border/50 rounded-xl shadow-2xs overflow-hidden"
         >
           {/* Top: Move History (Notation + Stockfish Eval) - 50% equal height */}
           <div className="flex-1 min-h-0 border-b border-border/50 flex flex-col overflow-hidden">
@@ -1103,12 +1102,12 @@ function AnalyzeContent() {
 
       {/* MODE A: OPENING GAMES LIST PANEL */}
       {selectedOpening && !selectedStructure && (
-        <div className="bg-card border border-border/60 rounded-3xl p-6 shadow-sm space-y-4 animate-fade-in">
+        <div className="bg-card border border-border/50 rounded-xl p-4 sm:p-5 shadow-2xs space-y-3.5 animate-fade-in">
           {/* Header & Search */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/30 pb-3">
             <div>
-              <h3 className="text-lg font-black text-foreground flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-primary" />
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-primary" />
                 Danh sách ván đấu khai cuộc {selectedOpening} ({matchingOpeningGames.length} ván)
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -1117,78 +1116,78 @@ function AnalyzeContent() {
             </div>
 
             {/* Search Input */}
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+            <div className="relative w-full sm:w-60">
+              <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Tìm đối thủ, ECO..."
                 value={openingSearch}
                 onChange={(e) => setOpeningSearch(e.target.value)}
-                className="w-full bg-secondary/50 border border-border/60 rounded-xl pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="w-full bg-secondary/40 border border-border/50 rounded-lg pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/60"
               />
             </div>
           </div>
 
           {/* Filter Pills */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => setOpeningFilter("all")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
                 openingFilter === "all"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary/50 text-muted-foreground hover:text-foreground"
               }`}
             >
               Tất cả ({matchingOpeningGames.length})
             </button>
             <button
               onClick={() => setOpeningFilter("wins")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
                 openingFilter === "wins"
-                  ? "bg-emerald-500 text-white shadow-sm"
-                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
+                  ? "bg-emerald-600 text-white"
+                  : "bg-secondary/50 text-muted-foreground hover:text-foreground"
               }`}
             >
-              Ván Thắng ({openingStats.wins})
+              Thắng ({openingStats.wins})
             </button>
             <button
               onClick={() => setOpeningFilter("draws")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
                 openingFilter === "draws"
-                  ? "bg-amber-500 text-white shadow-sm"
-                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
+                  ? "bg-amber-600 text-white"
+                  : "bg-secondary/50 text-muted-foreground hover:text-foreground"
               }`}
             >
-              Ván Hòa ({openingStats.draws})
+              Hòa ({openingStats.draws})
             </button>
             <button
               onClick={() => setOpeningFilter("losses")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
                 openingFilter === "losses"
-                  ? "bg-rose-500 text-white shadow-sm"
-                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
+                  ? "bg-rose-600 text-white"
+                  : "bg-secondary/50 text-muted-foreground hover:text-foreground"
               }`}
             >
-              Ván Thua ({openingStats.losses})
+              Thua ({openingStats.losses})
             </button>
           </div>
 
           {/* Games Table */}
-          <div className="overflow-x-auto border border-border/40 rounded-2xl">
+          <div className="overflow-x-auto border border-border/40 rounded-lg">
             <table className="w-full text-left text-xs">
-              <thead className="bg-muted/50 text-muted-foreground font-semibold">
+              <thead className="bg-muted/40 text-muted-foreground font-semibold">
                 <tr>
-                  <th className="px-4 py-3">#</th>
-                  <th className="px-4 py-3">Trắng vs Đen</th>
-                  <th className="px-4 py-3">Khai cuộc / Kết quả</th>
-                  <th className="px-4 py-3 text-center">Số nước / Ngày</th>
-                  <th className="px-4 py-3 text-right">Thao tác</th>
+                  <th className="px-3.5 py-2.5">#</th>
+                  <th className="px-3.5 py-2.5">Trắng vs Đen</th>
+                  <th className="px-3.5 py-2.5">Khai cuộc / Kết quả</th>
+                  <th className="px-3.5 py-2.5 text-center">Số nước / Ngày</th>
+                  <th className="px-3.5 py-2.5 text-right">Thao tác</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/40">
+              <tbody className="divide-y divide-border/30">
                 {filteredOpeningGames.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={5} className="py-6 text-center text-muted-foreground">
                       Không có ván đấu nào khớp với bộ lọc.
                     </td>
                   </tr>
@@ -1200,19 +1199,19 @@ function AnalyzeContent() {
                     let resBadge = <span className="text-muted-foreground font-mono">{g.result}</span>;
                     if (outcome.isWin) {
                       resBadge = (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                           {g.result} (Thắng)
                         </span>
                       );
                     } else if (outcome.isDraw) {
                       resBadge = (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                           {g.result} (Hòa)
                         </span>
                       );
                     } else if (outcome.isLoss) {
                       resBadge = (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
                           {g.result} (Thua)
                         </span>
                       );
@@ -1233,37 +1232,37 @@ function AnalyzeContent() {
                     return (
                       <tr
                         key={g.id || idx}
-                        className={`transition ${isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/30"}`}
+                        className={`transition ${isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/20"}`}
                       >
-                        <td className="px-4 py-3 font-mono text-muted-foreground">
+                        <td className="px-3.5 py-2 font-mono text-muted-foreground">
                           {idx + 1}
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                        <td className="px-3.5 py-2">
+                          <div className="flex items-center gap-1.5 font-medium text-foreground">
                             <span className="w-2 h-2 rounded-full bg-white border border-slate-300 dark:border-slate-500 shrink-0" />
                             <span>{g.white_player}</span>
                             {g.white_elo ? (
-                              <span className="text-[10px] text-muted-foreground font-normal">({g.white_elo})</span>
+                              <span className="text-[10px] text-muted-foreground font-normal font-mono">({g.white_elo})</span>
                             ) : null}
                           </div>
                           <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
                             <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-700 shrink-0" />
                             <span>{g.black_player}</span>
                             {g.black_elo ? (
-                              <span className="text-[10px] text-muted-foreground font-normal">({g.black_elo})</span>
+                              <span className="text-[10px] text-muted-foreground font-normal font-mono">({g.black_elo})</span>
                             ) : null}
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3.5 py-2">
                           <div className="text-muted-foreground truncate max-w-[240px]">
                             {g.eco ? <b className="text-foreground font-mono mr-1">[{g.eco}]</b> : null}
                             {g.opening_name || selectedOpening}
                           </div>
                           <div className="mt-0.5">{resBadge}</div>
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-3.5 py-2 text-center">
                           {movesCount ? (
-                            <span className="font-mono text-xs px-2.5 py-0.5 rounded-lg bg-secondary text-foreground">
+                            <span className="font-mono text-xs px-2 py-0.5 rounded bg-secondary text-foreground">
                               {movesCount} nước
                             </span>
                           ) : (
@@ -1275,24 +1274,24 @@ function AnalyzeContent() {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-3.5 py-2 text-right">
                           <button
                             onClick={() => handleLoadOpeningGame(g)}
                             disabled={isCurrent}
-                            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition shadow-sm cursor-pointer ${
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
                               isCurrent
-                                ? "bg-emerald-500 text-white cursor-default"
+                                ? "bg-emerald-600 text-white cursor-default"
                                 : "bg-primary text-primary-foreground hover:bg-primary/90"
                             }`}
                           >
                             {isCurrent ? (
                               <>
-                                <Check className="w-3.5 h-3.5" />
+                                <Check className="w-3 h-3" />
                                 Đang xem
                               </>
                             ) : (
                               <>
-                                <Play className="w-3.5 h-3.5" />
+                                <Play className="w-3 h-3" />
                                 Xem ván
                               </>
                             )}
@@ -1310,12 +1309,12 @@ function AnalyzeContent() {
 
       {/* MODE B: STRUCTURE GAMES LIST PANEL */}
       {selectedStructure && (
-        <div className="bg-card border border-border/60 rounded-3xl p-6 shadow-sm space-y-4 animate-fade-in">
+        <div className="bg-card border border-border/50 rounded-xl p-4 sm:p-5 shadow-2xs space-y-3.5 animate-fade-in">
           {/* Header & Search */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/30 pb-3">
             <div>
-              <h3 className="text-lg font-black text-foreground flex items-center gap-2">
-                <Layers className="w-5 h-5 text-primary" />
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <Layers className="w-4 h-4 text-primary" />
                 Danh sách ván đấu có cấu trúc {selectedStructure.name} ({selectedStructure.games?.length || selectedStructure.games_count} ván)
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -1324,74 +1323,78 @@ function AnalyzeContent() {
             </div>
 
             {/* Search Input */}
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+            <div className="relative w-full sm:w-60">
+              <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Tìm đối thủ, khai cuộc..."
                 value={structureSearch}
                 onChange={(e) => setStructureSearch(e.target.value)}
-                className="w-full bg-secondary/50 border border-border/60 rounded-xl pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="w-full bg-secondary/40 border border-border/50 rounded-lg pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/60"
               />
             </div>
           </div>
 
           {/* Filter Pills */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => setStructureFilter("all")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${structureFilter === "all"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
-                }`}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+                structureFilter === "all"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary/50 text-muted-foreground hover:text-foreground"
+              }`}
             >
               Tất cả ({selectedStructure.games?.length || 0})
             </button>
             <button
               onClick={() => setStructureFilter("wins")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${structureFilter === "wins"
-                  ? "bg-emerald-500 text-white shadow-sm"
-                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
-                }`}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+                structureFilter === "wins"
+                  ? "bg-emerald-600 text-white"
+                  : "bg-secondary/50 text-muted-foreground hover:text-foreground"
+              }`}
             >
-              Ván Thắng ({selectedStructure.wins})
+              Thắng ({selectedStructure.wins})
             </button>
             <button
               onClick={() => setStructureFilter("draws")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${structureFilter === "draws"
-                  ? "bg-amber-500 text-white shadow-sm"
-                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
-                }`}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+                structureFilter === "draws"
+                  ? "bg-amber-600 text-white"
+                  : "bg-secondary/50 text-muted-foreground hover:text-foreground"
+              }`}
             >
-              Ván Hòa ({selectedStructure.draws})
+              Hòa ({selectedStructure.draws})
             </button>
             <button
               onClick={() => setStructureFilter("losses")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${structureFilter === "losses"
-                  ? "bg-rose-500 text-white shadow-sm"
-                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
-                }`}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+                structureFilter === "losses"
+                  ? "bg-rose-600 text-white"
+                  : "bg-secondary/50 text-muted-foreground hover:text-foreground"
+              }`}
             >
-              Ván Thua ({selectedStructure.losses})
+              Thua ({selectedStructure.losses})
             </button>
           </div>
 
           {/* Games Table */}
-          <div className="overflow-x-auto border border-border/40 rounded-2xl">
+          <div className="overflow-x-auto border border-border/40 rounded-lg">
             <table className="w-full text-left text-xs">
-              <thead className="bg-muted/50 text-muted-foreground font-semibold">
+              <thead className="bg-muted/40 text-muted-foreground font-semibold">
                 <tr>
-                  <th className="px-4 py-3">#</th>
-                  <th className="px-4 py-3">Trắng vs Đen</th>
-                  <th className="px-4 py-3">Khai cuộc / Kết quả</th>
-                  <th className="px-4 py-3 text-center">Nước hình thành</th>
-                  <th className="px-4 py-3 text-right">Thao tác</th>
+                  <th className="px-3.5 py-2.5">#</th>
+                  <th className="px-3.5 py-2.5">Trắng vs Đen</th>
+                  <th className="px-3.5 py-2.5">Khai cuộc / Kết quả</th>
+                  <th className="px-3.5 py-2.5 text-center">Nước hình thành</th>
+                  <th className="px-3.5 py-2.5 text-right">Thao tác</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/40">
+              <tbody className="divide-y divide-border/30">
                 {filteredStructureGames.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={5} className="py-6 text-center text-muted-foreground">
                       Không có ván đấu nào khớp với bộ lọc.
                     </td>
                   </tr>
@@ -1399,22 +1402,22 @@ function AnalyzeContent() {
                   filteredStructureGames.map((g, idx) => {
                     const isCurrent = activeStructureGameIdx === (g.game_index ?? idx);
 
-                    let resBadge = <span className="text-muted-foreground">{g.result}</span>;
+                    let resBadge = <span className="text-muted-foreground font-mono">{g.result}</span>;
                     if (g.is_win) {
                       resBadge = (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                           {g.result} (Thắng)
                         </span>
                       );
                     } else if (g.is_draw) {
                       resBadge = (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                           {g.result} (Hòa)
                         </span>
                       );
                     } else if (g.is_loss) {
                       resBadge = (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
                           {g.result} (Thua)
                         </span>
                       );
@@ -1423,13 +1426,13 @@ function AnalyzeContent() {
                     return (
                       <tr
                         key={idx}
-                        className={`transition ${isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/30"}`}
+                        className={`transition ${isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/20"}`}
                       >
-                        <td className="px-4 py-3 font-mono text-muted-foreground">
+                        <td className="px-3.5 py-2 font-mono text-muted-foreground">
                           {g.game_index !== undefined ? g.game_index + 1 : idx + 1}
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                        <td className="px-3.5 py-2">
+                          <div className="flex items-center gap-1.5 font-medium text-foreground">
                             <span className="w-2 h-2 rounded-full bg-white border border-slate-300 dark:border-slate-500 shrink-0" />
                             <span>{g.white}</span>
                           </div>
@@ -1438,34 +1441,35 @@ function AnalyzeContent() {
                             <span>{g.black}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3.5 py-2">
                           <div className="text-muted-foreground truncate max-w-[220px]">
                             {g.opening || "Khai cuộc không xác định"}
                           </div>
                           <div className="mt-0.5">{resBadge}</div>
                         </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="font-mono text-xs px-2.5 py-0.5 rounded-lg bg-secondary text-foreground">
-                            Move {g.formation_move || "?"}
+                        <td className="px-3.5 py-2 text-center">
+                          <span className="font-mono text-xs px-2 py-0.5 rounded bg-secondary text-foreground">
+                            Nước {g.formation_move || "?"}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-3.5 py-2 text-right">
                           <button
                             onClick={() => handleLoadStructureGame(g, g.game_index ?? idx)}
                             disabled={isCurrent}
-                            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition shadow-sm ${isCurrent
-                                ? "bg-emerald-500 text-white cursor-default"
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+                              isCurrent
+                                ? "bg-emerald-600 text-white cursor-default"
                                 : "bg-primary text-primary-foreground hover:bg-primary/90"
-                              }`}
+                            }`}
                           >
                             {isCurrent ? (
                               <>
-                                <Check className="w-3.5 h-3.5" />
+                                <Check className="w-3 h-3" />
                                 Đang xem
                               </>
                             ) : (
                               <>
-                                <Play className="w-3.5 h-3.5" />
+                                <Play className="w-3 h-3" />
                                 Xem ván
                               </>
                             )}
@@ -1484,13 +1488,13 @@ function AnalyzeContent() {
       {/* Custom PGN / FEN Modal */}
       {showPgnInput && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-card border border-border/80 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-scale-in">
-            <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" />
+          <div className="bg-card border border-border/80 rounded-xl max-w-lg w-full p-5 shadow-xl space-y-3.5 animate-scale-in">
+            <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+              <FileText className="w-4 h-4 text-primary" />
               Tải PGN hoặc FEN vào Bàn cờ
             </h3>
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                 Dán chuỗi PGN
               </label>
               <textarea
@@ -1498,19 +1502,19 @@ function AnalyzeContent() {
                 value={inputPgn}
                 onChange={(e) => setInputPgn(e.target.value)}
                 placeholder="1. e4 e5 2. Nf3 Nc6 3. Bb5 a6..."
-                className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="w-full bg-background border border-border/60 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-primary/60"
               />
             </div>
-            <div className="flex items-center justify-end gap-3 pt-2 border-t border-border/40">
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border/40">
               <button
                 onClick={() => setShowPgnInput(false)}
-                className="px-4 py-2 rounded-xl border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium"
+                className="px-3.5 py-1.5 rounded-lg border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition cursor-pointer"
               >
                 Hủy bỏ
               </button>
               <button
                 onClick={handleLoadCustomPgn}
-                className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shadow-md"
+                className="px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition shadow-xs cursor-pointer"
               >
                 Tải vào Bàn cờ
               </button>

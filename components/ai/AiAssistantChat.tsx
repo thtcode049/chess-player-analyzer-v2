@@ -347,10 +347,13 @@ export default function AiAssistantChat({
     // Append empty assistant message for streaming
     setMessages((prev) => [...prev, { role: "assistant", content: "", fen: currentFen }]);
 
+    const targetPlayerId = (!playerId || playerId === "general") ? "" : playerId;
+    const targetRunId = (!runId || runId === "run-general" || runId === "general" || runId === "default_run") ? "general" : runId;
+
     await apiClient.chatAiStream(
       {
-        run_id: runId,
-        player_id: playerId,
+        run_id: targetRunId,
+        player_id: targetPlayerId,
         message: text,
         perspective_mode: "neutral",
         history: newMessages,
@@ -394,7 +397,7 @@ export default function AiAssistantChat({
   };
 
   return (
-    <div className="flex flex-col w-full h-full bg-card border border-border/60 rounded-2xl overflow-hidden shadow-xs">
+    <div className="flex flex-col w-full h-full min-w-0 bg-card border border-border/60 rounded-2xl overflow-hidden shadow-xs">
       {/* Top Chat Header Bar */}
       <div className="h-12 shrink-0 px-3.5 border-b border-border/60 flex items-center justify-between gap-2 bg-card/60 backdrop-blur-xs">
         <div className="flex items-center gap-2 min-w-0">
@@ -419,6 +422,9 @@ export default function AiAssistantChat({
               <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.2 text-[10px] font-extrabold uppercase rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40">
                 <Zap className="w-2.5 h-2.5 text-emerald-600" />
                 Gemini 3.8
+              </span>
+              <span className="hidden md:inline-flex text-[11px] font-medium text-muted-foreground truncate">
+                • {playerId && playerId !== "general" ? playerName : "Trò chuyện tự do"}
               </span>
             </h3>
           </div>

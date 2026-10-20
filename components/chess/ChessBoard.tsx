@@ -18,6 +18,7 @@ interface ChessBoardProps {
   multiPv?: number;
   height?: number;
   onBoardWidthChange?: (width: number) => void;
+  fitParentHeight?: boolean;
 }
 
 export default function ChessBoard({
@@ -31,6 +32,7 @@ export default function ChessBoard({
   isEngineEnabled = true,
   height = 680,
   onBoardWidthChange,
+  fitParentHeight = false,
 }: ChessBoardProps) {
   const [game, setGame] = useState(new Chess(initialFen));
   const [boardOrientation, setBoardOrientation] = useState<"white" | "black">(orientation);
@@ -41,9 +43,9 @@ export default function ChessBoard({
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const [boardWidth, setBoardWidth] = useState<number>(() => {
     if (typeof window !== "undefined") {
-      const estCol = Math.min(window.innerWidth - 80, 680);
-      const estHeight = window.innerHeight - 92;
-      return Math.min(height, Math.max(240, estCol - 24), Math.max(240, estHeight));
+      const estCol = Math.min(window.innerWidth - 80, 720);
+      const estHeight = window.innerHeight - 140;
+      return Math.min(height, Math.max(280, estCol - 24), Math.max(280, estHeight));
     }
     return height;
   });
@@ -59,32 +61,40 @@ export default function ChessBoard({
   }, [currentPly, initialFen]);
 
   useEffect(() => {
+    let lastWidth = 0;
+    let lastHeight = 0;
+
     const updateSize = () => {
       if (!rootRef.current) return;
       const parent = rootRef.current.parentElement || rootRef.current;
       const parentWidth = parent.clientWidth || rootRef.current.clientWidth || 0;
       const parentHeight = parent.clientHeight || 0;
 
-      if (parentWidth > 0) {
-        // 14px eval bar + 8px gap + 2px buffer = 24px
-        const availableWidth = Math.max(180, parentWidth - 24);
-        
-        // If parent container has a bounded height (e.g. in ai-coach card), fit within it with 12px safety margin
-        const availableHeight = parentHeight > 100
-          ? Math.max(180, parentHeight - 12)
-          : (typeof window !== "undefined" ? Math.max(180, window.innerHeight - 92) : height);
+      if (parentWidth <= 0) return;
 
-        const optimal = Math.floor(Math.min(height, availableWidth, availableHeight));
-        const newSize = Math.max(180, optimal);
+      // 14px eval bar + 8px gap + 2px buffer = 24px
+      const availableWidth = Math.max(220, parentWidth - 24);
 
-        setBoardWidth((prev) => {
-          if (Math.abs(prev - newSize) >= 2) {
-            onBoardWidthChange?.(newSize);
-            return newSize;
-          }
-          return prev;
-        });
+      let optimal: number;
+      if (fitParentHeight) {
+        // Only fit parent height if explicitly requested (e.g. in bounded flex containers like ai-coach)
+        const availableHeight = parentHeight > 80 ? Math.max(200, parentHeight - 8) : height;
+        optimal = Math.floor(Math.min(height, availableWidth, availableHeight));
+      } else {
+        // In standard pages (analyze, games), board size matches column width, capped by height and viewport
+        const viewportMax = typeof window !== "undefined" ? Math.max(320, window.innerHeight - 170) : height;
+        optimal = Math.floor(Math.min(height, availableWidth, viewportMax));
       }
+
+      const newSize = Math.max(220, optimal);
+
+      setBoardWidth((prev) => {
+        if (Math.abs(prev - newSize) >= 3) {
+          onBoardWidthChange?.(newSize);
+          return newSize;
+        }
+        return prev;
+      });
     };
 
     updateSize();
@@ -96,8 +106,18 @@ export default function ChessBoard({
     if (typeof ResizeObserver !== "undefined") {
       const target = rootRef.current?.parentElement || rootRef.current;
       if (target) {
-        observer = new ResizeObserver(() => {
-          updateSize();
+        observer = new ResizeObserver((entries) => {
+          if (!entries || entries.length === 0) return;
+          const cr = entries[0].contentRect;
+          // Only trigger if width changed (or height changed in fitParentHeight mode) to prevent recursive loop
+          if (
+            Math.abs(cr.width - lastWidth) >= 4 ||
+            (fitParentHeight && Math.abs(cr.height - lastHeight) >= 4)
+          ) {
+            lastWidth = cr.width;
+            lastHeight = cr.height;
+            updateSize();
+          }
         });
         observer.observe(target);
       }
@@ -107,7 +127,7 @@ export default function ChessBoard({
       observer?.disconnect();
       window.removeEventListener("resize", handleWindowResize);
     };
-  }, [height, onBoardWidthChange]);
+  }, [height, fitParentHeight, onBoardWidthChange]);
 
   // Stockfish WASM client hook
   const { evaluation, isThinking, evaluateFen, stop } = useStockfish();

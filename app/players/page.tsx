@@ -209,7 +209,7 @@ export default function PlayersPage() {
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-fade-in relative">
+    <div className="w-full max-w-[1720px] mx-auto space-y-8 animate-fade-in relative">
       {/* Toast Notification */}
       {notice && (
         <div

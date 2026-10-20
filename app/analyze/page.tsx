@@ -75,7 +75,7 @@ function AnalyzeContent() {
   const [multiPv, setMultiPv] = useState(3);
 
   // Dynamically synchronized board and panel size measured directly from ChessBoard DOM container
-  const [boardSize, setBoardSize] = useState<number>(560);
+  const [boardSize, setBoardSize] = useState<number>(640);
 
   // Dynamic Opening Tree Continuations
   const [continuations, setContinuations] = useState<OpeningContinuation[]>([]);
@@ -446,7 +446,7 @@ function AnalyzeContent() {
   const currentPlayerObj = players.find((p) => p.id === selectedPlayerId);
 
   return (
-    <div className="max-w-7xl mx-auto animate-fade-in pb-4 -mt-3 sm:-mt-6 space-y-3">
+    <div className="w-full max-w-[1720px] mx-auto animate-fade-in pb-4 -mt-3 sm:-mt-6 space-y-4">
 
       {/* MODE B: STRUCTURE EXPLORER HEADER BANNER */}
       {selectedStructure && (
@@ -512,7 +512,7 @@ function AnalyzeContent() {
       )}
 
       {/* Main Analysis Workspace */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 items-start">
         {/* Left Column: Interactive ChessBoard (7 Cols) */}
         <div className="lg:col-span-7 flex flex-col items-center w-full">
           <ChessBoard
@@ -528,14 +528,14 @@ function AnalyzeContent() {
             }}
             isEngineEnabled={isEngineEnabled}
             multiPv={multiPv}
-            height={740}
+            height={720}
             onBoardWidthChange={(size) => setBoardSize(size)}
           />
         </div>
 
         {/* Right Column: Unified Move History & Opening Variations Panel (Like Lichess) */}
         <div
-          style={{ height: `${boardSize}px` }}
+          style={{ height: `${boardSize}px`, minHeight: "500px" }}
           className="lg:col-span-5 flex flex-col bg-card border border-border/60 rounded-2xl shadow-sm overflow-hidden"
         >
           {/* Top: Move History (Notation + Stockfish Eval) - 50% equal height */}
@@ -627,7 +627,7 @@ function AnalyzeContent() {
       </div>
 
       {/* Current FEN Bar & Action Buttons (Centered directly under the chessboard) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 pt-1">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 pt-1">
         <div className="lg:col-span-7 flex flex-col items-center">
           <div
             style={{ width: `${boardSize + 22}px`, maxWidth: "100%" }}

@@ -836,7 +836,7 @@ function ImportContent() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-fade-in pb-12">
+    <div className="w-full max-w-[1500px] mx-auto space-y-8 animate-fade-in pb-12">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-6">
         <div>

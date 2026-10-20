@@ -142,7 +142,7 @@ export default function LandingPage() {
       </div>
 
       {/* 4 Player-Centric Pillars Grid */}
-      <div className="mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full text-left max-w-7xl">
+      <div className="mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full text-left max-w-[1720px]">
         {/* Pillar 1: Openings */}
         <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm hover:border-emerald-500/40 hover:shadow-md transition-all duration-300 group">
           <div className="p-3 w-fit rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mb-4 group-hover:scale-110 transition-transform">

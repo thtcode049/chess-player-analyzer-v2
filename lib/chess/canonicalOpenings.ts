@@ -273,3 +273,29 @@ export function getCanonicalOpeningByName(name: string): CanonicalOpening | null
 
   return null;
 }
+
+/**
+ * Fast client-side match for canonical opening definitions given a move list.
+ * Finds the canonical opening whose defining moves match the prefix of moves.
+ * Prefers the longest matching defining sequence.
+ */
+export function getCanonicalOpeningByMoves(moves: string[]): CanonicalOpening | null {
+  if (!moves || moves.length === 0) return null;
+
+  let bestMatch: CanonicalOpening | null = null;
+  let maxMatchedLen = 0;
+
+  for (const op of Object.values(CANONICAL_OPENINGS)) {
+    if (!op.moves || op.moves.length === 0) continue;
+    if (moves.length >= op.moves.length) {
+      const isPrefix = op.moves.every((m, idx) => m === moves[idx]);
+      if (isPrefix && op.moves.length > maxMatchedLen) {
+        maxMatchedLen = op.moves.length;
+        bestMatch = op;
+      }
+    }
+  }
+
+  return bestMatch;
+}
+

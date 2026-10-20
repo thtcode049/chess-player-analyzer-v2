@@ -30,7 +30,7 @@ import {
   OpeningRepertoireItem
 } from "@/lib/api/types";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
-import { getCanonicalOpeningByName } from "@/lib/chess/canonicalOpenings";
+import { getCanonicalOpeningByName, getCanonicalOpeningByMoves } from "@/lib/chess/canonicalOpenings";
 
 function parseSanMoves(movesSan?: string | null): string[] {
   if (!movesSan) return [];
@@ -349,6 +349,8 @@ function AnalyzeContent() {
   const [openingRepresentativeLine, setOpeningRepresentativeLine] = useState<string[]>([]);
   const loadedOpeningRef = React.useRef<string | null>(null);
   const lastGamesCountRef = React.useRef<number>(0);
+  const isAutoTransitionRef = React.useRef<boolean>(false);
+
 
   // Custom PGN modal
   const [showPgnInput, setShowPgnInput] = useState(false);
@@ -559,10 +561,100 @@ function AnalyzeContent() {
     lastGamesCountRef.current = 0;
   };
 
+  // Check if current moves on board form or transition to another opening
+  const checkOpeningTransition = useCallback(async (activeMoves: string[]) => {
+    if (!activeMoves || activeMoves.length === 0) return;
+    if (!selectedOpening) return;
+
+    // 1. Check games in playerGames starting with activeMoves
+    const prefixMatchingGames = playerGames.filter((g) => {
+      if (!g.moves_san) return false;
+      const gMoves = parseSanMoves(g.moves_san);
+      if (gMoves.length < activeMoves.length) return false;
+      for (let i = 0; i < activeMoves.length; i++) {
+        if (gMoves[i] !== activeMoves[i]) return false;
+      }
+      return true;
+    });
+
+    let detectedOpeningName: string | null = null;
+
+    // 2. Check canonical opening formed at activeMoves
+    let canonical = getCanonicalOpeningByMoves(activeMoves);
+    if (!canonical && activeMoves.length >= 2) {
+      try {
+        const serverCanonical = await apiClient.getCanonicalOpening(undefined, activeMoves);
+        if (serverCanonical && serverCanonical.name) {
+          canonical = serverCanonical;
+        }
+      } catch {
+        // Ignore API 404
+      }
+    }
+
+    // 3. If player games exist for this prefix, check dominant opening of matching games
+    if (prefixMatchingGames.length > 0) {
+      const tally: Record<string, number> = {};
+      for (const g of prefixMatchingGames) {
+        const op = g.opening_name || g.raw_headers?.Opening;
+        if (op) {
+          tally[op] = (tally[op] || 0) + 1;
+        }
+      }
+      const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+      if (sorted.length > 0) {
+        const [topPlayerOpName] = sorted[0];
+
+        // If a canonical opening has formed, ensure topPlayerOpName matches or corresponds to it
+        if (canonical) {
+          const matched = availableOpenings.find((op) =>
+            normalizeOpeningName(op.name) === normalizeOpeningName(topPlayerOpName) ||
+            isOpeningMatch({ opening_name: topPlayerOpName } as Game, op.name) ||
+            normalizeOpeningName(op.name) === normalizeOpeningName(canonical.name) ||
+            isOpeningMatch({ opening_name: canonical.name } as Game, op.name)
+          );
+          detectedOpeningName = matched ? matched.name : topPlayerOpName;
+        } else {
+          const matched = availableOpenings.find((op) =>
+            normalizeOpeningName(op.name) === normalizeOpeningName(topPlayerOpName) ||
+            isOpeningMatch({ opening_name: topPlayerOpName } as Game, op.name)
+          );
+          if (matched) {
+            detectedOpeningName = matched.name;
+          }
+        }
+      }
+    } else if (canonical) {
+      // No player games with this prefix, but theoretical canonical opening formed
+      const matched = availableOpenings.find((op) =>
+        normalizeOpeningName(op.name) === normalizeOpeningName(canonical.name) ||
+        isOpeningMatch({ opening_name: canonical.name } as Game, op.name)
+      );
+      detectedOpeningName = matched ? matched.name : canonical.name;
+    }
+
+    // 4. If a different opening was detected, trigger automatic transition
+    if (detectedOpeningName && detectedOpeningName !== selectedOpening) {
+      const isSame = isOpeningMatch({ opening_name: detectedOpeningName } as Game, selectedOpening);
+      if (!isSame) {
+        isAutoTransitionRef.current = true;
+        setSelectedOpening(detectedOpeningName);
+        loadedOpeningRef.current = detectedOpeningName;
+        setActiveOpeningGameId(null);
+
+        // Update URL query while preserving all other params
+        const params = new URLSearchParams(window.location.search);
+        params.set("opening", detectedOpeningName);
+        router.replace(`/analyze?${params.toString()}`);
+      }
+    }
+  }, [selectedOpening, playerGames, availableOpenings, router]);
+
   // Position change from ChessBoard component
   const handlePositionChange = (fen: string, ply: number) => {
     setCurrentFen(fen);
     setCurrentPly(ply);
+    checkOpeningTransition(moves.slice(0, ply));
   };
 
   // Move list change from ChessBoard component (e.g. piece dropped)
@@ -570,6 +662,7 @@ function AnalyzeContent() {
     setMoves(newMoves);
     setCurrentPly(ply);
     setCurrentFen(fen);
+    checkOpeningTransition(newMoves.slice(0, ply));
   };
 
   // Select move from Opening Tree
@@ -582,10 +675,12 @@ function AnalyzeContent() {
       setMoves(updatedMoves);
       setCurrentPly(updatedMoves.length);
       setCurrentFen(newFen);
+      checkOpeningTransition(updatedMoves);
     } catch (e) {
       console.warn("Invalid move selected:", san, e);
     }
   };
+
 
   // Load a single game branch onto the board
   const handleLoadSingleGame = (sg: any) => {
@@ -735,6 +830,13 @@ function AnalyzeContent() {
         setOpeningRepresentativeLine([]);
         loadedOpeningRef.current = null;
       }
+      return;
+    }
+
+    // Bypass resetting board moves when transition was triggered by user playing moves
+    if (isAutoTransitionRef.current) {
+      isAutoTransitionRef.current = false;
+      loadedOpeningRef.current = queryOpening;
       return;
     }
 
@@ -1098,6 +1200,7 @@ function AnalyzeContent() {
               currentPly={currentPly}
               onSelectPly={(ply) => {
                 setCurrentPly(ply);
+                checkOpeningTransition(moves.slice(0, ply));
               }}
               currentFen={currentFen}
               evaluation={evaluation}

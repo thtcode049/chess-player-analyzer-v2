@@ -59,27 +59,31 @@ export default function ChessBoard({
   }, [currentPly, initialFen]);
 
   useEffect(() => {
-    const updateSize = (measuredWidth?: number) => {
-      const containerWidth = measuredWidth ?? rootRef.current?.clientWidth ?? 0;
-      if (containerWidth > 0) {
-        // 14px eval bar + 8px gap + 2px buffer = 24px
-        const availableWidth = Math.max(200, containerWidth - 24);
-        // Max vertical space in viewport without scrolling:
-        // innerHeight - Navbar (64) - top spacing (12) - bottom buffer (16) = ~92px
-        const availableHeight = typeof window !== "undefined"
-          ? Math.max(240, window.innerHeight - 92)
-          : height;
-        const optimal = Math.floor(Math.min(height, availableWidth, availableHeight));
-        const newSize = Math.max(240, optimal);
+    const updateSize = () => {
+      if (!rootRef.current) return;
+      const parent = rootRef.current.parentElement || rootRef.current;
+      const parentWidth = parent.clientWidth || rootRef.current.clientWidth || 0;
+      const parentHeight = parent.clientHeight || 0;
 
-        setBoardWidth(newSize);
-        onBoardWidthChange?.(newSize);
-      } else if (typeof window !== "undefined") {
-        const fallbackAvailable = Math.max(200, Math.min(window.innerWidth - 80, 680) - 24);
-        const fallbackHeight = Math.max(240, window.innerHeight - 92);
-        const newSize = Math.floor(Math.min(height, fallbackAvailable, fallbackHeight));
-        setBoardWidth(newSize);
-        onBoardWidthChange?.(newSize);
+      if (parentWidth > 0) {
+        // 14px eval bar + 8px gap + 2px buffer = 24px
+        const availableWidth = Math.max(180, parentWidth - 24);
+        
+        // If parent container has a bounded height (e.g. in ai-coach card), fit within it with 12px safety margin
+        const availableHeight = parentHeight > 100
+          ? Math.max(180, parentHeight - 12)
+          : (typeof window !== "undefined" ? Math.max(180, window.innerHeight - 92) : height);
+
+        const optimal = Math.floor(Math.min(height, availableWidth, availableHeight));
+        const newSize = Math.max(180, optimal);
+
+        setBoardWidth((prev) => {
+          if (Math.abs(prev - newSize) >= 2) {
+            onBoardWidthChange?.(newSize);
+            return newSize;
+          }
+          return prev;
+        });
       }
     };
 
@@ -89,15 +93,14 @@ export default function ChessBoard({
     window.addEventListener("resize", handleWindowResize);
 
     let observer: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== "undefined" && rootRef.current) {
-      observer = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          if (entry.contentRect.width > 0) {
-            updateSize(entry.contentRect.width);
-          }
-        }
-      });
-      observer.observe(rootRef.current);
+    if (typeof ResizeObserver !== "undefined") {
+      const target = rootRef.current?.parentElement || rootRef.current;
+      if (target) {
+        observer = new ResizeObserver(() => {
+          updateSize();
+        });
+        observer.observe(target);
+      }
     }
 
     return () => {
@@ -154,6 +157,11 @@ export default function ChessBoard({
     lastProcessedMoves.current = movesKey;
 
     const newGame = new Chess();
+    if (initialFen && initialFen !== "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
+      try {
+        newGame.load(initialFen);
+      } catch {}
+    }
     const fens = [newGame.fen()];
 
     if (moves && moves.length > 0) {
@@ -165,11 +173,6 @@ export default function ChessBoard({
           break;
         }
       }
-    } else if (initialFen && initialFen !== "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
-      try {
-        newGame.load(initialFen);
-        fens[0] = newGame.fen();
-      } catch { }
     }
 
     setHistoryFens(fens);
@@ -405,7 +408,7 @@ export default function ChessBoard({
   }
 
   return (
-    <div ref={rootRef} className="flex flex-col items-center w-full">
+    <div ref={rootRef} className="flex flex-col items-center justify-center w-full h-full">
       {/* Board with Left Evaluation Bar */}
       <div
         className="flex items-stretch gap-2 justify-center"
@@ -426,7 +429,6 @@ export default function ChessBoard({
           className="overflow-hidden rounded-[3px] flex justify-center shrink-0"
         >
           <Chessboard
-            key={`board-${boardWidth}`}
             position={game.fen()}
             onPieceDrop={onDrop}
             onPieceDragBegin={() => {

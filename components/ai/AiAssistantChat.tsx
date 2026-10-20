@@ -19,10 +19,12 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { apiClient } from "@/lib/api/client";
+import { isFenString, isChessMoveCandidate } from "@/lib/chess/notation";
 
-interface Message {
+export interface Message {
   role: "user" | "assistant";
   content: string;
+  fen?: string;
 }
 
 interface AiAssistantChatProps {
@@ -36,7 +38,7 @@ interface AiAssistantChatProps {
   onToggleBoard?: () => void;
   onOpenBoard?: (fen?: string) => void;
   onApplyFen?: (fen: string) => void;
-  onApplyMove?: (san: string) => void;
+  onApplyMove?: (san: string, contextFen?: string) => void;
   messages?: Message[];
   setMessages?: React.Dispatch<React.SetStateAction<Message[]>>;
   isSidebarOpen?: boolean;
@@ -53,12 +55,14 @@ interface AiAssistantChatProps {
  */
 function MarkdownRenderer({
   content,
+  messageFen,
   onApplyFen,
   onApplyMove,
 }: {
   content: string;
+  messageFen?: string;
   onApplyFen?: (fen: string) => void;
-  onApplyMove?: (san: string) => void;
+  onApplyMove?: (san: string, contextFen?: string) => void;
 }) {
   // Strip [OPEN_BOARD] tags cleanly so they don't appear in markdown
   const cleanContent = content.replace(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/gi, "").trim();
@@ -107,23 +111,30 @@ function MarkdownRenderer({
             {children}
           </li>
         ),
-        strong: ({ children }) => (
-          <strong className="font-bold text-slate-950 dark:text-white">
-            {children}
-          </strong>
-        ),
+        strong: ({ children }) => {
+          const strVal = String(children).trim();
+          if (isChessMoveCandidate(strVal) && onApplyMove) {
+            return (
+              <button
+                type="button"
+                onClick={() => onApplyMove(strVal, messageFen)}
+                title={`Bấm để đi nước ${strVal} trên bàn cờ`}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-xs bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-bold border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-200 dark:hover:bg-emerald-800/80 transition cursor-pointer shadow-2xs active:scale-95"
+              >
+                <Play className="w-2.5 h-2.5 fill-current text-emerald-600 dark:text-emerald-400" />
+                <span>{strVal}</span>
+              </button>
+            );
+          }
+          return (
+            <strong className="font-bold text-slate-950 dark:text-white">
+              {children}
+            </strong>
+          );
+        },
         code: ({ children }) => {
           const strVal = String(children).trim();
-          // Detect FEN string
-          const isFen = strVal.includes("/") && strVal.split("/").length >= 7;
-
-          // Detect chess move (e.g. 1.e4, 18.Bxh6, 18...Bxh6, Nxd4, O-O, O-O-O, e8=Q#)
-          const isMove = /^(?:(\d{1,3})\s*(?:\.{1,3})\s*)?([NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQK])?|O-O(?:-O)?)[+#?!]*$/i.test(strVal);
-
-          // Detect if it is merely a square coordinate (e.g. "c3", "e4", "f7")
-          const isJustSquare = /^[a-h][1-8]$/i.test(strVal);
-
-          if (isFen && onApplyFen) {
+          if (isFenString(strVal) && onApplyFen) {
             return (
               <button
                 type="button"
@@ -137,11 +148,11 @@ function MarkdownRenderer({
             );
           }
 
-          if (isMove && !isJustSquare && onApplyMove) {
+          if (isChessMoveCandidate(strVal) && onApplyMove) {
             return (
               <button
                 type="button"
-                onClick={() => onApplyMove(strVal)}
+                onClick={() => onApplyMove(strVal, messageFen)}
                 title={`Bấm để đi nước ${strVal} trên bàn cờ`}
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-xs bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-300/60 dark:border-emerald-700/60 hover:bg-emerald-200 dark:hover:bg-emerald-800/60 transition cursor-pointer shadow-2xs active:scale-95"
               >
@@ -175,11 +186,29 @@ function MarkdownRenderer({
             {children}
           </th>
         ),
-        td: ({ children }) => (
-          <td className="px-3 py-2 border-b border-slate-100 dark:border-slate-800/60 text-slate-700 dark:text-slate-300">
-            {children}
-          </td>
-        ),
+        td: ({ children }) => {
+          const strVal = String(children).trim();
+          if (isChessMoveCandidate(strVal) && onApplyMove) {
+            return (
+              <td className="px-3 py-2 border-b border-slate-100 dark:border-slate-800/60 text-slate-700 dark:text-slate-300">
+                <button
+                  type="button"
+                  onClick={() => onApplyMove(strVal, messageFen)}
+                  title={`Bấm để đi nước ${strVal} trên bàn cờ`}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-mono text-xs bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-300/60 dark:border-emerald-700/60 hover:bg-emerald-200 dark:hover:bg-emerald-800/60 transition cursor-pointer"
+                >
+                  <Play className="w-2.5 h-2.5 fill-current" />
+                  <span>{strVal}</span>
+                </button>
+              </td>
+            );
+          }
+          return (
+            <td className="px-3 py-2 border-b border-slate-100 dark:border-slate-800/60 text-slate-700 dark:text-slate-300">
+              {children}
+            </td>
+          );
+        },
       }}
     >
       {cleanContent}
@@ -310,13 +339,13 @@ export default function AiAssistantChat({
     const text = (textToSend || inputMessage).trim();
     if (!text || isStreaming) return;
 
-    const newMessages: Message[] = [...messages, { role: "user", content: text }];
+    const newMessages: Message[] = [...messages, { role: "user", content: text, fen: currentFen }];
     setMessages(newMessages);
     setInputMessage("");
     setIsStreaming(true);
 
     // Append empty assistant message for streaming
-    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+    setMessages((prev) => [...prev, { role: "assistant", content: "", fen: currentFen }]);
 
     await apiClient.chatAiStream(
       {
@@ -489,6 +518,7 @@ export default function AiAssistantChat({
                     {isBot ? (
                       <MarkdownRenderer
                         content={msg.content}
+                        messageFen={msg.fen}
                         onApplyFen={onApplyFen}
                         onApplyMove={onApplyMove}
                       />

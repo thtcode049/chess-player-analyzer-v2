@@ -207,6 +207,22 @@ export interface PawnStructureItem {
   games?: PawnStructureGame[];
 }
 
+export interface OpeningRepertoireItem {
+  name: string;
+  games_count: number;
+  wins?: number;
+  draws?: number;
+  losses?: number;
+  score_pct?: number;
+  adjusted_score_pct?: number;
+  delta_vs_baseline?: number;
+  assessment_badge?: string;
+  assessment_color?: string;
+  win_pct?: number;
+  draw_pct?: number;
+  loss_pct?: number;
+}
+
 export interface AnalysisRunSyncRequest {
   player_id: string;
   run_id?: string;

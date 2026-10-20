@@ -13,15 +13,80 @@ import {
   Loader2,
   User,
   Search,
-  Check
+  Check,
+  BookOpen
 } from "lucide-react";
 import Link from "next/link";
 import ChessBoard from "@/components/chess/ChessBoard";
 import MoveHistory from "@/components/chess/MoveHistory";
 import OpeningTreeTable from "@/components/analysis/OpeningTreeTable";
 import { apiClient } from "@/lib/api/client";
-import { Game, OpeningContinuation, Player, PawnStructureItem, PawnStructureGame } from "@/lib/api/types";
+import {
+  Game,
+  OpeningContinuation,
+  Player,
+  PawnStructureItem,
+  PawnStructureGame,
+  OpeningRepertoireItem
+} from "@/lib/api/types";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
+
+// Standard ECO & Opening lookup for instant canonical line derivation
+const OPENING_LOOKUP: Array<[string[], string, string]> = [
+  [["e4", "c5"], "B20", "Sicilian Defense"],
+  [["e4", "e5", "Nf3", "Nc6", "Bb5"], "C60", "Ruy Lopez"],
+  [["e4", "e5", "Nf3", "Nc6", "Bc4"], "C50", "Italian Game"],
+  [["e4", "e5", "Nf3", "Nc6", "d4"], "C44", "Scotch Game"],
+  [["e4", "e5", "Nf3", "Nc6"], "C40", "King's Pawn Game (Four Knights)"],
+  [["e4", "e5", "Nf3", "Nf6"], "C42", "Petrov's Defense"],
+  [["e4", "e5", "Nf3"], "C40", "King's Knight Opening"],
+  [["e4", "e5", "f4"], "C23", "King's Gambit"],
+  [["e4", "e5", "Nc3"], "C25", "Vienna Game"],
+  [["e4", "e5"], "C20", "King's Pawn Game"],
+  [["e4", "e6", "d4", "d5"], "C00", "French Defense"],
+  [["e4", "e6"], "C00", "French Defense"],
+  [["e4", "c6", "d4", "d5"], "B10", "Caro-Kann Defense"],
+  [["e4", "c6"], "B10", "Caro-Kann Defense"],
+  [["e4", "d5"], "B01", "Scandinavian Defense"],
+  [["e4", "g6"], "B06", "Modern Defense"],
+  [["e4", "Nf6"], "B02", "Alekhine's Defense"],
+  [["e4", "d6"], "B07", "Pirc Defense"],
+  [["d4", "Nf6", "c4", "e6", "Nf3"], "E10", "Queen's Indian Defense"],
+  [["d4", "Nf6", "c4", "e6", "Nc3"], "E20", "Nimzo-Indian Defense"],
+  [["d4", "Nf6", "c4", "g6"], "E60", "King's Indian Defense"],
+  [["d4", "Nf6", "c4", "c5"], "A56", "Benoni Defense"],
+  [["d4", "Nf6", "c4"], "A45", "Indian Defense"],
+  [["d4", "Nf6", "Bg5"], "A45", "Trompowsky Attack"],
+  [["d4", "Nf6", "Bf4"], "A45", "London System"],
+  [["d4", "Nf6"], "A45", "Indian Defense"],
+  [["d4", "d5", "c4", "e6"], "D30", "Queen's Gambit Declined"],
+  [["d4", "d5", "c4", "c6"], "D10", "Slav Defense"],
+  [["d4", "d5", "c4", "dxc4"], "D20", "Queen's Gambit Accepted"],
+  [["d4", "d5", "c4"], "D06", "Queen's Gambit"],
+  [["d4", "d5", "Bf4"], "D00", "London System"],
+  [["d4", "d5", "Nf3"], "D02", "Queen's Pawn Game"],
+  [["d4", "d5"], "D00", "Queen's Pawn Game"],
+  [["d4", "f5"], "A80", "Dutch Defense"],
+  [["c4", "e5"], "A20", "English Opening (Reversed Sicilian)"],
+  [["c4", "c5"], "A30", "English Opening (Symmetrical)"],
+  [["c4", "Nf6"], "A15", "English Opening"],
+  [["c4"], "A10", "English Opening"],
+  [["Nf3", "d5"], "A06", "Reti Opening"],
+  [["Nf3", "Nf6"], "A04", "Zukertort Opening"],
+  [["Nf3"], "A04", "Zukertort Opening"],
+  [["g3"], "A00", "Hungarian Opening"],
+  [["b3"], "A00", "Nimzo-Larsen Attack"],
+  [["f4"], "A02", "Bird's Opening"],
+  [["b4"], "A00", "Sokolsky (Polish) Opening"],
+];
+
+function parseSanMoves(movesSan?: string | null): string[] {
+  if (!movesSan) return [];
+  return movesSan
+    .split(/\s+/)
+    .map((t) => t.replace(/^\d+\.+/, "").trim())
+    .filter((t) => t && !["1-0", "0-1", "1/2-1/2", "*"].includes(t));
+}
 
 function normalizePlayerName(name: string): string {
   return name
@@ -46,6 +111,191 @@ function isPlayerNameMatch(nameA?: string | null, nameB?: string | null): boolea
   return matches.length >= 2 || (tokensA.length === 1 && matches.length === 1);
 }
 
+function isOpeningMatch(game: Game, opName: string): boolean {
+  if (!opName) return false;
+  const target = opName.toLowerCase().trim();
+  const gOp = (game.opening_name || game.raw_headers?.Opening || (game as any).opening || "").toLowerCase().trim();
+  if (gOp) {
+    if (gOp === target || gOp.includes(target) || target.includes(gOp)) return true;
+    const baseGOp = gOp.split(/[:,\-]/)[0].trim();
+    const baseTarget = target.split(/[:,\-]/)[0].trim();
+    if (baseGOp === baseTarget || (baseGOp.length >= 4 && (baseGOp.includes(baseTarget) || baseTarget.includes(baseGOp)))) {
+      return true;
+    }
+  }
+  // Try matching ECO prefix lookup
+  for (const [prefix, , name] of OPENING_LOOKUP) {
+    const nameLow = name.toLowerCase();
+    if (nameLow === target || nameLow.includes(target) || target.includes(nameLow)) {
+      const moves = parseSanMoves(game.moves_san);
+      if (prefix.length <= moves.length) {
+        let match = true;
+        for (let i = 0; i < prefix.length; i++) {
+          if (moves[i] !== prefix[i]) {
+            match = false;
+            break;
+          }
+        }
+        if (match) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function findLongestCommonPrefix(movesList: string[][]): string[] {
+  if (movesList.length === 0) return [];
+  const first = movesList[0];
+  const common: string[] = [];
+  for (let i = 0; i < first.length; i++) {
+    const move = first[i];
+    if (movesList.every((m) => m[i] === move)) {
+      common.push(move);
+    } else {
+      break;
+    }
+  }
+  return common;
+}
+
+function findRepresentativeLineForGames(games: Game[], targetOpeningName?: string): string[] {
+  const fallbackFromLookup = (): string[] => {
+    if (targetOpeningName) {
+      const clean = targetOpeningName.toLowerCase().trim();
+      const found = OPENING_LOOKUP.find(([_, __, name]) => {
+        const n = name.toLowerCase();
+        return n === clean || n.includes(clean) || clean.includes(n);
+      });
+      if (found) return [...found[0]];
+    }
+    return [];
+  };
+
+  if (!games || games.length === 0) {
+    return fallbackFromLookup();
+  }
+
+  const parsedGamesMoves = games.map((g) => parseSanMoves(g.moves_san)).filter((m) => m.length > 0);
+  if (parsedGamesMoves.length === 0) {
+    return fallbackFromLookup();
+  }
+  if (parsedGamesMoves.length === 1) {
+    return parsedGamesMoves[0].slice(0, Math.min(parsedGamesMoves[0].length, 12));
+  }
+
+  // Position & Transposition analysis using first 4 tokens of FEN
+  const fenInfo: Record<string, { games: Set<number>; paths: Record<string, number> }> = {};
+  const startKey = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -";
+
+  parsedGamesMoves.forEach((moves, gIdx) => {
+    try {
+      const chess = new Chess();
+      const currentPath: string[] = [];
+      const maxPlies = Math.min(moves.length, 24); // Up to first 12 moves (24 plies)
+
+      for (let i = 0; i < maxPlies; i++) {
+        const san = moves[i];
+        const res = chess.move(san);
+        if (!res) break;
+        currentPath.push(san);
+
+        const epdKey = chess.fen().split(" ").slice(0, 4).join(" ");
+        if (!fenInfo[epdKey]) {
+          fenInfo[epdKey] = { games: new Set(), paths: {} };
+        }
+        fenInfo[epdKey].games.add(gIdx);
+        const pathKey = currentPath.join(" ");
+        fenInfo[epdKey].paths[pathKey] = (fenInfo[epdKey].paths[pathKey] || 0) + 1;
+      }
+    } catch {
+      // Ignore invalid moves
+    }
+  });
+
+  const nonRootEntries = Object.entries(fenInfo).filter(([key]) => key !== startKey);
+  if (nonRootEntries.length === 0) {
+    const lcp = findLongestCommonPrefix(parsedGamesMoves);
+    return lcp.length > 0 ? lcp : fallbackFromLookup();
+  }
+
+  const maxGamesCount = Math.max(...nonRootEntries.map(([_, info]) => info.games.size));
+  const threshold = Math.max(2, Math.floor(maxGamesCount * 0.7));
+
+  let bestKey: string | null = null;
+  let maxDepth = -1;
+
+  for (const [key, info] of nonRootEntries) {
+    const gCount = info.games.size;
+    if (gCount >= threshold) {
+      for (const pathKey of Object.keys(info.paths)) {
+        const depth = pathKey.split(" ").length;
+        if (depth > maxDepth) {
+          maxDepth = depth;
+          bestKey = key;
+        } else if (depth === maxDepth && bestKey !== null) {
+          if (gCount > fenInfo[bestKey].games.size) {
+            bestKey = key;
+          }
+        }
+      }
+    }
+  }
+
+  if (!bestKey) {
+    const lcp = findLongestCommonPrefix(parsedGamesMoves);
+    return lcp.length > 0 ? lcp : fallbackFromLookup();
+  }
+
+  const bestPaths = fenInfo[bestKey].paths;
+  let mostCommonPath = "";
+  let highestCount = -1;
+  for (const [pathStr, count] of Object.entries(bestPaths)) {
+    if (count > highestCount) {
+      highestCount = count;
+      mostCommonPath = pathStr;
+    }
+  }
+
+  const line = mostCommonPath ? mostCommonPath.split(" ") : [];
+  if (line.length > 0) {
+    return line;
+  }
+
+  const lcp = findLongestCommonPrefix(parsedGamesMoves);
+  return lcp.length > 0 ? lcp : fallbackFromLookup();
+}
+
+function getGamePlayerOutcome(
+  game: Game,
+  canonicalName?: string
+): { isWin: boolean; isDraw: boolean; isLoss: boolean; playerColor: "white" | "black" } {
+  const isWhite = isPlayerNameMatch(canonicalName, game.white_player);
+  const isBlack = isPlayerNameMatch(canonicalName, game.black_player);
+  const playerColor: "white" | "black" = isBlack && !isWhite ? "black" : "white";
+
+  const res = (game.result || "").trim();
+  if (res === "1/2-1/2" || res === "0.5-0.5") {
+    return { isWin: false, isDraw: true, isLoss: false, playerColor };
+  }
+  if (res === "1-0") {
+    return {
+      isWin: playerColor === "white",
+      isDraw: false,
+      isLoss: playerColor === "black",
+      playerColor,
+    };
+  }
+  if (res === "0-1") {
+    return {
+      isWin: playerColor === "black",
+      isDraw: false,
+      isLoss: playerColor === "white",
+      playerColor,
+    };
+  }
+  return { isWin: false, isDraw: false, isLoss: false, playerColor };
+}
+
 function AnalyzeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -56,6 +306,7 @@ function AnalyzeContent() {
   const queryMove = searchParams.get("move");
   const queryStructure = searchParams.get("structure");
   const queryGameIdx = searchParams.get("gameIdx");
+  const queryOpening = searchParams.get("opening");
 
   // Player & Run state
   const [players, setPlayers] = useState<Player[]>([]);
@@ -88,6 +339,16 @@ function AnalyzeContent() {
   const [structureSearch, setStructureSearch] = useState<string>("");
   const [playerGames, setPlayerGames] = useState<Game[]>([]);
   const [activeStructureGameIdx, setActiveStructureGameIdx] = useState<number | null>(null);
+
+  // Opening Explorer Mode State
+  const [availableOpenings, setAvailableOpenings] = useState<OpeningRepertoireItem[]>([]);
+  const [selectedOpening, setSelectedOpening] = useState<string | null>(queryOpening || null);
+  const [openingFilter, setOpeningFilter] = useState<"all" | "wins" | "draws" | "losses">("all");
+  const [openingSearch, setOpeningSearch] = useState<string>("");
+  const [activeOpeningGameId, setActiveOpeningGameId] = useState<string | null>(null);
+  const [openingRepresentativeLine, setOpeningRepresentativeLine] = useState<string[]>([]);
+  const loadedOpeningRef = React.useRef<string | null>(null);
+  const lastGamesCountRef = React.useRef<number>(0);
 
   // Custom PGN modal
   const [showPgnInput, setShowPgnInput] = useState(false);
@@ -227,6 +488,9 @@ function AnalyzeContent() {
         const structs: PawnStructureItem[] = run?.pawn_structures_summary?.structures || [];
         setAvailableStructures(structs);
 
+        const repOpenings: OpeningRepertoireItem[] = run?.repertoire_summary?.all_openings || [];
+        setAvailableOpenings(repOpenings);
+
         if (queryStructure) {
           const matched = structs.find((s) =>
             s.name.toLowerCase().trim() === queryStructure.toLowerCase().trim() ||
@@ -244,6 +508,19 @@ function AnalyzeContent() {
       .then((res) => {
         if (res && res.items) {
           setPlayerGames(res.items);
+
+          // Populate availableOpenings if run had empty repertoire
+          setAvailableOpenings((prev) => {
+            if (prev && prev.length > 0) return prev;
+            const opMap: Record<string, number> = {};
+            res.items.forEach((g) => {
+              const name = g.opening_name || g.raw_headers?.Opening;
+              if (name) opMap[name] = (opMap[name] || 0) + 1;
+            });
+            return Object.entries(opMap)
+              .sort((a, b) => b[1] - a[1])
+              .map(([name, count]) => ({ name, games_count: count }));
+          });
         }
       })
       .catch((err) => console.warn("Failed to load player games:", err));
@@ -275,6 +552,11 @@ function AnalyzeContent() {
     setGameInfo(null);
     setSelectedStructure(null);
     setActiveStructureGameIdx(null);
+    setSelectedOpening(null);
+    setActiveOpeningGameId(null);
+    setOpeningRepresentativeLine([]);
+    loadedOpeningRef.current = null;
+    lastGamesCountRef.current = 0;
   };
 
   // Position change from ChessBoard component
@@ -442,11 +724,252 @@ function AnalyzeContent() {
     });
   }, [selectedStructure, structureFilter, structureSearch]);
 
-
   const currentPlayerObj = players.find((p) => p.id === selectedPlayerId);
+
+  // Synchronize Opening Explorer with queryOpening or newly arrived playerGames
+  useEffect(() => {
+    if (!queryOpening) {
+      if (selectedOpening !== null && loadedOpeningRef.current !== null) {
+        setSelectedOpening(null);
+        setActiveOpeningGameId(null);
+        setOpeningRepresentativeLine([]);
+        loadedOpeningRef.current = null;
+      }
+      return;
+    }
+
+    const gamesJustArrived = playerGames.length > 0 && lastGamesCountRef.current === 0;
+    lastGamesCountRef.current = playerGames.length;
+
+    // Load or refine opening formation
+    if (loadedOpeningRef.current !== queryOpening || gamesJustArrived) {
+      setSelectedOpening(queryOpening);
+      setActiveOpeningGameId(null);
+
+      const matchingGames = playerGames.filter((g) => isOpeningMatch(g, queryOpening));
+      const line = findRepresentativeLineForGames(matchingGames, queryOpening);
+      setOpeningRepresentativeLine(line);
+
+      // Apply line moves to board to display canonical opening formation
+      const chess = new Chess();
+      for (const m of line) {
+        try {
+          chess.move(m);
+        } catch {
+          break;
+        }
+      }
+      setMoves(line);
+      setCurrentPly(line.length);
+      setCurrentFen(chess.fen());
+      setGameInfo(null);
+
+      // Determine orientation based on player games or defense naming
+      if (matchingGames.length > 0 && currentPlayerObj?.canonical_name) {
+        const outcomes = matchingGames.map((g) => getGamePlayerOutcome(g, currentPlayerObj.canonical_name));
+        const blackCount = outcomes.filter((o) => o.playerColor === "black").length;
+        const whiteCount = outcomes.filter((o) => o.playerColor === "white").length;
+        if (blackCount > whiteCount) {
+          setBoardOrientation("black");
+          setColorFilter("black");
+        } else {
+          setBoardOrientation("white");
+          setColorFilter("white");
+        }
+      } else {
+        const opLower = queryOpening.toLowerCase();
+        if (opLower.includes("defense") || opLower.includes("defence") || opLower.includes("counter")) {
+          setBoardOrientation("black");
+          setColorFilter("black");
+        } else {
+          setBoardOrientation("white");
+          setColorFilter("white");
+        }
+      }
+
+      loadedOpeningRef.current = queryOpening;
+    }
+  }, [queryOpening, playerGames, currentPlayerObj?.canonical_name, selectedOpening]);
+
+  // Switch opening in Explorer Mode
+  const handleSelectOpening = (opName: string) => {
+    setSelectedOpening(opName);
+    setActiveOpeningGameId(null);
+    loadedOpeningRef.current = null;
+    const params = new URLSearchParams(window.location.search);
+    params.set("opening", opName);
+    params.delete("structure");
+    params.delete("gameIdx");
+    router.replace(`/analyze?${params.toString()}`);
+  };
+
+  // Exit opening Explorer Mode
+  const handleExitOpeningExplorer = () => {
+    setSelectedOpening(null);
+    setActiveOpeningGameId(null);
+    setOpeningRepresentativeLine([]);
+    loadedOpeningRef.current = null;
+    const params = new URLSearchParams(window.location.search);
+    params.delete("opening");
+    const newQuery = params.toString();
+    router.replace(newQuery ? `/analyze?${newQuery}` : `/analyze`);
+  };
+
+  // Load a single game from the opening games list onto the board
+  const handleLoadOpeningGame = (targetGame: Game) => {
+    setActiveOpeningGameId(targetGame.id);
+    setGameInfo(targetGame);
+
+    if (targetGame.moves_san) {
+      const parsedMoves = parseSanMoves(targetGame.moves_san);
+      setMoves(parsedMoves);
+
+      // Determine target ply: formation ply of the opening
+      const chess = new Chess();
+      let targetPly = Math.min(openingRepresentativeLine.length, parsedMoves.length);
+      if (targetPly === 0) {
+        targetPly = Math.min(6, parsedMoves.length);
+      }
+
+      for (let i = 0; i < targetPly; i++) {
+        try {
+          chess.move(parsedMoves[i]);
+        } catch {
+          break;
+        }
+      }
+
+      setCurrentPly(targetPly);
+      setCurrentFen(chess.fen());
+
+      // Adjust board orientation to analyzed player's perspective in this game
+      if (currentPlayerObj?.canonical_name) {
+        const isPlayerBlack = isPlayerNameMatch(currentPlayerObj.canonical_name, targetGame.black_player);
+        setBoardOrientation(isPlayerBlack ? "black" : "white");
+      }
+    }
+  };
+
+  // Matching games for selected opening
+  const matchingOpeningGames = useMemo(() => {
+    if (!selectedOpening) return [];
+    return playerGames.filter((g) => isOpeningMatch(g, selectedOpening));
+  }, [playerGames, selectedOpening]);
+
+  // Statistics for selected opening games
+  const openingStats = useMemo(() => {
+    let wins = 0;
+    let draws = 0;
+    let losses = 0;
+    matchingOpeningGames.forEach((g) => {
+      const outcome = getGamePlayerOutcome(g, currentPlayerObj?.canonical_name);
+      if (outcome.isWin) wins++;
+      else if (outcome.isDraw) draws++;
+      else if (outcome.isLoss) losses++;
+    });
+    return { wins, draws, losses, total: matchingOpeningGames.length };
+  }, [matchingOpeningGames, currentPlayerObj?.canonical_name]);
+
+  // Filtered opening games
+  const filteredOpeningGames = useMemo(() => {
+    return matchingOpeningGames.filter((g) => {
+      const outcome = getGamePlayerOutcome(g, currentPlayerObj?.canonical_name);
+      if (openingFilter === "wins" && !outcome.isWin) return false;
+      if (openingFilter === "draws" && !outcome.isDraw) return false;
+      if (openingFilter === "losses" && !outcome.isLoss) return false;
+
+      if (openingSearch.trim()) {
+        const q = normalizePlayerName(openingSearch);
+        const w = normalizePlayerName(g.white_player || "");
+        const b = normalizePlayerName(g.black_player || "");
+        const op = normalizePlayerName(g.opening_name || "");
+        const eco = normalizePlayerName(g.eco || "");
+        if (!w.includes(q) && !b.includes(q) && !op.includes(q) && !eco.includes(q)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [matchingOpeningGames, openingFilter, openingSearch, currentPlayerObj?.canonical_name]);
+
+  const currentOpeningItem = useMemo(() => {
+    if (!selectedOpening) return null;
+    return availableOpenings.find((op) => op.name.toLowerCase() === selectedOpening.toLowerCase()) || null;
+  }, [availableOpenings, selectedOpening]);
 
   return (
     <div className="w-full max-w-[1720px] mx-auto animate-fade-in pb-4 -mt-3 sm:-mt-6 space-y-4">
+
+      {/* MODE A: OPENING EXPLORER HEADER BANNER */}
+      {selectedOpening && !selectedStructure && (
+        <div className="bg-primary/10 border border-primary/30 rounded-3xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
+              <BookOpen className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-primary uppercase tracking-wider">
+                  Opening Explorer Mode
+                </span>
+                {currentOpeningItem?.assessment_badge && (
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-[10px] font-bold"
+                    style={{
+                      backgroundColor: `${currentOpeningItem.assessment_color ?? "#94A3B8"}20`,
+                      color: currentOpeningItem.assessment_color ?? "#94A3B8",
+                      border: `1px solid ${currentOpeningItem.assessment_color ?? "#94A3B8"}40`
+                    }}
+                  >
+                    {currentOpeningItem.assessment_badge}
+                  </span>
+                )}
+              </div>
+              <h2 className="text-xl font-black text-foreground mt-0.5">
+                {selectedOpening}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Đang xem <b>{matchingOpeningGames.length}</b> ván đấu thực tế của hệ thống khai cuộc này •{" "}
+                {currentOpeningItem?.adjusted_score_pct !== undefined && (
+                  <>
+                    Điểm Bayes: <b>{currentOpeningItem.adjusted_score_pct.toFixed(1)}%</b> •{" "}
+                  </>
+                )}
+                Thắng: <b className="text-emerald-500">{openingStats.wins}</b> •{" "}
+                Hòa: <b className="text-amber-500">{openingStats.draws}</b> •{" "}
+                Thua: <b className="text-rose-500">{openingStats.losses}</b>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {availableOpenings.length > 1 && (
+              <div className="flex items-center gap-1.5 bg-card border border-border/60 rounded-xl px-2.5 py-1.5 shadow-sm">
+                <span className="text-[11px] font-semibold text-muted-foreground">Đổi khai cuộc:</span>
+                <select
+                  value={selectedOpening}
+                  onChange={(e) => handleSelectOpening(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer"
+                >
+                  {availableOpenings.map((op) => (
+                    <option key={op.name} value={op.name} className="bg-card text-foreground">
+                      {op.name} ({op.games_count} ván)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              onClick={handleExitOpeningExplorer}
+              className="px-3.5 py-2 rounded-xl border border-border/60 hover:bg-secondary text-foreground text-xs font-semibold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Trở về Phân tích Thường
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* MODE B: STRUCTURE EXPLORER HEADER BANNER */}
       {selectedStructure && (
@@ -662,6 +1185,213 @@ function AnalyzeContent() {
           </div>
         </div>
       </div>
+
+      {/* MODE A: OPENING GAMES LIST PANEL */}
+      {selectedOpening && !selectedStructure && (
+        <div className="bg-card border border-border/60 rounded-3xl p-6 shadow-sm space-y-4 animate-fade-in">
+          {/* Header & Search */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-4">
+            <div>
+              <h3 className="text-lg font-black text-foreground flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-primary" />
+                Danh sách ván đấu khai cuộc {selectedOpening} ({matchingOpeningGames.length} ván)
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Bấm <b>"Xem ván"</b> để nạp toàn bộ nước đi lên bàn cờ và nhảy ngay tới thế cờ hình thành khai cuộc.
+              </p>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative w-full sm:w-64">
+              <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Tìm đối thủ, ECO..."
+                value={openingSearch}
+                onChange={(e) => setOpeningSearch(e.target.value)}
+                className="w-full bg-secondary/50 border border-border/60 rounded-xl pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setOpeningFilter("all")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                openingFilter === "all"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Tất cả ({matchingOpeningGames.length})
+            </button>
+            <button
+              onClick={() => setOpeningFilter("wins")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                openingFilter === "wins"
+                  ? "bg-emerald-500 text-white shadow-sm"
+                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Ván Thắng ({openingStats.wins})
+            </button>
+            <button
+              onClick={() => setOpeningFilter("draws")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                openingFilter === "draws"
+                  ? "bg-amber-500 text-white shadow-sm"
+                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Ván Hòa ({openingStats.draws})
+            </button>
+            <button
+              onClick={() => setOpeningFilter("losses")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                openingFilter === "losses"
+                  ? "bg-rose-500 text-white shadow-sm"
+                  : "bg-secondary/60 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Ván Thua ({openingStats.losses})
+            </button>
+          </div>
+
+          {/* Games Table */}
+          <div className="overflow-x-auto border border-border/40 rounded-2xl">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted/50 text-muted-foreground font-semibold">
+                <tr>
+                  <th className="px-4 py-3">#</th>
+                  <th className="px-4 py-3">Trắng vs Đen</th>
+                  <th className="px-4 py-3">Khai cuộc / Kết quả</th>
+                  <th className="px-4 py-3 text-center">Số nước / Ngày</th>
+                  <th className="px-4 py-3 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {filteredOpeningGames.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                      Không có ván đấu nào khớp với bộ lọc.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredOpeningGames.map((g, idx) => {
+                    const isCurrent = activeOpeningGameId === g.id;
+                    const outcome = getGamePlayerOutcome(g, currentPlayerObj?.canonical_name);
+
+                    let resBadge = <span className="text-muted-foreground font-mono">{g.result}</span>;
+                    if (outcome.isWin) {
+                      resBadge = (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                          {g.result} (Thắng)
+                        </span>
+                      );
+                    } else if (outcome.isDraw) {
+                      resBadge = (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                          {g.result} (Hòa)
+                        </span>
+                      );
+                    } else if (outcome.isLoss) {
+                      resBadge = (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                          {g.result} (Thua)
+                        </span>
+                      );
+                    }
+
+                    const movesCount = g.ply_count
+                      ? Math.ceil(g.ply_count / 2)
+                      : parseSanMoves(g.moves_san).length
+                      ? Math.ceil(parseSanMoves(g.moves_san).length / 2)
+                      : null;
+
+                    const formattedDate = g.played_at
+                      ? new Date(g.played_at).toLocaleDateString("vi-VN")
+                      : g.raw_headers?.Date && g.raw_headers.Date !== "????.??.??"
+                      ? g.raw_headers.Date
+                      : null;
+
+                    return (
+                      <tr
+                        key={g.id || idx}
+                        className={`transition ${isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/30"}`}
+                      >
+                        <td className="px-4 py-3 font-mono text-muted-foreground">
+                          {idx + 1}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                            <span className="w-2 h-2 rounded-full bg-white border border-slate-300 dark:border-slate-500 shrink-0" />
+                            <span>{g.white_player}</span>
+                            {g.white_elo ? (
+                              <span className="text-[10px] text-muted-foreground font-normal">({g.white_elo})</span>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
+                            <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-700 shrink-0" />
+                            <span>{g.black_player}</span>
+                            {g.black_elo ? (
+                              <span className="text-[10px] text-muted-foreground font-normal">({g.black_elo})</span>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-muted-foreground truncate max-w-[240px]">
+                            {g.eco ? <b className="text-foreground font-mono mr-1">[{g.eco}]</b> : null}
+                            {g.opening_name || selectedOpening}
+                          </div>
+                          <div className="mt-0.5">{resBadge}</div>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {movesCount ? (
+                            <span className="font-mono text-xs px-2.5 py-0.5 rounded-lg bg-secondary text-foreground">
+                              {movesCount} nước
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">--</span>
+                          )}
+                          {formattedDate && (
+                            <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                              {formattedDate}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => handleLoadOpeningGame(g)}
+                            disabled={isCurrent}
+                            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition shadow-sm cursor-pointer ${
+                              isCurrent
+                                ? "bg-emerald-500 text-white cursor-default"
+                                : "bg-primary text-primary-foreground hover:bg-primary/90"
+                            }`}
+                          >
+                            {isCurrent ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                Đang xem
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-3.5 h-3.5" />
+                                Xem ván
+                              </>
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* MODE B: STRUCTURE GAMES LIST PANEL */}
       {selectedStructure && (

@@ -25,7 +25,7 @@ export default function PawnStructureGrid({
     );
   }
 
-  // Danh sách các key/tên được chuẩn hóa của 10 cấu trúc chính thức (loại bỏ hoàn toàn Benoni)
+  // Danh sách chuẩn hóa của 10 cấu trúc chính thức (chỉ render các cấu trúc hợp lệ)
   const ALLOWED_GROUP_B = ["carlsbad", "maroczy_bind", "maroczy bind", "hedgehog", "stonewall"];
   const ALLOWED_GROUP_A = [
     "iqp",
@@ -45,15 +45,13 @@ export default function PawnStructureGrid({
   const isValidGroupB = (s: PawnStructureItem) => {
     const k = (s.structure_key || "").toLowerCase();
     const n = (s.name || "").toLowerCase();
-    if (k.includes("benoni") || n.includes("benoni")) return false;
-    return s.group === "B" || ALLOWED_GROUP_B.some((allowed) => k.includes(allowed) || n.includes(allowed));
+    return ALLOWED_GROUP_B.some((allowed) => k.includes(allowed) || n.includes(allowed));
   };
 
   const isValidGroupA = (s: PawnStructureItem) => {
     const k = (s.structure_key || "").toLowerCase();
     const n = (s.name || "").toLowerCase();
-    if (k.includes("benoni") || n.includes("benoni")) return false;
-    return s.group === "A" || ALLOWED_GROUP_A.some((allowed) => k.includes(allowed) || n.includes(allowed));
+    return ALLOWED_GROUP_A.some((allowed) => k.includes(allowed) || n.includes(allowed));
   };
 
   const groupB = structures.filter(isValidGroupB);

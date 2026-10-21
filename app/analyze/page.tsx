@@ -1158,10 +1158,21 @@ function AnalyzeContent() {
                       (s) => !s.name?.toLowerCase().includes("benoni") && !(s.structure_key || "").toLowerCase().includes("benoni")
                     );
                     const groupB = validStructures.filter(
-                      (s) => s.group === "B" || ["Carlsbad", "Maroczy_Bind", "Hedgehog", "Stonewall"].includes(s.structure_key || "")
+                      (s) =>
+                        s.group === "B" ||
+                        [
+                          "Carlsbad",
+                          "French_Chain",
+                          "Kings_Indian",
+                          "Scheveningen",
+                          "Boleslavsky_Hole",
+                          "Maroczy_Bind",
+                          "Hedgehog",
+                          "Stonewall",
+                        ].includes(s.structure_key || "")
                     );
                     const groupA = validStructures.filter(
-                      (s) => s.group === "A" || !["Carlsbad", "Maroczy_Bind", "Hedgehog", "Stonewall"].includes(s.structure_key || "")
+                      (s) => s.group === "A" || !groupB.includes(s)
                     );
                     return (
                       <>

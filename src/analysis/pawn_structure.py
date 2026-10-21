@@ -5,7 +5,7 @@ Chức năng: Nhận diện cấu trúc Tốt (Pawn Structure) bằng luật gi�
 Phân tích hiệu suất của đối thủ khi thi đấu trong từng dạng cấu trúc Tốt.
 Tổ chức thành 2 nhóm chính:
 - Nhóm A: Cấu trúc nền tảng và trạng thái trung tâm (IQP, Hanging Pawns, Open, Semi-Open, Closed, Symmetrical)
-- Nhóm B: Cấu trúc chiến lược kinh điển (Carlsbad, Maroczy Bind, Hedgehog, Stonewall)
+- Nhóm B: Cấu trúc chiến lược kinh điển (Carlsbad, Cấu trúc Pháp, King's Indian, Scheveningen, Boleslavsky Hole, Maroczy Bind, Hedgehog, Stonewall)
 """
 
 from typing import List, Dict, Any, Optional
@@ -87,12 +87,52 @@ STRATEGIC_PLANS = {
     # Nhóm B: Cấu trúc chiến lược kinh điển
     "Carlsbad": {
         "ideas": [
-            "Trắng triển khai đòn tấn công thiểu số cánh Hậu (Minority Attack: a4, b4-b5) nhằm làm suy yếu cấu trúc tốt c6/d5 của Đen.",
-            "Hoặc Trắng kiểm soát trung tâm chuẩn bị đòn đẩy e3-e4 mở toang trung lộ khi Đen phòng thủ cánh Hậu quá mức."
+            "Bên có cấu trúc d4/e3 triển khai đòn tấn công thiểu số cánh Hậu (Minority Attack: a4, b4-b5) nhằm bẻ gãy cấu trúc tốt đối phương tại c6.",
+            "Hoặc kiểm soát trung tâm chuẩn bị đòn đẩy e3-e4 (hoặc c3-c4 ở cấu trúc đảo) mở toang trung lộ khi đối phương dồn phòng thủ cánh Hậu."
         ],
         "counter_ideas": [
-            "Đen thiết lập tiền đồn Ne4 vững chắc, dồn toàn bộ hỏa lực sang cánh Vua (f7-f5, Rf6-h6, Qh4) để phản công thành Vua.",
-            "Hoặc Đen đẩy a7-a5 để chặn đứng đòn b4-b5 của Trắng trên cánh Hậu."
+            "Bên phòng thủ cánh Hậu thiết lập tiền đồn Mã vững chắc ở e4 (hoặc e5), dồn toàn bộ hỏa lực sang cánh Vua phản công.",
+            "Hoặc đẩy a7-a5 để chặn đứng đòn b4-b5 của đối phương trên cánh Hậu."
+        ]
+    },
+    "French_Chain": {
+        "ideas": [
+            "Trắng tận dụng mũi nhọn e5 kiểm soát không gian cánh Vua, dồn quân tấn công thành Vua (f4-f5, Nf3-g5, Qh5).",
+            "Củng cố gốc xích d4 bằng c3, sẵn sàng đưa Tượng xấu c1 đổi hoặc chuyển hướng chi viện qua d2-e1-h4."
+        ],
+        "counter_ideas": [
+            "Đen tập trung toàn lực công phá vào gốc xích d4 của Trắng bằng các đòn ...c7-c5, ...Nc6, ...Qb6.",
+            "Đen tìm cách đổi Tượng xấu ô trắng c8 qua a6 (...b6, ...Ba6) hoặc mở toang cánh Vua đúng lúc bằng đòn đột phá ...f7-f6."
+        ]
+    },
+    "Kings_Indian": {
+        "ideas": [
+            "Trắng khóa chặt trung tâm bằng d4-d5, mở toang mặt trận cánh Hậu bằng c4-c5 nhằm chiếm lĩnh hàng 7/8.",
+            "Bảo vệ vững chắc cánh Vua trước đợt tấn công của Đen, khai thác các ô yếu trên cánh Hậu."
+        ],
+        "counter_ideas": [
+            "Đen khóa trung tâm với ...e7-e5, phát động đòn bão tốt vũ bão sang cánh Vua (...f7-f5-f4 và ...g5-g4) nhằm công phá Vua Trắng.",
+            "Khai thác ô tiền đồn c5 cho Mã hoặc đột phá cánh Hậu bằng ...c7-c6 để phản kích."
+        ]
+    },
+    "Scheveningen": {
+        "ideas": [
+            "Trắng tận dụng ưu thế không gian và cột d mở/nửa mở, phát động tấn công cánh Vua bằng f2-f4-f5 hoặc đòn tấn công Keres g2-g4.",
+            "Kiểm soát các ô tiền đồn trung tâm d5 và e5, ngăn chặn Đen mở cờ."
+        ],
+        "counter_ideas": [
+            "Đen duy trì lá chắn trung tâm kiên cố d6+e6, phản công sắc bén dọc theo cột c nửa mở (Rc8, Nc6-e5/a5).",
+            "Chuẩn bị các đòn đột phá giải phóng kinh điển ...d6-d5 hoặc phản công cánh Hậu với ...a6, ...b5."
+        ]
+    },
+    "Boleslavsky_Hole": {
+        "ideas": [
+            "Trắng tập trung phong tỏa và chiếm lĩnh ô tiền đồn then chốt d5 (đặc biệt bằng Mã), gia tăng sức ép vào tốt lạc hậu d6 của Đen.",
+            "Ngăn chặn tối đa ý đồ giải phóng thế trận bằng đòn ...d6-d5 của Đen."
+        ],
+        "counter_ideas": [
+            "Đen dồn quân kiểm soát ô d5, tích cực tìm kiếm thời cơ chuẩn bị đòn đẩy ...d6-d5 đập tan gọng kìm trung tâm.",
+            "Tận dụng tính cơ động của các quân nhẹ trên hai cánh để tạo áp lực phản công bù đắp cho lỗ hổng d5."
         ]
     },
     "Maroczy_Bind": {
@@ -310,30 +350,115 @@ def detect_all_pawn_structures(board: chess.Board, ply: int = 20) -> List[Dict[s
     # NHÓM B: CẤU TRÚC CHIẾN LƯỢC KINH ĐIỂN
     # =========================================================================
 
-    # 1. Carlsbad Structure
-    w_has_c3_or_c2 = chess.C3 in pawn_map["white"] or chess.C2 in pawn_map["white"]
+    # 1. Carlsbad Structure (Chuẩn & Đảo màu)
+    # File checks
     w_has_e3_or_e2 = chess.E3 in pawn_map["white"] or chess.E2 in pawn_map["white"]
-    w_no_c4_c5 = (chess.C4 not in pawn_map["white"]) and (chess.C5 not in pawn_map["white"])
+    w_no_c_pawns = 2 not in white_files
+    w_no_e_pawns = 4 not in white_files
+    w_no_d_pawns = 3 not in white_files
+    b_no_c_pawns = 2 not in black_files
+    b_no_e_pawns = 4 not in black_files
     b_c6 = chess.C6 in pawn_map["black"]
-    b_no_e_pawns = not any(chess.square_file(sq) == 4 for sq in pawn_map["black"])
+    b_e6 = chess.E6 in pawn_map["black"]
+    b_d6 = chess.D6 in pawn_map["black"]
 
-    if w_has_c3_or_c2 and w_d4 and w_has_e3_or_e2 and w_no_c4_c5 and b_c6 and b_d5 and b_no_e_pawns:
+    # Standard Carlsbad (từ QGD Exchange): Trắng d4, e3/e2, không có tốt c (cột c nửa mở hoặc c3 từ bxc3); Đen c6, d5, không có tốt e
+    std_carlsbad = (
+        w_d4 and w_has_e3_or_e2 and
+        (w_no_c_pawns or (chess.C3 in pawn_map["white"] and 1 not in white_files)) and
+        b_c6 and b_d5 and b_no_e_pawns and (chess.E5 not in pawn_map["white"])
+    )
+    # Reversed Carlsbad (Caro-Kann Exchange / Slav): Trắng c3, d4, không có tốt e; Đen d5, e6/e7, không có tốt c
+    rev_carlsbad = (
+        chess.C3 in pawn_map["white"] and w_d4 and w_no_e_pawns and
+        b_d5 and (b_e6 or chess.E7 in pawn_map["black"]) and b_no_c_pawns and (chess.C4 not in pawn_map["white"])
+    )
+
+    if std_carlsbad:
         detected.append({
             "structure": "Carlsbad",
             "name": "Carlsbad Structure",
             "group": "B",
             "group_title": "Cấu trúc chiến lược kinh điển",
             "side": "white",
-            "square": "c3/d4 vs c6/d5",
-            "evidence": "Trắng có tốt c3/d4/e3 (cột c nửa mở), Đen có c6/d5 (cột e nửa mở).",
+            "square": "d4/e3 vs c6/d5",
+            "evidence": "Trắng có tốt d4/e3 (cột c nửa mở), Đen có c6/d5 (cột e nửa mở). Trắng triển khai đòn tấn công thiểu số cánh Hậu b4-b5.",
+            "strategic_plan": STRATEGIC_PLANS["Carlsbad"]
+        })
+    elif rev_carlsbad:
+        detected.append({
+            "structure": "Carlsbad",
+            "name": "Carlsbad Structure",
+            "group": "B",
+            "group_title": "Cấu trúc chiến lược kinh điển",
+            "side": "black",
+            "square": "c3/d4 vs d5/e6",
+            "evidence": "Trắng có tốt c3/d4 (cột e nửa mở), Đen có d5/e6 (cột c nửa mở - Cấu trúc Carlsbad đảo màu).",
             "strategic_plan": STRATEGIC_PLANS["Carlsbad"]
         })
 
-    # 2. Maroczy Bind
-    w_no_d = not any(chess.square_file(sq) == 3 for sq in pawn_map["white"])
-    b_d6_has = chess.D6 in pawn_map["black"]
+    # 2. French Structure (Cấu trúc Pháp)
+    # Chuỗi xích Pháp: Trắng d4/e5 vs Đen d5/e6, Đen không có c6 (ở Pháp Đen phản kích c5 hoặc giữ c7, Tượng c8 bị giam sau xích)
+    w_e5 = chess.E5 in pawn_map["white"]
+    if w_d4 and w_e5 and b_d5 and b_e6 and not b_c6:
+        detected.append({
+            "structure": "French_Chain",
+            "name": "French Structure",
+            "group": "B",
+            "group_title": "Cấu trúc chiến lược kinh điển",
+            "side": "both",
+            "square": "d4/e5 vs d5/e6",
+            "evidence": "Trắng lập xích tốt d4/e5 kiểm soát cánh Vua, Đen lập xích đối kháng d5/e6 (Tượng c8 bị giam sau xích tốt kiểu Pháp kinh điển).",
+            "strategic_plan": STRATEGIC_PLANS["French_Chain"]
+        })
+
+    # 3. King's Indian Complex (Cấu trúc King's Indian)
+    if w_d5 and w_e4 and b_d6 and b_e5:
+        detected.append({
+            "structure": "Kings_Indian",
+            "name": "King's Indian Complex",
+            "group": "B",
+            "group_title": "Cấu trúc chiến lược kinh điển",
+            "side": "both",
+            "square": "d5/e4 vs d6/e5",
+            "evidence": "Trắng cắm nêm tốt d5+e4 khóa trung tâm, Đen giữ d6+e5 chuẩn bị bão tốt cánh Vua (Cấu trúc King's Indian / Mar del Plata).",
+            "strategic_plan": STRATEGIC_PLANS["Kings_Indian"]
+        })
+
+    # 4. Scheveningen Structure (Cấu trúc Scheveningen / Trung tâm nhỏ Sicilian)
+    b_a6 = chess.A6 in pawn_map["black"]
+    b_b6 = chess.B6 in pawn_map["black"]
+    is_hedgehog_black = b_a6 and b_b6 and b_d6 and b_e6 and b_no_c_pawns
+    if w_e4 and w_no_d_pawns and b_d6 and b_e6 and b_no_c_pawns and not is_hedgehog_black and not (chess.E5 in pawn_map["black"]):
+        detected.append({
+            "structure": "Scheveningen",
+            "name": "Scheveningen Structure",
+            "group": "B",
+            "group_title": "Cấu trúc chiến lược kinh điển",
+            "side": "black",
+            "square": "e4 vs d6/e6",
+            "evidence": "Trắng kiểm soát trung tâm với e4 (cột d nửa mở), Đen giữ lá chắn nhỏ d6+e6 (cột c nửa mở kiểu Scheveningen).",
+            "strategic_plan": STRATEGIC_PLANS["Scheveningen"]
+        })
+
+    # 5. Boleslavsky Hole (Cấu trúc Lỗ hổng Boleslavsky)
+    # Điều kiện: Cột d Trắng rỗng (nửa mở cho Trắng), cột c Đen rỗng (nửa mở cho Đen),
+    # Đen có d6 + e5 (không còn tốt nào của Đen kiểm soát được ô d5), ô d5 rỗng không có tốt Trắng chiếm đóng
+    if w_e4 and w_no_d_pawns and b_d6 and (chess.E5 in pawn_map["black"]) and b_no_c_pawns and (chess.D5 not in pawn_map["white"]):
+        detected.append({
+            "structure": "Boleslavsky_Hole",
+            "name": "Boleslavsky Hole",
+            "group": "B",
+            "group_title": "Cấu trúc chiến lược kinh điển",
+            "side": "black",
+            "square": "e4 vs d6/e5",
+            "evidence": "Đen có tốt d6+e5 sau khi đổi tốt c lấy tốt d của Trắng, tạo lỗ hổng vĩnh viễn ở d5 và tốt d6 lạc hậu trên cột d nửa mở (Cấu trúc Boleslavsky / Najdorf / Sveshnikov).",
+            "strategic_plan": STRATEGIC_PLANS["Boleslavsky_Hole"]
+        })
+
+    # 6. Maroczy Bind
     b_no_c5_e5 = (chess.C5 not in pawn_map["black"]) and (chess.E5 not in pawn_map["black"])
-    if w_c4 and w_e4 and w_no_d and b_d6_has and b_no_c5_e5:
+    if w_c4 and w_e4 and w_no_d_pawns and (b_d6 or chess.D7 in pawn_map["black"]) and b_no_c5_e5 and b_no_c_pawns:
         detected.append({
             "structure": "Maroczy_Bind",
             "name": "Maroczy Bind",
@@ -345,12 +470,8 @@ def detect_all_pawn_structures(board: chess.Board, ply: int = 20) -> List[Dict[s
             "strategic_plan": STRATEGIC_PLANS["Maroczy_Bind"]
         })
 
-    # 3. Hedgehog Structure
-    b_a6 = chess.A6 in pawn_map["black"]
-    b_b6 = chess.B6 in pawn_map["black"]
-    b_e6_has = chess.E6 in pawn_map["black"]
-    b_no_c_pawns = not any(chess.square_file(sq) == 2 for sq in pawn_map["black"])
-    if b_a6 and b_b6 and b_d6_has and b_e6_has and b_no_c_pawns and w_c4:
+    # 7. Hedgehog Structure
+    if is_hedgehog_black and w_c4:
         detected.append({
             "structure": "Hedgehog",
             "name": "Hedgehog Structure",
@@ -362,8 +483,9 @@ def detect_all_pawn_structures(board: chess.Board, ply: int = 20) -> List[Dict[s
             "strategic_plan": STRATEGIC_PLANS["Hedgehog"]
         })
 
-    # 4. Stonewall Structure
+    # 8. Stonewall Structure
     w_f4 = chess.F4 in pawn_map["white"]
+    w_has_c3_or_c2 = chess.C3 in pawn_map["white"] or chess.C2 in pawn_map["white"]
     if w_has_c3_or_c2 and w_d4 and w_has_e3_or_e2 and w_f4:
         detected.append({
             "structure": "Stonewall",
@@ -378,7 +500,8 @@ def detect_all_pawn_structures(board: chess.Board, ply: int = 20) -> List[Dict[s
     else:
         b_has_c6_or_c7 = chess.C6 in pawn_map["black"] or chess.C7 in pawn_map["black"]
         b_f5 = chess.F5 in pawn_map["black"]
-        if b_has_c6_or_c7 and b_d5 and b_e6_has and b_f5:
+        b_has_e6_or_e7 = b_e6 or chess.E7 in pawn_map["black"]
+        if b_has_c6_or_c7 and b_d5 and b_has_e6_or_e7 and b_f5:
             detected.append({
                 "structure": "Stonewall",
                 "name": "Stonewall Structure",

@@ -25,8 +25,21 @@ export default function PawnStructureGrid({
     );
   }
 
-  // Danh sách chuẩn hóa của 10 cấu trúc chính thức (chỉ render các cấu trúc hợp lệ)
-  const ALLOWED_GROUP_B = ["carlsbad", "maroczy_bind", "maroczy bind", "hedgehog", "stonewall"];
+  // Danh sách chuẩn hóa của các cấu trúc chính thức (chỉ render các cấu trúc hợp lệ)
+  const ALLOWED_GROUP_B = [
+    "carlsbad",
+    "french_chain",
+    "french",
+    "kings_indian",
+    "king's indian",
+    "scheveningen",
+    "boleslavsky",
+    "boleslavsky_hole",
+    "maroczy_bind",
+    "maroczy bind",
+    "hedgehog",
+    "stonewall",
+  ];
   const ALLOWED_GROUP_A = [
     "iqp",
     "isolated queen's pawn",
@@ -45,13 +58,13 @@ export default function PawnStructureGrid({
   const isValidGroupB = (s: PawnStructureItem) => {
     const k = (s.structure_key || "").toLowerCase();
     const n = (s.name || "").toLowerCase();
-    return ALLOWED_GROUP_B.some((allowed) => k.includes(allowed) || n.includes(allowed));
+    return s.group === "B" || ALLOWED_GROUP_B.some((allowed) => k.includes(allowed) || n.includes(allowed));
   };
 
   const isValidGroupA = (s: PawnStructureItem) => {
     const k = (s.structure_key || "").toLowerCase();
     const n = (s.name || "").toLowerCase();
-    return ALLOWED_GROUP_A.some((allowed) => k.includes(allowed) || n.includes(allowed));
+    return s.group === "A" || ALLOWED_GROUP_A.some((allowed) => k.includes(allowed) || n.includes(allowed));
   };
 
   const groupB = structures.filter(isValidGroupB);
@@ -68,7 +81,18 @@ export default function PawnStructureGrid({
         : "text-muted-foreground";
 
     const hasGames = item.games && item.games.length > 0;
-    const isGroupB = item.group === "B" || ["Carlsbad", "Maroczy_Bind", "Hedgehog", "Stonewall"].includes(item.structure_key || "");
+    const isGroupB =
+      item.group === "B" ||
+      [
+        "Carlsbad",
+        "French_Chain",
+        "Kings_Indian",
+        "Scheveningen",
+        "Boleslavsky_Hole",
+        "Maroczy_Bind",
+        "Hedgehog",
+        "Stonewall",
+      ].includes(item.structure_key || "");
 
     return (
       <div
@@ -207,7 +231,7 @@ export default function PawnStructureGrid({
                 </h3>
               </div>
               <span className="text-[11px] text-muted-foreground">
-                Carlsbad, Maroczy Bind, Hedgehog, Stonewall
+                Carlsbad, Pháp, King's Indian, Scheveningen, Boleslavsky, Maroczy, Nhím, Stonewall
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

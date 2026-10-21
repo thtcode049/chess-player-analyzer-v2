@@ -178,6 +178,9 @@ export interface PawnStructureGame {
   id?: string;
   game_index: number;
   formation_move: number;
+  formation_ply?: number;
+  formation_fen?: string;
+  evidence?: string;
   white: string;
   black: string;
   result: string;
@@ -194,6 +197,12 @@ export interface PawnStructureGame {
 export interface PawnStructureItem {
   name: string;
   structure_key?: string;
+  group?: "A" | "B" | string;
+  group_title?: string;
+  strategic_plan?: {
+    ideas: string[];
+    counter_ideas: string[];
+  };
   typical_formation_move?: number;
   games_count: number;
   wins: number;

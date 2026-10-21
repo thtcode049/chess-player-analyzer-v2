@@ -14,7 +14,10 @@ import {
   User,
   Search,
   Check,
-  BookOpen
+  BookOpen,
+  Compass,
+  Lightbulb,
+  ShieldAlert
 } from "lucide-react";
 import Link from "next/link";
 import ChessBoard from "@/components/chess/ChessBoard";
@@ -725,7 +728,9 @@ function AnalyzeContent() {
         // Jump to the formation move of the structure
         const chess = new Chess();
         const formMove = structGame.formation_move || 10;
-        const targetPly = Math.min(Math.max(0, (formMove - 1) * 2), parsedMoves.length);
+        const targetPly = structGame.formation_ply !== undefined
+          ? Math.min(structGame.formation_ply, parsedMoves.length)
+          : Math.min(Math.max(0, (formMove - 1) * 2), parsedMoves.length);
 
         for (let i = 0; i < targetPly; i++) {
           try {
@@ -1146,11 +1151,36 @@ function AnalyzeContent() {
                   }}
                   className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
                 >
-                  {availableStructures.map((s) => (
-                    <option key={s.name} value={s.name} className="bg-card text-foreground">
-                      {s.name} ({s.games_count} ván)
-                    </option>
-                  ))}
+                  {(() => {
+                    const groupB = availableStructures.filter(
+                      (s) => s.group === "B" || ["Carlsbad", "Maroczy_Bind", "Hedgehog", "Stonewall"].includes(s.structure_key || "")
+                    );
+                    const groupA = availableStructures.filter(
+                      (s) => s.group === "A" || !["Carlsbad", "Maroczy_Bind", "Hedgehog", "Stonewall"].includes(s.structure_key || "")
+                    );
+                    return (
+                      <>
+                        {groupB.length > 0 && (
+                          <optgroup label="Nhóm B — Cấu trúc chiến lược kinh điển" className="bg-card text-foreground font-bold">
+                            {groupB.map((s) => (
+                              <option key={s.name} value={s.name} className="bg-card text-foreground font-normal">
+                                {s.name} ({s.games_count} ván)
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {groupA.length > 0 && (
+                          <optgroup label="Nhóm A — Cấu trúc nền tảng & Trung tâm" className="bg-card text-foreground font-bold">
+                            {groupA.map((s) => (
+                              <option key={s.name} value={s.name} className="bg-card text-foreground font-normal">
+                                {s.name} ({s.games_count} ván)
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </>
+                    );
+                  })()}
                 </select>
               </div>
             )}
@@ -1162,6 +1192,26 @@ function AnalyzeContent() {
               <ArrowLeft className="w-3.5 h-3.5" />
               Thoát chế độ
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Strategic Plan Guidance Banner when structure is selected */}
+      {selectedStructure && selectedStructure.strategic_plan && (
+        <div className="bg-card/60 border border-border/50 rounded-xl px-4 py-2.5 text-xs shadow-2xs space-y-1.5 animate-fade-in">
+          <div className="flex items-center gap-1.5 font-bold text-primary text-[11px] uppercase tracking-wide">
+            <Compass className="w-3.5 h-3.5" />
+            <span>Kế hoạch & Phương án Chiến lược Tham khảo ({selectedStructure.group === "B" ? "Nhóm B: Chiến lược" : "Nhóm A: Trung tâm"})</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] text-muted-foreground">
+            <div>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">Kế hoạch: </span>
+              <span>{selectedStructure.strategic_plan.ideas.join(" ")}</span>
+            </div>
+            <div>
+              <span className="font-semibold text-rose-600 dark:text-rose-400">Đối ứng: </span>
+              <span>{selectedStructure.strategic_plan.counter_ideas.join(" ")}</span>
+            </div>
           </div>
         </div>
       )}
@@ -1670,6 +1720,11 @@ function AnalyzeContent() {
                           <span className="font-mono text-xs px-2 py-0.5 rounded bg-secondary text-foreground">
                             Nước {g.formation_move || "?"}
                           </span>
+                          {g.evidence && (
+                            <div className="text-[10px] text-muted-foreground truncate max-w-[160px] mx-auto mt-0.5" title={g.evidence}>
+                              {g.evidence}
+                            </div>
+                          )}
                         </td>
                         <td className="px-3.5 py-2 text-right">
                           <button

@@ -490,7 +490,9 @@ function AnalyzeContent() {
         if (run?.opening_tree_snapshot?.continuations && run.opening_tree_snapshot.continuations.length > 0 && moves.length === 0 && colorFilter === "all") {
           setContinuations(run.opening_tree_snapshot.continuations);
         }
-        const structs: PawnStructureItem[] = run?.pawn_structures_summary?.structures || [];
+        const structs: PawnStructureItem[] = (run?.pawn_structures_summary?.structures || []).filter(
+          (s: PawnStructureItem) => !s.name?.toLowerCase().includes("benoni") && !(s.structure_key || "").toLowerCase().includes("benoni")
+        );
         setAvailableStructures(structs);
 
         const repOpenings: OpeningRepertoireItem[] = run?.repertoire_summary?.all_openings || [];
@@ -1152,10 +1154,13 @@ function AnalyzeContent() {
                   className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
                 >
                   {(() => {
-                    const groupB = availableStructures.filter(
+                    const validStructures = availableStructures.filter(
+                      (s) => !s.name?.toLowerCase().includes("benoni") && !(s.structure_key || "").toLowerCase().includes("benoni")
+                    );
+                    const groupB = validStructures.filter(
                       (s) => s.group === "B" || ["Carlsbad", "Maroczy_Bind", "Hedgehog", "Stonewall"].includes(s.structure_key || "")
                     );
-                    const groupA = availableStructures.filter(
+                    const groupA = validStructures.filter(
                       (s) => s.group === "A" || !["Carlsbad", "Maroczy_Bind", "Hedgehog", "Stonewall"].includes(s.structure_key || "")
                     );
                     return (

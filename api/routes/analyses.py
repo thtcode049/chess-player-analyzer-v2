@@ -28,6 +28,27 @@ router = APIRouter(prefix="/api/analysis", tags=["Analysis"])
 RUN_SNAPSHOTS_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
+def sanitize_pawn_structures_summary(summary: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Sanitizes pawn_structures_summary to strictly exclude deprecated structures like Benoni."""
+    if not summary or not isinstance(summary, dict):
+        return {}
+    res = dict(summary)
+    structs = res.get("structures", [])
+    if isinstance(structs, list):
+        filtered = [
+            s for s in structs
+            if isinstance(s, dict)
+            and "benoni" not in (s.get("name") or "").lower()
+            and "benoni" not in (s.get("structure_key") or "").lower()
+        ]
+        res["structures"] = filtered
+        target = res.get("target_structure")
+        if target and isinstance(target, dict):
+            if "benoni" in (target.get("name") or "").lower() or "benoni" in (target.get("structure_key") or "").lower():
+                res["target_structure"] = filtered[0] if filtered else None
+    return res
+
+
 def _resolve_games_for_player(
     player_id: str,
     x_user_id: Optional[str] = None,
@@ -188,7 +209,7 @@ async def create_analysis_run(
             acpl_endgame=run_res["acpl_endgame"],
             dominant_archetype=run_res["dominant_archetype"],
             repertoire_summary=run_res["repertoire_summary"],
-            pawn_structures_summary=run_res["pawn_structures_summary"],
+            pawn_structures_summary=sanitize_pawn_structures_summary(run_res.get("pawn_structures_summary")),
             style_radar_metrics=run_res["style_radar_metrics"],
             opening_tree_snapshot=run_res["opening_tree_snapshot"],
             status="completed"
@@ -243,7 +264,7 @@ async def get_analysis_run(
                     "acpl_endgame": float(db_run.get("acpl_endgame")) if db_run.get("acpl_endgame") is not None else None,
                     "dominant_archetype": db_run.get("dominant_archetype"),
                     "repertoire_summary": db_run.get("repertoire_summary", {}),
-                    "pawn_structures_summary": db_run.get("pawn_structures_summary", {}),
+                    "pawn_structures_summary": sanitize_pawn_structures_summary(db_run.get("pawn_structures_summary", {})),
                     "style_radar_metrics": db_run.get("style_radar_metrics", {}),
                     "opening_tree_snapshot": db_run.get("opening_tree_snapshot", {}),
                     "status": "completed"
@@ -305,7 +326,7 @@ async def get_analysis_run(
                     "acpl_endgame": float(db_run.get("acpl_endgame")) if db_run.get("acpl_endgame") is not None else None,
                     "dominant_archetype": db_run.get("dominant_archetype"),
                     "repertoire_summary": db_run.get("repertoire_summary", {}),
-                    "pawn_structures_summary": db_run.get("pawn_structures_summary", {}),
+                    "pawn_structures_summary": sanitize_pawn_structures_summary(db_run.get("pawn_structures_summary", {})),
                     "style_radar_metrics": db_run.get("style_radar_metrics", {}),
                     "opening_tree_snapshot": db_run.get("opening_tree_snapshot", {}),
                     "status": "completed"
@@ -363,7 +384,7 @@ async def get_analysis_run(
         acpl_endgame=cached["acpl_endgame"],
         dominant_archetype=cached["dominant_archetype"],
         repertoire_summary=cached["repertoire_summary"],
-        pawn_structures_summary=cached["pawn_structures_summary"],
+        pawn_structures_summary=sanitize_pawn_structures_summary(cached.get("pawn_structures_summary")),
         style_radar_metrics=cached["style_radar_metrics"],
         opening_tree_snapshot=cached["opening_tree_snapshot"],
         status="completed"
@@ -668,7 +689,7 @@ async def sync_analysis_evaluations(
             acpl_endgame=cached.get("acpl_endgame"),
             dominant_archetype=cached.get("dominant_archetype"),
             repertoire_summary=cached.get("repertoire_summary"),
-            pawn_structures_summary=cached.get("pawn_structures_summary"),
+            pawn_structures_summary=sanitize_pawn_structures_summary(cached.get("pawn_structures_summary")),
             style_radar_metrics=cached.get("style_radar_metrics"),
             opening_tree_snapshot=cached.get("opening_tree_snapshot"),
             status="completed"

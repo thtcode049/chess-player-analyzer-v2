@@ -25,13 +25,39 @@ export default function PawnStructureGrid({
     );
   }
 
-  // Phân chia rõ ràng Nhóm B (Chiến lược kinh điển) và Nhóm A (Nền tảng & Trung tâm)
-  const groupB = structures.filter(
-    (s) => s.group === "B" || ["Carlsbad", "Maroczy_Bind", "Hedgehog", "Stonewall"].includes(s.structure_key || "")
-  );
-  const groupA = structures.filter(
-    (s) => s.group === "A" || !["Carlsbad", "Maroczy_Bind", "Hedgehog", "Stonewall"].includes(s.structure_key || "")
-  );
+  // Danh sách các key/tên được chuẩn hóa của 10 cấu trúc chính thức (loại bỏ hoàn toàn Benoni)
+  const ALLOWED_GROUP_B = ["carlsbad", "maroczy_bind", "maroczy bind", "hedgehog", "stonewall"];
+  const ALLOWED_GROUP_A = [
+    "iqp",
+    "isolated queen's pawn",
+    "hanging_pawns",
+    "hanging pawns",
+    "open",
+    "open center",
+    "semi-open",
+    "semi-open center",
+    "closed",
+    "closed center",
+    "symmetrical",
+    "symmetrical center",
+  ];
+
+  const isValidGroupB = (s: PawnStructureItem) => {
+    const k = (s.structure_key || "").toLowerCase();
+    const n = (s.name || "").toLowerCase();
+    if (k.includes("benoni") || n.includes("benoni")) return false;
+    return s.group === "B" || ALLOWED_GROUP_B.some((allowed) => k.includes(allowed) || n.includes(allowed));
+  };
+
+  const isValidGroupA = (s: PawnStructureItem) => {
+    const k = (s.structure_key || "").toLowerCase();
+    const n = (s.name || "").toLowerCase();
+    if (k.includes("benoni") || n.includes("benoni")) return false;
+    return s.group === "A" || ALLOWED_GROUP_A.some((allowed) => k.includes(allowed) || n.includes(allowed));
+  };
+
+  const groupB = structures.filter(isValidGroupB);
+  const groupA = structures.filter((s) => !isValidGroupB(s) && isValidGroupA(s));
 
   const renderStructureCard = (item: PawnStructureItem, idx: number) => {
     const delta = item.delta_vs_baseline ?? 0;

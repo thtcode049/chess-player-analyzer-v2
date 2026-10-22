@@ -58,6 +58,7 @@ interface ProfileWorkspaceContextType {
   setMultiProfileRole: (player: Player, role: ColorRole | null) => void;
   clearMultiProfiles: () => void;
   openMatchupBoard: () => Promise<void>;
+  isMatchupLoading: boolean;
   selectedSubProfileId: string | null;
   setSelectedSubProfileId: (id: string | null) => void;
 
@@ -112,6 +113,7 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
   const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
   const [multiProfiles, setMultiProfiles] = useState<MultiProfileAssignment[]>([]);
   const [selectedSubProfileId, setSelectedSubProfileId] = useState<string | null>(null);
+  const [isMatchupLoading, setIsMatchupLoading] = useState<boolean>(false);
 
   // Tabs & Hub Visibility (Mặc định: tab bàn cờ)
   const [activeTab, setActiveTabState] = useState<WorkspaceTab>("board");
@@ -257,41 +259,52 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
   const openMatchupBoard = useCallback(async () => {
     if (multiProfiles.length === 0) return;
 
-    // Load any un-cached players in multiProfiles
-    const playerAssignments: Array<{
-      player: { id: string; canonical_name: string };
-      games: Game[];
-      role: "white" | "black" | "both";
-    }> = [];
-
-    for (const item of multiProfiles) {
-      const pId = item.player.id;
-      let cached = cachedProfiles[pId];
-      if (!cached) {
-        cached = (await loadProfileData(pId)) as CachedProfileData;
+    setIsMatchupLoading(true);
+    try {
+      // 1. Fetch any un-cached players in parallel for maximum speed
+      const unCachedItems = multiProfiles.filter((m) => !cachedProfiles[m.player.id]);
+      if (unCachedItems.length > 0) {
+        await Promise.all(unCachedItems.map((m) => loadProfileData(m.player.id)));
       }
-      if (cached) {
-        playerAssignments.push({
-          player: { id: cached.player.id, canonical_name: cached.player.canonical_name },
-          games: cached.games,
-          role: item.role,
-        });
+
+      // 2. Collect loaded player assignments
+      const playerAssignments: Array<{
+        player: { id: string; canonical_name: string };
+        games: Game[];
+        role: "white" | "black" | "both";
+      }> = [];
+
+      for (const item of multiProfiles) {
+        const pId = item.player.id;
+        let cached = cachedProfiles[pId];
+        if (!cached) {
+          cached = (await loadProfileData(pId)) as CachedProfileData;
+        }
+        if (cached) {
+          playerAssignments.push({
+            player: { id: cached.player.id, canonical_name: cached.player.canonical_name },
+            games: cached.games,
+            role: item.role,
+          });
+        }
       }
-    }
 
-    // Build Matchup Opening Tree Index
-    const treeIdx = buildMatchupTreeIndex(playerAssignments);
-    setMatchupIndex(treeIdx);
+      // 3. Build Matchup Opening Tree Index
+      const treeIdx = buildMatchupTreeIndex(playerAssignments);
+      setMatchupIndex(treeIdx);
 
-    setActiveMode("multi");
-    setActivePlayerId(null);
-    if (multiProfiles.length > 0) {
-      const firstId = multiProfiles[0].player.id;
-      setSelectedSubProfileId(firstId);
-      loadProfileData(firstId);
+      setActiveMode("multi");
+      setActivePlayerId(null);
+      if (multiProfiles.length > 0) {
+        const firstId = multiProfiles[0].player.id;
+        setSelectedSubProfileId(firstId);
+        loadProfileData(firstId);
+      }
+      setIsHubOpen(false);
+      setActiveTabState("board");
+    } finally {
+      setIsMatchupLoading(false);
     }
-    setIsHubOpen(false);
-    setActiveTabState("board");
   }, [multiProfiles, cachedProfiles, loadProfileData]);
 
   // 6. Open Sandbox Board
@@ -481,6 +494,7 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
     setMultiProfileRole,
     clearMultiProfiles,
     openMatchupBoard,
+    isMatchupLoading,
     selectedSubProfileId,
     setSelectedSubProfileId,
 

@@ -36,6 +36,7 @@ export default function ProfileHub() {
     setMultiProfileRole,
     clearMultiProfiles,
     openMatchupBoard,
+    isMatchupLoading,
     cachedProfiles,
   } = useProfileWorkspaceStore();
 
@@ -529,18 +530,33 @@ export default function ProfileHub() {
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
+                disabled={isMatchupLoading}
                 onClick={clearMultiProfiles}
-                className="px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition"
+                className="px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-50 transition"
               >
                 Đặt lại
               </button>
               <button
                 type="button"
+                disabled={isMatchupLoading}
                 onClick={openMatchupBoard}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-xs font-black shadow-md shadow-emerald-500/25 transition active:scale-95"
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-black shadow-md transition active:scale-95 ${
+                  isMatchupLoading
+                    ? "bg-emerald-600/80 text-white cursor-wait"
+                    : "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-emerald-500/25 cursor-pointer"
+                }`}
               >
-                <Swords className="w-4 h-4 text-slate-950" />
-                <span>Mở Bàn Cờ & Cây Khai Cuộc</span>
+                {isMatchupLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>Đang nạp ván đấu & mở bàn cờ...</span>
+                  </>
+                ) : (
+                  <>
+                    <Swords className="w-4 h-4 text-slate-950" />
+                    <span>Mở Bàn Cờ & Cây Khai Cuộc</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

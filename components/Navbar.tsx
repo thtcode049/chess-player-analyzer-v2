@@ -22,7 +22,8 @@ import {
   FolderOpen,
   Sparkles,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Loader2
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -74,6 +75,7 @@ export default function Navbar() {
     setMultiProfileRole,
     selectSingleProfile,
     openMatchupBoard,
+    isMatchupLoading,
     openSandboxBoard,
     activeTab,
     setActiveTab,
@@ -467,26 +469,35 @@ export default function Navbar() {
                     <div className="pt-2 border-t border-border/60">
                       <button
                         type="button"
-                        disabled={multiProfiles.length === 0}
-                        onClick={() => {
-                          openMatchupBoard();
+                        disabled={multiProfiles.length === 0 || isMatchupLoading}
+                        onClick={async () => {
+                          await openMatchupBoard();
                           setProfileDropdownOpen(false);
                           if (!isWorkspace) {
                             window.location.href = "/analyze";
                           }
                         }}
                         className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold shadow-xs transition ${
-                          multiProfiles.length > 0
+                          multiProfiles.length > 0 && !isMatchupLoading
                             ? "bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
                             : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
                         }`}
                       >
-                        <Swords className="w-3.5 h-3.5" />
-                        <span>
-                          {multiProfiles.length > 0
-                            ? `Áp Dụng Tổ Hợp Đa Hồ Sơ (${multiProfiles.length})`
-                            : "Chọn ít nhất 1 kỳ thủ"}
-                        </span>
+                        {isMatchupLoading ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                            <span>Đang nạp tổ hợp & mở bàn cờ...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Swords className="w-3.5 h-3.5" />
+                            <span>
+                              {multiProfiles.length > 0
+                                ? `Áp Dụng Tổ Hợp Đa Hồ Sơ (${multiProfiles.length})`
+                                : "Chọn ít nhất 1 kỳ thủ"}
+                            </span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>

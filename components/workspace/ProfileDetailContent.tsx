@@ -27,7 +27,8 @@ import {
   FolderOpen,
   UploadCloud,
   Swords,
-  Users
+  Users,
+  Loader2
 } from "lucide-react";
 import { Player, Game, AnalysisRun } from "@/lib/api/types";
 import { apiClient } from "@/lib/api/client";
@@ -124,11 +125,30 @@ export default function ProfileDetailContent({
     setSelectedSubProfileId,
     activeMode,
     loadProfileData,
+    loadingProfileId,
+    cachedProfiles,
+    loadingPlayers,
+    activePlayerId,
   } = useProfileWorkspaceStore();
 
   const player = activePlayer;
   const games = activePlayerGames;
   const analysisRun = activePlayerRun;
+
+  // Auto-trigger profile loading if not yet cached
+  useEffect(() => {
+    if (player?.id && !cachedProfiles[player.id] && loadingProfileId !== player.id) {
+      loadProfileData(player.id);
+    }
+  }, [player?.id, cachedProfiles, loadingProfileId, loadProfileData]);
+
+  // Determine if this profile's data is actively loading
+  const isProfileLoading = Boolean(
+    (player && loadingProfileId === player.id) ||
+    (player && !cachedProfiles[player.id]) ||
+    (!player && activePlayerId && loadingProfileId === activePlayerId) ||
+    (!player && loadingPlayers)
+  );
 
   // Sub-tabs inside profile detail: "overview" | "openings" | "structures" | "games"
   const [profileSubTab, setProfileSubTab] = useState<"overview" | "openings" | "structures" | "games">("overview");
@@ -381,6 +401,107 @@ export default function ProfileDetailContent({
       topOpenings,
     };
   }, [safeGames, player?.canonical_name]);
+
+  if (isProfileLoading) {
+    const displayName = player?.canonical_name || "kỳ thủ";
+    const initialChar = displayName ? displayName[0].toUpperCase() : "P";
+
+    return (
+      <div className="w-full space-y-6 sm:space-y-8 animate-fade-in pb-12">
+        {/* Skeleton Top Player Card */}
+        <div className="relative overflow-hidden rounded-xl bg-card border border-border/70 p-5 sm:p-6 shadow-xs">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 sm:gap-6">
+            <div className="flex items-center gap-3.5 sm:gap-4">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-black text-xl shrink-0 shadow-xs">
+                {initialChar}
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                  <h1 className="text-xl sm:text-2xl font-black text-foreground">
+                    {displayName}
+                  </h1>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                    <Loader2 className="w-3 h-3 animate-spin text-emerald-600 dark:text-emerald-400" />
+                    Đang nạp dữ liệu ván đấu...
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground flex items-center gap-2">
+                  <span>Hệ thống đang đồng bộ biên bản PGN, tính toán thống kê và hệ thống khai cuộc.</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Stats Placeholders with skeleton animation */}
+            <div className="flex items-center gap-4 sm:gap-6 border-t md:border-t-0 md:border-l border-border/70 pt-3 md:pt-0 md:pl-6 shrink-0">
+              <div className="text-center">
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                  Tổng số ván
+                </div>
+                <div className="h-6 w-14 bg-muted/70 rounded-md animate-pulse mx-auto" />
+              </div>
+              <div className="text-center">
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                  Tỷ lệ thắng
+                </div>
+                <div className="h-6 w-16 bg-muted/70 rounded-md animate-pulse mx-auto" />
+              </div>
+              <div className="text-center">
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                  Điểm chung
+                </div>
+                <div className="h-6 w-14 bg-muted/70 rounded-md animate-pulse mx-auto" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Skeleton Tabs Strip */}
+        <div className="flex items-center gap-2 border-b border-border/60 pb-2 overflow-x-auto">
+          <div className="h-8 w-44 bg-muted/60 rounded-lg animate-pulse shrink-0" />
+          <div className="h-8 w-40 bg-muted/40 rounded-lg animate-pulse shrink-0" />
+          <div className="h-8 w-36 bg-muted/40 rounded-lg animate-pulse shrink-0" />
+          <div className="h-8 w-36 bg-muted/40 rounded-lg animate-pulse shrink-0" />
+        </div>
+
+        {/* Skeleton Overview Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
+          {/* Card 1: Tỷ lệ kết quả Skeleton */}
+          <div className="p-5 sm:p-6 rounded-xl bg-card border border-border/70 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="h-5 w-48 bg-muted/70 rounded-md animate-pulse" />
+              <div className="h-5 w-20 bg-muted/50 rounded-md animate-pulse" />
+            </div>
+            <div className="h-4 w-64 bg-muted/40 rounded-md animate-pulse" />
+            <div className="h-6 bg-muted/50 rounded-lg animate-pulse mt-2" />
+            <div className="grid grid-cols-3 gap-3 pt-3">
+              <div className="h-16 bg-muted/30 rounded-xl animate-pulse" />
+              <div className="h-16 bg-muted/30 rounded-xl animate-pulse" />
+              <div className="h-16 bg-muted/30 rounded-xl animate-pulse" />
+            </div>
+          </div>
+
+          {/* Card 2: Hiệu suất Trắng vs Đen Skeleton */}
+          <div className="p-5 sm:p-6 rounded-xl bg-card border border-border/70 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="h-5 w-56 bg-muted/70 rounded-md animate-pulse" />
+              <div className="h-5 w-16 bg-muted/50 rounded-md animate-pulse" />
+            </div>
+            <div className="h-4 w-40 bg-muted/40 rounded-md animate-pulse" />
+            <div className="space-y-3 pt-2">
+              <div className="h-10 bg-muted/30 rounded-xl animate-pulse" />
+              <div className="h-10 bg-muted/30 rounded-xl animate-pulse" />
+            </div>
+          </div>
+        </div>
+
+        {/* Central Friendly Loading Note */}
+        <div className="flex flex-col items-center justify-center py-6 gap-2 text-center text-muted-foreground">
+          <Loader2 className="w-6 h-6 animate-spin text-emerald-600 dark:text-emerald-400" />
+          <p className="text-xs font-medium">Đang nạp và phân tích dữ liệu ván đấu, biểu đồ sẽ xuất hiện ngay...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!player) {
     return (

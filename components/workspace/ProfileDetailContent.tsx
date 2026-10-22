@@ -23,7 +23,11 @@ import {
   Hash,
   Check,
   ExternalLink,
-  Sparkles
+  Sparkles,
+  FolderOpen,
+  UploadCloud,
+  Swords,
+  Users
 } from "lucide-react";
 import { Player, Game, AnalysisRun } from "@/lib/api/types";
 import { apiClient } from "@/lib/api/client";
@@ -114,6 +118,7 @@ export default function ProfileDetailContent({
     refreshProfileData,
     refreshPlayersList,
     setActiveTab,
+    openHub,
     multiProfiles,
     selectedSubProfileId,
     setSelectedSubProfileId,
@@ -379,8 +384,41 @@ export default function ProfileDetailContent({
 
   if (!player) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[40vh] gap-3 text-center">
-        <p className="text-sm text-muted-foreground">Chưa chọn hồ sơ kỳ thủ nào để hiển thị.</p>
+      <div className="w-full flex flex-col items-center justify-center min-h-[55vh] py-16 px-4 text-center animate-fade-in">
+        <div className="p-4 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 mb-4 shadow-2xs">
+          <BarChart2 className="w-12 h-12" />
+        </div>
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">
+          Chưa có hồ sơ kỳ thủ phân tích
+        </h2>
+        <p className="text-sm text-muted-foreground max-w-lg mb-6 leading-relaxed">
+          Bạn đang ở chế độ Bàn cờ tự do (Master DB) hoặc chưa chọn hồ sơ kỳ thủ nào. Hãy chọn một kỳ thủ từ thư viện hoặc nạp ván đấu mới để xem thống kê chuyên sâu, repertoire khai cuộc và cấu trúc tốt.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={openHub}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+          >
+            <FolderOpen className="w-4 h-4" />
+            <span>Mở Thư viện kỳ thủ</span>
+          </button>
+          <Link
+            href="/import"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary text-secondary-foreground hover:bg-muted text-xs font-semibold border border-border/80 transition"
+          >
+            <UploadCloud className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Nạp ván đấu mới</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => setActiveTab("board")}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-semibold transition cursor-pointer"
+          >
+            <Swords className="w-4 h-4 text-sky-500" />
+            <span>Sang Bàn cờ tự do</span>
+          </button>
+        </div>
       </div>
     );
   }

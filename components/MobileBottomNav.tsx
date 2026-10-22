@@ -34,15 +34,6 @@ export default function MobileBottomNav() {
         window.history.pushState(null, "", "/dashboard");
       }
     } else {
-      if (tab === "profile" && activeMode === "sandbox" && !activePlayerId) {
-        openHub();
-        if (!isWorkspace) {
-          window.location.href = "/players";
-        } else if (typeof window !== "undefined" && window.location.pathname !== "/players" && window.location.pathname !== "/dashboard") {
-          window.history.pushState(null, "", "/dashboard");
-        }
-        return;
-      }
       setActiveTab(tab);
       closeHub();
       const targetPath = tab === "profile" ? "/dashboard" : tab === "board" ? "/analyze" : "/ai-coach";

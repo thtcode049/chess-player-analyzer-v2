@@ -45,8 +45,8 @@ export default function WorkspaceContainer({
     }
   }, [targetPlayerId, initialTab, initialView]);
 
-  // If user is viewing Profile Hub
-  if (isHubOpen || (!activePlayerId && players.length === 0)) {
+  // If user is explicitly viewing Profile Hub
+  if (isHubOpen) {
     return <ProfileHub />;
   }
 

@@ -203,11 +203,6 @@ export default function Navbar() {
   const handleNavTab = (tab: "profile" | "board" | "ai") => {
     setMobileMenuOpen(false);
 
-    if (tab === "profile" && activeMode === "sandbox" && !activePlayerId) {
-      handleOpenHub();
-      return;
-    }
-
     setActiveTab(tab);
     closeHub();
 

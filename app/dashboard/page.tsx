@@ -1,8 +1,22 @@
 "use client";
 
 import React, { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import WorkspaceContainer from "@/components/workspace/WorkspaceContainer";
 import { Loader2 } from "lucide-react";
+
+function DashboardContent() {
+  const searchParams = useSearchParams();
+  const view = searchParams.get("view");
+  const playerId = searchParams.get("playerId") || undefined;
+  return (
+    <WorkspaceContainer
+      initialTab="profile"
+      initialView={view === "hub" ? "hub" : undefined}
+      targetPlayerId={playerId}
+    />
+  );
+}
 
 export default function DashboardPage() {
   return (
@@ -14,7 +28,7 @@ export default function DashboardPage() {
         </div>
       }
     >
-      <WorkspaceContainer initialTab="profile" />
+      <DashboardContent />
     </Suspense>
   );
 }

@@ -179,15 +179,22 @@ export default function Navbar() {
     return players.filter((p) => p.canonical_name?.toLowerCase().includes(q));
   }, [players, switcherSearch]);
 
-  const isWorkspacePath = pathname === "/dashboard" || pathname === "/analyze" || pathname === "/ai-coach" || pathname === "/players";
+  // Check if current active route is within the unified workspace
+  const isWorkspace = useMemo(() => {
+    const current = typeof window !== "undefined" ? window.location.pathname : pathname;
+    return (
+      (pathname === "/dashboard" || pathname === "/analyze" || pathname === "/ai-coach" || pathname === "/players") &&
+      (current === "/dashboard" || current === "/analyze" || current === "/ai-coach" || current === "/players")
+    );
+  }, [pathname]);
 
-  // Hub click handler
+  // Hub click handler (Thư viện)
   const handleOpenHub = () => {
     openHub();
     setMobileMenuOpen(false);
-    if (!isWorkspacePath) {
-      router.push("/dashboard");
-    } else if (window.location.pathname !== "/dashboard") {
+    if (!isWorkspace) {
+      window.location.href = "/players";
+    } else if (typeof window !== "undefined" && window.location.pathname !== "/players" && window.location.pathname !== "/dashboard") {
       window.history.pushState(null, "", "/dashboard");
     }
   };
@@ -205,9 +212,9 @@ export default function Navbar() {
     closeHub();
 
     const targetPath = tab === "profile" ? "/dashboard" : tab === "board" ? "/analyze" : "/ai-coach";
-    if (!isWorkspacePath) {
-      router.push(targetPath);
-    } else if (window.location.pathname !== targetPath) {
+    if (!isWorkspace) {
+      window.location.href = targetPath;
+    } else if (typeof window !== "undefined" && window.location.pathname !== targetPath) {
       window.history.pushState(null, "", targetPath);
     }
   };
@@ -330,8 +337,8 @@ export default function Navbar() {
                               selectSingleProfile(p.id, activeTab);
                               setProfileDropdownOpen(false);
                               const targetPath = activeTab === "board" ? "/analyze" : activeTab === "ai" ? "/ai-coach" : "/dashboard";
-                              if (!isWorkspacePath) {
-                                router.push(targetPath);
+                              if (!isWorkspace) {
+                                window.location.href = targetPath;
                               }
                             }}
                             className={`w-full flex items-center justify-between p-2 rounded-xl transition text-left cursor-pointer ${
@@ -469,8 +476,8 @@ export default function Navbar() {
                         onClick={() => {
                           openMatchupBoard();
                           setProfileDropdownOpen(false);
-                          if (!isWorkspacePath) {
-                            router.push("/analyze");
+                          if (!isWorkspace) {
+                            window.location.href = "/analyze";
                           }
                         }}
                         className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold shadow-xs transition ${
@@ -497,8 +504,8 @@ export default function Navbar() {
                     onClick={() => {
                       openSandboxBoard();
                       setProfileDropdownOpen(false);
-                      if (!isWorkspacePath) {
-                        router.push("/analyze");
+                      if (!isWorkspace) {
+                        window.location.href = "/analyze";
                       }
                     }}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-muted hover:text-foreground transition cursor-pointer"
@@ -527,7 +534,7 @@ export default function Navbar() {
               type="button"
               onClick={handleOpenHub}
               className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                isHubOpen
+                isWorkspace && isHubOpen
                   ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
               }`}
@@ -542,7 +549,7 @@ export default function Navbar() {
               type="button"
               onClick={() => handleNavTab("profile")}
               className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "profile" && !isHubOpen
+                isWorkspace && activeTab === "profile" && !isHubOpen
                   ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
               }`}
@@ -556,7 +563,7 @@ export default function Navbar() {
               type="button"
               onClick={() => handleNavTab("board")}
               className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "board" && !isHubOpen
+                isWorkspace && activeTab === "board" && !isHubOpen
                   ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
               }`}
@@ -570,7 +577,7 @@ export default function Navbar() {
               type="button"
               onClick={() => handleNavTab("ai")}
               className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "ai" && !isHubOpen
+                isWorkspace && activeTab === "ai" && !isHubOpen
                   ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
               }`}
@@ -645,7 +652,11 @@ export default function Navbar() {
           {/* Primary CTA + Nạp Ván */}
           <Link
             href="/import"
-            className="hidden lg:inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-xs transition"
+            className={`hidden lg:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-xs transition ${
+              pathname === "/import"
+                ? "bg-emerald-700 dark:bg-emerald-600 text-white ring-2 ring-emerald-400/50"
+                : "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white"
+            }`}
           >
             <UploadCloud className="h-3.5 w-3.5" />
             <span>+ Nạp Ván</span>
@@ -670,7 +681,7 @@ export default function Navbar() {
               type="button"
               onClick={handleOpenHub}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-semibold transition ${
-                isHubOpen
+                isWorkspace && isHubOpen
                   ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                   : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
               }`}
@@ -685,7 +696,7 @@ export default function Navbar() {
               type="button"
               onClick={() => handleNavTab("profile")}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-semibold transition ${
-                activeTab === "profile" && !isHubOpen
+                isWorkspace && activeTab === "profile" && !isHubOpen
                   ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                   : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
               }`}
@@ -700,7 +711,7 @@ export default function Navbar() {
               type="button"
               onClick={() => handleNavTab("board")}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-semibold transition ${
-                activeTab === "board" && !isHubOpen
+                isWorkspace && activeTab === "board" && !isHubOpen
                   ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                   : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
               }`}
@@ -715,7 +726,7 @@ export default function Navbar() {
               type="button"
               onClick={() => handleNavTab("ai")}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-semibold transition ${
-                activeTab === "ai" && !isHubOpen
+                isWorkspace && activeTab === "ai" && !isHubOpen
                   ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                   : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
               }`}

@@ -88,12 +88,10 @@ function LoginContent() {
 
   return (
     <div className="min-h-[75vh] flex items-center justify-center p-4 animate-fade-in">
-      <div className="w-full max-w-md bg-card border border-border/80 rounded-3xl p-8 shadow-2xl space-y-6 relative overflow-hidden backdrop-blur-xl">
-        <div className="absolute -right-16 -top-16 w-48 h-48 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-        
+      <div className="w-full max-w-md bg-card border border-border/80 rounded-xl p-6 sm:p-8 shadow-xl space-y-6 relative">
         {/* Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 text-primary mb-1">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10 border border-primary/20 text-primary mb-1">
             <Lock className="w-6 h-6" />
           </div>
           <h1 className="text-2xl font-black text-foreground tracking-tight">

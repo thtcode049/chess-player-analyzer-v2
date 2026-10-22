@@ -75,7 +75,7 @@ export default function SettingsPage() {
       </div>
 
       {saved && (
-        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-500 text-sm flex items-center gap-3 animate-fade-in">
+        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-500 text-sm flex items-center gap-3 animate-fade-in">
           <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
           <span>Đã lưu toàn bộ cài đặt thành công!</span>
         </div>

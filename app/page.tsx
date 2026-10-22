@@ -44,13 +44,10 @@ export default function LandingPage() {
 
   return (
     <div className="flex flex-col items-center justify-center py-8 sm:py-16 text-center animate-fade-in">
-      {/* Glow Effect Background */}
+      {/* Official Brand Logo Mark */}
       <div className="relative max-w-5xl mx-auto flex flex-col items-center">
-        <div className="absolute top-1/3 -translate-y-1/2 w-72 sm:w-96 h-72 sm:h-96 bg-emerald-500/10 dark:bg-emerald-500/15 rounded-full blur-3xl pointer-events-none -z-10" />
-
-        {/* Official Brand Logo Mark */}
         <div className="mb-5 flex items-center justify-center">
-          <div className="p-3.5 rounded-3xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 shadow-xl shadow-emerald-500/10 backdrop-blur-md transition-transform duration-300 hover:scale-105">
+          <div className="p-3.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 shadow-md backdrop-blur-md transition-transform duration-300 hover:scale-105">
             <img src="/logo.png" alt="ChessLook Logo" className="w-16 h-16 sm:w-20 sm:h-20 object-contain filter drop-shadow-md" />
           </div>
         </div>
@@ -144,7 +141,7 @@ export default function LandingPage() {
       {/* 4 Player-Centric Pillars Grid */}
       <div className="mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full text-left max-w-[1720px]">
         {/* Pillar 1: Openings */}
-        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm hover:border-emerald-500/40 hover:shadow-md transition-all duration-300 group">
+        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-xl shadow-sm hover:border-emerald-500/40 hover:shadow-md transition-all duration-300 group">
           <div className="p-3 w-fit rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mb-4 group-hover:scale-110 transition-transform">
             <BookOpen className="w-6 h-6" />
           </div>
@@ -157,7 +154,7 @@ export default function LandingPage() {
         </div>
 
         {/* Pillar 2: Blunders & ACPL */}
-        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm hover:border-sky-500/40 hover:shadow-md transition-all duration-300 group">
+        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-xl shadow-sm hover:border-sky-500/40 hover:shadow-md transition-all duration-300 group">
           <div className="p-3 w-fit rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 mb-4 group-hover:scale-110 transition-transform">
             <Target className="w-6 h-6" />
           </div>
@@ -170,7 +167,7 @@ export default function LandingPage() {
         </div>
 
         {/* Pillar 3: Pawn Structures Performance */}
-        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm hover:border-emerald-500/40 hover:shadow-md transition-all duration-300 group">
+        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-xl shadow-sm hover:border-emerald-500/40 hover:shadow-md transition-all duration-300 group">
           <div className="p-3 w-fit rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mb-4 group-hover:scale-110 transition-transform">
             <Layers className="w-6 h-6" />
           </div>
@@ -183,7 +180,7 @@ export default function LandingPage() {
         </div>
 
         {/* Pillar 4: AI Assistant */}
-        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm hover:border-teal-500/40 hover:shadow-md transition-all duration-300 group">
+        <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-xl shadow-sm hover:border-teal-500/40 hover:shadow-md transition-all duration-300 group">
           <div className="p-3 w-fit rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 mb-4 group-hover:scale-110 transition-transform">
             <Brain className="w-6 h-6" />
           </div>
@@ -197,7 +194,7 @@ export default function LandingPage() {
       </div>
 
       {/* Bottom Call to Action Card */}
-      <div className="mt-20 w-full max-w-5xl bg-gradient-to-br from-emerald-950/40 via-slate-900/80 to-slate-900/60 border border-emerald-500/20 rounded-3xl p-8 sm:p-12 text-center relative overflow-hidden shadow-xl">
+      <div className="mt-20 w-full max-w-5xl bg-gradient-to-br from-emerald-950/40 via-slate-900/80 to-slate-900/60 border border-emerald-500/20 rounded-xl p-8 sm:p-12 text-center relative overflow-hidden shadow-xl">
         <div className="relative z-10 space-y-4">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
             Sẵn Sàng Làm Chủ Bàn Cờ & Bứt Phá Trình Độ?

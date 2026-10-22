@@ -104,12 +104,10 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-[75vh] flex items-center justify-center p-4 animate-fade-in">
-      <div className="w-full max-w-md bg-card border border-border/80 rounded-3xl p-8 shadow-2xl space-y-6 relative overflow-hidden backdrop-blur-xl">
-        <div className="absolute -left-16 -top-16 w-48 h-48 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-
+      <div className="w-full max-w-md bg-card border border-border/80 rounded-xl p-6 sm:p-8 shadow-xl space-y-6 relative">
         {/* Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 text-primary mb-1">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10 border border-primary/20 text-primary mb-1">
             <UserPlus className="w-6 h-6" />
           </div>
           <h1 className="text-2xl font-black text-foreground tracking-tight">
@@ -129,12 +127,12 @@ export default function RegisterPage() {
 
         {success ? (
           immediateLogin ? (
-            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-500 text-xs flex items-center gap-3 animate-fade-in">
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-500 text-xs flex items-center gap-3 animate-fade-in">
               <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
               <span>Đăng ký thành công! Đang chuyển hướng đến bảng điều khiển...</span>
             </div>
           ) : (
-            <div className="p-5 bg-sky-500/10 border border-sky-500/30 rounded-2xl space-y-3 animate-fade-in">
+            <div className="p-5 bg-sky-500/10 border border-sky-500/30 rounded-xl space-y-3 animate-fade-in">
               <div className="flex items-center gap-2.5 text-sky-500 font-bold text-sm">
                 <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
                 <span>Yêu cầu đăng ký đã được ghi nhận!</span>

@@ -134,7 +134,13 @@ export default function AiCoachView() {
 
   // UI layout toggles
   const [isBoardOpen, setIsBoardOpen] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+      setIsSidebarOpen(true);
+    }
+  }, []);
 
   // Board state - baseFen is the starting FEN for the activeMoves sequence
   const [baseFen, setBaseFen] = useState<string>(START_FEN);
@@ -525,22 +531,22 @@ export default function AiCoachView() {
   return (
     <div className="w-full h-[calc(100vh-4.25rem)] -mt-3 sm:-mt-6 -mb-24 md:-mb-8 flex flex-col overflow-hidden select-none">
       {/* Sleek Top Compact Toolbar */}
-      <div className="shrink-0 h-12 px-3 bg-card/85 backdrop-blur-md border border-border/70 rounded-2xl flex items-center justify-between gap-2.5 shadow-2xs mb-2">
+      <div className="shrink-0 h-12 px-3 bg-card/85 backdrop-blur-md border border-border/70 rounded-xl flex items-center justify-between gap-2.5 shadow-2xs mb-2">
         {/* Left: Sidebar toggle & Player Selector */}
         <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
             onClick={() => setIsSidebarOpen((prev) => !prev)}
             title={isSidebarOpen ? "Ẩn danh sách lịch sử" : "Hiện danh sách lịch sử"}
-            className="p-1.5 rounded-xl border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer shrink-0"
+            className="p-1.5 rounded-lg border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer shrink-0"
           >
             {isSidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
           </button>
 
           {/* Active Profile Info Badge (No duplicate switcher) */}
-          <div className="flex items-center gap-2 bg-emerald-50/90 dark:bg-emerald-950/50 border border-emerald-300/70 dark:border-emerald-700/60 rounded-xl px-3 py-1.5 shadow-2xs">
+          <div className="flex items-center gap-2 bg-emerald-50/90 dark:bg-emerald-950/50 border border-emerald-300/70 dark:border-emerald-700/60 rounded-lg px-2.5 sm:px-3 py-1.5 shadow-2xs">
             <User className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 truncate max-w-[180px] sm:max-w-[240px]">
+            <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 truncate max-w-[150px] sm:max-w-[240px]">
               {selectedPlayerId && selectedPlayerId !== GENERAL_CHAT_ID && selectedPlayer
                 ? `Hồ sơ: ${selectedPlayer.canonical_name}`
                 : "Trợ lí AI Cờ Vua"}
@@ -554,12 +560,12 @@ export default function AiCoachView() {
 
           {/* PGN Games Count Badge or Free Mode Badge */}
           {selectedPlayerId && selectedPlayerId !== GENERAL_CHAT_ID ? (
-            <div className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold shrink-0">
+            <div className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold shrink-0">
               <Database className="w-3.5 h-3.5 text-emerald-600" />
               <span>{playerGames.length} ván PGN</span>
             </div>
           ) : (
-            <div className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold shrink-0">
+            <div className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold shrink-0">
               <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
               <span>Cố vấn tự do</span>
             </div>
@@ -567,12 +573,12 @@ export default function AiCoachView() {
         </div>
 
         {/* Right: Board Toggle & Action Buttons */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Interactive Board Toggle Button */}
           <button
             type="button"
             onClick={() => setIsBoardOpen((prev) => !prev)}
-            className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs ${
               isBoardOpen
                 ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
                 : "bg-muted text-muted-foreground hover:text-foreground border border-border/70"
@@ -590,7 +596,7 @@ export default function AiCoachView() {
                 type="button"
                 onClick={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
                 title="Xoay bàn cờ (Đổi bên Trắng / Đen)"
-                className="hidden md:flex px-2.5 py-1.5 rounded-xl border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-semibold items-center gap-1 transition cursor-pointer"
+                className="hidden md:flex px-2.5 py-1.5 rounded-lg border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-semibold items-center gap-1 transition cursor-pointer"
               >
                 <RotateCw className="w-3.5 h-3.5" />
                 <span>Xoay</span>
@@ -606,7 +612,7 @@ export default function AiCoachView() {
                   setSelectedGameId("");
                 }}
                 title="Xếp lại thế cờ ban đầu"
-                className="hidden md:flex px-2.5 py-1.5 rounded-xl border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-semibold items-center gap-1 transition cursor-pointer"
+                className="hidden md:flex px-2.5 py-1.5 rounded-lg border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-semibold items-center gap-1 transition cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Ban đầu</span>
@@ -617,35 +623,50 @@ export default function AiCoachView() {
       </div>
 
       {/* Main Workspace: Sidebar + (Board) + Chat */}
-      <div className="flex-1 min-h-0 flex gap-2.5 overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-2 sm:gap-2.5 overflow-hidden relative">
         {/* Left: Chat History Sidebar (Grouped by Player Profile Folders) */}
         {isSidebarOpen && (
-          <aside className="w-[300px] sm:w-[320px] shrink-0 h-full flex flex-col bg-card border border-border/70 rounded-2xl overflow-hidden shadow-2xs">
-            {/* Sidebar Top: Title & New Chat */}
-            <div className="p-3 border-b border-border/60 flex items-center justify-between gap-2 shrink-0 bg-card/60 backdrop-blur-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-emerald-500/10 dark:bg-emerald-950/60 border border-emerald-500/20 flex items-center justify-center text-emerald-600">
-                  <MessageSquare className="w-3.5 h-3.5" />
+          <>
+            <div
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 md:hidden animate-fade-in"
+              onClick={() => setIsSidebarOpen(false)}
+            />
+            <aside className="fixed inset-y-0 left-0 z-50 w-[280px] sm:w-[320px] md:static md:z-auto md:w-[280px] lg:w-[300px] shrink-0 h-full flex flex-col bg-card border-r md:border border-border/70 md:rounded-xl overflow-hidden shadow-2xl md:shadow-2xs">
+              {/* Sidebar Top: Title & New Chat */}
+              <div className="p-3 border-b border-border/60 flex items-center justify-between gap-2 shrink-0 bg-card/60 backdrop-blur-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-emerald-500/10 dark:bg-emerald-950/60 border border-emerald-500/20 flex items-center justify-center text-emerald-600">
+                    <MessageSquare className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-foreground">
+                      Hội thoại AI
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950/60 font-mono text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300/40">
+                      {sessions.length}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold uppercase tracking-wider text-foreground">
-                    Hội thoại AI
-                  </span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950/60 font-mono text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300/40">
-                    {sessions.length}
-                  </span>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleCreateNewChat()}
+                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shadow-2xs hover:shadow-xs transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Mới</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsSidebarOpen(false)}
+                    className="md:hidden p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
+                    title="Đóng danh sách lịch sử"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-
-              <button
-                type="button"
-                onClick={() => handleCreateNewChat()}
-                className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs hover:shadow-xs transition cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Mới</span>
-              </button>
-            </div>
 
             {/* Search Filter Input */}
             <div className="px-2.5 py-2 border-b border-border/40 shrink-0">
@@ -1046,11 +1067,12 @@ export default function AiCoachView() {
               )}
             </div>
           </aside>
-        )}
+        </>
+      )}
 
-        {/* Center/Left: Interactive Chessboard Area (Toggleable) */}
-        {isBoardOpen && (
-          <div className="w-[420px] lg:w-[460px] xl:w-[480px] shrink-0 h-full flex flex-col items-center bg-card border border-border/70 rounded-2xl p-2.5 sm:p-3 shadow-2xs overflow-hidden">
+      {/* Center/Left: Interactive Chessboard Area (Toggleable) */}
+      {isBoardOpen && (
+        <div className="w-full max-w-full h-[360px] sm:h-[420px] md:h-full md:w-[380px] lg:w-[440px] xl:w-[480px] shrink-0 flex flex-col items-center bg-card border border-border/70 rounded-xl p-2 sm:p-2.5 shadow-2xs overflow-hidden">
             {/* Board Top Status Bar - Fixed height h-9 to eliminate layout shift */}
             <div className="w-full h-9 flex items-center justify-between pb-1.5 mb-1.5 border-b border-border/60 gap-2 shrink-0">
               <div className="flex items-center gap-2 truncate">
@@ -1265,7 +1287,7 @@ export default function AiCoachView() {
               onNewChat={() => handleCreateNewChat(activeSession.playerId)}
             />
           ) : (
-            <div className="flex-1 flex items-center justify-center bg-card border border-border/60 rounded-2xl">
+            <div className="flex-1 flex items-center justify-center bg-card border border-border/60 rounded-xl">
               <p className="text-sm text-muted-foreground">Đang tải cuộc trò chuyện...</p>
             </div>
           )}

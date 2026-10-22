@@ -390,7 +390,7 @@ export default function ProfileDetailContent({
       {/* Toast Notice */}
       {notice && (
         <div
-          className={`fixed top-20 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border backdrop-blur-md transition-all animate-slide-in ${
+          className={`fixed top-20 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border backdrop-blur-md transition-all animate-slide-in ${
             notice.type === "success"
               ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-emerald-300"
               : "bg-rose-500/15 border-rose-500/40 text-rose-800 dark:text-rose-300"
@@ -413,7 +413,7 @@ export default function ProfileDetailContent({
 
       {/* Multi-Profile Switcher Sub-Bar (If in multi mode) */}
       {activeMode === "multi" && multiProfiles.length > 1 && (
-        <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-muted/50 border border-border/70 overflow-x-auto">
+        <div className="flex items-center gap-2 p-2 rounded-xl bg-muted/50 border border-border/70 overflow-x-auto">
           <span className="text-xs font-bold text-muted-foreground px-2 shrink-0">
             Xem hồ sơ trong nhóm:
           </span>
@@ -429,9 +429,9 @@ export default function ProfileDetailContent({
                   setSelectedSubProfileId(item.player.id);
                   loadProfileData(item.player.id);
                 }}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 border cursor-pointer ${
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 border cursor-pointer ${
                   isSelected
-                    ? "bg-background text-emerald-600 dark:text-emerald-400 border-emerald-500 shadow-xs"
+                    ? "bg-background text-emerald-600 dark:text-emerald-400 border-emerald-500 shadow-2xs"
                     : "bg-card text-muted-foreground hover:text-foreground border-border/60"
                 }`}
               >
@@ -444,42 +444,42 @@ export default function ProfileDetailContent({
       )}
 
       {/* Player Header Banner Card */}
-      <div className="relative overflow-hidden rounded-3xl bg-card border border-border/70 p-6 sm:p-7 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="relative overflow-hidden rounded-xl bg-card border border-border/70 p-5 sm:p-6 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 sm:gap-6">
           {/* Avatar & Player Info */}
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-black text-2xl sm:text-3xl shadow-md shrink-0">
+          <div className="flex items-center gap-3.5 sm:gap-4">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-black text-xl sm:text-2xl shadow-sm shrink-0">
               {player.canonical_name ? player.canonical_name[0].toUpperCase() : "P"}
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-black text-foreground">
+                <h1 className="text-lg sm:text-2xl font-black text-foreground truncate">
                   {player.canonical_name}
                 </h1>
                 {player.title && (
-                  <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-black">
+                  <span className="px-1.5 py-0.2 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-black shrink-0">
                     {player.title}
                   </span>
                 )}
                 {player.fide_id && (
-                  <span className="text-xs text-muted-foreground font-mono font-semibold">
+                  <span className="text-xs text-muted-foreground font-mono font-semibold shrink-0">
                     FIDE: {player.fide_id}
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
+              <p className="text-xs text-muted-foreground leading-relaxed max-w-xl line-clamp-2 sm:line-clamp-none">
                 {player.notes || "Hồ sơ phân tích dữ liệu ván đấu và phong cách thi đấu chuyên sâu."}
               </p>
             </div>
           </div>
 
           {/* Quick Stats Pill Counters */}
-          <div className="grid grid-cols-3 sm:flex items-center gap-3 sm:gap-6 border-t md:border-t-0 md:border-l border-border/40 pt-4 md:pt-0 md:pl-6 text-center sm:text-left">
+          <div className="grid grid-cols-3 sm:flex items-center gap-2 sm:gap-6 border-t md:border-t-0 md:border-l border-border/40 pt-3 md:pt-0 md:pl-6 text-center sm:text-left">
             <div>
               <span className="text-[10px] uppercase font-bold text-muted-foreground block truncate">
                 Tổng số ván
               </span>
-              <span className="text-lg sm:text-2xl font-extrabold text-foreground">
+              <span className="text-base sm:text-2xl font-extrabold text-foreground">
                 {games.length}
               </span>
             </div>
@@ -487,15 +487,15 @@ export default function ProfileDetailContent({
               <span className="text-[10px] uppercase font-bold text-muted-foreground block truncate">
                 Tỷ lệ thắng
               </span>
-              <span className="text-lg sm:text-2xl font-extrabold text-emerald-500">
+              <span className="text-base sm:text-2xl font-extrabold text-emerald-500">
                 {analysisRun?.overall_win_rate ? `${analysisRun.overall_win_rate.toFixed(1)}%` : "0.0%"}
               </span>
             </div>
             <div>
               <span className="text-[10px] uppercase font-bold text-muted-foreground block truncate">
-                Điểm số chung
+                Điểm chung
               </span>
-              <span className="text-lg sm:text-2xl font-extrabold text-primary">
+              <span className="text-base sm:text-2xl font-extrabold text-primary">
                 {analysisRun?.overall_score ? `${analysisRun.overall_score.toFixed(1)}%` : "N/A"}
               </span>
             </div>
@@ -503,12 +503,12 @@ export default function ProfileDetailContent({
         </div>
 
         {/* Top Action Buttons (Edit, Delete, Refresh Analysis) */}
-        <div className="mt-5 pt-4 border-t border-border/50 flex items-center justify-between gap-3 flex-wrap">
+        <div className="mt-4 pt-3.5 border-t border-border/50 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleOpenEdit}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border/70 hover:bg-muted text-xs font-semibold text-foreground transition"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/70 hover:bg-muted text-xs font-semibold text-foreground transition"
             >
               <Pencil className="w-3.5 h-3.5" />
               <span>Sửa Thông Tin</span>
@@ -516,7 +516,7 @@ export default function ProfileDetailContent({
             <button
               type="button"
               onClick={handleOpenDelete}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-500/30 text-rose-500 hover:bg-rose-500/10 text-xs font-semibold transition"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-500/30 text-rose-500 hover:bg-rose-500/10 text-xs font-semibold transition"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Xóa Hồ Sơ</span>
@@ -899,7 +899,7 @@ export default function ProfileDetailContent({
             </div>
 
             {analysisRun?.repertoire_summary?.all_openings && analysisRun.repertoire_summary.all_openings.length > 0 ? (
-              <div className="bg-card border border-border/70 rounded-3xl overflow-hidden shadow-xs">
+              <div className="bg-card border border-border/70 rounded-xl overflow-hidden shadow-xs">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-muted/50 text-muted-foreground font-bold uppercase tracking-wider border-b border-border/70">
@@ -994,7 +994,7 @@ export default function ProfileDetailContent({
                 </div>
               </div>
             ) : (
-              <div className="p-8 text-center bg-card border border-border/70 rounded-3xl text-muted-foreground text-xs">
+              <div className="p-8 text-center bg-card border border-border/70 rounded-xl text-muted-foreground text-xs">
                 Chưa có dữ liệu hệ thống khai cuộc cho kỳ thủ này.
               </div>
             )}
@@ -1005,7 +1005,7 @@ export default function ProfileDetailContent({
       {/* Sub-Tab 3: Pawn Structures */}
       {profileSubTab === "structures" && (
         <div className="space-y-6">
-          <div className="p-5 rounded-3xl bg-card border border-border/70 shadow-xs space-y-1">
+          <div className="p-4 sm:p-5 rounded-xl bg-card border border-border/70 shadow-xs space-y-1">
             <h3 className="text-base font-bold text-foreground flex items-center gap-2">
               <Layers className="w-5 h-5 text-emerald-500" />
               Hiệu Suất Trên Cấu Trúc Tốt Điển Hình (Pawn Formations)
@@ -1027,7 +1027,7 @@ export default function ProfileDetailContent({
       {profileSubTab === "games" && (
         <div className="space-y-4">
           {/* Search Bar & Quick Filters */}
-          <div className="p-4 sm:p-5 rounded-3xl bg-card border border-border/70 shadow-xs space-y-4">
+          <div className="p-4 sm:p-5 rounded-xl bg-card border border-border/70 shadow-xs space-y-4">
             <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
               {/* Search input */}
               <div className="relative flex-1">
@@ -1186,7 +1186,7 @@ export default function ProfileDetailContent({
           </div>
 
           {/* Games Table */}
-          <div className="bg-card border border-border/70 rounded-3xl overflow-hidden shadow-xs">
+          <div className="bg-card border border-border/70 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/50 text-muted-foreground font-bold uppercase tracking-wider border-b border-border/70">
@@ -1343,12 +1343,12 @@ export default function ProfileDetailContent({
           onClick={() => setDetailModalGame(null)}
         >
           <div
-            className="w-full max-w-2xl bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-4 animate-scale-in"
+            className="w-full max-w-2xl bg-card border border-border rounded-xl p-5 sm:p-6 shadow-2xl space-y-4 animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-border/60">
               <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-xl bg-emerald-500/10 text-emerald-600">
+                <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600">
                   <Info className="w-5 h-5" />
                 </div>
                 <div>
@@ -1368,14 +1368,14 @@ export default function ProfileDetailContent({
             </div>
 
             {/* Players vs Result */}
-            <div className="p-4 rounded-2xl bg-muted/40 border border-border/60 flex items-center justify-between gap-4 text-xs">
+            <div className="p-3.5 rounded-lg bg-muted/40 border border-border/60 flex items-center justify-between gap-4 text-xs">
               <div className="space-y-0.5">
                 <div className="font-bold text-sm text-foreground">⚪ {detailModalGame.white_player}</div>
                 {detailModalGame.white_elo && (
                   <div className="text-[11px] text-muted-foreground">Elo: {detailModalGame.white_elo}</div>
                 )}
               </div>
-              <div className="font-mono font-black text-sm px-3 py-1 rounded-xl bg-background border border-border shadow-2xs">
+              <div className="font-mono font-black text-sm px-3 py-1 rounded-lg bg-background border border-border shadow-2xs">
                 {detailModalGame.result}
               </div>
               <div className="space-y-0.5 text-right">
@@ -1405,7 +1405,7 @@ export default function ProfileDetailContent({
                   <span>{copiedPgn ? "Đã chép!" : "Sao chép"}</span>
                 </button>
               </div>
-              <div className="p-3 rounded-2xl bg-muted/30 border border-border font-mono text-[11px] max-h-36 overflow-y-auto leading-relaxed select-all">
+              <div className="p-3 rounded-lg bg-muted/30 border border-border font-mono text-[11px] max-h-36 overflow-y-auto leading-relaxed select-all">
                 {detailModalGame.moves_san || "Không có nước đi"}
               </div>
             </div>
@@ -1421,7 +1421,7 @@ export default function ProfileDetailContent({
                       href={pInfo.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border bg-muted/50 hover:bg-muted"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border bg-muted/50 hover:bg-muted"
                     >
                       <Globe className="w-3.5 h-3.5" />
                       <span>Xem trên {pInfo.label}</span>
@@ -1435,7 +1435,7 @@ export default function ProfileDetailContent({
                 <button
                   type="button"
                   onClick={() => setDetailModalGame(null)}
-                  className="px-4 py-2 rounded-xl border border-border text-xs font-semibold"
+                  className="px-4 py-2 rounded-lg border border-border text-xs font-semibold"
                 >
                   Đóng
                 </button>
@@ -1446,7 +1446,7 @@ export default function ProfileDetailContent({
                     setDetailModalGame(null);
                     analyzeGame(g);
                   }}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/25 flex items-center gap-1.5"
+                  className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/25 flex items-center gap-1.5"
                 >
                   <Sword className="w-3.5 h-3.5" />
                   <span>Mở Bàn Cờ Phân Tích</span>
@@ -1464,7 +1464,7 @@ export default function ProfileDetailContent({
           onClick={() => setModalAction("none")}
         >
           <div
-            className="w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-4 animate-scale-in"
+            className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-2xl space-y-4 animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-border/60">
@@ -1481,7 +1481,7 @@ export default function ProfileDetailContent({
                   required
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full bg-background border border-border/70 rounded-xl p-2.5"
+                  className="w-full bg-background border border-border/70 rounded-lg p-2.5"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1491,7 +1491,7 @@ export default function ProfileDetailContent({
                     type="text"
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full bg-background border border-border/70 rounded-xl p-2.5"
+                    className="w-full bg-background border border-border/70 rounded-lg p-2.5"
                   />
                 </div>
                 <div>
@@ -1500,7 +1500,7 @@ export default function ProfileDetailContent({
                     type="number"
                     value={editFideId}
                     onChange={(e) => setEditFideId(e.target.value)}
-                    className="w-full bg-background border border-border/70 rounded-xl p-2.5"
+                    className="w-full bg-background border border-border/70 rounded-lg p-2.5"
                   />
                 </div>
               </div>
@@ -1509,7 +1509,7 @@ export default function ProfileDetailContent({
                 <textarea
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  className="w-full bg-background border border-border/70 rounded-xl p-2.5 resize-none"
+                  className="w-full bg-background border border-border/70 rounded-lg p-2.5 resize-none"
                   rows={2}
                 />
               </div>
@@ -1517,14 +1517,14 @@ export default function ProfileDetailContent({
                 <button
                   type="button"
                   onClick={() => setModalAction("none")}
-                  className="px-4 py-2 border rounded-xl"
+                  className="px-4 py-2 border rounded-lg hover:bg-muted transition"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={updating}
-                  className="px-5 py-2 bg-emerald-600 text-white rounded-xl font-bold"
+                  className="px-5 py-2 bg-emerald-600 text-white rounded-lg font-bold shadow-xs hover:bg-emerald-500 transition"
                 >
                   {updating ? "Đang lưu..." : "Cập Nhật"}
                 </button>
@@ -1541,7 +1541,7 @@ export default function ProfileDetailContent({
           onClick={() => setModalAction("none")}
         >
           <div
-            className="w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-4 animate-scale-in"
+            className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-2xl space-y-4 animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 text-rose-500">
@@ -1555,7 +1555,7 @@ export default function ProfileDetailContent({
               <button
                 type="button"
                 onClick={() => setModalAction("none")}
-                className="px-4 py-2 border rounded-xl"
+                className="px-4 py-2 border rounded-lg hover:bg-muted transition"
               >
                 Hủy
               </button>
@@ -1563,7 +1563,7 @@ export default function ProfileDetailContent({
                 type="button"
                 disabled={deleting}
                 onClick={handleConfirmDelete}
-                className="px-5 py-2 bg-rose-600 text-white rounded-xl font-bold"
+                className="px-5 py-2 bg-rose-600 text-white rounded-lg font-bold shadow-xs hover:bg-rose-500 transition"
               >
                 {deleting ? "Đang xóa..." : "Xóa Vĩnh Viễn"}
               </button>

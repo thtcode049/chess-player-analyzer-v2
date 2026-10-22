@@ -218,7 +218,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-              className={`flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl text-xs font-bold transition-all border shadow-xs ${
+              className={`flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs font-bold transition-all border shadow-2xs ${
                 activeMode === "multi"
                   ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/20"
                   : activeMode === "sandbox"
@@ -244,7 +244,7 @@ export default function Navbar() {
 
             {/* Profile Switcher Dropdown Content */}
             {profileDropdownOpen && (
-              <div className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-2 w-[340px] sm:w-[380px] rounded-3xl bg-card border border-border/80 shadow-2xl p-3 space-y-2.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-2 w-[calc(100vw-24px)] max-w-[360px] sm:max-w-[380px] rounded-xl bg-card border border-border/80 shadow-xl p-3 space-y-2.5 z-50 animate-in fade-in zoom-in-95 duration-150">
                 {/* Switcher Mode Tabs */}
                 <div className="grid grid-cols-2 p-1 bg-muted/70 rounded-xl gap-1">
                   <button
@@ -495,7 +495,7 @@ export default function Navbar() {
           </div>
 
           {/* Desktop Workspace Segmented Navigation Pills */}
-          <nav className="hidden md:flex items-center gap-1 bg-slate-100/90 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-xs">
+          <nav className="hidden md:flex items-center gap-1 bg-slate-100/90 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/60 shadow-2xs">
             {/* Tab 0: Thư viện (Quản lý tất cả hồ sơ) */}
             <button
               type="button"
@@ -505,7 +505,7 @@ export default function Navbar() {
                   window.history.pushState(null, "", "/dashboard");
                 }
               }}
-              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 isHubOpen
                   ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
@@ -520,7 +520,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => handleNavTab("profile")}
-              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "profile" && !isHubOpen
                   ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
@@ -534,7 +534,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => handleNavTab("board")}
-              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "board" && !isHubOpen
                   ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
@@ -548,7 +548,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => handleNavTab("ai")}
-              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "ai" && !isHubOpen
                   ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
@@ -556,7 +556,7 @@ export default function Navbar() {
             >
               <Brain className="h-3.5 w-3.5" />
               <span>Trợ lí AI</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+              <span className="px-1.5 py-0.2 rounded-md text-[9px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
                 AI
               </span>
             </button>
@@ -567,7 +567,7 @@ export default function Navbar() {
         <div className="flex items-center gap-1.5 sm:gap-3">
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            className="p-2 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
             aria-label="Toggle Theme"
           >
             {isDark ? <Sun className="h-4.5 w-4.5 text-amber-400" /> : <Moon className="h-4.5 w-4.5 text-slate-600" />}
@@ -586,7 +586,7 @@ export default function Navbar() {
 
               return (
                 <div className="flex items-center gap-2 pl-1 sm:pl-2 border-l border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/90 py-1.5 px-2.5 sm:px-3 rounded-2xl text-xs font-semibold text-foreground shadow-xs">
+                  <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/90 py-1.5 px-2.5 sm:px-3 rounded-lg text-xs font-semibold text-foreground shadow-2xs">
                     <UserAvatar url={avatarUrl} name={displayName} />
                     <span className="max-w-[100px] sm:max-w-[140px] truncate hidden sm:inline-block font-semibold">
                       {displayName}
@@ -594,7 +594,7 @@ export default function Navbar() {
                   </div>
                   <button
                     onClick={handleLogout}
-                    className="hidden sm:inline-flex p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition"
+                    className="hidden sm:inline-flex p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition"
                     title="Đăng xuất"
                   >
                     <LogOut className="w-4 h-4" />
@@ -606,14 +606,14 @@ export default function Navbar() {
             <div className="hidden sm:flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-slate-800">
               <Link
                 href="/login"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>Đăng Nhập</span>
               </Link>
               <Link
                 href="/register"
-                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-xs transition"
+                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-xs transition"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>Đăng Ký</span>
@@ -624,7 +624,7 @@ export default function Navbar() {
           {/* Primary CTA + Nạp Ván */}
           <Link
             href="/import"
-            className="hidden lg:inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-xs transition"
+            className="hidden lg:inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-xs transition"
           >
             <UploadCloud className="h-3.5 w-3.5" />
             <span>+ Nạp Ván</span>
@@ -633,7 +633,7 @@ export default function Navbar() {
           {/* Mobile Hamburger Toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition focus:outline-none"
+            className="md:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition focus:outline-none"
             aria-label="Mở menu điều hướng"
           >
             {mobileMenuOpen ? <X className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /> : <Menu className="w-5 h-5" />}
@@ -651,7 +651,7 @@ export default function Navbar() {
                 openHub();
                 setMobileMenuOpen(false);
               }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-semibold transition ${
                 isHubOpen
                   ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                   : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
@@ -659,14 +659,14 @@ export default function Navbar() {
             >
               <div className="flex items-center gap-3">
                 <FolderOpen className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>📁 Thư viện hồ sơ</span>
+                <span>Thư viện hồ sơ</span>
               </div>
             </button>
 
             <button
               type="button"
               onClick={() => handleNavTab("profile")}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-semibold transition ${
                 activeTab === "profile" && !isHubOpen
                   ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                   : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
@@ -674,14 +674,14 @@ export default function Navbar() {
             >
               <div className="flex items-center gap-3">
                 <Users className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>📊 Hồ sơ & Ván đấu</span>
+                <span>Hồ sơ & Ván đấu</span>
               </div>
             </button>
 
             <button
               type="button"
               onClick={() => handleNavTab("board")}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-semibold transition ${
                 activeTab === "board" && !isHubOpen
                   ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                   : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
@@ -689,14 +689,14 @@ export default function Navbar() {
             >
               <div className="flex items-center gap-3">
                 <Swords className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>♟️ Bàn cờ Phân tích</span>
+                <span>Bàn cờ Phân tích</span>
               </div>
             </button>
 
             <button
               type="button"
               onClick={() => handleNavTab("ai")}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-semibold transition ${
                 activeTab === "ai" && !isHubOpen
                   ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                   : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
@@ -704,9 +704,9 @@ export default function Navbar() {
             >
               <div className="flex items-center gap-3">
                 <Brain className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>🤖 Trợ lí AI</span>
+                <span>Trợ lí AI</span>
               </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
                 AI
               </span>
             </button>
@@ -714,7 +714,7 @@ export default function Navbar() {
             <Link
               href="/import"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
+              className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
             >
               <UploadCloud className="w-4 h-4 text-teal-500 shrink-0" />
               <span>+ Nạp Ván Đấu</span>
@@ -723,7 +723,7 @@ export default function Navbar() {
             <Link
               href="/settings"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
+              className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
             >
               <Settings className="w-4 h-4 text-slate-500 shrink-0" />
               <span>Cài đặt</span>
@@ -750,7 +750,7 @@ export default function Navbar() {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-500/10 transition"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-500/10 transition"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Thoát</span>
@@ -761,7 +761,7 @@ export default function Navbar() {
                 <Link
                   href="/login"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
                 >
                   <LogIn className="w-3.5 h-3.5" />
                   <span>Đăng Nhập</span>
@@ -769,7 +769,7 @@ export default function Navbar() {
                 <Link
                   href="/register"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-center gap-1.5 bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-xs hover:bg-emerald-500 transition"
+                  className="flex items-center justify-center gap-1.5 bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-bold shadow-xs hover:bg-emerald-500 transition"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   <span>Đăng Ký</span>

@@ -80,10 +80,10 @@ function LichessCallbackContent() {
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-8 shadow-2xl text-center space-y-5">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl max-w-md w-full p-8 shadow-2xl text-center space-y-5">
         {status === "loading" && (
           <>
-            <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto text-blue-400">
+            <div className="w-14 h-14 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto text-blue-400">
               <Loader2 className="w-7 h-7 animate-spin" />
             </div>
             <div>
@@ -97,7 +97,7 @@ function LichessCallbackContent() {
 
         {status === "success" && (
           <>
-            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto text-emerald-400 animate-bounce">
+            <div className="w-14 h-14 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto text-emerald-400 animate-bounce">
               <CheckCircle2 className="w-7 h-7" />
             </div>
             <div>
@@ -111,7 +111,7 @@ function LichessCallbackContent() {
 
         {status === "error" && (
           <>
-            <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto text-red-400">
+            <div className="w-14 h-14 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto text-red-400">
               <AlertCircle className="w-7 h-7" />
             </div>
             <div>

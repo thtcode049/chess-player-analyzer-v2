@@ -15,7 +15,7 @@ export default function CriticalPositionsList({
 }: CriticalPositionsListProps) {
   if (!positions || positions.length === 0) {
     return (
-      <div className="p-8 text-center bg-card border border-border/40 rounded-2xl text-muted-foreground text-xs">
+      <div className="p-8 text-center bg-card border border-border/40 rounded-xl text-muted-foreground text-xs">
         Chưa phát hiện sai sót chiến thuật (Blunders/Mistakes) nào trong ván đấu này.
       </div>
     );
@@ -35,7 +35,7 @@ export default function CriticalPositionsList({
   };
 
   return (
-    <div className="bg-card border border-border/60 rounded-2xl overflow-hidden shadow-sm">
+    <div className="bg-card border border-border/60 rounded-xl overflow-hidden shadow-sm">
       <div className="px-4 py-3 border-b border-border/40 bg-muted/30 flex items-center justify-between">
         <h4 className="text-xs font-bold text-foreground flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-amber-500" />

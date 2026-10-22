@@ -184,8 +184,8 @@ function ThinkingState() {
   }, [steps.length]);
 
   return (
-    <div className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border border-emerald-500/20 shadow-xs animate-fade-in">
-      <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-xs shrink-0">
+    <div className="flex items-center gap-3.5 p-3 rounded-xl bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border border-emerald-500/20 shadow-xs animate-fade-in">
+      <div className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-xs shrink-0">
         <Brain className="w-4 h-4 animate-pulse" />
         <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
       </div>
@@ -365,7 +365,7 @@ export default function AiAssistantChat({
   };
 
   return (
-    <div className="flex flex-col w-full h-full min-w-0 bg-card border border-border/60 rounded-2xl overflow-hidden shadow-xs">
+    <div className="flex flex-col w-full h-full min-w-0 bg-card border border-border/60 rounded-xl overflow-hidden shadow-xs">
       {/* Top Chat Header Bar */}
       <div className="h-12 shrink-0 px-3.5 border-b border-border/60 flex items-center justify-between gap-2 bg-card/60 backdrop-blur-xs">
         <div className="flex items-center gap-2 min-w-0">
@@ -387,7 +387,7 @@ export default function AiAssistantChat({
           <div className="truncate min-w-0">
             <h3 className="font-bold text-foreground text-xs sm:text-sm truncate flex items-center gap-1.5">
               <span>Trợ Lí AI Cờ Vua</span>
-              <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.2 text-[10px] font-extrabold uppercase rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40">
+              <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.2 text-[10px] font-extrabold uppercase rounded-md bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40">
                 <Zap className="w-2.5 h-2.5 text-emerald-600" />
                 Gemini 3.8
               </span>
@@ -406,7 +406,7 @@ export default function AiAssistantChat({
               type="button"
               onClick={onToggleBoard}
               title={isBoardOpen ? "Thu gọn bàn cờ để chat toàn màn hình" : "Mở bàn cờ tương tác"}
-              className={`px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
                 isBoardOpen
                   ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300/50"
                   : "bg-muted text-muted-foreground hover:text-foreground border border-border/70"
@@ -483,7 +483,7 @@ export default function AiAssistantChat({
                   <ThinkingState />
                 ) : (
                   <div
-                    className={`relative rounded-2xl px-4 py-3 leading-relaxed shadow-2xs ${
+                    className={`relative rounded-xl px-4 py-3 leading-relaxed shadow-2xs ${
                       isBot
                         ? "bg-slate-50 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-slate-750 rounded-tl-xs"
                         : "bg-gradient-to-br from-emerald-600 to-teal-600 text-white rounded-tr-xs"

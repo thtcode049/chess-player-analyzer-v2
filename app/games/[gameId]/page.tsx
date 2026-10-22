@@ -139,7 +139,7 @@ export default function GameViewerPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left: Interactive Board (7 cols) */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="bg-card border border-border/60 rounded-3xl p-4 sm:p-6 shadow-sm">
+          <div className="bg-card border border-border/60 rounded-xl p-4 sm:p-6 shadow-sm">
             <ChessBoard
               initialFen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
               moves={moves}

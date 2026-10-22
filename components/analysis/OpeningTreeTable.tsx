@@ -283,7 +283,7 @@ export default function OpeningTreeTable({
       className={`w-full flex flex-col h-full overflow-hidden ${
         embedded
           ? "bg-transparent border-0 shadow-none rounded-none"
-          : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm"
+          : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm"
       }`}
     >
       {/* Table Header Controls & Tab Selector */}
@@ -389,7 +389,7 @@ export default function OpeningTreeTable({
       {/* Lichess Authorization Modal */}
       {showAuthModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -624,7 +624,7 @@ export default function OpeningTreeTable({
           {!isAuthorized ? (
             /* Prompt to Authorize */
             <div className="p-8 text-center space-y-3 bg-blue-50/20 dark:bg-blue-950/10 my-auto">
-              <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto shadow-sm">
+              <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto shadow-sm">
                 <Globe className="w-6 h-6" />
               </div>
               <div className="max-w-md mx-auto space-y-1">

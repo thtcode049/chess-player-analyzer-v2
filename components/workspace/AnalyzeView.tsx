@@ -363,6 +363,16 @@ export function AnalyzeContent() {
 
   // Dynamically synchronized board and panel size measured directly from ChessBoard DOM container
   const [boardSize, setBoardSize] = useState<number>(640);
+  const [isLgScreen, setIsLgScreen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsLgScreen(window.innerWidth >= 1024);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Dynamic Opening Tree Continuations
   const [continuations, setContinuations] = useState<OpeningContinuation[]>([]);
@@ -1129,9 +1139,9 @@ export function AnalyzeContent() {
 
       {/* MATCHUP MODE BANNER */}
       {workspaceStore.activeMode === "multi" && workspaceStore.multiProfiles.length > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-emerald-950/70 via-slate-900 to-slate-900 border border-emerald-500/40 text-white shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-gradient-to-r from-emerald-950/70 via-slate-900 to-slate-900 border border-emerald-500/40 text-white shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+            <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400">
               <Swords className="w-5 h-5" />
             </div>
             <div>
@@ -1151,7 +1161,7 @@ export function AnalyzeContent() {
           <button
             type="button"
             onClick={() => workspaceStore.openHub()}
-            className="px-3.5 py-1.5 rounded-xl border border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-300 text-xs font-bold transition self-start sm:self-auto shrink-0"
+            className="px-3.5 py-1.5 rounded-lg border border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-300 text-xs font-bold transition self-start sm:self-auto shrink-0"
           >
             Chỉnh sửa tổ hợp
           </button>
@@ -1374,8 +1384,8 @@ export function AnalyzeContent() {
 
         {/* Right Column: Unified Move History & Opening Variations Panel (Like Lichess) */}
         <div
-          style={{ height: `${boardSize}px`, minHeight: "500px" }}
-          className="lg:col-span-5 flex flex-col bg-card border border-border/50 rounded-xl shadow-2xs overflow-hidden"
+          style={isLgScreen ? { height: `${boardSize}px` } : undefined}
+          className="lg:col-span-5 h-[480px] sm:h-[520px] lg:h-auto flex flex-col bg-card border border-border/50 rounded-xl shadow-2xs overflow-hidden"
         >
           {/* Top: Move History (Notation + Stockfish Eval) - 50% equal height */}
           <div className="flex-1 min-h-0 border-b border-border/50 flex flex-col overflow-hidden">
@@ -1471,7 +1481,7 @@ export function AnalyzeContent() {
         <div className="lg:col-span-7 flex flex-col items-center">
           <div
             style={{ width: `${boardSize + 22}px`, maxWidth: "100%" }}
-            className="bg-card/60 border border-border/40 rounded-xl p-2.5 flex items-center justify-between gap-2 text-xs shadow-xs"
+            className="bg-card/60 border border-border/40 rounded-xl p-2.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 text-xs shadow-xs"
           >
             <div className="flex items-center gap-2 truncate min-w-0">
               <span className="font-bold text-muted-foreground uppercase text-[10px] shrink-0">FEN:</span>

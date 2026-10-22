@@ -102,10 +102,7 @@ export default function WasmAnalysisCard({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-card via-card/90 to-primary/5 p-4 sm:p-6 shadow-md transition-all">
-      {/* Background ambient glow */}
-      <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
-
+    <div className="relative overflow-hidden rounded-xl border border-primary/20 bg-card p-4 sm:p-6 shadow-xs transition-all">
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div className="space-y-2 flex-1">
           <div className="flex flex-wrap items-center gap-2">

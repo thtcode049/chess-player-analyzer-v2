@@ -191,7 +191,7 @@ export default function ProfileHub() {
       {/* Toast Notice */}
       {notice && (
         <div
-          className={`fixed top-20 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border backdrop-blur-md transition-all animate-slide-in ${
+          className={`fixed top-20 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border backdrop-blur-md transition-all animate-slide-in ${
             notice.type === "success"
               ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-emerald-300"
               : "bg-rose-500/15 border-rose-500/40 text-rose-800 dark:text-rose-300"
@@ -212,36 +212,35 @@ export default function ProfileHub() {
         </div>
       )}
 
-      {/* Hero Header with Emerald Glow */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950/90 border border-emerald-500/20 p-6 sm:p-8 text-white shadow-xl shadow-slate-950/20">
-        <div className="absolute top-0 right-1/4 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold tracking-wider uppercase">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden rounded-xl bg-card border border-border/80 p-5 sm:p-6 shadow-xs">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div className="space-y-1.5 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold tracking-wider uppercase">
               <Users className="w-3.5 h-3.5" />
               <span>Thư Viện Hồ Sơ Kỳ Thủ</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
-              Quản Lý & Chọn Không Gian Phân Tích
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-foreground">
+              Quản Lý & Không Gian Phân Tích
             </h1>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Chọn một kỳ thủ để phân tích chuyên sâu 8 trục phong cách và ván đấu, hoặc bật chế độ
-              ghép nhiều hồ sơ để chuẩn bị khai cuộc đối đầu Trắng vs Đen.
+            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+              Chọn một kỳ thủ để phân tích chuyên sâu dữ liệu ván đấu và hệ thống khai cuộc, hoặc bật chế độ
+              ghép đôi nhiều hồ sơ để chuẩn bị phương án đối đầu Trắng vs Đen.
             </p>
           </div>
 
           {/* Quick Actions */}
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <button
               onClick={handleOpenCreate}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-bold shadow-xs backdrop-blur-md transition-all active:scale-95"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-secondary hover:bg-secondary/80 border border-border text-foreground text-xs font-bold shadow-2xs transition active:scale-95"
             >
-              <UserPlus className="w-4 h-4 text-emerald-400" />
+              <UserPlus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>+ Tạo Hồ Sơ</span>
             </button>
             <Link
               href="/import"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-extrabold shadow-lg shadow-emerald-950/40 transition-all active:scale-95"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition active:scale-95"
             >
               <Upload className="w-4 h-4" />
               <span>+ Nạp Ván Mới (PGN/Lichess)</span>
@@ -251,17 +250,17 @@ export default function ProfileHub() {
       </div>
 
       {/* Control Bar: Mode Toggle + Search */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-4 rounded-2xl bg-card border border-border/80 shadow-xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-3.5 sm:p-4 rounded-xl bg-card border border-border/80 shadow-xs">
         {/* Mode Switcher */}
-        <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-muted/60 border border-border/60 self-start sm:self-auto">
+        <div className="inline-flex items-center gap-1.5 p-1 rounded-lg bg-muted/60 border border-border/60 self-start sm:self-auto">
           <button
             type="button"
             onClick={() => {
               setHubMode("single");
             }}
-            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-bold transition-all ${
               hubMode === "single"
-                ? "bg-background text-foreground shadow-xs"
+                ? "bg-background text-foreground shadow-2xs"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -273,9 +272,9 @@ export default function ProfileHub() {
             onClick={() => {
               setHubMode("multi");
             }}
-            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-bold transition-all ${
               hubMode === "multi"
-                ? "bg-emerald-600 text-white shadow-xs"
+                ? "bg-emerald-600 text-white shadow-2xs"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -317,8 +316,8 @@ export default function ProfileHub() {
           <p className="text-sm text-muted-foreground font-medium">Đang tải danh sách hồ sơ kỳ thủ...</p>
         </div>
       ) : filteredPlayers.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 text-center rounded-3xl border border-dashed border-border/80 bg-card/40 space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+        <div className="flex flex-col items-center justify-center p-12 text-center rounded-xl border border-dashed border-border/80 bg-card/40 space-y-4">
+          <div className="w-14 h-14 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
             <Users className="w-7 h-7" />
           </div>
           <div className="space-y-1 max-w-md">
@@ -334,14 +333,14 @@ export default function ProfileHub() {
           <div className="flex items-center gap-3 pt-2">
             <Link
               href="/import"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-xs"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-xs"
             >
               <Upload className="w-3.5 h-3.5" />
               <span>Nạp Ván Đấu Ngay</span>
             </Link>
             <button
               onClick={handleOpenCreate}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-border hover:bg-muted text-foreground text-xs font-semibold transition"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border hover:bg-muted text-foreground text-xs font-semibold transition"
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span>Tạo Hồ Sơ Thủ Công</span>
@@ -367,11 +366,11 @@ export default function ProfileHub() {
                     selectSingleProfile(player.id, "profile");
                   }
                 }}
-                className={`group relative flex flex-col justify-between p-5 rounded-3xl border transition-all duration-200 ${
+                className={`group relative flex flex-col justify-between p-4 sm:p-5 rounded-xl border transition-all duration-200 ${
                   hubMode === "single"
-                    ? "cursor-pointer bg-card hover:border-emerald-500/50 hover:shadow-lg hover:shadow-emerald-500/5 hover:-translate-y-0.5 border-border/80"
+                    ? "cursor-pointer bg-card hover:border-emerald-500/50 hover:shadow-md hover:shadow-emerald-500/5 hover:-translate-y-0.5 border-border/80"
                     : activeRole
-                    ? "bg-emerald-500/[0.04] dark:bg-emerald-500/[0.07] border-emerald-500 ring-1 ring-emerald-500 shadow-md shadow-emerald-500/10"
+                    ? "bg-emerald-500/[0.04] dark:bg-emerald-500/[0.07] border-emerald-500 ring-1 ring-emerald-500 shadow-sm shadow-emerald-500/10"
                     : "bg-card border-border/80 hover:border-border"
                 }`}
               >
@@ -379,7 +378,7 @@ export default function ProfileHub() {
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-black text-base shadow-sm shrink-0">
+                      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-black text-base shadow-2xs shrink-0">
                         {player.canonical_name ? player.canonical_name[0].toUpperCase() : "P"}
                       </div>
                       <div className="min-w-0">
@@ -420,11 +419,11 @@ export default function ProfileHub() {
 
                   {/* Datasets & Source Badges */}
                   <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                    <span className="px-2.5 py-1 rounded-xl bg-muted/60 text-foreground text-[11px] font-bold font-mono">
+                    <span className="px-2.5 py-0.5 rounded-lg bg-muted/60 text-foreground text-[11px] font-bold font-mono">
                       {totalGames} ván đấu
                     </span>
                     {isCached && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                         Đã nạp bộ nhớ
                       </span>
@@ -507,7 +506,7 @@ export default function ProfileHub() {
       {/* Floating Action Bar (Sticky at bottom in Multi-Profile Matchup Mode) */}
       {hubMode === "multi" && multiProfiles.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-full max-w-3xl px-4 animate-in slide-in-from-bottom-5 duration-300">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 sm:p-5 rounded-3xl bg-slate-900/95 dark:bg-slate-900/95 text-white border border-emerald-500/40 shadow-2xl shadow-emerald-950/40 backdrop-blur-xl">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 sm:p-5 rounded-xl bg-slate-900/95 dark:bg-slate-900/95 text-white border border-emerald-500/40 shadow-xl shadow-emerald-950/40 backdrop-blur-xl">
             <div className="space-y-1 text-center sm:text-left min-w-0">
               <div className="flex items-center gap-2 justify-center sm:justify-start">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -531,17 +530,17 @@ export default function ProfileHub() {
               <button
                 type="button"
                 onClick={clearMultiProfiles}
-                className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition"
+                className="px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition"
               >
                 Đặt lại
               </button>
               <button
                 type="button"
                 onClick={openMatchupBoard}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-xs font-black shadow-lg shadow-emerald-500/25 transition active:scale-95"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-xs font-black shadow-md shadow-emerald-500/25 transition active:scale-95"
               >
                 <Swords className="w-4 h-4 text-slate-950" />
-                <span>♟️ Mở Bàn Cờ & Cây Khai Cuộc</span>
+                <span>Mở Bàn Cờ & Cây Khai Cuộc</span>
               </button>
             </div>
           </div>
@@ -555,12 +554,12 @@ export default function ProfileHub() {
           onClick={() => setModalAction("none")}
         >
           <div
-            className="w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-5 animate-scale-in"
+            className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-2xl space-y-5 animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-border/60">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                   <UserPlus className="w-5 h-5" />
                 </div>
                 <h3 className="font-bold text-base text-foreground">Tạo Hồ Sơ Kỳ Thủ Mới</h3>
@@ -584,7 +583,7 @@ export default function ProfileHub() {
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
                   placeholder="VD: Carlsen, Magnus hoặc nganbanghe"
-                  className="w-full bg-background border border-border/70 rounded-xl px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                  className="w-full bg-background border border-border/70 rounded-lg px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
                   autoFocus
                 />
               </div>
@@ -599,7 +598,7 @@ export default function ProfileHub() {
                     value={createTitle}
                     onChange={(e) => setCreateTitle(e.target.value)}
                     placeholder="GM, IM, FM..."
-                    className="w-full bg-background border border-border/70 rounded-xl px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                    className="w-full bg-background border border-border/70 rounded-lg px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
                   />
                 </div>
                 <div>
@@ -611,7 +610,7 @@ export default function ProfileHub() {
                     value={createFideId}
                     onChange={(e) => setCreateFideId(e.target.value)}
                     placeholder="1503014"
-                    className="w-full bg-background border border-border/70 rounded-xl px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                    className="w-full bg-background border border-border/70 rounded-lg px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
                   />
                 </div>
               </div>
@@ -625,7 +624,7 @@ export default function ProfileHub() {
                   onChange={(e) => setCreateNotes(e.target.value)}
                   placeholder="Ghi chú sở trường, CLB, giải đấu..."
                   rows={2}
-                  className="w-full bg-background border border-border/70 rounded-xl p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 resize-none"
+                  className="w-full bg-background border border-border/70 rounded-lg p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 resize-none"
                 />
               </div>
 
@@ -633,14 +632,14 @@ export default function ProfileHub() {
                 <button
                   type="button"
                   onClick={() => setModalAction("none")}
-                  className="px-4 py-2 rounded-xl border border-border text-foreground hover:bg-muted text-xs font-semibold"
+                  className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted text-xs font-semibold"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={creating}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/25 flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/25 flex items-center gap-1.5 disabled:opacity-50"
                 >
                   {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Lưu Hồ Sơ
@@ -658,12 +657,12 @@ export default function ProfileHub() {
           onClick={() => setModalAction("none")}
         >
           <div
-            className="w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-5 animate-scale-in"
+            className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-2xl space-y-5 animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-border/60">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
                   <Pencil className="w-5 h-5" />
                 </div>
                 <h3 className="font-bold text-base text-foreground">Chỉnh Sửa Hồ Sơ Kỳ Thủ</h3>
@@ -686,7 +685,7 @@ export default function ProfileHub() {
                   required
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full bg-background border border-border/70 rounded-xl px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                  className="w-full bg-background border border-border/70 rounded-lg px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
                   autoFocus
                 />
               </div>
@@ -701,7 +700,7 @@ export default function ProfileHub() {
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
                     placeholder="GM, IM, FM..."
-                    className="w-full bg-background border border-border/70 rounded-xl px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                    className="w-full bg-background border border-border/70 rounded-lg px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
                   />
                 </div>
                 <div>
@@ -713,7 +712,7 @@ export default function ProfileHub() {
                     value={editFideId}
                     onChange={(e) => setEditFideId(e.target.value)}
                     placeholder="1503014"
-                    className="w-full bg-background border border-border/70 rounded-xl px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                    className="w-full bg-background border border-border/70 rounded-lg px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
                   />
                 </div>
               </div>
@@ -727,7 +726,7 @@ export default function ProfileHub() {
                   onChange={(e) => setEditNotes(e.target.value)}
                   placeholder="Ghi chú sở trường, CLB, giải đấu..."
                   rows={2}
-                  className="w-full bg-background border border-border/70 rounded-xl p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 resize-none"
+                  className="w-full bg-background border border-border/70 rounded-lg p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 resize-none"
                 />
               </div>
 
@@ -735,14 +734,14 @@ export default function ProfileHub() {
                 <button
                   type="button"
                   onClick={() => setModalAction("none")}
-                  className="px-4 py-2 rounded-xl border border-border text-foreground hover:bg-muted text-xs font-semibold"
+                  className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted text-xs font-semibold"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={updating}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/25 flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/25 flex items-center gap-1.5 disabled:opacity-50"
                 >
                   {updating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Cập Nhật
@@ -760,11 +759,11 @@ export default function ProfileHub() {
           onClick={() => setModalAction("none")}
         >
           <div
-            className="w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-4 animate-scale-in"
+            className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-2xl space-y-4 animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 text-rose-600">
-              <div className="p-2.5 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+              <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20">
                 <AlertTriangle className="w-6 h-6 text-rose-500" />
               </div>
               <div>
@@ -783,7 +782,7 @@ export default function ProfileHub() {
               <button
                 type="button"
                 onClick={() => setModalAction("none")}
-                className="px-4 py-2 rounded-xl border border-border text-foreground hover:bg-muted text-xs font-semibold"
+                className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted text-xs font-semibold"
               >
                 Hủy
               </button>
@@ -791,7 +790,7 @@ export default function ProfileHub() {
                 type="button"
                 disabled={deleting}
                 onClick={handleConfirmDelete}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/25 flex items-center gap-1.5 disabled:opacity-50"
+                className="px-5 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/25 flex items-center gap-1.5 disabled:opacity-50"
               >
                 {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Xóa Vĩnh Viễn

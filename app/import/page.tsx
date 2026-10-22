@@ -851,7 +851,7 @@ function ImportContent() {
       </div>
 
       {/* Target Player Profile Selection Banner */}
-      <div className="bg-card border border-border/80 rounded-2xl p-5 shadow-sm space-y-3">
+      <div className="bg-card border border-border/80 rounded-xl p-5 shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold">
@@ -964,16 +964,16 @@ function ImportContent() {
       <div className={`grid grid-cols-1 ${result || error || (isLoading && importProgress) ? "lg:grid-cols-3" : ""} gap-8`}>
         {/* Left Form Area */}
         <div className={result || error || (isLoading && importProgress) ? "lg:col-span-2" : ""}>
-          <div className="bg-card border border-border/60 rounded-2xl p-6 sm:p-8 shadow-sm">
+          <div className="bg-card border border-border/60 rounded-xl p-6 sm:p-8 shadow-xs">
             {/* TAB LICHESS.ORG */}
             {activeTab === "lichess" && (
               <div className="space-y-6">
                 {/* Lichess Authorization Card */}
-                <div className="rounded-2xl border border-amber-500/25 bg-gradient-to-br from-amber-500/5 via-transparent to-primary/5 p-5">
+                <div className="rounded-xl border border-amber-500/25 bg-gradient-to-br from-amber-500/5 via-transparent to-primary/5 p-5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-start sm:items-center gap-3.5">
                       {/* Lichess Horse Logo Icon */}
-                      <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-bold shrink-0 shadow-inner">
+                      <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-bold shrink-0 shadow-inner">
                         <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
                           <path d="M19.5 21a3 3 0 0 0 3-3v-4.5a3 3 0 0 0-3-3h-1.5V9a6 6 0 0 0-6-6H9a3 3 0 0 0-3 3v1.5H4.5a3 3 0 0 0-3 3V15a3 3 0 0 0 3 3H6v3h13.5zm-7.5-16.5a4.5 4.5 0 0 1 4.5 4.5v1.5H12a1.5 1.5 0 0 1-1.5-1.5V4.5zM7.5 6a1.5 1.5 0 0 1 1.5-1.5v4.5A3 3 0 0 0 12 12h4.5v1.5H4.5a1.5 1.5 0 0 1-1.5-1.5v-1.5a1.5 1.5 0 0 1 1.5-1.5H6V7.5A1.5 1.5 0 0 1 7.5 6zM6 16.5h12a1.5 1.5 0 0 1 1.5 1.5v1.5H6v-3z" />
                         </svg>
@@ -1457,7 +1457,7 @@ function ImportContent() {
 
                 {/* Detected Players in PGN */}
                 {detectedPlayers.length > 0 && (
-                  <div className="space-y-3 p-4 bg-accent/20 border border-border/60 rounded-2xl animate-fade-in">
+                  <div className="space-y-3 p-4 bg-accent/20 border border-border/60 rounded-xl animate-fade-in">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <UserCheck className="w-4 h-4 text-primary" />
@@ -1583,7 +1583,7 @@ function ImportContent() {
           <div className="space-y-6">
             {/* Live Progress Card when importing */}
             {isLoading && importProgress && (
-              <div className="bg-card border border-primary/30 rounded-2xl p-6 shadow-lg shadow-primary/5 space-y-5 animate-fade-in bg-gradient-to-br from-primary/5 via-card to-background">
+              <div className="bg-card border border-primary/30 rounded-xl p-6 shadow-md shadow-primary/5 space-y-5 animate-fade-in bg-gradient-to-br from-primary/5 via-card to-background">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -1685,7 +1685,7 @@ function ImportContent() {
 
             {/* Status / Result Card */}
             {result && !isLoading && (
-              <div className="bg-card border border-emerald-500/40 rounded-2xl p-6 shadow-sm animate-fade-in bg-gradient-to-br from-emerald-500/5 to-transparent">
+              <div className="bg-card border border-emerald-500/40 rounded-xl p-6 shadow-xs animate-fade-in bg-gradient-to-br from-emerald-500/5 to-transparent">
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <div className="flex items-center gap-3 text-emerald-500">
                     <CheckCircle2 className="w-6 h-6 shrink-0" />
@@ -1770,7 +1770,7 @@ function ImportContent() {
             )}
 
             {error && !isLoading && (
-              <div className="bg-destructive/10 border border-destructive/40 rounded-2xl p-6 text-destructive animate-fade-in">
+              <div className="bg-destructive/10 border border-destructive/40 rounded-xl p-6 text-destructive animate-fade-in">
                 <div className="flex items-center gap-3 mb-2">
                   <AlertCircle className="w-6 h-6" />
                   <h3 className="font-bold text-base">Đã xảy ra lỗi</h3>
@@ -1791,13 +1791,13 @@ function ImportContent() {
           aria-modal="true"
         >
           <div
-            className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-[0_25px_70px_-15px_rgba(0,0,0,0.35)] space-y-5 animate-scale-in relative ring-1 ring-black/10 dark:ring-white/10"
+            className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl max-w-lg w-full p-6 sm:p-7 shadow-xl space-y-5 animate-scale-in relative ring-1 ring-black/10 dark:ring-white/10"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <div className="flex items-start justify-between border-b border-zinc-200 dark:border-zinc-800 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center border border-amber-500/20 shrink-0">
+                <div className="w-11 h-11 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center border border-amber-500/20 shrink-0">
                   <AlertCircle className="w-6 h-6" />
                 </div>
                 <div>
@@ -1820,7 +1820,7 @@ function ImportContent() {
             </div>
 
             {/* Matched profile comparison box */}
-            <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 space-y-3">
+            <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-3">
               <div className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
                 Hệ thống phát hiện kỳ thủ đang nạp (<strong className="text-primary font-bold">{duplicatePrompt.incomingName}</strong>) có tên trùng khớp hoặc tương đương với hồ sơ hiện có:
               </div>
@@ -1859,7 +1859,7 @@ function ImportContent() {
               <button
                 type="button"
                 onClick={duplicatePrompt.onConfirmMerge}
-                className="w-full py-3 px-4 rounded-2xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 px-4 rounded-xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 shadow-xs transition-all flex items-center justify-center gap-2"
               >
                 <UserCheck className="w-4 h-4" />
                 Đồng ý gộp vào hồ sơ &quot;{duplicatePrompt.matchedPlayer.canonical_name}&quot;
@@ -1868,7 +1868,7 @@ function ImportContent() {
               <button
                 type="button"
                 onClick={duplicatePrompt.onConfirmForceNew}
-                className="w-full py-2.5 px-4 rounded-2xl bg-secondary text-secondary-foreground hover:bg-zinc-200 dark:hover:bg-zinc-800 font-semibold text-xs border border-border/60 transition-all flex items-center justify-center gap-2"
+                className="w-full py-2.5 px-4 rounded-xl bg-secondary text-secondary-foreground hover:bg-zinc-200 dark:hover:bg-zinc-800 font-semibold text-xs border border-border/60 transition-all flex items-center justify-center gap-2"
               >
                 <Users className="w-4 h-4" />
                 Tạo hồ sơ mới riêng biệt (Không gộp)

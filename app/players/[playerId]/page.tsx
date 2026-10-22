@@ -1440,21 +1440,21 @@ export default function PlayerDetailPage() {
       {detailModalGame && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div
-            className="w-full max-w-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
+            className="w-full max-w-2xl bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-start justify-between gap-4 pb-3 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-start justify-between gap-4 pb-3 border-b border-border/60">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="p-1.5 rounded-xl bg-primary/10 text-primary">
                     <Info className="w-5 h-5" />
                   </span>
-                  <h3 className="font-bold text-lg text-zinc-950 dark:text-white">
+                  <h3 className="font-bold text-lg text-foreground">
                     Thông Tin Chi Tiết Ván Đấu
                   </h3>
                 </div>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                <p className="text-xs text-muted-foreground">
                   {detailModalGame.eco && <span className="font-mono font-bold text-primary mr-1.5">[{detailModalGame.eco}]</span>}
                   {detailModalGame.opening_name || "Khai cuộc không xác định"}
                 </p>
@@ -1462,7 +1462,7 @@ export default function PlayerDetailPage() {
               <button
                 type="button"
                 onClick={() => setDetailModalGame(null)}
-                className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white p-1.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                className="text-muted-foreground hover:text-foreground p-1.5 rounded-xl hover:bg-muted transition"
                 title="Đóng hộp thoại"
               >
                 <X className="w-5 h-5" />
@@ -1472,101 +1472,112 @@ export default function PlayerDetailPage() {
             {/* Modal Body - Scrollable */}
             <div className="overflow-y-auto space-y-4 pr-1 text-xs">
               {/* Cặp đấu & Kết quả */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 items-center text-center sm:text-left">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-muted/30 border border-border/70 items-center text-center sm:text-left">
+                {/* Bên Trắng */}
                 <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 justify-center sm:justify-start">
-                    <span className="w-3 h-3 rounded-full bg-white border border-zinc-400 shadow-2xs inline-block" />
-                    <span className="font-bold text-zinc-950 dark:text-white truncate max-w-[160px]" title={detailModalGame.white_player}>
+                  <div className="flex items-center gap-2 justify-center sm:justify-start">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-background border border-border shadow-2xs text-foreground">
+                      ♔ Trắng
+                    </span>
+                    <span className="font-bold text-sm text-foreground truncate max-w-[150px]" title={detailModalGame.white_player}>
                       {detailModalGame.white_player}
                     </span>
                   </div>
-                  <div className="text-[11px] text-zinc-500 font-mono">
-                    Elo: {detailModalGame.white_elo || "Chưa xếp hạng"}
+                  <div className="text-[11px] text-muted-foreground font-mono pl-1">
+                    Elo: <b className="text-foreground">{detailModalGame.white_elo || "---"}</b>
                   </div>
                 </div>
 
-                <div className="flex flex-col items-center justify-center">
+                {/* Kết quả ở giữa */}
+                <div className="flex flex-col items-center justify-center py-1">
                   <span
-                    className={`px-3 py-1 rounded-xl text-xs font-mono font-black ${
+                    className={`px-3.5 py-1 rounded-xl text-xs font-mono font-black shadow-2xs ${
                       detailModalGame.result === "1-0"
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
                         : detailModalGame.result === "0-1"
-                        ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
-                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                        ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30"
                     }`}
                   >
                     {detailModalGame.result}
                   </span>
-                  <span className="text-[10px] text-zinc-400 mt-1">
+                  <span className="text-[10px] text-muted-foreground font-medium mt-1">
                     {detailModalGame.ply_count ? `${Math.ceil(detailModalGame.ply_count / 2)} nước đi` : ""}
                   </span>
                 </div>
 
+                {/* Bên Đen */}
                 <div className="space-y-1 sm:text-right">
-                  <div className="flex items-center gap-1.5 justify-center sm:justify-end">
-                    <span className="font-bold text-zinc-950 dark:text-white truncate max-w-[160px]" title={detailModalGame.black_player}>
+                  <div className="flex items-center gap-2 justify-center sm:justify-end">
+                    <span className="font-bold text-sm text-foreground truncate max-w-[150px]" title={detailModalGame.black_player}>
                       {detailModalGame.black_player}
                     </span>
-                    <span className="w-3 h-3 rounded-full bg-zinc-900 border border-zinc-600 shadow-2xs inline-block" />
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 text-zinc-100 dark:bg-zinc-700 shadow-2xs">
+                      ♚ Đen
+                    </span>
                   </div>
-                  <div className="text-[11px] text-zinc-500 font-mono">
-                    Elo: {detailModalGame.black_elo || "Chưa xếp hạng"}
+                  <div className="text-[11px] text-muted-foreground font-mono pr-1">
+                    Elo: <b className="text-foreground">{detailModalGame.black_elo || "---"}</b>
                   </div>
                 </div>
               </div>
 
               {/* Thông số kỹ thuật / Metadata */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 space-y-0.5">
-                  <div className="text-[11px] text-zinc-500 flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5" /> Ngày thi đấu
+                <div className="p-3 rounded-2xl bg-muted/30 border border-border/70 space-y-1">
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 font-medium">
+                    <Calendar className="w-3.5 h-3.5 text-primary" /> Ngày thi đấu
                   </div>
-                  <div className="font-semibold text-zinc-900 dark:text-zinc-100 font-mono">
+                  <div className="font-semibold text-foreground font-mono text-xs">
                     {formatGameDate(detailModalGame)}
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 space-y-0.5">
-                  <div className="text-[11px] text-zinc-500 flex items-center gap-1">
-                    <Trophy className="w-3.5 h-3.5" /> Giải đấu / Sự kiện
+                <div className="p-3 rounded-2xl bg-muted/30 border border-border/70 space-y-1">
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 font-medium">
+                    <Trophy className="w-3.5 h-3.5 text-amber-500" /> Giải đấu / Sự kiện
                   </div>
-                  <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate" title={(detailModalGame.raw_headers as any)?.Event || "-"}>
-                    {(detailModalGame.raw_headers as any)?.Event || "-"}
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 space-y-0.5">
-                  <div className="text-[11px] text-zinc-500 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" /> Thời gian (TC)
-                  </div>
-                  <div className="font-semibold text-zinc-900 dark:text-zinc-100 font-mono">
-                    {detailModalGame.time_control || (detailModalGame.raw_headers as any)?.TimeControl || "-"}
+                  <div className="font-semibold text-foreground text-xs truncate" title={(detailModalGame.raw_headers as any)?.Event || "-"}>
+                    {(detailModalGame.raw_headers as any)?.Event && (detailModalGame.raw_headers as any)?.Event !== "?"
+                      ? (detailModalGame.raw_headers as any)?.Event
+                      : "Không rõ"}
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 space-y-0.5">
-                  <div className="text-[11px] text-zinc-500 flex items-center gap-1">
-                    <Globe className="w-3.5 h-3.5" /> Nền tảng / Địa điểm
+                <div className="p-3 rounded-2xl bg-muted/30 border border-border/70 space-y-1">
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 font-medium">
+                    <Clock className="w-3.5 h-3.5 text-blue-500" /> Thời gian (TC)
                   </div>
-                  <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate" title={(detailModalGame.raw_headers as any)?.Site || "-"}>
+                  <div className="font-semibold text-foreground font-mono text-xs">
+                    {detailModalGame.time_control || (detailModalGame.raw_headers as any)?.TimeControl || "---"}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-muted/30 border border-border/70 space-y-1">
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 font-medium">
+                    <Globe className="w-3.5 h-3.5 text-emerald-500" /> Nền tảng / Địa điểm
+                  </div>
+                  <div className="font-semibold text-foreground text-xs truncate" title={(detailModalGame.raw_headers as any)?.Site || "-"}>
                     {(detailModalGame.raw_headers as any)?.Site || getPlatformInfo(detailModalGame).label}
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 space-y-0.5">
-                  <div className="text-[11px] text-zinc-500 flex items-center gap-1">
-                    <Hash className="w-3.5 h-3.5" /> Vòng đấu
+                <div className="p-3 rounded-2xl bg-muted/30 border border-border/70 space-y-1">
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 font-medium">
+                    <Hash className="w-3.5 h-3.5 text-purple-500" /> Vòng đấu
                   </div>
-                  <div className="font-semibold text-zinc-900 dark:text-zinc-100 font-mono">
-                    {(detailModalGame.raw_headers as any)?.Round || "-"}
+                  <div className="font-semibold text-foreground font-mono text-xs">
+                    {(detailModalGame.raw_headers as any)?.Round && (detailModalGame.raw_headers as any)?.Round !== "?"
+                      ? (detailModalGame.raw_headers as any)?.Round
+                      : "-"}
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 space-y-0.5">
-                  <div className="text-[11px] text-zinc-500 flex items-center gap-1">
-                    <Sword className="w-3.5 h-3.5" /> Mã ECO
+                <div className="p-3 rounded-2xl bg-muted/30 border border-border/70 space-y-1">
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 font-medium">
+                    <Sword className="w-3.5 h-3.5 text-rose-500" /> Mã ECO
                   </div>
-                  <div className="font-semibold text-zinc-900 dark:text-zinc-100 font-mono">
+                  <div className="font-semibold text-foreground font-mono text-xs">
                     {detailModalGame.eco || "---"}
                   </div>
                 </div>
@@ -1574,8 +1585,10 @@ export default function PlayerDetailPage() {
 
               {/* Các nước đi ván cờ (SAN Moves) */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-zinc-600 dark:text-zinc-400">
-                  <span className="font-semibold text-[11px]">Danh Sách Nước Đi (SAN)</span>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                    Danh Sách Nước Đi (SAN)
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
@@ -1585,20 +1598,29 @@ export default function PlayerDetailPage() {
                         setTimeout(() => setCopiedPgn(false), 2000);
                       }
                     }}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] text-primary transition"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-muted text-xs text-primary font-medium transition cursor-pointer"
                   >
-                    <Copy className="w-3.5 h-3.5" />
-                    {copiedPgn ? "Đã sao chép!" : "Sao chép nước đi"}
+                    {copiedPgn ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Đã sao chép!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Sao chép nước đi</span>
+                      </>
+                    )}
                   </button>
                 </div>
-                <div className="p-3 rounded-2xl bg-zinc-900 text-zinc-200 font-mono text-[11px] leading-relaxed max-h-36 overflow-y-auto select-all border border-zinc-800">
+                <div className="p-3.5 rounded-2xl bg-muted/30 border border-border/70 font-mono text-[11px] leading-relaxed text-foreground select-all max-h-36 overflow-y-auto">
                   {detailModalGame.moves_san || "Không có dữ liệu nước đi"}
                 </div>
               </div>
             </div>
 
             {/* Modal Footer Actions */}
-            <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="pt-3 border-t border-border/60 flex flex-wrap items-center justify-between gap-2.5">
               <div>
                 {(() => {
                   const pInfo = getPlatformInfo(detailModalGame);
@@ -1610,7 +1632,7 @@ export default function PlayerDetailPage() {
                       rel="noopener noreferrer"
                       className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition border shadow-2xs ${
                         pInfo.platform === "lichess"
-                          ? "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700"
+                          ? "bg-secondary text-secondary-foreground hover:bg-muted border-border"
                           : pInfo.platform === "chesscom"
                           ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
                           : "bg-secondary text-secondary-foreground hover:bg-muted border-border"
@@ -1628,7 +1650,7 @@ export default function PlayerDetailPage() {
                 <button
                   type="button"
                   onClick={() => setDetailModalGame(null)}
-                  className="px-4 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold transition"
+                  className="px-4 py-2 rounded-xl border border-border text-foreground hover:bg-muted text-xs font-semibold transition cursor-pointer"
                 >
                   Đóng
                 </button>
@@ -1639,7 +1661,7 @@ export default function PlayerDetailPage() {
                     setDetailModalGame(null);
                     router.push(`/analyze?gameId=${gId}&playerId=${playerId}`);
                   }}
-                  className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition flex items-center gap-1.5 shadow-md shadow-primary/25"
+                  className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition flex items-center gap-1.5 shadow-md shadow-primary/25 cursor-pointer"
                 >
                   <Sword className="w-3.5 h-3.5" />
                   Mở Bàn Cờ Phân Tích

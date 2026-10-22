@@ -1,8 +1,15 @@
 "use client";
 
 import React, { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import WorkspaceContainer from "@/components/workspace/WorkspaceContainer";
 import { Loader2 } from "lucide-react";
+
+function AnalyzePageContent() {
+  const searchParams = useSearchParams();
+  const playerId = searchParams.get("playerId") || undefined;
+  return <WorkspaceContainer initialTab="board" targetPlayerId={playerId} />;
+}
 
 export default function AnalyzePage() {
   return (
@@ -14,7 +21,7 @@ export default function AnalyzePage() {
         </div>
       }
     >
-      <WorkspaceContainer initialTab="board" />
+      <AnalyzePageContent />
     </Suspense>
   );
 }

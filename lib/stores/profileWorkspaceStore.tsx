@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
-import { Player, Game, AnalysisRun, OpeningTreeNode } from "@/lib/api/types";
+import { Player, Game, AnalysisRun, OpeningTreeNode, PawnStructureItem, PawnStructureGame } from "@/lib/api/types";
 import { apiClient } from "@/lib/api/client";
 import { buildMatchupTreeIndex, MatchupOpeningTreeIndex } from "@/lib/chess/matchupTreeBuilder";
 
@@ -19,6 +19,19 @@ export interface CachedProfileData {
   games: Game[];
   run: AnalysisRun | null;
   loadedAt: number;
+}
+
+export interface ActiveOpeningForAnalysis {
+  openingName: string;
+  playerId?: string;
+}
+
+export interface ActiveStructureForAnalysis {
+  structureName: string;
+  structObj?: PawnStructureItem;
+  gameIdx?: number;
+  game?: Game | PawnStructureGame;
+  playerId?: string;
 }
 
 interface ProfileWorkspaceContextType {
@@ -64,6 +77,21 @@ interface ProfileWorkspaceContextType {
   analyzeGame: (game: Game) => void;
   clearActiveGameForAnalysis: () => void;
 
+  // Opening Explorer Direct Action
+  activeOpeningForAnalysis: ActiveOpeningForAnalysis | null;
+  exploreOpening: (openingName: string, playerId?: string) => void;
+  clearActiveOpeningForAnalysis: () => void;
+
+  // Pawn Structure Explorer Direct Action
+  activeStructureForAnalysis: ActiveStructureForAnalysis | null;
+  exploreStructure: (
+    structure: PawnStructureItem | string,
+    playerId?: string,
+    gameIdx?: number,
+    game?: Game | PawnStructureGame
+  ) => void;
+  clearActiveStructureForAnalysis: () => void;
+
   // Opening Tree Provider (Single or Matchup)
   getOpeningTreeBranch: (fen: string, color?: "all" | "white" | "black") => Promise<OpeningTreeNode | null>;
   matchupIndex: MatchupOpeningTreeIndex | null;
@@ -91,6 +119,8 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
 
   // Direct game analysis handoff
   const [activeGameForAnalysis, setActiveGameForAnalysis] = useState<Game | null>(null);
+  const [activeOpeningForAnalysis, setActiveOpeningForAnalysis] = useState<ActiveOpeningForAnalysis | null>(null);
+  const [activeStructureForAnalysis, setActiveStructureForAnalysis] = useState<ActiveStructureForAnalysis | null>(null);
 
   // Matchup Opening Tree Index
   const [matchupIndex, setMatchupIndex] = useState<MatchupOpeningTreeIndex | null>(null);
@@ -293,6 +323,46 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
     setActiveGameForAnalysis(null);
   }, []);
 
+  // 8b. Explore Opening Action (0ms jump from repertoire table to board)
+  const exploreOpening = useCallback((openingName: string, playerId?: string) => {
+    setActiveOpeningForAnalysis({ openingName, playerId });
+    if (playerId && playerId !== activePlayerId) {
+      setActivePlayerId(playerId);
+      setSelectedSubProfileId(playerId);
+    }
+    setIsHubOpen(false);
+    setActiveTabState("board");
+  }, [activePlayerId]);
+
+  const clearActiveOpeningForAnalysis = useCallback(() => {
+    setActiveOpeningForAnalysis(null);
+  }, []);
+
+  // 8c. Explore Pawn Structure Action (0ms jump from structure grid/modal to board)
+  const exploreStructure = useCallback(
+    (
+      structure: PawnStructureItem | string,
+      playerId?: string,
+      gameIdx?: number,
+      game?: Game | PawnStructureGame
+    ) => {
+      const structureName = typeof structure === "string" ? structure : structure.name;
+      const structObj = typeof structure === "string" ? undefined : structure;
+      setActiveStructureForAnalysis({ structureName, structObj, gameIdx, game, playerId });
+      if (playerId && playerId !== activePlayerId) {
+        setActivePlayerId(playerId);
+        setSelectedSubProfileId(playerId);
+      }
+      setIsHubOpen(false);
+      setActiveTabState("board");
+    },
+    [activePlayerId]
+  );
+
+  const clearActiveStructureForAnalysis = useCallback(() => {
+    setActiveStructureForAnalysis(null);
+  }, []);
+
   // 9. Opening Tree Branch Provider
   const getOpeningTreeBranch = useCallback(
     async (fen: string, color: "all" | "white" | "black" = "all"): Promise<OpeningTreeNode | null> => {
@@ -407,6 +477,14 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
     activeGameForAnalysis,
     analyzeGame,
     clearActiveGameForAnalysis,
+
+    activeOpeningForAnalysis,
+    exploreOpening,
+    clearActiveOpeningForAnalysis,
+
+    activeStructureForAnalysis,
+    exploreStructure,
+    clearActiveStructureForAnalysis,
 
     getOpeningTreeBranch,
     matchupIndex,

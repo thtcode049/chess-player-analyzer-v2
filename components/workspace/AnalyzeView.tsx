@@ -336,6 +336,10 @@ export function AnalyzeContent() {
     if (workspaceStore.activeGameForAnalysis) {
       const g = workspaceStore.activeGameForAnalysis;
       setGameInfo(g);
+      setSelectedStructure(null);
+      setSelectedOpening(null);
+      setActiveStructureGameIdx(null);
+      setActiveOpeningGameId(null);
       if (g.moves_san) {
         const rawTokens = g.moves_san.split(" ");
         const parsedMoves = rawTokens
@@ -505,6 +509,251 @@ export function AnalyzeContent() {
     }
   }, [activeRunId, selectedPlayerId, queryPlayerId, currentFen, colorFilter, fetchTreeContinuations]);
 
+  const currentPlayerObj = useMemo(() => {
+    return players.find((p) => p.id === selectedPlayerId) || workspaceStore.activePlayer;
+  }, [players, selectedPlayerId, workspaceStore.activePlayer]);
+
+  // Synchronize availableStructures & availableOpenings from activePlayerRun if available in store
+  useEffect(() => {
+    if (workspaceStore.activePlayerRun) {
+      if (workspaceStore.activePlayerRun.pawn_structures_summary?.structures && availableStructures.length === 0) {
+        const structs: PawnStructureItem[] = (workspaceStore.activePlayerRun.pawn_structures_summary.structures || []).filter(
+          (s: PawnStructureItem) => !s.name?.toLowerCase().includes("benoni") && !(s.structure_key || "").toLowerCase().includes("benoni")
+        );
+        setAvailableStructures(structs);
+      }
+      if (workspaceStore.activePlayerRun.repertoire_summary?.all_openings && availableOpenings.length === 0) {
+        setAvailableOpenings(workspaceStore.activePlayerRun.repertoire_summary.all_openings);
+      }
+    }
+  }, [workspaceStore.activePlayerRun, availableStructures.length, availableOpenings.length]);
+
+  // Load a structure game onto the board and jump to formation move
+  const handleLoadStructureGame = useCallback((structGame: PawnStructureGame, indexInStruct: number) => {
+    setActiveStructureGameIdx(indexInStruct);
+
+    // Find the full Game object
+    let fullGame: Game | undefined;
+    const allGamesPool = playerGames.length > 0 ? playerGames : (workspaceStore.activePlayerGames || []);
+    if (structGame.id) {
+      fullGame = allGamesPool.find((pg) => pg.id === structGame.id);
+    }
+    if (!fullGame && structGame.game_index !== undefined && allGamesPool[structGame.game_index]) {
+      fullGame = allGamesPool[structGame.game_index];
+    }
+    if (!fullGame) {
+      fullGame = allGamesPool.find((pg) =>
+        isPlayerNameMatch(pg.white_player, structGame.white) &&
+        isPlayerNameMatch(pg.black_player, structGame.black) &&
+        pg.result === structGame.result
+      );
+    }
+
+    const applyGameMoves = (targetGame: Game) => {
+      setGameInfo(targetGame);
+      if (targetGame.moves_san) {
+        const rawTokens = targetGame.moves_san.split(" ");
+        const parsedMoves = rawTokens
+          .map((t) => t.replace(/^\d+\.+/, "").trim())
+          .filter((t) => t && !["1-0", "0-1", "1/2-1/2", "*"].includes(t));
+
+        setMoves(parsedMoves);
+
+        // Jump to the formation move of the structure
+        const chess = new Chess();
+        const formMove = structGame.formation_move || 10;
+        const targetPly = structGame.formation_ply !== undefined
+          ? Math.min(structGame.formation_ply, parsedMoves.length)
+          : Math.min(Math.max(0, (formMove - 1) * 2), parsedMoves.length);
+
+        for (let i = 0; i < targetPly; i++) {
+          try {
+            chess.move(parsedMoves[i]);
+          } catch {
+            break;
+          }
+        }
+
+        setCurrentPly(targetPly);
+        setCurrentFen(chess.fen());
+      }
+    };
+
+    if (fullGame) {
+      applyGameMoves(fullGame);
+    } else if (structGame.id) {
+      apiClient.getGame(structGame.id).then((g) => {
+        if (g) applyGameMoves(g);
+      }).catch((err) => console.warn("Could not fetch full structure game:", err));
+    }
+  }, [playerGames, workspaceStore.activePlayerGames]);
+
+  // Switch Structure in Explorer Mode
+  const handleSelectStructure = useCallback((struct: PawnStructureItem, targetGameIdx?: number, targetGame?: any) => {
+    setSelectedStructure(struct);
+    setSelectedOpening(null);
+    setActiveOpeningGameId(null);
+    setActiveStructureGameIdx(targetGameIdx ?? null);
+
+    if (targetGame) {
+      handleLoadStructureGame(targetGame as PawnStructureGame, targetGameIdx ?? 0);
+    } else if (targetGameIdx !== undefined && struct.games && struct.games.length > 0) {
+      const g = struct.games.find((tg) => tg.game_index === targetGameIdx) || struct.games[targetGameIdx];
+      if (g) handleLoadStructureGame(g, targetGameIdx);
+    } else if (struct.games && struct.games.length > 0) {
+      handleLoadStructureGame(struct.games[0], struct.games[0].game_index ?? 0);
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    params.set("structure", struct.name);
+    params.delete("opening");
+    if (targetGameIdx !== undefined) {
+      params.set("gameIdx", String(targetGameIdx));
+    } else {
+      params.delete("gameIdx");
+    }
+    window.history.replaceState(null, "", `/analyze?${params.toString()}`);
+  }, [handleLoadStructureGame]);
+
+  // Exit Structure Explorer Mode
+  const handleExitStructureExplorer = useCallback(() => {
+    setSelectedStructure(null);
+    setActiveStructureGameIdx(null);
+    const params = new URLSearchParams(window.location.search);
+    params.delete("structure");
+    params.delete("gameIdx");
+    const newQuery = params.toString();
+    window.history.replaceState(null, "", newQuery ? `/analyze?${newQuery}` : `/analyze`);
+  }, []);
+
+  // Switch Opening in Explorer Mode
+  const handleSelectOpening = useCallback((opName: string) => {
+    setSelectedOpening(opName);
+    setSelectedStructure(null);
+    setActiveStructureGameIdx(null);
+    setActiveOpeningGameId(null);
+    loadedOpeningRef.current = opName;
+
+    const pool = playerGames.length > 0 ? playerGames : (workspaceStore.activePlayerGames || []);
+    const matchingGames = pool.filter((g) => isOpeningMatch(g, opName));
+
+    // 1. Ưu tiên hàng đầu: Nạp trực tiếp thế cờ chuẩn (Canonical Moves & FEN) từ Lichess Openings
+    const canonical = getCanonicalOpeningByName(opName);
+    let line = canonical ? canonical.moves : [];
+
+    // 2. Nếu chưa có trong từ điển chuẩn, fallback suy luận từ nhóm ván đấu của kỳ thủ
+    if (line.length === 0) {
+      line = findRepresentativeLineForGames(matchingGames, opName);
+    }
+    setOpeningRepresentativeLine(line);
+
+    // Apply line moves to board to display canonical opening formation
+    const chess = new Chess();
+    for (const m of line) {
+      try {
+        chess.move(m);
+      } catch {
+        break;
+      }
+    }
+    setMoves(line);
+    setCurrentPly(line.length);
+    setCurrentFen(chess.fen());
+    setGameInfo(null);
+
+    // Async fallback to Lichess Openings API (3,865 ECO entries) if local line was empty
+    if (line.length === 0) {
+      apiClient.getCanonicalOpening(opName)
+        .then((canonicalData) => {
+          if (canonicalData && canonicalData.moves && canonicalData.moves.length > 0) {
+            const apiLine: string[] = canonicalData.moves;
+            setOpeningRepresentativeLine(apiLine);
+            const apiChess = new Chess();
+            for (const m of apiLine) {
+              try {
+                apiChess.move(m);
+              } catch {
+                break;
+              }
+            }
+            setMoves(apiLine);
+            setCurrentPly(apiLine.length);
+            setCurrentFen(apiChess.fen());
+          }
+        })
+        .catch(() => {});
+    }
+
+    // Determine orientation based on player games or defense naming
+    const activePlayerName = currentPlayerObj?.canonical_name || workspaceStore.activePlayer?.canonical_name;
+    if (matchingGames.length > 0 && activePlayerName) {
+      const outcomes = matchingGames.map((g) => getGamePlayerOutcome(g, activePlayerName));
+      const blackCount = outcomes.filter((o) => o.playerColor === "black").length;
+      const whiteCount = outcomes.filter((o) => o.playerColor === "white").length;
+      if (blackCount > whiteCount) {
+        setBoardOrientation("black");
+        setColorFilter("black");
+      } else {
+        setBoardOrientation("white");
+        setColorFilter("white");
+      }
+    } else {
+      const opLower = opName.toLowerCase();
+      if (opLower.includes("defense") || opLower.includes("defence") || opLower.includes("counter")) {
+        setBoardOrientation("black");
+        setColorFilter("black");
+      } else {
+        setBoardOrientation("white");
+        setColorFilter("white");
+      }
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    params.set("opening", opName);
+    params.delete("structure");
+    params.delete("gameIdx");
+    window.history.replaceState(null, "", `/analyze?${params.toString()}`);
+  }, [playerGames, currentPlayerObj?.canonical_name, workspaceStore.activePlayerGames, workspaceStore.activePlayer?.canonical_name]);
+
+  // Exit Opening Explorer Mode
+  const handleExitOpeningExplorer = useCallback(() => {
+    setSelectedOpening(null);
+    setActiveOpeningGameId(null);
+    setOpeningRepresentativeLine([]);
+    loadedOpeningRef.current = null;
+    const params = new URLSearchParams(window.location.search);
+    params.delete("opening");
+    const newQuery = params.toString();
+    window.history.replaceState(null, "", newQuery ? `/analyze?${newQuery}` : `/analyze`);
+  }, []);
+
+  // Auto-load structure if activeStructureForAnalysis was triggered from Profile PawnStructureGrid
+  useEffect(() => {
+    if (workspaceStore.activeStructureForAnalysis) {
+      const { structureName, structObj, gameIdx, game } = workspaceStore.activeStructureForAnalysis;
+      const targetStruct =
+        availableStructures.find(
+          (s) =>
+            s.name.toLowerCase().trim() === structureName.toLowerCase().trim() ||
+            (s.structure_key && s.structure_key.toLowerCase() === structureName.toLowerCase().trim())
+        ) || structObj;
+
+      if (targetStruct) {
+        handleSelectStructure(targetStruct, gameIdx, game);
+      }
+      workspaceStore.clearActiveStructureForAnalysis();
+    }
+  }, [workspaceStore.activeStructureForAnalysis, availableStructures, handleSelectStructure, workspaceStore.clearActiveStructureForAnalysis]);
+
+  // Auto-load opening if activeOpeningForAnalysis was triggered from Profile Repertoire Table
+  useEffect(() => {
+    if (workspaceStore.activeOpeningForAnalysis) {
+      const { openingName } = workspaceStore.activeOpeningForAnalysis;
+      handleSelectOpening(openingName);
+      workspaceStore.clearActiveOpeningForAnalysis();
+    }
+  }, [workspaceStore.activeOpeningForAnalysis, handleSelectOpening, workspaceStore.clearActiveOpeningForAnalysis]);
+
   // 4. Fetch Analysis Run (Pawn Structures) and Player Games when selectedPlayerId changes
   useEffect(() => {
     const targetPlayer = queryPlayerId || selectedPlayerId;
@@ -533,7 +782,7 @@ export function AnalyzeContent() {
             (s.structure_key && s.structure_key.toLowerCase() === queryStructure.toLowerCase().trim())
           );
           if (matched) {
-            setSelectedStructure(matched);
+            handleSelectStructure(matched, queryGameIdx ? parseInt(queryGameIdx, 10) : undefined);
           }
         }
       })
@@ -560,22 +809,20 @@ export function AnalyzeContent() {
         }
       })
       .catch((err) => console.warn("Failed to load player games:", err));
-  }, [selectedPlayerId, queryPlayerId, queryStructure]);
+  }, [selectedPlayerId, queryPlayerId, queryStructure, queryGameIdx, handleSelectStructure]);
 
-  // 4b. Sync selectedStructure if queryStructure changes
+  // 4b. Sync selectedStructure if queryStructure changes in URL
   useEffect(() => {
     if (queryStructure && availableStructures.length > 0) {
       const matched = availableStructures.find((s) =>
         s.name.toLowerCase().trim() === queryStructure.toLowerCase().trim() ||
         (s.structure_key && s.structure_key.toLowerCase() === queryStructure.toLowerCase().trim())
       );
-      if (matched) {
-        setSelectedStructure(matched);
+      if (matched && (!selectedStructure || selectedStructure.name.toLowerCase() !== matched.name.toLowerCase())) {
+        handleSelectStructure(matched, queryGameIdx ? parseInt(queryGameIdx, 10) : undefined);
       }
-    } else if (!queryStructure) {
-      setSelectedStructure(null);
     }
-  }, [queryStructure, availableStructures]);
+  }, [queryStructure, queryGameIdx, availableStructures, selectedStructure, handleSelectStructure]);
 
   // Handle Player Switch
   const handlePlayerChange = (newPlayerId: string) => {
@@ -726,65 +973,6 @@ export function AnalyzeContent() {
     setGameInfo(null);
   };
 
-  // Load a structure game onto the board
-  const handleLoadStructureGame = (structGame: PawnStructureGame, indexInStruct: number) => {
-    setActiveStructureGameIdx(indexInStruct);
-
-    // Find the full Game object
-    let fullGame: Game | undefined;
-    if (structGame.id) {
-      fullGame = playerGames.find((pg) => pg.id === structGame.id);
-    }
-    if (!fullGame && structGame.game_index !== undefined && playerGames[structGame.game_index]) {
-      fullGame = playerGames[structGame.game_index];
-    }
-    if (!fullGame) {
-      fullGame = playerGames.find((pg) =>
-        isPlayerNameMatch(pg.white_player, structGame.white) &&
-        isPlayerNameMatch(pg.black_player, structGame.black) &&
-        pg.result === structGame.result
-      );
-    }
-
-    const applyGameMoves = (targetGame: Game) => {
-      setGameInfo(targetGame);
-      if (targetGame.moves_san) {
-        const rawTokens = targetGame.moves_san.split(" ");
-        const parsedMoves = rawTokens
-          .map((t) => t.replace(/^\d+\.+/, "").trim())
-          .filter((t) => t && !["1-0", "0-1", "1/2-1/2", "*"].includes(t));
-
-        setMoves(parsedMoves);
-
-        // Jump to the formation move of the structure
-        const chess = new Chess();
-        const formMove = structGame.formation_move || 10;
-        const targetPly = structGame.formation_ply !== undefined
-          ? Math.min(structGame.formation_ply, parsedMoves.length)
-          : Math.min(Math.max(0, (formMove - 1) * 2), parsedMoves.length);
-
-        for (let i = 0; i < targetPly; i++) {
-          try {
-            chess.move(parsedMoves[i]);
-          } catch {
-            break;
-          }
-        }
-
-        setCurrentPly(targetPly);
-        setCurrentFen(chess.fen());
-      }
-    };
-
-    if (fullGame) {
-      applyGameMoves(fullGame);
-    } else if (structGame.id) {
-      apiClient.getGame(structGame.id).then((g) => {
-        if (g) applyGameMoves(g);
-      }).catch((err) => console.warn("Could not fetch full structure game:", err));
-    }
-  };
-
   // Auto-load game if queryGameIdx is in URL
   useEffect(() => {
     if (queryGameIdx && selectedStructure?.games && selectedStructure.games.length > 0 && playerGames.length > 0) {
@@ -794,28 +982,7 @@ export function AnalyzeContent() {
         handleLoadStructureGame(targetG, targetG.game_index ?? idxNum);
       }
     }
-  }, [queryGameIdx, selectedStructure, playerGames]);
-
-  // Exit Structure Explorer Mode
-  const handleExitStructureExplorer = () => {
-    setSelectedStructure(null);
-    setActiveStructureGameIdx(null);
-    const params = new URLSearchParams(window.location.search);
-    params.delete("structure");
-    params.delete("gameIdx");
-    const newQuery = params.toString();
-    router.replace(newQuery ? `/analyze?${newQuery}` : `/analyze`);
-  };
-
-  // Switch Structure in Explorer Mode
-  const handleSelectStructure = (struct: PawnStructureItem) => {
-    setSelectedStructure(struct);
-    setActiveStructureGameIdx(null);
-    const params = new URLSearchParams(window.location.search);
-    params.set("structure", struct.name);
-    params.delete("gameIdx");
-    router.replace(`/analyze?${params.toString()}`);
-  };
+  }, [queryGameIdx, selectedStructure, playerGames, handleLoadStructureGame]);
 
   // Handle Custom PGN Input
   const handleLoadCustomPgn = () => {
@@ -855,19 +1022,9 @@ export function AnalyzeContent() {
     });
   }, [selectedStructure, structureFilter, structureSearch]);
 
-  const currentPlayerObj = players.find((p) => p.id === selectedPlayerId);
-
   // Synchronize Opening Explorer with queryOpening or newly arrived playerGames
   useEffect(() => {
-    if (!queryOpening) {
-      if (selectedOpening !== null && loadedOpeningRef.current !== null) {
-        setSelectedOpening(null);
-        setActiveOpeningGameId(null);
-        setOpeningRepresentativeLine([]);
-        loadedOpeningRef.current = null;
-      }
-      return;
-    }
+    if (!queryOpening) return;
 
     // Bypass resetting board moves when transition was triggered by user playing moves
     if (isAutoTransitionRef.current) {
@@ -879,110 +1036,10 @@ export function AnalyzeContent() {
     const gamesJustArrived = playerGames.length > 0 && lastGamesCountRef.current === 0;
     lastGamesCountRef.current = playerGames.length;
 
-    // Load or refine opening formation
     if (loadedOpeningRef.current !== queryOpening || gamesJustArrived) {
-      setSelectedOpening(queryOpening);
-      setActiveOpeningGameId(null);
-
-      const matchingGames = playerGames.filter((g) => isOpeningMatch(g, queryOpening));
-
-      // 1. Ưu tiên hàng đầu: Nạp trực tiếp thế cờ chuẩn (Canonical Moves & FEN) từ Lichess Openings
-      const canonical = getCanonicalOpeningByName(queryOpening);
-      let line = canonical ? canonical.moves : [];
-
-      // 2. Nếu chưa có trong từ điển chuẩn, fallback suy luận từ nhóm ván đấu của kỳ thủ
-      if (line.length === 0) {
-        line = findRepresentativeLineForGames(matchingGames, queryOpening);
-      }
-      setOpeningRepresentativeLine(line);
-
-      // Apply line moves to board to display canonical opening formation
-      const chess = new Chess();
-      for (const m of line) {
-        try {
-          chess.move(m);
-        } catch {
-          break;
-        }
-      }
-      setMoves(line);
-      setCurrentPly(line.length);
-      setCurrentFen(chess.fen());
-      setGameInfo(null);
-
-      // Async fallback to Lichess Openings API (3,865 ECO entries) if local line was empty
-      if (line.length === 0) {
-        apiClient.getCanonicalOpening(queryOpening)
-          .then((canonicalData) => {
-            if (canonicalData && canonicalData.moves && canonicalData.moves.length > 0) {
-              const apiLine: string[] = canonicalData.moves;
-              setOpeningRepresentativeLine(apiLine);
-              const apiChess = new Chess();
-              for (const m of apiLine) {
-                try {
-                  apiChess.move(m);
-                } catch {
-                  break;
-                }
-              }
-              setMoves(apiLine);
-              setCurrentPly(apiLine.length);
-              setCurrentFen(apiChess.fen());
-            }
-          })
-          .catch(() => {});
-      }
-
-      // Determine orientation based on player games or defense naming
-      if (matchingGames.length > 0 && currentPlayerObj?.canonical_name) {
-        const outcomes = matchingGames.map((g) => getGamePlayerOutcome(g, currentPlayerObj.canonical_name));
-        const blackCount = outcomes.filter((o) => o.playerColor === "black").length;
-        const whiteCount = outcomes.filter((o) => o.playerColor === "white").length;
-        if (blackCount > whiteCount) {
-          setBoardOrientation("black");
-          setColorFilter("black");
-        } else {
-          setBoardOrientation("white");
-          setColorFilter("white");
-        }
-      } else {
-        const opLower = queryOpening.toLowerCase();
-        if (opLower.includes("defense") || opLower.includes("defence") || opLower.includes("counter")) {
-          setBoardOrientation("black");
-          setColorFilter("black");
-        } else {
-          setBoardOrientation("white");
-          setColorFilter("white");
-        }
-      }
-
-      loadedOpeningRef.current = queryOpening;
+      handleSelectOpening(queryOpening);
     }
-  }, [queryOpening, playerGames, currentPlayerObj?.canonical_name, selectedOpening]);
-
-  // Switch opening in Explorer Mode
-  const handleSelectOpening = (opName: string) => {
-    setSelectedOpening(opName);
-    setActiveOpeningGameId(null);
-    loadedOpeningRef.current = null;
-    const params = new URLSearchParams(window.location.search);
-    params.set("opening", opName);
-    params.delete("structure");
-    params.delete("gameIdx");
-    router.replace(`/analyze?${params.toString()}`);
-  };
-
-  // Exit opening Explorer Mode
-  const handleExitOpeningExplorer = () => {
-    setSelectedOpening(null);
-    setActiveOpeningGameId(null);
-    setOpeningRepresentativeLine([]);
-    loadedOpeningRef.current = null;
-    const params = new URLSearchParams(window.location.search);
-    params.delete("opening");
-    const newQuery = params.toString();
-    router.replace(newQuery ? `/analyze?${newQuery}` : `/analyze`);
-  };
+  }, [queryOpening, playerGames, handleSelectOpening]);
 
   // Load a single game from the opening games list onto the board
   const handleLoadOpeningGame = (targetGame: Game) => {
@@ -1022,8 +1079,9 @@ export function AnalyzeContent() {
   // Matching games for selected opening
   const matchingOpeningGames = useMemo(() => {
     if (!selectedOpening) return [];
-    return playerGames.filter((g) => isOpeningMatch(g, selectedOpening));
-  }, [playerGames, selectedOpening]);
+    const pool = playerGames.length > 0 ? playerGames : (workspaceStore.activePlayerGames || []);
+    return pool.filter((g) => isOpeningMatch(g, selectedOpening));
+  }, [playerGames, selectedOpening, workspaceStore.activePlayerGames]);
 
   // Statistics for selected opening games
   const openingStats = useMemo(() => {

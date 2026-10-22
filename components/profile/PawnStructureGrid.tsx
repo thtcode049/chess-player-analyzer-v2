@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { Layers, X, Play, ExternalLink, Lightbulb, ShieldAlert, Compass } from "lucide-react";
 import { PawnStructureItem } from "@/lib/api/types";
+import { useProfileWorkspaceStore } from "@/lib/stores/profileWorkspaceStore";
 
 interface PawnStructureGridProps {
   structures?: PawnStructureItem[];
@@ -14,6 +15,7 @@ export default function PawnStructureGrid({
   structures = [],
   playerId,
 }: PawnStructureGridProps) {
+  const { exploreStructure } = useProfileWorkspaceStore();
   const [activeModalStructure, setActiveModalStructure] = useState<PawnStructureItem | null>(null);
   const [modalFilter, setModalFilter] = useState<"all" | "wins" | "draws" | "losses">("all");
 
@@ -202,12 +204,13 @@ export default function PawnStructureGrid({
             )}
 
             {playerId && (
-              <Link
-                href={`/analyze?playerId=${playerId}&structure=${encodeURIComponent(item.name)}`}
-                className="text-[11px] font-bold text-primary hover:underline inline-flex items-center gap-1"
+              <button
+                type="button"
+                onClick={() => exploreStructure(item, playerId)}
+                className="text-[11px] font-bold text-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
               >
                 Khám phá trên Bàn cờ →
-              </Link>
+              </button>
             )}
           </div>
         </div>
@@ -371,13 +374,18 @@ export default function PawnStructureGrid({
               </div>
 
               {playerId && (
-                <Link
-                  href={`/analyze?playerId=${playerId}&structure=${encodeURIComponent(activeModalStructure.name)}`}
-                  className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition flex items-center gap-1.5 shadow-2xs"
+                <button
+                  type="button"
+                  onClick={() => {
+                    const struct = activeModalStructure;
+                    setActiveModalStructure(null);
+                    exploreStructure(struct, playerId);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
                   <Play className="w-3 h-3" />
                   Mở Structure Explorer trên Bàn cờ →
-                </Link>
+                </button>
               )}
             </div>
 
@@ -460,17 +468,18 @@ export default function PawnStructureGrid({
                             )}
                           </td>
                           <td className="px-3 py-2.5 text-right">
-                            <Link
-                              href={
-                                g.id
-                                  ? `/analyze?gameId=${g.id}&playerId=${playerId || ""}`
-                                  : `/analyze?playerId=${playerId || ""}&structure=${encodeURIComponent(activeModalStructure.name)}&gameIdx=${g.game_index ?? gIdx}`
-                              }
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-secondary hover:bg-primary hover:text-primary-foreground font-medium text-[11px] text-foreground transition"
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const struct = activeModalStructure;
+                                setActiveModalStructure(null);
+                                exploreStructure(struct, playerId, g.game_index ?? gIdx, g);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-secondary hover:bg-primary hover:text-primary-foreground font-medium text-[11px] text-foreground transition cursor-pointer"
                             >
                               Phân tích
                               <ExternalLink className="w-3 h-3" />
-                            </Link>
+                            </button>
                           </td>
                         </tr>
                       );

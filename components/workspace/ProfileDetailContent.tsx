@@ -110,6 +110,7 @@ export default function ProfileDetailContent({
     activePlayerGames,
     activePlayerRun,
     analyzeGame,
+    exploreOpening,
     refreshProfileData,
     refreshPlayersList,
     setActiveTab,
@@ -975,8 +976,8 @@ export default function ProfileDetailContent({
                             <td className="px-3 py-3 text-center">
                               <button
                                 type="button"
-                                onClick={() => setActiveTab("board")}
-                                className="px-2.5 py-1 rounded-lg bg-muted hover:bg-emerald-600 hover:text-white font-semibold text-[11px] transition text-foreground"
+                                onClick={() => exploreOpening(op.name, player?.id || targetPlayerId)}
+                                className="px-2.5 py-1 rounded-lg bg-muted hover:bg-emerald-600 hover:text-white font-semibold text-[11px] transition text-foreground cursor-pointer"
                               >
                                 Phân tích
                               </button>

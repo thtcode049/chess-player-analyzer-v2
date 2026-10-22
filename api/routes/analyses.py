@@ -535,13 +535,18 @@ async def get_lichess_masters_stats(
 
 
 @router.get("/lichess-game/{game_id}", response_model=BaseResponse[Dict[str, Any]])
-async def get_lichess_master_game_detail(game_id: str):
+async def get_lichess_master_game_detail(
+    game_id: str,
+    token: Optional[str] = Query(None, description="Optional Lichess Token"),
+    x_lichess_token: Optional[str] = Header(None, description="Optional Lichess Token Header")
+):
     """
     Fetches full game details and complete move sequence from Lichess by game ID.
     Used to view and replay full master games in the analysis board.
     """
     try:
-        game_detail = LichessMastersService.get_master_game(game_id)
+        user_token = (x_lichess_token or token or "").strip() or None
+        game_detail = LichessMastersService.get_master_game(game_id, user_token=user_token)
         return BaseResponse(success=True, data=game_detail)
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))

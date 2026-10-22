@@ -45,6 +45,8 @@ interface OpeningTreeTableProps {
   selectedPlayerId?: string;
   onSelectPlayer?: (playerId: string) => void;
   isSandboxMode?: boolean;
+  isMultiMode?: boolean;
+  multiTitle?: string;
 }
 
 function formatCompactNumber(num: number): string {
@@ -89,6 +91,8 @@ export default function OpeningTreeTable({
   selectedPlayerId,
   onSelectPlayer,
   isSandboxMode = false,
+  isMultiMode = false,
+  multiTitle,
 }: OpeningTreeTableProps) {
   const [activeTab, setActiveTab] = useState<"player" | "master">("player");
   const [masterMoves, setMasterMoves] = useState<LichessMasterMove[]>([]);
@@ -231,7 +235,8 @@ export default function OpeningTreeTable({
     if (!gameId) return;
     try {
       setLoadingGameId(gameId);
-      const fullGame = await apiClient.getLichessGame(gameId);
+      const auth = getLichessAuth();
+      const fullGame = await apiClient.getLichessGame(gameId, auth.token);
       if (onLoadGame && fullGame.moves && fullGame.moves.length > 0) {
         onLoadGame({
           id: fullGame.id,
@@ -327,6 +332,14 @@ export default function OpeningTreeTable({
                   </option>
                 ))}
               </select>
+            ) : isMultiMode ? (
+              <span
+                onClick={() => setActiveTab("player")}
+                className="cursor-pointer truncate max-w-[140px] sm:max-w-[200px] py-1 font-bold text-xs text-emerald-800 dark:text-emerald-300"
+                title={multiTitle || "Matchup Ghép đôi"}
+              >
+                {multiTitle || "Matchup Ghép đôi"}
+              </span>
             ) : (
               <span
                 onClick={() => setActiveTab("player")}

@@ -28,3 +28,4 @@ class ChatRequest(BaseModel):
     selected_game: Optional[Dict[str, Any]] = None
     is_board_open: Optional[bool] = True
     player_id: Optional[str] = None
+    player_ids: Optional[List[str]] = None

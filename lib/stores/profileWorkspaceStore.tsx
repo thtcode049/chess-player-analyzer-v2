@@ -284,6 +284,7 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
     setMatchupIndex(treeIdx);
 
     setActiveMode("multi");
+    setActivePlayerId(null);
     if (multiProfiles.length > 0) {
       const firstId = multiProfiles[0].player.id;
       setSelectedSubProfileId(firstId);

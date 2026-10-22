@@ -29,6 +29,7 @@ import {
   X,
   Edit2,
   Sparkles,
+  Swords,
 } from "lucide-react";
 import { Chess } from "chess.js";
 import Link from "next/link";
@@ -73,6 +74,7 @@ function formatRelativeTime(timestamp: number): string {
 
 const GENERAL_CHAT_ID = "general";
 const GENERAL_PLAYER_NAME = "Trò chuyện Tự do";
+const MULTI_MATCHUP_ID = "multi_matchup";
 
 function hasUserMessages(session: ChatSession): boolean {
   return session.messages.some((m) => m.role === "user");
@@ -99,11 +101,12 @@ function cleanDuplicateEmptySessions(sessionsList: ChatSession[]): ChatSession[]
 
 function createDefaultSession(playerId: string = GENERAL_CHAT_ID, playerName: string = GENERAL_PLAYER_NAME): ChatSession {
   const isGeneral = !playerId || playerId === GENERAL_CHAT_ID;
+  const isMulti = playerId === MULTI_MATCHUP_ID;
   return {
     id: `chat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     playerId: isGeneral ? GENERAL_CHAT_ID : playerId,
     playerName: isGeneral ? GENERAL_PLAYER_NAME : playerName,
-    title: isGeneral ? "Trò chuyện tự do cùng AI" : "Đoạn chat mới",
+    title: isGeneral ? "Trò chuyện tự do cùng AI" : isMulti ? "Phân tích đối đầu Đa hồ sơ" : "Đoạn chat mới",
     createdAt: Date.now(),
     updatedAt: Date.now(),
     messages: [
@@ -111,6 +114,8 @@ function createDefaultSession(playerId: string = GENERAL_CHAT_ID, playerName: st
         role: "assistant",
         content: isGeneral
           ? `Xin chào! Tôi là Trợ lí AI Cờ Vua. Bạn có thể trò chuyện tự do về cờ vua, thảo luận khai cuộc, chiến thuật, hoặc đi các nước cờ trên bàn cờ bên cạnh rồi hỏi tôi nhận xét bất kỳ lúc nào!`
+          : isMulti
+          ? `Xin chào! Tôi là Trợ lí AI Cờ Vua chế độ Đa hồ sơ. Tôi đã sẵn sàng phân tích so sánh, đối chiếu khai cuộc, điểm mạnh/yếu chiến thuật và tư vấn kế hoạch đối đầu giữa các kỳ thủ được chọn!`
           : `Xin chào! Tôi là Trợ lí AI phân tích cờ vua. Tôi đã nạp toàn bộ biên bản ván đấu PGN của **${playerName || "Kỳ thủ"}** và kết nối trực tiếp với bàn cờ.\n\nBạn có thể hỏi tôi bất kỳ điều gì về các ván đấu, khai cuộc, phong cách thi đấu, hoặc đi thử một nước cờ trên bàn cờ rồi hỏi tôi nhận xét!`,
       },
     ],
@@ -122,13 +127,43 @@ export default function AiCoachView() {
   const workspaceStore = useProfileWorkspaceStore();
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>(() => {
+    if (workspaceStore.activeMode === "multi") {
+      return MULTI_MATCHUP_ID;
+    }
     if (workspaceStore.activeMode === "single" && workspaceStore.activePlayerId) {
       return workspaceStore.activePlayerId;
     }
     return queryPlayerId || GENERAL_CHAT_ID;
   });
+  const [selectedMultiPlayerIds, setSelectedMultiPlayerIds] = useState<string[]>(() => {
+    if (workspaceStore.activeMode === "multi" && workspaceStore.multiProfiles.length > 0) {
+      return workspaceStore.multiProfiles.map((m) => m.player.id);
+    }
+    return [];
+  });
   const [playerGames, setPlayerGames] = useState<Game[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<string>("");
+
+  // Sync selectedMultiPlayerIds when multiProfiles change
+  useEffect(() => {
+    if (workspaceStore.activeMode === "multi" && workspaceStore.multiProfiles.length > 0) {
+      const pIds = workspaceStore.multiProfiles.map((m) => m.player.id);
+      setSelectedMultiPlayerIds((prev) => {
+        const valid = prev.filter((id) => pIds.includes(id));
+        return valid.length > 0 ? valid : pIds;
+      });
+      setSelectedPlayerId(MULTI_MATCHUP_ID);
+    }
+  }, [workspaceStore.activeMode, workspaceStore.multiProfiles]);
+
+  const multiSelectedPlayers = useMemo(() => {
+    return workspaceStore.multiProfiles.filter((m) => selectedMultiPlayerIds.includes(m.player.id));
+  }, [workspaceStore.multiProfiles, selectedMultiPlayerIds]);
+
+  const multiDisplayName = useMemo(() => {
+    const names = multiSelectedPlayers.map((m) => m.player.canonical_name);
+    return names.length > 0 ? `Đa hồ sơ (${names.join(" & ")})` : "Đa hồ sơ";
+  }, [multiSelectedPlayers]);
 
   // Sync with workspace store active player if changed in single mode
   useEffect(() => {
@@ -285,9 +320,26 @@ export default function AiCoachView() {
     }
   }, [selectedPlayerId, isLoaded, players]);
 
-  // 5. Fetch Player Games when selected player changes
+  // 5. Fetch Player Games when selected player or multi profile changes
   useEffect(() => {
-    if (!selectedPlayerId || selectedPlayerId === GENERAL_CHAT_ID) {
+    if (workspaceStore.activeMode === "multi") {
+      if (selectedMultiPlayerIds.length === 0) {
+        setPlayerGames([]);
+        setSelectedGameId("");
+        return;
+      }
+      Promise.all(
+        selectedMultiPlayerIds.map((pId) =>
+          apiClient.getPlayerGames(pId, { page: 1, pageSize: 30, allGames: true }).catch(() => ({ items: [] }))
+        )
+      ).then((resList) => {
+        const combined = resList.flatMap((r) => r?.items || []);
+        setPlayerGames(combined);
+      });
+      return;
+    }
+
+    if (!selectedPlayerId || selectedPlayerId === GENERAL_CHAT_ID || selectedPlayerId === MULTI_MATCHUP_ID) {
       setPlayerGames([]);
       setSelectedGameId("");
       return;
@@ -310,7 +362,7 @@ export default function AiCoachView() {
         console.warn("Failed to fetch player games:", err);
         setPlayerGames([]);
       });
-  }, [selectedPlayerId]);
+  }, [selectedPlayerId, workspaceStore.activeMode, selectedMultiPlayerIds]);
 
   // Get active session with guaranteed fallback
   const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0] || createDefaultSession(selectedPlayerId || GENERAL_CHAT_ID, currentPlayerName);
@@ -567,7 +619,71 @@ export default function AiCoachView() {
           </button>
 
           {/* Active Profile Info Badge / Switcher */}
-          {workspaceStore.activeMode === "sandbox" ? (
+          {workspaceStore.activeMode === "multi" ? (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="flex items-center gap-1 bg-emerald-500/10 dark:bg-emerald-950/60 border border-emerald-500/30 rounded-lg px-2 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-300 shrink-0">
+                <Swords className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="hidden sm:inline">Phân tích đa hồ sơ:</span>
+                <span className="sm:hidden">Đa hồ sơ:</span>
+              </div>
+
+              {workspaceStore.multiProfiles.map((m) => {
+                const isSelected = selectedMultiPlayerIds.includes(m.player.id);
+                const roleBadge = m.role === "white" ? "⚪ Trắng" : m.role === "black" ? "⚫ Đen" : "⚪⚫ Hai bên";
+                return (
+                  <button
+                    key={m.player.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedMultiPlayerIds((prev) => {
+                        if (prev.includes(m.player.id)) {
+                          if (prev.length <= 1) return prev;
+                          return prev.filter((id) => id !== m.player.id);
+                        } else {
+                          return [...prev, m.player.id];
+                        }
+                      });
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+                      isSelected
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                        : "bg-secondary/70 text-muted-foreground border-border/70 hover:bg-secondary hover:text-foreground"
+                    }`}
+                    title={isSelected ? "Bấm để bỏ chọn hồ sơ này trong phân tích" : "Bấm để chọn thêm hồ sơ này vào phân tích"}
+                  >
+                    <span>{m.player.canonical_name}</span>
+                    <span className="text-[10px] opacity-80 font-normal">({roleBadge})</span>
+                    {isSelected && <Check className="w-3 h-3 ml-0.5" />}
+                  </button>
+                );
+              })}
+
+              {players.filter((p) => !workspaceStore.multiProfiles.some((m) => m.player.id === p.id)).length > 0 && (
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    const p = players.find((pl) => pl.id === e.target.value);
+                    if (p) {
+                      workspaceStore.setMultiProfileRole(p, "both");
+                      setSelectedMultiPlayerIds((prev) => [...prev, p.id]);
+                    }
+                  }}
+                  className="bg-secondary/60 hover:bg-secondary text-xs text-muted-foreground hover:text-foreground border border-border/70 rounded-lg px-2 py-1 font-medium cursor-pointer"
+                  title="Thêm hồ sơ khác vào cuộc trò chuyện"
+                >
+                  <option value="">+ Thêm hồ sơ...</option>
+                  {players
+                    .filter((p) => !workspaceStore.multiProfiles.some((m) => m.player.id === p.id))
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.canonical_name}
+                      </option>
+                    ))}
+                </select>
+              )}
+            </div>
+          ) : workspaceStore.activeMode === "sandbox" ? (
             <div className="flex items-center gap-1.5 bg-secondary/80 border border-border/70 rounded-lg px-2.5 sm:px-3 py-1 shadow-2xs">
               <User className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <select
@@ -1310,10 +1426,33 @@ export default function AiCoachView() {
           {activeSession ? (
             <AiAssistantChat
               key={activeSession.id}
-              runId={activeSession.playerId === GENERAL_CHAT_ID ? "general" : `run-${activeSession.playerId}`}
-              playerId={activeSession.playerId === GENERAL_CHAT_ID ? "" : activeSession.playerId}
-              playerName={activeSession.playerId === GENERAL_CHAT_ID ? GENERAL_PLAYER_NAME : activeSession.playerName}
-              gamesCount={activeSession.playerId === GENERAL_CHAT_ID ? 0 : playerGames.length}
+              runId={
+                activeSession.playerId === GENERAL_CHAT_ID
+                  ? "general"
+                  : activeSession.playerId === MULTI_MATCHUP_ID
+                  ? "multi"
+                  : `run-${activeSession.playerId}`
+              }
+              playerId={
+                activeSession.playerId === GENERAL_CHAT_ID || activeSession.playerId === MULTI_MATCHUP_ID
+                  ? ""
+                  : activeSession.playerId
+              }
+              playerIds={
+                workspaceStore.activeMode === "multi"
+                  ? selectedMultiPlayerIds
+                  : activeSession.playerId && activeSession.playerId !== GENERAL_CHAT_ID
+                  ? [activeSession.playerId]
+                  : undefined
+              }
+              playerName={
+                workspaceStore.activeMode === "multi"
+                  ? multiDisplayName
+                  : activeSession.playerId === GENERAL_CHAT_ID
+                  ? GENERAL_PLAYER_NAME
+                  : activeSession.playerName
+              }
+              gamesCount={playerGames.length}
               currentFen={currentFen}
               currentEval={currentEval}
               selectedGame={selectedGame}

@@ -174,73 +174,143 @@ class LichessMastersService:
         }
 
     @staticmethod
-    def get_master_game(game_id: str) -> Dict[str, Any]:
+    def get_master_game(game_id: str, user_token: Optional[str] = None) -> Dict[str, Any]:
         """
         Fetches full game details and SAN move sequence from Lichess export API.
+        Supports authorized tokens and PGN fallback parsing.
         """
+        import io
+        import chess.pgn
+
         clean_id = (game_id or "").strip()
         if not clean_id:
             raise ValueError("Mã ván đấu không hợp lệ.")
 
+        token = (
+            user_token
+            or os.environ.get("LICHESS_API_TOKEN")
+            or os.environ.get("LICHESS_TOKEN")
+            or ""
+        ).strip()
+
+        # Try JSON export first
+        headers = {
+            "User-Agent": "ChessPlayerAnalyzer/2.0 (contact: admin@localhost)",
+            "Accept": "application/json"
+        }
+        if token and len(token) >= 10:
+            headers["Authorization"] = f"Bearer {token}"
+
         url = f"https://lichess.org/game/export/{clean_id}?moves=true&tags=true&clocks=false&evals=false"
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": "ChessPlayerAnalyzer/2.0 (contact: admin@localhost)",
-                "Accept": "application/json"
-            }
-        )
+        req = urllib.request.Request(url, headers=headers)
+
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
                 if resp.status == 200:
-                    data = json.loads(resp.read().decode("utf-8"))
-                    players = data.get("players", {}) or {}
-                    w_player = players.get("white", {}) or {}
-                    b_player = players.get("black", {}) or {}
+                    raw_content = resp.read().decode("utf-8")
+                    if raw_content.strip().startswith("{"):
+                        data = json.loads(raw_content)
+                        players = data.get("players", {}) or {}
+                        w_player = players.get("white", {}) or {}
+                        b_player = players.get("black", {}) or {}
 
-                    w_name = (
-                        w_player.get("user", {}).get("name")
-                        if isinstance(w_player.get("user"), dict)
-                        else w_player.get("name") or "Trắng"
-                    )
-                    b_name = (
-                        b_player.get("user", {}).get("name")
-                        if isinstance(b_player.get("user"), dict)
-                        else b_player.get("name") or "Đen"
-                    )
-                    w_elo = w_player.get("rating")
-                    b_elo = b_player.get("rating")
+                        w_name = (
+                            w_player.get("user", {}).get("name")
+                            if isinstance(w_player.get("user"), dict)
+                            else w_player.get("name") or "Trắng"
+                        )
+                        b_name = (
+                            b_player.get("user", {}).get("name")
+                            if isinstance(b_player.get("user"), dict)
+                            else b_player.get("name") or "Đen"
+                        )
+                        w_elo = w_player.get("rating")
+                        b_elo = b_player.get("rating")
 
-                    winner = data.get("winner")
-                    result = (
-                        "1-0"
-                        if winner == "white"
-                        else "0-1"
-                        if winner == "black"
-                        else "½-½"
-                    )
+                        winner = data.get("winner")
+                        result = (
+                            "1-0"
+                            if winner == "white"
+                            else "0-1"
+                            if winner == "black"
+                            else "½-½"
+                        )
 
-                    raw_moves = data.get("moves", "")
-                    moves_list = [m for m in raw_moves.split() if m]
-                    opening_info = data.get("opening", {}) or {}
+                        raw_moves = data.get("moves", "")
+                        moves_list = [m for m in raw_moves.split() if m]
+                        opening_info = data.get("opening", {}) or {}
 
+                        return {
+                            "id": data.get("id", clean_id),
+                            "white": w_name,
+                            "white_elo": w_elo,
+                            "black": b_name,
+                            "black_elo": b_elo,
+                            "result": result,
+                            "moves": moves_list,
+                            "moves_san": raw_moves,
+                            "event": data.get("event") or opening_info.get("name") or "Lichess Master Game",
+                            "date": str(data.get("createdAt") or data.get("lastMoveAt") or ""),
+                            "site": f"https://lichess.org/{clean_id}",
+                            "eco": opening_info.get("eco", ""),
+                            "opening": opening_info.get("name", ""),
+                        }
+                    else:
+                        # Attempt PGN parse if response was PGN text
+                        pgn_game = chess.pgn.read_game(io.StringIO(raw_content))
+                        if pgn_game:
+                            headers_map = pgn_game.headers
+                            moves_list = [m.san() for m in pgn_game.mainline_moves()]
+                            return {
+                                "id": clean_id,
+                                "white": headers_map.get("White", "Trắng"),
+                                "white_elo": int(headers_map.get("WhiteElo", 0)) or None,
+                                "black": headers_map.get("Black", "Đen"),
+                                "black_elo": int(headers_map.get("BlackElo", 0)) or None,
+                                "result": headers_map.get("Result", "*"),
+                                "moves": moves_list,
+                                "moves_san": " ".join(moves_list),
+                                "event": headers_map.get("Event", "Lichess Master Game"),
+                                "date": headers_map.get("Date", ""),
+                                "site": headers_map.get("Site", f"https://lichess.org/{clean_id}"),
+                                "eco": headers_map.get("ECO", ""),
+                                "opening": headers_map.get("Opening", ""),
+                            }
+        except Exception as e_json:
+            logger.info(f"JSON export for {clean_id} failed ({e_json}), trying PGN endpoint...")
+
+        # Fallback to PGN endpoint
+        pgn_headers = {
+            "User-Agent": "ChessPlayerAnalyzer/2.0 (contact: admin@localhost)",
+            "Accept": "application/x-chess-pgn"
+        }
+        if token and len(token) >= 10:
+            pgn_headers["Authorization"] = f"Bearer {token}"
+
+        try:
+            pgn_url = f"https://lichess.org/game/export/{clean_id}"
+            pgn_req = urllib.request.Request(pgn_url, headers=pgn_headers)
+            with urllib.request.urlopen(pgn_req, timeout=10) as resp:
+                pgn_text = resp.read().decode("utf-8")
+                pgn_game = chess.pgn.read_game(io.StringIO(pgn_text))
+                if pgn_game:
+                    headers_map = pgn_game.headers
+                    moves_list = [m.san() for m in pgn_game.mainline_moves()]
                     return {
-                        "id": data.get("id", clean_id),
-                        "white": w_name,
-                        "white_elo": w_elo,
-                        "black": b_name,
-                        "black_elo": b_elo,
-                        "result": result,
+                        "id": clean_id,
+                        "white": headers_map.get("White", "Trắng"),
+                        "white_elo": int(headers_map.get("WhiteElo", 0)) or None,
+                        "black": headers_map.get("Black", "Đen"),
+                        "black_elo": int(headers_map.get("BlackElo", 0)) or None,
+                        "result": headers_map.get("Result", "*"),
                         "moves": moves_list,
-                        "moves_san": raw_moves,
-                        "event": data.get("event") or opening_info.get("name") or "Lichess Master Game",
-                        "date": str(data.get("createdAt") or data.get("lastMoveAt") or ""),
-                        "site": f"https://lichess.org/{clean_id}",
-                        "eco": opening_info.get("eco", ""),
-                        "opening": opening_info.get("name", ""),
+                        "moves_san": " ".join(moves_list),
+                        "event": headers_map.get("Event", "Lichess Master Game"),
+                        "date": headers_map.get("Date", ""),
+                        "site": headers_map.get("Site", f"https://lichess.org/{clean_id}"),
+                        "eco": headers_map.get("ECO", ""),
+                        "opening": headers_map.get("Opening", ""),
                     }
-                else:
-                    raise ValueError(f"Lichess trả về mã lỗi HTTP {resp.status}")
         except Exception as e:
             logger.warning(f"[Lichess Master Game Export] Lỗi khi tải ván đấu {clean_id}: {e}")
             raise ValueError(f"Không thể tải chi tiết ván đấu từ Lichess: {e}")

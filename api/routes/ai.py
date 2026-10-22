@@ -159,20 +159,56 @@ async def chat_with_ai_coach(req: ChatRequest):
     """
     Server-Sent Events (SSE) streaming endpoint for real-time tactical chess coaching.
     """
-    target_id = req.player_id or req.run_id
-    stats, deep_profile, player_name, games = _resolve_run_snapshot(target_id)
+    target_ids = [pid for pid in (req.player_ids or []) if pid and pid != "general"]
+    if not target_ids and req.player_id and req.player_id != "general":
+        target_ids = [req.player_id]
 
-    # Build structured Ground Truth context with PGN games & current interactive board state
-    context = AIService.build_prompt_context(
-        player_name=player_name,
-        stats=stats,
-        deep_profile=deep_profile,
-        current_fen=req.current_fen,
-        engine_eval=req.engine_eval,
-        selected_game=req.selected_game,
-        is_board_open=req.is_board_open if req.is_board_open is not None else True,
-        games=games
-    )
+    if len(target_ids) > 1:
+        # Multi-profile mode: Resolve snapshots and build composite ground truth context
+        contexts = []
+        names = []
+        primary_stats = None
+        primary_profile = None
+        for pid in target_ids:
+            p_stats, p_deep_profile, p_name, p_games = _resolve_run_snapshot(pid)
+            names.append(p_name)
+            if primary_stats is None:
+                primary_stats = p_stats
+                primary_profile = p_deep_profile
+            p_context = AIService.build_prompt_context(
+                player_name=p_name,
+                stats=p_stats,
+                deep_profile=p_deep_profile,
+                current_fen=req.current_fen,
+                engine_eval=req.engine_eval,
+                selected_game=req.selected_game,
+                is_board_open=req.is_board_open if req.is_board_open is not None else True,
+                games=p_games
+            )
+            contexts.append(f"### DỮ LIỆU HỒ SƠ KỲ THỦ: {p_name}\n{p_context}")
+
+        combined_player_name = " & ".join(names)
+        context = (
+            f"=== CHẾ ĐỘ PHÂN TÍCH ĐA HỒ SƠ (MULTI-PROFILE MATCHUP) ===\n"
+            f"Người dùng đang chọn cùng lúc {len(names)} hồ sơ kỳ thủ ({combined_player_name}) để đối chiếu, so sánh phong cách, khai cuộc và chiến thuật đối đầu.\n\n"
+            + "\n\n" + ("=" * 40) + "\n\n".join(contexts)
+        )
+        stats = primary_stats
+        deep_profile = primary_profile
+        player_name = combined_player_name
+    else:
+        target_id = target_ids[0] if target_ids else (req.player_id or req.run_id)
+        stats, deep_profile, player_name, games = _resolve_run_snapshot(target_id)
+        context = AIService.build_prompt_context(
+            player_name=player_name,
+            stats=stats,
+            deep_profile=deep_profile,
+            current_fen=req.current_fen,
+            engine_eval=req.engine_eval,
+            selected_game=req.selected_game,
+            is_board_open=req.is_board_open if req.is_board_open is not None else True,
+            games=games
+        )
 
     history_dicts = [{"role": m.role, "content": m.content} for m in req.history]
 

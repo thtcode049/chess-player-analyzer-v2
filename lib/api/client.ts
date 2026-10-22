@@ -513,16 +513,24 @@ export const apiClient = {
     }
   },
 
-  async getLichessGame(gameId: string): Promise<LichessGameDetail> {
+  async getLichessGame(gameId: string, token?: string): Promise<LichessGameDetail> {
+    const lichessToken =
+      token ||
+      (typeof window !== "undefined" ? localStorage.getItem("lichess_token") || "" : "");
+
     // 1. Direct high-speed fetch from Lichess public export API
     try {
+      const directHeaders: Record<string, string> = {
+        Accept: "application/json",
+      };
+      if (lichessToken && lichessToken.length >= 10) {
+        directHeaders["Authorization"] = `Bearer ${lichessToken}`;
+      }
+
       const directRes = await fetch(
         `https://lichess.org/game/export/${encodeURIComponent(gameId)}?moves=true&tags=true&clocks=false&evals=false`,
         {
-          headers: {
-            Accept: "application/json",
-            "User-Agent": "ChessPlayerAnalyzer/2.0",
-          },
+          headers: directHeaders,
         }
       );
       if (directRes.ok) {
@@ -558,14 +566,17 @@ export const apiClient = {
       console.warn("Direct Lichess game export failed, falling back to backend proxy:", err);
     }
 
-    // 2. Fallback to backend proxy
+    // 2. Fallback to backend proxy (with Lichess token passed)
     const authHeaders = await getAuthHeaders();
-    const res = await fetch(`${API_BASE}/api/analysis/lichess-game/${encodeURIComponent(gameId)}`, {
+    if (lichessToken) {
+      authHeaders["x-lichess-token"] = lichessToken;
+    }
+    const tokenQuery = lichessToken ? `?token=${encodeURIComponent(lichessToken)}` : "";
+    const res = await fetch(`${API_BASE}/api/analysis/lichess-game/${encodeURIComponent(gameId)}${tokenQuery}`, {
       headers: authHeaders,
     });
     return handleResponse<LichessGameDetail>(res);
   },
-
 
   async getAiBriefing(runId: string, perspectiveMode: "self" | "opponent" = "self"): Promise<StrategicBriefing> {
     const res = await fetch(`${API_BASE}/api/ai/briefing`, {
@@ -581,6 +592,7 @@ export const apiClient = {
       run_id: string;
       message: string;
       player_id?: string;
+      player_ids?: string[];
       perspective_mode?: string;
       history?: Array<{ role: string; content: string }>;
       current_fen?: string;

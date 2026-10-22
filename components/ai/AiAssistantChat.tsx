@@ -29,6 +29,7 @@ export interface Message {
 interface AiAssistantChatProps {
   runId?: string;
   playerId?: string;
+  playerIds?: string[];
   playerName?: string;
   gamesCount?: number;
   currentFen?: string;
@@ -213,6 +214,7 @@ function ThinkingState() {
 export default function AiAssistantChat({
   runId = "default_run",
   playerId = "",
+  playerIds,
   playerName = "Kỳ thủ",
   gamesCount,
   currentFen,
@@ -303,6 +305,7 @@ export default function AiAssistantChat({
       {
         run_id: targetRunId,
         player_id: targetPlayerId,
+        player_ids: playerIds && playerIds.length > 0 ? playerIds : (targetPlayerId ? [targetPlayerId] : undefined),
         message: text,
         perspective_mode: "neutral",
         history: newMessages,

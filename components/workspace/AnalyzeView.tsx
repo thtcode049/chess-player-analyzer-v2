@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo, Suspense } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Chess } from "chess.js";
 import {
@@ -355,11 +355,18 @@ export function AnalyzeContent() {
 
   // Synchronize activePlayerId from store
   useEffect(() => {
+    if (workspaceStore.activeMode === "multi") {
+      if (selectedPlayerId) {
+        setSelectedPlayerId("");
+        setActiveRunId("");
+      }
+      return;
+    }
     if (workspaceStore.activePlayerId && workspaceStore.activePlayerId !== selectedPlayerId && !queryPlayerId) {
       setSelectedPlayerId(workspaceStore.activePlayerId);
       setActiveRunId(workspaceStore.activePlayerId);
     }
-  }, [workspaceStore.activePlayerId, selectedPlayerId, queryPlayerId]);
+  }, [workspaceStore.activeMode, workspaceStore.activePlayerId, selectedPlayerId, queryPlayerId]);
 
   // Dynamically synchronized board and panel size measured directly from ChessBoard DOM container
   const [boardSize, setBoardSize] = useState<number>(640);
@@ -385,6 +392,7 @@ export function AnalyzeContent() {
   const [structureSearch, setStructureSearch] = useState<string>("");
   const [playerGames, setPlayerGames] = useState<Game[]>([]);
   const [activeStructureGameIdx, setActiveStructureGameIdx] = useState<number | null>(null);
+  const loadedStructureGameKeyRef = useRef<string | null>(null);
 
   // Opening Explorer Mode State
   const [availableOpenings, setAvailableOpenings] = useState<OpeningRepertoireItem[]>([]);
@@ -410,7 +418,7 @@ export function AnalyzeContent() {
         if (queryPlayerId && list.some((p) => p.id === queryPlayerId)) {
           setSelectedPlayerId(queryPlayerId);
           setActiveRunId(queryRunId || queryPlayerId);
-        } else if (!selectedPlayerId) {
+        } else if (!selectedPlayerId && workspaceStore.activeMode !== "multi" && workspaceStore.activeMode !== "sandbox") {
           const defaultP = list[0];
           setSelectedPlayerId(defaultP.id);
           setActiveRunId(queryRunId || defaultP.id);
@@ -456,6 +464,7 @@ export function AnalyzeContent() {
 
   // 2b. Synchronize player matching if players list loaded after gameInfo
   useEffect(() => {
+    if (workspaceStore.activeMode === "multi" || workspaceStore.activeMode === "sandbox") return;
     if (gameInfo && !queryPlayerId && players.length > 0) {
       const currentObj = players.find((p) => p.id === selectedPlayerId);
       const isCurrentMatching = currentObj && (
@@ -512,12 +521,16 @@ export function AnalyzeContent() {
   }, [workspaceStore]);
 
   useEffect(() => {
+    if (workspaceStore.activeMode === "multi") {
+      fetchTreeContinuations("", currentFen, colorFilter);
+      return;
+    }
     const targetRun = activeRunId || selectedPlayerId;
     const targetPlayer = selectedPlayerId || queryPlayerId || undefined;
     if (targetRun || targetPlayer) {
       fetchTreeContinuations(targetRun, currentFen, colorFilter, targetPlayer);
     }
-  }, [activeRunId, selectedPlayerId, queryPlayerId, currentFen, colorFilter, fetchTreeContinuations]);
+  }, [workspaceStore.activeMode, activeRunId, selectedPlayerId, queryPlayerId, currentFen, colorFilter, fetchTreeContinuations]);
 
   const currentPlayerObj = useMemo(() => {
     return players.find((p) => p.id === selectedPlayerId) || workspaceStore.activePlayer;
@@ -541,6 +554,12 @@ export function AnalyzeContent() {
   // Load a structure game onto the board and jump to formation move
   const handleLoadStructureGame = useCallback((structGame: PawnStructureGame, indexInStruct: number) => {
     setActiveStructureGameIdx(indexInStruct);
+
+    const gameKey = `${structGame.id || structGame.game_index || indexInStruct}`;
+    if (loadedStructureGameKeyRef.current === gameKey && moves.length > 0) {
+      return;
+    }
+    loadedStructureGameKeyRef.current = gameKey;
 
     // Find the full Game object
     let fullGame: Game | undefined;
@@ -629,6 +648,7 @@ export function AnalyzeContent() {
   const handleExitStructureExplorer = useCallback(() => {
     setSelectedStructure(null);
     setActiveStructureGameIdx(null);
+    loadedStructureGameKeyRef.current = null;
     const params = new URLSearchParams(window.location.search);
     params.delete("structure");
     params.delete("gameIdx");
@@ -775,7 +795,7 @@ export function AnalyzeContent() {
         if (run?.id) {
           setActiveRunId(run.id);
         }
-        if (run?.opening_tree_snapshot?.continuations && run.opening_tree_snapshot.continuations.length > 0 && moves.length === 0 && colorFilter === "all") {
+        if (workspaceStore.activeMode !== "multi" && run?.opening_tree_snapshot?.continuations && run.opening_tree_snapshot.continuations.length > 0 && moves.length === 0 && colorFilter === "all") {
           setContinuations(run.opening_tree_snapshot.continuations);
         }
         const structs: PawnStructureItem[] = (run?.pawn_structures_summary?.structures || []).filter(
@@ -786,7 +806,7 @@ export function AnalyzeContent() {
         const repOpenings: OpeningRepertoireItem[] = run?.repertoire_summary?.all_openings || [];
         setAvailableOpenings(repOpenings);
 
-        if (queryStructure) {
+        if (queryStructure && (!selectedStructure || selectedStructure.name.toLowerCase() !== queryStructure.toLowerCase())) {
           const matched = structs.find((s) =>
             s.name.toLowerCase().trim() === queryStructure.toLowerCase().trim() ||
             (s.structure_key && s.structure_key.toLowerCase() === queryStructure.toLowerCase().trim())
@@ -819,7 +839,7 @@ export function AnalyzeContent() {
         }
       })
       .catch((err) => console.warn("Failed to load player games:", err));
-  }, [selectedPlayerId, queryPlayerId, queryStructure, queryGameIdx, handleSelectStructure]);
+  }, [selectedPlayerId, queryPlayerId]);
 
   // 4b. Sync selectedStructure if queryStructure changes in URL
   useEffect(() => {
@@ -845,6 +865,7 @@ export function AnalyzeContent() {
     setGameInfo(null);
     setSelectedStructure(null);
     setActiveStructureGameIdx(null);
+    loadedStructureGameKeyRef.current = null;
     setSelectedOpening(null);
     setActiveOpeningGameId(null);
     setOpeningRepresentativeLine([]);
@@ -973,14 +994,35 @@ export function AnalyzeContent() {
   };
 
 
-  // Load a single game branch onto the board
+  // Load a single game branch onto the board (e.g. from Master DB)
   const handleLoadSingleGame = (sg: any) => {
-    if (!sg || !sg.moves) return;
-    const gMoves = sg.moves;
+    if (!sg) return;
+    let gMoves: string[] = [];
+    if (Array.isArray(sg.moves) && sg.moves.length > 0) {
+      gMoves = sg.moves;
+    } else if (sg.moves_san) {
+      gMoves = parseSanMoves(sg.moves_san);
+    }
     setMoves(gMoves);
     setCurrentPly(0);
     setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-    setGameInfo(null);
+
+    const targetGame: Game = {
+      id: sg.id || `master-${Date.now()}`,
+      dataset_id: "",
+      white_player: typeof sg.white === "string" ? sg.white : sg.white?.name || sg.white_player || "Trắng",
+      black_player: typeof sg.black === "string" ? sg.black : sg.black?.name || sg.black_player || "Đen",
+      white_elo: typeof sg.white_elo === "number" ? sg.white_elo : sg.white?.rating,
+      black_elo: typeof sg.black_elo === "number" ? sg.black_elo : sg.black?.rating,
+      result: sg.result || "*",
+      played_at: sg.date || sg.month || sg.year || "",
+      moves_san: sg.moves_san || gMoves.join(" "),
+      opening_name: sg.opening || sg.opening_name || sg.event || "",
+      eco: sg.eco || "",
+      site_url: sg.site || sg.link || "",
+      has_embedded_eval: false,
+    };
+    setGameInfo(targetGame);
   };
 
   // Auto-load game if queryGameIdx is in URL
@@ -988,7 +1030,8 @@ export function AnalyzeContent() {
     if (queryGameIdx && selectedStructure?.games && selectedStructure.games.length > 0 && playerGames.length > 0) {
       const idxNum = parseInt(queryGameIdx, 10);
       const targetG = selectedStructure.games.find((g) => g.game_index === idxNum) || selectedStructure.games[idxNum];
-      if (targetG) {
+      const gKey = targetG ? `${targetG.id || targetG.game_index || idxNum}` : null;
+      if (targetG && loadedStructureGameKeyRef.current !== gKey) {
         handleLoadStructureGame(targetG, targetG.game_index ?? idxNum);
       }
     }
@@ -1495,10 +1538,26 @@ export function AnalyzeContent() {
               onLoadGame={handleLoadSingleGame}
               playerName={currentPlayerObj?.canonical_name}
               players={players}
-              selectedPlayerId={selectedPlayerId}
+              selectedPlayerId={selectedPlayerId || undefined}
               onSelectPlayer={handlePlayerChange}
               embedded={true}
               isSandboxMode={workspaceStore.activeMode === "sandbox"}
+              isMultiMode={workspaceStore.activeMode === "multi"}
+              multiTitle={
+                workspaceStore.activeMode === "multi"
+                  ? `Matchup: ⚪ ${
+                      workspaceStore.multiProfiles
+                        .filter((m) => m.role === "white" || m.role === "both")
+                        .map((m) => m.player.canonical_name)
+                        .join(", ") || "Trắng"
+                    } vs ⚫ ${
+                      workspaceStore.multiProfiles
+                        .filter((m) => m.role === "black" || m.role === "both")
+                        .map((m) => m.player.canonical_name)
+                        .join(", ") || "Đen"
+                    }`
+                  : undefined
+              }
             />
           </div>
         </div>

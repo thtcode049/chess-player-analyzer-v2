@@ -675,7 +675,7 @@ export default function AiCoachView() {
                 if (e.key === "Escape") setEditingSessionId(null);
               }}
               autoFocus
-              className="flex-1 bg-background border border-emerald-500 rounded-lg px-2 py-0.5 text-xs text-foreground focus:outline-hidden"
+              className="flex-1 bg-background border border-emerald-500 rounded-lg px-2 py-0.5 text-xs text-foreground focus:outline-none"
             />
             <button
               type="button"
@@ -979,7 +979,7 @@ export default function AiCoachView() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Tìm kiếm cuộc trò chuyện..."
-                  className="w-full bg-muted/60 focus:bg-background border border-border/60 rounded-xl pl-8 pr-7 py-1 text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 transition"
+                  className="w-full bg-muted/60 focus:bg-background border border-border/60 rounded-xl pl-8 pr-7 py-1 text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition"
                 />
                 {searchQuery && (
                   <button
@@ -1334,29 +1334,29 @@ export default function AiCoachView() {
               />
             </div>
 
-            {/* Move Navigation Control Bar (Keypad / Buttons) */}
-            <div className="w-full flex items-center justify-between px-1.5 py-1 mt-1 bg-muted/40 rounded-xl border border-border/50 shrink-0 text-xs">
-              <div className="flex items-center gap-1">
+            {/* Move Navigation Control Bar (Keypad / Buttons for iPad & Touch) */}
+            <div className="w-full flex items-center justify-between px-2 py-1.5 mt-1 bg-muted/50 rounded-xl border border-border/60 shrink-0 text-xs select-none">
+              <div className="flex items-center gap-1 sm:gap-1.5">
                 <button
                   type="button"
                   onClick={() => setCurrentPly(0)}
                   disabled={currentPly === 0 || isSkeleton}
                   title="Nước đầu tiên (Phím Home)"
-                  className="p-1 rounded-lg hover:bg-card disabled:opacity-30 disabled:pointer-events-none text-muted-foreground hover:text-foreground transition cursor-pointer"
+                  className="h-8 w-8 sm:h-8.5 sm:w-8.5 rounded-lg flex items-center justify-center bg-card hover:bg-secondary text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none border border-border/60 transition cursor-pointer active:scale-95"
                 >
-                  <ChevronsLeft className="w-3.5 h-3.5" />
+                  <ChevronsLeft className="w-4 h-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setCurrentPly(Math.max(0, currentPly - 1))}
                   disabled={currentPly === 0 || isSkeleton}
                   title="Lùi 1 nước (Phím mũi tên Trái / <)"
-                  className="p-1 rounded-lg hover:bg-card disabled:opacity-30 disabled:pointer-events-none text-muted-foreground hover:text-foreground transition cursor-pointer"
+                  className="h-8 w-9 sm:h-8.5 sm:w-10 rounded-lg flex items-center justify-center bg-card hover:bg-secondary text-foreground disabled:opacity-30 disabled:pointer-events-none border border-border/60 transition cursor-pointer active:scale-95"
                 >
-                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <ChevronLeft className="w-5 h-5" />
                 </button>
 
-                <span className="font-mono text-[11px] font-bold px-2 py-0.5 text-foreground bg-card rounded-md border border-border/60 shadow-2xs">
+                <span className="font-mono text-[11px] font-bold px-2 py-1 text-foreground bg-card rounded-md border border-border/70 shadow-2xs min-w-[70px] text-center">
                   {isSkeleton ? "Hình thái Tốt" : currentPly === 0 ? "Ban đầu" : `Nước ${currentPly}/${activeMoves.length}`}
                 </span>
 
@@ -1365,25 +1365,47 @@ export default function AiCoachView() {
                   onClick={() => setCurrentPly(Math.min(activeMoves.length, currentPly + 1))}
                   disabled={currentPly >= activeMoves.length || isSkeleton}
                   title="Tiến 1 nước (Phím mũi tên Phải / >)"
-                  className="p-1 rounded-lg hover:bg-card disabled:opacity-30 disabled:pointer-events-none text-muted-foreground hover:text-foreground transition cursor-pointer"
+                  className="h-8 w-9 sm:h-8.5 sm:w-10 rounded-lg flex items-center justify-center bg-card hover:bg-secondary text-foreground disabled:opacity-30 disabled:pointer-events-none border border-border/60 transition cursor-pointer active:scale-95"
                 >
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  <ChevronRight className="w-5 h-5" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setCurrentPly(activeMoves.length)}
                   disabled={currentPly >= activeMoves.length || isSkeleton}
                   title="Nước cuối cùng (Phím End)"
-                  className="p-1 rounded-lg hover:bg-card disabled:opacity-30 disabled:pointer-events-none text-muted-foreground hover:text-foreground transition cursor-pointer"
+                  className="h-8 w-8 sm:h-8.5 sm:w-8.5 rounded-lg flex items-center justify-center bg-card hover:bg-secondary text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none border border-border/60 transition cursor-pointer active:scale-95"
                 >
-                  <ChevronsRight className="w-3.5 h-3.5" />
+                  <ChevronsRight className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
-                <span className="hidden sm:inline">Phím tắt:</span>
-                <kbd className="px-1 py-0.2 bg-card rounded border border-border/70 font-mono text-[10px]">←</kbd>
-                <kbd className="px-1 py-0.2 bg-card rounded border border-border/70 font-mono text-[10px]">→</kbd>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
+                  title={`Đổi góc nhìn bàn cờ (Đang xem: ${boardOrientation === "white" ? "Trắng" : "Đen"})`}
+                  className="h-8 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 bg-card hover:bg-secondary text-muted-foreground hover:text-foreground text-[11px] font-semibold border border-border/60 transition cursor-pointer active:scale-95"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Lật cờ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBaseFen(START_FEN);
+                    setCurrentFen(START_FEN);
+                    setActiveMoves([]);
+                    setCurrentPly(0);
+                    setSelectedGameId("");
+                  }}
+                  disabled={activeMoves.length === 0 && currentFen === START_FEN}
+                  title="Đặt lại về bàn cờ ban đầu"
+                  className="h-8 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 bg-card hover:bg-destructive/10 hover:text-destructive text-muted-foreground disabled:opacity-30 disabled:pointer-events-none text-[11px] font-semibold border border-border/60 transition cursor-pointer active:scale-95"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Về đầu</span>
+                </button>
               </div>
             </div>
 
@@ -1394,7 +1416,7 @@ export default function AiCoachView() {
                 <select
                   value={selectedGameId}
                   onChange={(e) => handleSelectGame(e.target.value)}
-                  className="w-full bg-background border border-border/70 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-hidden cursor-pointer truncate"
+                  className="w-full bg-background border border-border/70 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none cursor-pointer truncate"
                 >
                   <option value="">-- Xếp ván đấu ({playerGames.length} ván) --</option>
                   {playerGames.map((g, idx) => {

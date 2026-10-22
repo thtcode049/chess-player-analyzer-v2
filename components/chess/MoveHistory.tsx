@@ -5,7 +5,7 @@ import { Chess } from "chess.js";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
 import { sanToFigurine } from "@/lib/stockfish/pvFormatter";
 import { FigurineMove } from "./FigurineMove";
-import { Check, Settings, Loader2, Cloud } from "lucide-react";
+import { Check, Settings, Loader2, Cloud, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 
 interface MoveHistoryProps {
   moves: string[];
@@ -138,7 +138,7 @@ export default function MoveHistory({
             <button
               type="button"
               onClick={handleToggle}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-hidden ${
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
                 isEngineOn ? "bg-emerald-600 shadow-xs" : "bg-slate-300 dark:bg-slate-700"
               }`}
               title={isEngineOn ? "Tắt tính toán Stockfish" : "Bật tính toán Stockfish"}
@@ -306,6 +306,54 @@ export default function MoveHistory({
             );
           })
         )}
+      </div>
+
+      {/* Touch-Friendly Move Navigation Bar for iPad / Mobile */}
+      <div className="px-2.5 py-1.5 bg-slate-50/90 dark:bg-slate-800/80 border-t border-slate-200/80 dark:border-slate-800 shrink-0 flex items-center justify-between text-xs select-none">
+        <div className="flex items-center gap-1 sm:gap-1.5">
+          <button
+            type="button"
+            onClick={() => onSelectPly(0)}
+            disabled={currentPly === 0 || moves.length === 0}
+            title="Nước đầu tiên (Phím Home)"
+            className="h-8 w-8 sm:h-8 sm:w-8.5 rounded-lg flex items-center justify-center bg-white dark:bg-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-600/80 transition cursor-pointer active:scale-95"
+          >
+            <ChevronsLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onSelectPly(Math.max(0, currentPly - 1))}
+            disabled={currentPly === 0 || moves.length === 0}
+            title="Lùi 1 nước (Phím < hoặc ←)"
+            className="h-8 w-9 sm:h-8 sm:w-10 rounded-lg flex items-center justify-center bg-white dark:bg-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-600/80 transition cursor-pointer active:scale-95"
+          >
+            <ChevronLeft className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+          </button>
+          <span className="font-mono text-[11px] font-bold px-2 py-1 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 rounded-md border border-slate-200/80 dark:border-slate-700 shadow-2xs min-w-[65px] text-center">
+            {moves.length === 0 ? "0 / 0" : `${currentPly} / ${moves.length}`}
+          </span>
+          <button
+            type="button"
+            onClick={() => onSelectPly(Math.min(moves.length, currentPly + 1))}
+            disabled={currentPly >= moves.length || moves.length === 0}
+            title="Tiến 1 nước (Phím > hoặc →)"
+            className="h-8 w-9 sm:h-8 sm:w-10 rounded-lg flex items-center justify-center bg-white dark:bg-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-600/80 transition cursor-pointer active:scale-95"
+          >
+            <ChevronRight className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onSelectPly(moves.length)}
+            disabled={currentPly >= moves.length || moves.length === 0}
+            title="Nước cuối cùng (Phím End)"
+            className="h-8 w-8 sm:h-8 sm:w-8.5 rounded-lg flex items-center justify-center bg-white dark:bg-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-600/80 transition cursor-pointer active:scale-95"
+          >
+            <ChevronsRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          </button>
+        </div>
+        <div className="text-[11px] text-slate-400 font-mono hidden sm:block">
+          {moves.length} nước
+        </div>
       </div>
     </div>
   );

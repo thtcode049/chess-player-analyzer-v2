@@ -6,7 +6,12 @@ import Link from "next/link";
 import { 
   ArrowLeft, 
   Cpu, 
-  Loader2
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  RotateCw
 } from "lucide-react";
 import ChessBoard from "@/components/chess/ChessBoard";
 import MoveHistory from "@/components/chess/MoveHistory";
@@ -29,6 +34,7 @@ export default function GameViewerPage() {
   const [isThinking, setIsThinking] = useState(false);
   const [isEngineEnabled, setIsEngineEnabled] = useState(true);
   const [multiPv, setMultiPv] = useState(3);
+  const [boardOrientation, setBoardOrientation] = useState<"white" | "black">("white");
 
   useEffect(() => {
     if (!gameId) return;
@@ -152,7 +158,63 @@ export default function GameViewerPage() {
               isEngineEnabled={isEngineEnabled}
               multiPv={multiPv}
               height={480}
+              orientation={boardOrientation}
             />
+
+            {/* Move Navigation Bar for iPad / Touch */}
+            <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between select-none">
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPly(0)}
+                  disabled={currentPly === 0 || moves.length === 0}
+                  title="Nước đầu tiên (Home)"
+                  className="h-9 w-9 rounded-lg flex items-center justify-center bg-secondary/80 hover:bg-secondary text-foreground disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer active:scale-95"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPly(Math.max(0, currentPly - 1))}
+                  disabled={currentPly === 0 || moves.length === 0}
+                  title="Lùi 1 nước (<)"
+                  className="h-9 w-10 rounded-lg flex items-center justify-center bg-secondary/80 hover:bg-secondary text-foreground disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer active:scale-95"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <span className="font-mono text-xs font-bold px-2.5 py-1 text-foreground bg-background rounded-lg border border-border/80 shadow-2xs min-w-[75px] text-center">
+                  {moves.length === 0 ? "Ban đầu" : `${currentPly} / ${moves.length}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPly(Math.min(moves.length, currentPly + 1))}
+                  disabled={currentPly >= moves.length || moves.length === 0}
+                  title="Tiến 1 nước (>)"
+                  className="h-9 w-10 rounded-lg flex items-center justify-center bg-secondary/80 hover:bg-secondary text-foreground disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer active:scale-95"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPly(moves.length)}
+                  disabled={currentPly >= moves.length || moves.length === 0}
+                  title="Nước cuối cùng (End)"
+                  className="h-9 w-9 rounded-lg flex items-center justify-center bg-secondary/80 hover:bg-secondary text-foreground disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer active:scale-95"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
+                className="h-9 px-3 rounded-lg flex items-center gap-1.5 bg-secondary/60 hover:bg-secondary text-muted-foreground hover:text-foreground text-xs font-semibold transition cursor-pointer active:scale-95"
+                title="Lật bàn cờ"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+                <span>Lật cờ</span>
+              </button>
+            </div>
           </div>
 
           <div className="bg-card/60 border border-border/40 rounded-xl p-3 flex items-center justify-between text-xs">

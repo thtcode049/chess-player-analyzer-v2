@@ -473,7 +473,7 @@ export default function AiAssistantChat({
                 className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
                   isBot
                     ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white"
-                    : "bg-slate-800 dark:bg-slate-750 text-white"
+                    : "bg-slate-800 dark:bg-slate-700 text-white"
                 }`}
               >
                 {isBot ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
@@ -488,7 +488,7 @@ export default function AiAssistantChat({
                   <div
                     className={`relative rounded-xl px-4 py-3 leading-relaxed shadow-2xs ${
                       isBot
-                        ? "bg-slate-50 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-slate-750 rounded-tl-xs"
+                        ? "bg-slate-50 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 rounded-tl-xs"
                         : "bg-gradient-to-br from-emerald-600 to-teal-600 text-white rounded-tr-xs"
                     }`}
                   >
@@ -533,7 +533,7 @@ export default function AiAssistantChat({
           e.preventDefault();
           handleSendMessage();
         }}
-        className="p-3 border-t border-border/60 bg-card flex items-center gap-2 shrink-0"
+        className="p-3 border-t border-border/60 bg-card dark:bg-slate-900/95 flex items-center gap-2 shrink-0"
       >
         <input
           ref={inputRef}
@@ -546,7 +546,7 @@ export default function AiAssistantChat({
               : "Nhập câu hỏi phân tích (AI có thể tự mở bàn cờ để minh họa)..."
           }
           disabled={isStreaming}
-          className="flex-1 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-500 dark:text-white placeholder:text-muted-foreground transition"
+          className="flex-1 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700/80 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition shadow-inner"
         />
         <button
           type="submit"

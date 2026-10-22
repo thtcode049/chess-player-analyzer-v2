@@ -18,7 +18,13 @@ import {
   Compass,
   Lightbulb,
   ShieldAlert,
-  Swords
+  Swords,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  RotateCcw,
+  RotateCw
 } from "lucide-react";
 import Link from "next/link";
 import ChessBoard from "@/components/chess/ChessBoard";
@@ -990,6 +996,13 @@ export function AnalyzeContent() {
     checkOpeningTransition(newMoves.slice(0, ply));
   };
 
+  // Navigate through moves (e.g. for iPad / touch screen buttons)
+  const handleNavigatePly = (targetPly: number) => {
+    const clamped = Math.max(0, Math.min(moves.length, targetPly));
+    setCurrentPly(clamped);
+    checkOpeningTransition(moves.slice(0, clamped));
+  };
+
   // Select move from Opening Tree
   const handleSelectMove = (san: string) => {
     try {
@@ -1463,6 +1476,88 @@ export function AnalyzeContent() {
             height={720}
             onBoardWidthChange={(size) => setBoardSize(size)}
           />
+
+          {/* Move Navigation Control Bar (Keypad / Buttons for iPad & Touch) */}
+          <div
+            style={{ width: `${boardSize + 22}px`, maxWidth: "100%" }}
+            className="mt-2.5 bg-card/90 dark:bg-slate-900/90 border border-border/70 rounded-xl px-2 sm:px-3 py-2 flex items-center justify-between shadow-xs select-none"
+          >
+            {/* Navigation buttons */}
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleNavigatePly(0)}
+                disabled={currentPly === 0 || moves.length === 0}
+                title="Về thế cờ ban đầu (Home)"
+                className="h-9 w-9 sm:h-9 sm:w-10 rounded-lg flex items-center justify-center bg-secondary/60 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
+              >
+                <ChevronsLeft className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleNavigatePly(currentPly - 1)}
+                disabled={currentPly === 0 || moves.length === 0}
+                title="Lùi 1 nước (Phím < hoặc phím mũi tên Trái)"
+                className="h-9 w-10 sm:h-9 sm:w-12 rounded-lg flex items-center justify-center bg-secondary/80 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
+              >
+                <ChevronLeft className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
+              </button>
+
+              <div className="px-2.5 py-1.5 min-w-[75px] sm:min-w-[90px] text-center font-mono text-xs font-bold text-foreground bg-background rounded-lg border border-border/80 shadow-2xs">
+                {moves.length === 0 ? "Ban đầu" : currentPly === 0 ? "Bắt đầu" : `Nước ${currentPly}/${moves.length}`}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleNavigatePly(currentPly + 1)}
+                disabled={currentPly >= moves.length || moves.length === 0}
+                title="Tiến 1 nước (Phím > hoặc phím mũi tên Phải)"
+                className="h-9 w-10 sm:h-9 sm:w-12 rounded-lg flex items-center justify-center bg-secondary/80 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
+              >
+                <ChevronRight className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleNavigatePly(moves.length)}
+                disabled={currentPly >= moves.length || moves.length === 0}
+                title="Đến nước cuối cùng (End)"
+                className="h-9 w-9 sm:h-9 sm:w-10 rounded-lg flex items-center justify-center bg-secondary/60 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
+              >
+                <ChevronsRight className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              </button>
+            </div>
+
+            {/* Side Tools: Flip & Reset */}
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              <button
+                type="button"
+                onClick={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
+                title={`Đổi góc nhìn bàn cờ (Đang xem: ${boardOrientation === "white" ? "Trắng" : "Đen"})`}
+                className="h-9 px-2.5 rounded-lg flex items-center gap-1.5 bg-secondary/50 hover:bg-secondary dark:hover:bg-slate-800 text-muted-foreground hover:text-foreground text-xs font-semibold transition cursor-pointer active:scale-95"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Lật cờ</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMoves([]);
+                  setCurrentPly(0);
+                  setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                  setSelectedOpening(null);
+                }}
+                disabled={moves.length === 0 && currentFen === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}
+                title="Xóa ván cờ về bàn cờ trống ban đầu"
+                className="h-9 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 bg-secondary/50 hover:bg-destructive/10 hover:text-destructive text-muted-foreground disabled:opacity-30 disabled:pointer-events-none text-xs font-semibold transition cursor-pointer active:scale-95"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Làm mới</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Right Column: Unified Move History & Opening Variations Panel (Like Lichess) */}

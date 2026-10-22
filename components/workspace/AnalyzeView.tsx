@@ -1732,7 +1732,7 @@ export function AnalyzeContent() {
                     return (
                       <tr
                         key={g.id || idx}
-                        className={`transition ${isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/20"}`}
+                        className={`transition ${isCurrent ? "bg-emerald-500/15 dark:bg-emerald-500/20 font-semibold" : "hover:bg-muted/50"}`}
                       >
                         <td className="px-3.5 py-2 font-mono text-muted-foreground">
                           {idx + 1}
@@ -1746,7 +1746,7 @@ export function AnalyzeContent() {
                             ) : null}
                           </div>
                           <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
-                            <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-700 shrink-0" />
+                            <span className="w-2 h-2 rounded-full bg-slate-900 dark:bg-slate-950 border border-slate-600 dark:border-slate-500 shrink-0" />
                             <span>{g.black_player}</span>
                             {g.black_elo ? (
                               <span className="text-[10px] text-muted-foreground font-normal font-mono">({g.black_elo})</span>
@@ -1926,7 +1926,7 @@ export function AnalyzeContent() {
                     return (
                       <tr
                         key={idx}
-                        className={`transition ${isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/20"}`}
+                        className={`transition ${isCurrent ? "bg-emerald-500/15 dark:bg-emerald-500/20 font-semibold" : "hover:bg-muted/50"}`}
                       >
                         <td className="px-3.5 py-2 font-mono text-muted-foreground">
                           {g.game_index !== undefined ? g.game_index + 1 : idx + 1}
@@ -1937,7 +1937,7 @@ export function AnalyzeContent() {
                             <span>{g.white}</span>
                           </div>
                           <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
-                            <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-700 shrink-0" />
+                            <span className="w-2 h-2 rounded-full bg-slate-900 dark:bg-slate-950 border border-slate-600 dark:border-slate-500 shrink-0" />
                             <span>{g.black}</span>
                           </div>
                         </td>

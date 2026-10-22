@@ -634,10 +634,10 @@ export default function OpeningTreeTable({
                         <span
                           className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-bold ${
                             c.score_pct >= 60
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
                               : c.score_pct <= 40
-                              ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
-                              : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                              ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30"
+                              : "bg-slate-200/70 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300/60 dark:border-slate-700"
                           }`}
                         >
                           {c.score_pct.toFixed(1)}%
@@ -827,10 +827,10 @@ export default function OpeningTreeTable({
                             <span
                               className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-bold ${
                                 m.score_pct >= 55
-                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
                                   : m.score_pct <= 45
-                                  ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
-                                  : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                  ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30"
+                                  : "bg-slate-200/70 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300/60 dark:border-slate-700"
                               }`}
                             >
                               {m.score_pct.toFixed(1)}%
@@ -870,7 +870,7 @@ export default function OpeningTreeTable({
                       Các ván đấu hàng đầu
                     </span>
                     {masterTopGames.length > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-700/60">
                         {masterTopGames.length}
                       </span>
                     )}
@@ -890,10 +890,10 @@ export default function OpeningTreeTable({
                       const isLoadingThis = loadingGameId === g.id;
                       const resBadgeClass =
                         g.result === "1-0"
-                          ? "bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
+                          ? "bg-slate-100 text-slate-900 border border-slate-300 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-100 shadow-2xs"
                           : g.result === "0-1"
-                          ? "bg-slate-800 text-white dark:bg-slate-700 dark:text-slate-100"
-                          : "bg-slate-300/80 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
+                          ? "bg-slate-900 text-white border border-slate-700 dark:bg-slate-950 dark:text-white dark:border-slate-600 shadow-2xs"
+                          : "bg-slate-200/80 text-slate-700 border border-slate-300/60 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700";
 
                       return (
                         <div

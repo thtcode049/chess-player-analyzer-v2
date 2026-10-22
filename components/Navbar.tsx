@@ -240,7 +240,7 @@ export default function Navbar() {
                 activeMode === "multi"
                   ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/20"
                   : activeMode === "sandbox"
-                  ? "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-200"
+                  ? "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
                   : "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200 border-emerald-300/80 dark:border-emerald-700/60 hover:border-emerald-500"
               }`}
               title="Nhấp để đổi nhanh kỳ thủ hoặc bật chế độ ghép Trắng/Đen"
@@ -419,7 +419,7 @@ export default function Navbar() {
                                   }}
                                   className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition border cursor-pointer ${
                                     currentRole === "white"
-                                      ? "bg-white text-slate-900 border-white ring-2 ring-emerald-500 shadow-2xs"
+                                      ? "bg-slate-100 text-slate-900 border-slate-300 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-100 ring-2 ring-emerald-500 shadow-2xs"
                                       : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/60"
                                   }`}
                                   title="Gán Cầm Trắng (⚪)"
@@ -434,7 +434,7 @@ export default function Navbar() {
                                   }}
                                   className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition border cursor-pointer ${
                                     currentRole === "black"
-                                      ? "bg-slate-900 text-white border-slate-700 ring-2 ring-emerald-500 shadow-2xs"
+                                      ? "bg-slate-900 text-white border-slate-700 dark:bg-slate-950 dark:text-white dark:border-slate-600 ring-2 ring-emerald-500 shadow-2xs"
                                       : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/60"
                                   }`}
                                   title="Gán Cầm Đen (⚫)"

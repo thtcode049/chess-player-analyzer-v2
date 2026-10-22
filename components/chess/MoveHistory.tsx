@@ -235,7 +235,7 @@ export default function MoveHistory({
         className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1 text-xs scroll-smooth"
       >
         {movePairs.length === 0 ? (
-          <div className="text-center py-8 text-xs text-slate-400 font-sans">
+          <div className="text-center py-8 text-xs text-slate-400 dark:text-slate-500 font-sans">
             Chưa có nước đi nào
           </div>
         ) : (

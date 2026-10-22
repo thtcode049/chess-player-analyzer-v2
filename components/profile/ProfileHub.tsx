@@ -461,7 +461,7 @@ export default function ProfileHub() {
                           }
                           className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1 border ${
                             activeRole === "white"
-                              ? "bg-white text-slate-900 border-white shadow-xs ring-2 ring-emerald-500"
+                              ? "bg-slate-100 text-slate-900 border-slate-300 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-100 shadow-xs ring-2 ring-emerald-500"
                               : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/70"
                           }`}
                         >
@@ -474,7 +474,7 @@ export default function ProfileHub() {
                           }
                           className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1 border ${
                             activeRole === "black"
-                              ? "bg-slate-900 text-white border-slate-700 shadow-xs ring-2 ring-emerald-500"
+                              ? "bg-slate-900 text-white border-slate-700 dark:bg-slate-950 dark:text-white dark:border-slate-600 shadow-xs ring-2 ring-emerald-500"
                               : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/70"
                           }`}
                         >

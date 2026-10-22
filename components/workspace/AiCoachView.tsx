@@ -121,16 +121,23 @@ export default function AiCoachView() {
   const queryPlayerId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("playerId") : null;
   const workspaceStore = useProfileWorkspaceStore();
   const [players, setPlayers] = useState<Player[]>([]);
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string>(queryPlayerId || workspaceStore.activePlayerId || GENERAL_CHAT_ID);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>(() => {
+    if (workspaceStore.activeMode === "single" && workspaceStore.activePlayerId) {
+      return workspaceStore.activePlayerId;
+    }
+    return queryPlayerId || GENERAL_CHAT_ID;
+  });
   const [playerGames, setPlayerGames] = useState<Game[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<string>("");
 
-  // Sync with workspace store active player if changed
+  // Sync with workspace store active player if changed in single mode
   useEffect(() => {
-    if (workspaceStore.activePlayerId && !queryPlayerId && selectedPlayerId !== workspaceStore.activePlayerId) {
-      setSelectedPlayerId(workspaceStore.activePlayerId);
+    if (workspaceStore.activeMode === "single" && workspaceStore.activePlayerId) {
+      if (selectedPlayerId !== workspaceStore.activePlayerId) {
+        setSelectedPlayerId(workspaceStore.activePlayerId);
+      }
     }
-  }, [workspaceStore.activePlayerId, queryPlayerId, selectedPlayerId]);
+  }, [workspaceStore.activeMode, workspaceStore.activePlayerId, selectedPlayerId]);
 
   // UI layout toggles
   const [isBoardOpen, setIsBoardOpen] = useState(true);
@@ -199,16 +206,21 @@ export default function AiCoachView() {
       console.warn("Failed to read chat sessions from localStorage:", e);
     }
 
-    const initialTargetPlayerId = queryPlayerId || GENERAL_CHAT_ID;
+    const isSingleMode = workspaceStore.activeMode === "single";
+    const initialTargetPlayerId = isSingleMode && workspaceStore.activePlayerId
+      ? workspaceStore.activePlayerId
+      : (queryPlayerId || GENERAL_CHAT_ID);
+
     let initialSession = loadedSessions.find((s) => (s.playerId || GENERAL_CHAT_ID) === initialTargetPlayerId);
 
     if (!initialSession) {
-      if (loadedSessions.length > 0 && !queryPlayerId) {
+      if (loadedSessions.length > 0 && !queryPlayerId && !isSingleMode) {
         initialSession = loadedSessions[0];
       } else {
+        const pObj = players.find((p) => p.id === initialTargetPlayerId);
         initialSession = createDefaultSession(
           initialTargetPlayerId,
-          initialTargetPlayerId === GENERAL_CHAT_ID ? GENERAL_PLAYER_NAME : "Kỳ thủ"
+          initialTargetPlayerId === GENERAL_CHAT_ID ? GENERAL_PLAYER_NAME : (pObj?.canonical_name || "Kỳ thủ")
         );
         loadedSessions = [initialSession, ...loadedSessions];
       }
@@ -217,10 +229,10 @@ export default function AiCoachView() {
     const finalCleaned = cleanDuplicateEmptySessions(loadedSessions);
     setSessions(finalCleaned);
     setActiveSessionId(initialSession.id);
-    setSelectedPlayerId(initialSession.playerId || GENERAL_CHAT_ID);
+    setSelectedPlayerId(initialSession.playerId || (isSingleMode && workspaceStore.activePlayerId ? workspaceStore.activePlayerId : GENERAL_CHAT_ID));
     setExpandedFolders({ [initialSession.playerId || GENERAL_CHAT_ID]: true });
     setIsLoaded(true);
-  }, [queryPlayerId]);
+  }, [queryPlayerId, workspaceStore.activeMode, workspaceStore.activePlayerId, players]);
 
   // 3. Save Chat Sessions to localStorage (only after loaded)
   useEffect(() => {
@@ -240,6 +252,13 @@ export default function AiCoachView() {
   // 4. Ensure an active session exists whenever selectedPlayerId changes
   useEffect(() => {
     if (!isLoaded) return;
+
+    if (workspaceStore.activeMode === "single" && workspaceStore.activePlayerId) {
+      if (selectedPlayerId === GENERAL_CHAT_ID || selectedPlayerId !== workspaceStore.activePlayerId) {
+        setSelectedPlayerId(workspaceStore.activePlayerId);
+        return;
+      }
+    }
 
     const targetPlayerId = selectedPlayerId || GENERAL_CHAT_ID;
     const isGeneral = targetPlayerId === GENERAL_CHAT_ID;
@@ -333,7 +352,11 @@ export default function AiCoachView() {
 
   // Handler: Create a new chat session
   const handleCreateNewChat = (playerIdOverride?: string) => {
-    const pId = playerIdOverride || selectedPlayerId || GENERAL_CHAT_ID;
+    const isSingleMode = workspaceStore.activeMode === "single";
+    const defaultPid = isSingleMode
+      ? (workspaceStore.activePlayerId || selectedPlayerId)
+      : (selectedPlayerId || GENERAL_CHAT_ID);
+    const pId = playerIdOverride || defaultPid;
     const isGeneral = pId === GENERAL_CHAT_ID;
     const pObj = players.find((p) => p.id === pId);
     const pName = isGeneral ? GENERAL_PLAYER_NAME : (pObj?.canonical_name || currentPlayerName);
@@ -543,20 +566,39 @@ export default function AiCoachView() {
             {isSidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
           </button>
 
-          {/* Active Profile Info Badge (No duplicate switcher) */}
-          <div className="flex items-center gap-2 bg-emerald-50/90 dark:bg-emerald-950/50 border border-emerald-300/70 dark:border-emerald-700/60 rounded-lg px-2.5 sm:px-3 py-1.5 shadow-2xs">
-            <User className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 truncate max-w-[150px] sm:max-w-[240px]">
-              {selectedPlayerId && selectedPlayerId !== GENERAL_CHAT_ID && selectedPlayer
-                ? `Hồ sơ: ${selectedPlayer.canonical_name}`
-                : "Trợ lí AI Cờ Vua"}
-            </span>
-            {selectedPlayer?.title && (
-              <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                {selectedPlayer.title}
+          {/* Active Profile Info Badge / Switcher */}
+          {workspaceStore.activeMode === "sandbox" ? (
+            <div className="flex items-center gap-1.5 bg-secondary/80 border border-border/70 rounded-lg px-2.5 sm:px-3 py-1 shadow-2xs">
+              <User className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <select
+                value={selectedPlayerId || GENERAL_CHAT_ID}
+                onChange={(e) => setSelectedPlayerId(e.target.value)}
+                className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer max-w-[140px] sm:max-w-[200px]"
+                title="Bấm thả chọn đổi hồ sơ kỳ thủ phân tích cùng Trợ lí AI"
+              >
+                <option value={GENERAL_CHAT_ID}>Trợ lí AI Tự do</option>
+                {players.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    Hồ sơ: {p.canonical_name} ({p.total_games || 0} ván)
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 bg-emerald-50/90 dark:bg-emerald-950/50 border border-emerald-300/70 dark:border-emerald-700/60 rounded-lg px-2.5 sm:px-3 py-1.5 shadow-2xs">
+              <User className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 truncate max-w-[150px] sm:max-w-[240px]">
+                {selectedPlayerId && selectedPlayerId !== GENERAL_CHAT_ID && selectedPlayer
+                  ? `Hồ sơ: ${selectedPlayer.canonical_name}`
+                  : "Trợ lí AI Cờ Vua"}
               </span>
-            )}
-          </div>
+              {selectedPlayer?.title && (
+                <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  {selectedPlayer.title}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* PGN Games Count Badge or Free Mode Badge */}
           {selectedPlayerId && selectedPlayerId !== GENERAL_CHAT_ID ? (
@@ -693,8 +735,8 @@ export default function AiCoachView() {
 
             {/* Sidebar Body: Profile Folders & Conversations List */}
             <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2">
-              {/* Folder: General Free Chat */}
-              {(() => {
+              {/* Folder: General Free Chat (XÓA / ẨN khi ở chế độ đơn hồ sơ) */}
+              {workspaceStore.activeMode !== "single" && (() => {
                 const generalSessions = groupedSessions[GENERAL_CHAT_ID] || [];
                 const isExpanded = expandedFolders[GENERAL_CHAT_ID] ?? (selectedPlayerId === GENERAL_CHAT_ID);
 
@@ -863,17 +905,23 @@ export default function AiCoachView() {
                 );
               })()}
 
-              {/* Active Player Profile Folder Only (No list of other players) */}
-              {selectedPlayer && selectedPlayerId !== GENERAL_CHAT_ID && (
-                (() => {
-                  const player = selectedPlayer;
-                  const playerSessions = groupedSessions[player.id] || [];
-                  const isExpanded = expandedFolders[player.id] ?? true;
+              {/* Player Profile Folders: In Sandbox Mode render all players with chats or matching selectedPlayer; in Single Mode render only selectedPlayer */}
+              {(workspaceStore.activeMode === "sandbox"
+                ? players
+                : selectedPlayer && selectedPlayerId !== GENERAL_CHAT_ID
+                ? [selectedPlayer]
+                : []
+              ).map((player) => {
+                const playerSessions = groupedSessions[player.id] || [];
+                const isExpanded = expandedFolders[player.id] ?? (player.id === selectedPlayerId);
 
-                  if (searchQuery && playerSessions.length === 0) return null;
+                if (workspaceStore.activeMode === "sandbox" && player.id !== selectedPlayerId && playerSessions.length === 0 && !searchQuery) {
+                  return null;
+                }
+                if (searchQuery && playerSessions.length === 0) return null;
 
-                  return (
-                    <div key={player.id} className="space-y-1">
+                return (
+                  <div key={player.id} className="space-y-1">
                       {/* Folder Header */}
                       <div
                         onClick={() => toggleFolder(player.id)}
@@ -1033,8 +1081,7 @@ export default function AiCoachView() {
                       )}
                     </div>
                   );
-                })()
-              )}
+                })}
 
               {/* Guest hint card if no players exist */}
               {players.length === 0 && !searchQuery && (

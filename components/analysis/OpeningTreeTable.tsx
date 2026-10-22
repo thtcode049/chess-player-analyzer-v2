@@ -44,6 +44,7 @@ interface OpeningTreeTableProps {
   players?: { id: string; canonical_name: string; total_games?: number }[];
   selectedPlayerId?: string;
   onSelectPlayer?: (playerId: string) => void;
+  isSandboxMode?: boolean;
 }
 
 function formatCompactNumber(num: number): string {
@@ -87,6 +88,7 @@ export default function OpeningTreeTable({
   players = [],
   selectedPlayerId,
   onSelectPlayer,
+  isSandboxMode = false,
 }: OpeningTreeTableProps) {
   const [activeTab, setActiveTab] = useState<"player" | "master">("player");
   const [masterMoves, setMasterMoves] = useState<LichessMasterMove[]>([]);
@@ -306,13 +308,34 @@ export default function OpeningTreeTable({
               <User className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
             </button>
 
-            <span
-              onClick={() => setActiveTab("player")}
-              className="cursor-pointer truncate max-w-[130px] sm:max-w-[180px] py-1 font-bold text-xs"
-              title="Kỳ thủ đang phân tích"
-            >
-              {players?.find((p) => p.id === selectedPlayerId)?.canonical_name || playerName || "Kỳ thủ"}
-            </span>
+            {isSandboxMode ? (
+              <select
+                value={selectedPlayerId || ""}
+                onChange={(e) => {
+                  setActiveTab("player");
+                  onSelectPlayer?.(e.target.value);
+                }}
+                className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer max-w-[130px] sm:max-w-[180px] py-0.5 truncate"
+                title="Bấm để chọn đổi hồ sơ kỳ thủ phân tích cây khai cuộc"
+              >
+                <option value="" className="bg-card text-foreground">
+                  -- Chọn kỳ thủ --
+                </option>
+                {players?.map((p) => (
+                  <option key={p.id} value={p.id} className="bg-card text-foreground">
+                    {p.canonical_name} ({p.total_games || 0} ván)
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span
+                onClick={() => setActiveTab("player")}
+                className="cursor-pointer truncate max-w-[130px] sm:max-w-[180px] py-1 font-bold text-xs"
+                title="Kỳ thủ đang phân tích"
+              >
+                {players?.find((p) => p.id === selectedPlayerId)?.canonical_name || playerName || "Kỳ thủ"}
+              </span>
+            )}
 
             <button
               type="button"

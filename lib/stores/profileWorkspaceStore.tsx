@@ -107,14 +107,14 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
   const [cachedProfiles, setCachedProfiles] = useState<Record<string, CachedProfileData>>({});
   const [loadingProfileId, setLoadingProfileId] = useState<string | null>(null);
 
-  // Active Workspace Mode
-  const [activeMode, setActiveMode] = useState<ProfileMode>("single");
+  // Active Workspace Mode (Mặc định: Bàn cờ tự do / Master DB)
+  const [activeMode, setActiveMode] = useState<ProfileMode>("sandbox");
   const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
   const [multiProfiles, setMultiProfiles] = useState<MultiProfileAssignment[]>([]);
   const [selectedSubProfileId, setSelectedSubProfileId] = useState<string | null>(null);
 
-  // Tabs & Hub Visibility
-  const [activeTab, setActiveTabState] = useState<WorkspaceTab>("profile");
+  // Tabs & Hub Visibility (Mặc định: tab bàn cờ)
+  const [activeTab, setActiveTabState] = useState<WorkspaceTab>("board");
   const [isHubOpen, setIsHubOpen] = useState(false);
 
   // Direct game analysis handoff
@@ -296,6 +296,8 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
   // 6. Open Sandbox Board
   const openSandboxBoard = useCallback(() => {
     setActiveMode("sandbox");
+    setActivePlayerId(null);
+    setSelectedSubProfileId(null);
     setIsHubOpen(false);
     setActiveTabState("board");
   }, []);
@@ -457,16 +459,6 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
     }
     return null;
   }, [activeMode, activePlayerId, activeCached, effectiveSubProfileId, cachedProfiles]);
-
-  // If players exist and no activePlayerId or mode has been chosen, default to the first player
-  useEffect(() => {
-    if (players.length > 0 && !activePlayerId && activeMode === "single" && multiProfiles.length === 0) {
-      const first = players[0];
-      setActivePlayerId(first.id);
-      setSelectedSubProfileId(first.id);
-      loadProfileData(first.id);
-    }
-  }, [players, activePlayerId, activeMode, multiProfiles.length, loadProfileData]);
 
   const contextValue: ProfileWorkspaceContextType = {
     players,

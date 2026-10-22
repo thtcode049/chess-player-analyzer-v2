@@ -67,6 +67,7 @@ export default function Navbar() {
   const {
     players,
     activeMode,
+    activePlayerId,
     activePlayer,
     activePlayerGames,
     multiProfiles,
@@ -178,15 +179,35 @@ export default function Navbar() {
     return players.filter((p) => p.canonical_name?.toLowerCase().includes(q));
   }, [players, switcherSearch]);
 
+  const isWorkspacePath = pathname === "/dashboard" || pathname === "/analyze" || pathname === "/ai-coach" || pathname === "/players";
+
+  // Hub click handler
+  const handleOpenHub = () => {
+    openHub();
+    setMobileMenuOpen(false);
+    if (!isWorkspacePath) {
+      router.push("/dashboard");
+    } else if (window.location.pathname !== "/dashboard") {
+      window.history.pushState(null, "", "/dashboard");
+    }
+  };
+
   // Tab click handler
   const handleNavTab = (tab: "profile" | "board" | "ai") => {
-    setActiveTab(tab);
-    closeHub();
     setMobileMenuOpen(false);
 
-    // Synchronize shallow route without unmounting
+    if (tab === "profile" && activeMode === "sandbox" && !activePlayerId) {
+      handleOpenHub();
+      return;
+    }
+
+    setActiveTab(tab);
+    closeHub();
+
     const targetPath = tab === "profile" ? "/dashboard" : tab === "board" ? "/analyze" : "/ai-coach";
-    if (window.location.pathname !== targetPath) {
+    if (!isWorkspacePath) {
+      router.push(targetPath);
+    } else if (window.location.pathname !== targetPath) {
       window.history.pushState(null, "", targetPath);
     }
   };
@@ -198,12 +219,7 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => {
-              openHub();
-              if (window.location.pathname !== "/dashboard") {
-                window.history.pushState(null, "", "/dashboard");
-              }
-            }}
+            onClick={handleOpenHub}
             className="flex items-center transition hover:opacity-90 cursor-pointer"
             title="Quay lại Thư viện Hồ sơ Kỳ thủ"
           >
@@ -313,6 +329,10 @@ export default function Navbar() {
                             onClick={() => {
                               selectSingleProfile(p.id, activeTab);
                               setProfileDropdownOpen(false);
+                              const targetPath = activeTab === "board" ? "/analyze" : activeTab === "ai" ? "/ai-coach" : "/dashboard";
+                              if (!isWorkspacePath) {
+                                router.push(targetPath);
+                              }
                             }}
                             className={`w-full flex items-center justify-between p-2 rounded-xl transition text-left cursor-pointer ${
                               isSelected
@@ -449,6 +469,9 @@ export default function Navbar() {
                         onClick={() => {
                           openMatchupBoard();
                           setProfileDropdownOpen(false);
+                          if (!isWorkspacePath) {
+                            router.push("/analyze");
+                          }
                         }}
                         className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold shadow-xs transition ${
                           multiProfiles.length > 0
@@ -474,6 +497,9 @@ export default function Navbar() {
                     onClick={() => {
                       openSandboxBoard();
                       setProfileDropdownOpen(false);
+                      if (!isWorkspacePath) {
+                        router.push("/analyze");
+                      }
                     }}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-muted hover:text-foreground transition cursor-pointer"
                   >
@@ -499,12 +525,7 @@ export default function Navbar() {
             {/* Tab 0: Thư viện (Quản lý tất cả hồ sơ) */}
             <button
               type="button"
-              onClick={() => {
-                openHub();
-                if (window.location.pathname !== "/dashboard") {
-                  window.history.pushState(null, "", "/dashboard");
-                }
-              }}
+              onClick={handleOpenHub}
               className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 isHubOpen
                   ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
@@ -647,10 +668,7 @@ export default function Navbar() {
           <div className="space-y-1">
             <button
               type="button"
-              onClick={() => {
-                openHub();
-                setMobileMenuOpen(false);
-              }}
+              onClick={handleOpenHub}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-semibold transition ${
                 isHubOpen
                   ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"

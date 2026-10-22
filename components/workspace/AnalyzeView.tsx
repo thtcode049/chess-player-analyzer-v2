@@ -1168,6 +1168,33 @@ export function AnalyzeContent() {
         </div>
       )}
 
+      {/* SANDBOX MODE PROFILE CONTEXT BAR */}
+      {workspaceStore.activeMode === "sandbox" && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:px-4 sm:py-2.5 rounded-xl bg-card border border-border/60 shadow-2xs text-xs animate-fade-in">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+            <span className="font-bold text-foreground">Bàn cờ Tự do (Master DB):</span>
+            <span className="text-muted-foreground hidden sm:inline">Phân tích nước đi tự do và có thể chọn đổi hồ sơ kỳ thủ bên dưới để đối chiếu</span>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-muted-foreground font-medium">Hồ sơ đối chiếu:</span>
+            <select
+              value={selectedPlayerId || ""}
+              onChange={(e) => handlePlayerChange(e.target.value)}
+              className="bg-secondary/70 border border-border/60 rounded-lg px-2.5 py-1 text-xs font-bold text-foreground focus:outline-none cursor-pointer"
+            >
+              <option value="">Không chọn (Tự do / Master DB)</option>
+              {players.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.canonical_name} ({p.total_games || 0} ván)
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* MODE A: OPENING EXPLORER HEADER BANNER */}
       {selectedOpening && !selectedStructure && (
         <div className="bg-card/70 border border-border/50 rounded-xl px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs animate-fade-in">
@@ -1471,6 +1498,7 @@ export function AnalyzeContent() {
               selectedPlayerId={selectedPlayerId}
               onSelectPlayer={handlePlayerChange}
               embedded={true}
+              isSandboxMode={workspaceStore.activeMode === "sandbox"}
             />
           </div>
         </div>

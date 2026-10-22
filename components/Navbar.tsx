@@ -25,7 +25,7 @@ import {
   ArrowRight,
   Loader2
 } from "lucide-react";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ChessLookLogo from "@/components/ChessLookLogo";
 import { useProfileWorkspaceStore, ColorRole } from "@/lib/stores/profileWorkspaceStore";
@@ -182,13 +182,21 @@ export default function Navbar() {
   }, [players, switcherSearch]);
 
   // Check if current active route is within the unified workspace
+  const isWorkspacePath = useCallback((p: string | null | undefined): boolean => {
+    if (!p) return false;
+    return (
+      p === "/dashboard" ||
+      p === "/analyze" ||
+      p === "/ai-coach" ||
+      p === "/players" ||
+      p.startsWith("/players/")
+    );
+  }, []);
+
   const isWorkspace = useMemo(() => {
     const current = typeof window !== "undefined" ? window.location.pathname : pathname;
-    return (
-      (pathname === "/dashboard" || pathname === "/analyze" || pathname === "/ai-coach" || pathname === "/players") &&
-      (current === "/dashboard" || current === "/analyze" || current === "/ai-coach" || current === "/players")
-    );
-  }, [pathname]);
+    return isWorkspacePath(pathname) && isWorkspacePath(current);
+  }, [pathname, isWorkspacePath]);
 
   // Hub click handler (Thư viện)
   const handleOpenHub = () => {
@@ -201,18 +209,28 @@ export default function Navbar() {
     }
   };
 
-  // Tab click handler
+  // Tab click handler (Preserve active player context across tabs)
   const handleNavTab = (tab: "profile" | "board" | "ai") => {
     setMobileMenuOpen(false);
 
     setActiveTab(tab);
     closeHub();
 
-    const targetPath = tab === "profile" ? "/dashboard" : tab === "board" ? "/analyze" : "/ai-coach";
+    const querySuffix =
+      activeMode === "single" && activePlayerId
+        ? `?playerId=${encodeURIComponent(activePlayerId)}`
+        : "";
+
+    const basePath = tab === "profile" ? "/dashboard" : tab === "board" ? "/analyze" : "/ai-coach";
+    const targetPath = `${basePath}${querySuffix}`;
+
     if (!isWorkspace) {
       window.location.href = targetPath;
-    } else if (typeof window !== "undefined" && window.location.pathname !== targetPath) {
-      window.history.pushState(null, "", targetPath);
+    } else if (typeof window !== "undefined") {
+      const currentFull = window.location.pathname + window.location.search;
+      if (currentFull !== targetPath) {
+        window.history.pushState(null, "", targetPath);
+      }
     }
   };
 
@@ -333,9 +351,15 @@ export default function Navbar() {
                             onClick={() => {
                               selectSingleProfile(p.id, activeTab);
                               setProfileDropdownOpen(false);
-                              const targetPath = activeTab === "board" ? "/analyze" : activeTab === "ai" ? "/ai-coach" : "/dashboard";
+                              const basePath = activeTab === "board" ? "/analyze" : activeTab === "ai" ? "/ai-coach" : "/dashboard";
+                              const targetPath = `${basePath}?playerId=${encodeURIComponent(p.id)}`;
                               if (!isWorkspace) {
                                 window.location.href = targetPath;
+                              } else if (typeof window !== "undefined") {
+                                const currentFull = window.location.pathname + window.location.search;
+                                if (currentFull !== targetPath) {
+                                  window.history.pushState(null, "", targetPath);
+                                }
                               }
                             }}
                             className={`w-full flex items-center justify-between p-2 rounded-xl transition text-left cursor-pointer ${

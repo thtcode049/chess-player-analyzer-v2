@@ -129,24 +129,29 @@ export default function ProfileDetailContent({
     cachedProfiles,
     loadingPlayers,
     activePlayerId,
+    players,
   } = useProfileWorkspaceStore();
 
   const player = activePlayer;
   const games = activePlayerGames;
   const analysisRun = activePlayerRun;
 
+  const effectivePlayerId = targetPlayerId || activePlayerId;
+
   // Auto-trigger profile loading if not yet cached
   useEffect(() => {
-    if (player?.id && !cachedProfiles[player.id] && loadingProfileId !== player.id) {
-      loadProfileData(player.id);
+    const idToLoad = player?.id || effectivePlayerId;
+    if (idToLoad && !cachedProfiles[idToLoad] && loadingProfileId !== idToLoad) {
+      loadProfileData(idToLoad);
     }
-  }, [player?.id, cachedProfiles, loadingProfileId, loadProfileData]);
+  }, [player?.id, effectivePlayerId, cachedProfiles, loadingProfileId, loadProfileData]);
 
   // Determine if this profile's data is actively loading
   const isProfileLoading = Boolean(
     (player && loadingProfileId === player.id) ||
     (player && !cachedProfiles[player.id]) ||
-    (!player && activePlayerId && loadingProfileId === activePlayerId) ||
+    (!player && effectivePlayerId && loadingProfileId === effectivePlayerId) ||
+    (!player && effectivePlayerId && !cachedProfiles[effectivePlayerId]) ||
     (!player && loadingPlayers)
   );
 
@@ -403,7 +408,8 @@ export default function ProfileDetailContent({
   }, [safeGames, player?.canonical_name]);
 
   if (isProfileLoading) {
-    const displayName = player?.canonical_name || "kỳ thủ";
+    const candidatePlayer = player || (effectivePlayerId ? players.find((p) => p.id === effectivePlayerId) : null);
+    const displayName = candidatePlayer?.canonical_name || "kỳ thủ";
     const initialChar = displayName ? displayName[0].toUpperCase() : "P";
 
     return (

@@ -362,11 +362,11 @@ export function AnalyzeContent() {
       }
       return;
     }
-    if (workspaceStore.activePlayerId && workspaceStore.activePlayerId !== selectedPlayerId && !queryPlayerId) {
+    if (workspaceStore.activePlayerId && workspaceStore.activePlayerId !== selectedPlayerId) {
       setSelectedPlayerId(workspaceStore.activePlayerId);
       setActiveRunId(workspaceStore.activePlayerId);
     }
-  }, [workspaceStore.activeMode, workspaceStore.activePlayerId, selectedPlayerId, queryPlayerId]);
+  }, [workspaceStore.activeMode, workspaceStore.activePlayerId, selectedPlayerId]);
 
   // Dynamically synchronized board and panel size measured directly from ChessBoard DOM container
   const [boardSize, setBoardSize] = useState<number>(640);
@@ -858,6 +858,19 @@ export function AnalyzeContent() {
   const handlePlayerChange = (newPlayerId: string) => {
     setSelectedPlayerId(newPlayerId);
     setActiveRunId(newPlayerId);
+    if (newPlayerId) {
+      workspaceStore.selectSingleProfile(newPlayerId, "board");
+      const params = new URLSearchParams(window.location.search);
+      params.set("playerId", newPlayerId);
+      window.history.replaceState(null, "", `/analyze?${params.toString()}`);
+    } else {
+      workspaceStore.openSandboxBoard();
+      const params = new URLSearchParams(window.location.search);
+      params.delete("playerId");
+      params.delete("runId");
+      const q = params.toString();
+      window.history.replaceState(null, "", q ? `/analyze?${q}` : "/analyze");
+    }
     // Reset board to initial position
     setMoves([]);
     setCurrentPly(0);

@@ -29,6 +29,7 @@ import {
 import { apiClient } from "@/lib/api/client";
 import { ImportSummary, Player } from "@/lib/api/types";
 import { initiateLichessOAuth, disconnectLichessAuth } from "@/lib/auth/lichess";
+import { useProfileWorkspaceStore } from "@/lib/stores/profileWorkspaceStore";
 
 export interface ImportProgressState {
   stage: number;
@@ -291,6 +292,8 @@ function ImportContent() {
   const searchParams = useSearchParams();
   const paramPlayerId = searchParams.get("playerId") || "";
   const paramPlayerName = searchParams.get("playerName") || "";
+
+  const { selectSingleProfile, refreshPlayersList } = useProfileWorkspaceStore();
 
   const [activeTab, setActiveTab] = useState<"pgn" | "lichess" | "chesscom">("lichess");
   const [userId, setUserId] = useState<string | null>(null);
@@ -661,6 +664,7 @@ function ImportContent() {
       }
       await finishProgress(timer);
       setResult(res);
+      refreshPlayersList().catch(() => {});
     } catch (err: any) {
       clearInterval(timer);
       setImportProgress(null);
@@ -728,6 +732,7 @@ function ImportContent() {
       });
       await finishProgress(timer);
       setResult(res);
+      refreshPlayersList().catch(() => {});
     } catch (err: any) {
       clearInterval(timer);
       setImportProgress(null);
@@ -792,6 +797,7 @@ function ImportContent() {
       });
       await finishProgress(timer);
       setResult(res);
+      refreshPlayersList().catch(() => {});
     } catch (err: any) {
       clearInterval(timer);
       setImportProgress(null);
@@ -1734,6 +1740,11 @@ function ImportContent() {
                 <div className="mt-6 pt-4 border-t border-border/60 space-y-2">
                   <Link
                     href={result.player_id ? `/analyze?playerId=${result.player_id}&runId=${result.run_id || ""}` : "/analyze"}
+                    onClick={() => {
+                      if (result.player_id) {
+                        selectSingleProfile(result.player_id, "board");
+                      }
+                    }}
                     className="w-full py-2.5 px-4 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 text-sm shadow-md"
                   >
                     <BarChart3 className="w-4 h-4" />
@@ -1743,7 +1754,10 @@ function ImportContent() {
 
                   {result.player_id && (
                     <Link
-                      href={`/players/${result.player_id}`}
+                      href={`/dashboard?playerId=${result.player_id}`}
+                      onClick={() => {
+                        selectSingleProfile(result.player_id, "profile");
+                      }}
                       className="w-full py-2 px-4 bg-secondary text-secondary-foreground font-semibold rounded-xl hover:bg-secondary/80 transition-all flex items-center justify-center gap-2 text-xs"
                     >
                       <User className="w-3.5 h-3.5" />

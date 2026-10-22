@@ -32,12 +32,21 @@ export default function WorkspaceContainer({
     players,
   } = useProfileWorkspaceStore();
 
+  const mountedRef = React.useRef(false);
+
   // Handle URL route initialization
   useEffect(() => {
-    if (targetPlayerId && targetPlayerId !== activePlayerId) {
-      selectSingleProfile(targetPlayerId, initialTab || "profile");
-    } else if (initialTab && initialTab !== activeTab && !targetPlayerId) {
-      setActiveTab(initialTab);
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      if (targetPlayerId) {
+        selectSingleProfile(targetPlayerId, initialTab || "profile");
+      } else if (initialTab) {
+        setActiveTab(initialTab);
+      }
+    } else {
+      if (targetPlayerId && targetPlayerId !== activePlayerId) {
+        selectSingleProfile(targetPlayerId, activeTab);
+      }
     }
 
     if (initialView === "hub") {

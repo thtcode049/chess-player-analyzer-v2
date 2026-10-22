@@ -23,15 +23,11 @@ import {
   Hash,
   Check,
   ExternalLink,
-  Loader2,
-  RefreshCw,
   Sparkles
 } from "lucide-react";
 import { Player, Game, AnalysisRun } from "@/lib/api/types";
 import { apiClient } from "@/lib/api/client";
 import { useProfileWorkspaceStore } from "@/lib/stores/profileWorkspaceStore";
-import StyleRadarChart from "@/components/profile/StyleRadarChart";
-import OpeningTreeTable from "@/components/analysis/OpeningTreeTable";
 import PawnStructureGrid from "@/components/profile/PawnStructureGrid";
 
 function getPlatformInfo(g: Game): { url: string | null; platform: "lichess" | "chesscom" | "other" | null; label: string } {
@@ -211,23 +207,6 @@ export default function ProfileDetailContent({
     }
   };
 
-  const handleTriggerAnalysis = async () => {
-    if (!player) return;
-    setRunningAnalysis(true);
-    try {
-      await apiClient.createAnalysisRun({
-        player_id: player.id,
-        run_label: `Phân tích ngày ${new Date().toLocaleDateString("vi-VN")}`,
-      });
-      await refreshProfileData(player.id);
-      showToast("Đã cập nhật phân tích chuyên sâu thành công");
-    } catch (err: any) {
-      showToast(err.message || "Lỗi chạy phân tích", "error");
-    } finally {
-      setRunningAnalysis(false);
-    }
-  };
-
   // Filter games
   const safeGames = Array.isArray(games) ? games : [];
   const filteredGames = useMemo(() => {
@@ -282,6 +261,119 @@ export default function ProfileDetailContent({
     gamesPerPage === -1
       ? filteredGames
       : filteredGames.slice((currentPage - 1) * gamesPerPage, currentPage * gamesPerPage);
+
+  // Detailed Game Statistics for Visual Charts
+  const profileChartsData = useMemo(() => {
+    const pName = (player?.canonical_name || "").toLowerCase();
+    let totalWins = 0;
+    let totalDraws = 0;
+    let totalLosses = 0;
+
+    let whiteGames = 0;
+    let whiteWins = 0;
+    let whiteDraws = 0;
+    let whiteLosses = 0;
+
+    let blackGames = 0;
+    let blackWins = 0;
+    let blackDraws = 0;
+    let blackLosses = 0;
+
+    const openingMap = new Map<string, { name: string; eco: string; count: number; wins: number; draws: number; losses: number }>();
+
+    for (const g of safeGames) {
+      const isWhite = (g.white_player || "").toLowerCase().includes(pName);
+      const isBlack = (g.black_player || "").toLowerCase().includes(pName);
+      const res = g.result;
+
+      let isWin = false;
+      let isDraw = false;
+      let isLoss = false;
+
+      if (isWhite) {
+        whiteGames++;
+        if (res === "1-0") { isWin = true; whiteWins++; }
+        else if (res === "1/2-1/2") { isDraw = true; whiteDraws++; }
+        else if (res === "0-1") { isLoss = true; whiteLosses++; }
+      } else if (isBlack) {
+        blackGames++;
+        if (res === "0-1") { isWin = true; blackWins++; }
+        else if (res === "1/2-1/2") { isDraw = true; blackDraws++; }
+        else if (res === "1-0") { isLoss = true; blackLosses++; }
+      } else {
+        if (res === "1-0") isWin = true;
+        else if (res === "1/2-1/2") isDraw = true;
+        else if (res === "0-1") isLoss = true;
+      }
+
+      if (isWin) totalWins++;
+      else if (isDraw) totalDraws++;
+      else if (isLoss) totalLosses++;
+
+      const opName = g.opening_name || (g.eco ? `Khai cuộc ${g.eco}` : "Chưa rõ");
+      const eco = g.eco || "---";
+      const key = `${eco}-${opName}`;
+      const existing = openingMap.get(key) || { name: opName, eco, count: 0, wins: 0, draws: 0, losses: 0 };
+      existing.count++;
+      if (isWin) existing.wins++;
+      else if (isDraw) existing.draws++;
+      else if (isLoss) existing.losses++;
+      openingMap.set(key, existing);
+    }
+
+    const total = safeGames.length || 1;
+    const winPct = (totalWins / total) * 100;
+    const drawPct = (totalDraws / total) * 100;
+    const lossPct = (totalLosses / total) * 100;
+    const overallScore = totalWins + totalDraws * 0.5;
+    const overallScorePct = (overallScore / total) * 100;
+
+    const wTotal = whiteGames || 1;
+    const whiteScore = whiteWins + whiteDraws * 0.5;
+    const whiteScorePct = (whiteScore / wTotal) * 100;
+    const whiteWinPct = (whiteWins / wTotal) * 100;
+    const whiteDrawPct = (whiteDraws / wTotal) * 100;
+    const whiteLossPct = (whiteLosses / wTotal) * 100;
+
+    const bTotal = blackGames || 1;
+    const blackScore = blackWins + blackDraws * 0.5;
+    const blackScorePct = (blackScore / bTotal) * 100;
+    const blackWinPct = (blackWins / bTotal) * 100;
+    const blackDrawPct = (blackDraws / bTotal) * 100;
+    const blackLossPct = (blackLosses / bTotal) * 100;
+
+    const topOpenings = Array.from(openingMap.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+
+    return {
+      totalGames: safeGames.length,
+      totalWins,
+      totalDraws,
+      totalLosses,
+      winPct,
+      drawPct,
+      lossPct,
+      overallScorePct,
+      whiteGames,
+      whiteWins,
+      whiteDraws,
+      whiteLosses,
+      whiteScorePct,
+      whiteWinPct,
+      whiteDrawPct,
+      whiteLossPct,
+      blackGames,
+      blackWins,
+      blackDraws,
+      blackLosses,
+      blackScorePct,
+      blackWinPct,
+      blackDrawPct,
+      blackLossPct,
+      topOpenings,
+    };
+  }, [safeGames, player?.canonical_name]);
 
   if (!player) {
     return (
@@ -426,15 +518,6 @@ export default function ProfileDetailContent({
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={handleTriggerAnalysis}
-            disabled={runningAnalysis}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition disabled:opacity-50"
-          >
-            {runningAnalysis ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-            <span>{runningAnalysis ? "Đang phân tích..." : "Chạy Phân Tích Mới"}</span>
-          </button>
         </div>
       </div>
 
@@ -450,7 +533,7 @@ export default function ProfileDetailContent({
           }`}
         >
           <BarChart2 className="w-4 h-4" />
-          <span>Tổng Quan & 8 Trục Phong Cách</span>
+          <span>Tổng Quan & Biểu Đồ Thống Kê</span>
         </button>
 
         <button
@@ -493,108 +576,301 @@ export default function ProfileDetailContent({
         </button>
       </div>
 
-      {/* Sub-Tab 1: Overview & Style Radar */}
+      {/* Sub-Tab 1: Visual Charts & Analytics */}
       {profileSubTab === "overview" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 8-Axis Style Radar Chart */}
-            <StyleRadarChart
-              metrics={analysisRun?.style_radar_metrics}
-              playerName={player.canonical_name}
-              size={340}
-            />
+          {/* Row 1: Overall Win/Draw/Loss Segments + White vs Black Comparison */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Chart 1: Overall Game Results Distribution (7 cols) */}
+            <div className="lg:col-span-7 bg-card border border-border/70 rounded-xl p-5 sm:p-6 shadow-xs flex flex-col justify-between space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border/50">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-emerald-500" />
+                    Tỷ Lệ Kết Quả Toàn Diện ({profileChartsData.totalGames} ván)
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Tổng hợp toàn bộ lịch sử đấu của kỳ thủ {player.canonical_name}
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-xs self-start sm:self-auto border border-emerald-500/20">
+                  Điểm số: {profileChartsData.overallScorePct.toFixed(1)}%
+                </span>
+              </div>
 
-            {/* Performance By Color & Archetype */}
-            <div className="flex flex-col justify-between space-y-6">
-              {/* Score by Color */}
-              <div className="bg-card border border-border/70 rounded-3xl p-6 shadow-xs space-y-4">
-                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-amber-500" />
-                  Hiệu Suất Theo Màu Quân (Scores)
-                </h3>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-xs font-bold mb-1">
-                      <span className="text-muted-foreground">⚪ Cầm Trắng (White Score)</span>
-                      <span className="text-foreground">{analysisRun?.white_score?.toFixed(1) || 50}%</span>
+              {/* Segmented Horizontal Progress Bar */}
+              <div className="space-y-2">
+                <div className="w-full h-7 rounded-lg overflow-hidden flex shadow-inner bg-muted/60 p-0.5 gap-0.5">
+                  {profileChartsData.winPct > 0 && (
+                    <div
+                      style={{ width: `${profileChartsData.winPct}%` }}
+                      className="h-full bg-emerald-500 rounded-l-md flex items-center justify-center text-[11px] font-bold text-white transition-all duration-500"
+                      title={`Thắng: ${profileChartsData.totalWins} ván (${profileChartsData.winPct.toFixed(1)}%)`}
+                    >
+                      {profileChartsData.winPct >= 12 && `${profileChartsData.winPct.toFixed(1)}%`}
                     </div>
-                    <div className="w-full h-3 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full bg-amber-500 rounded-full transition-all duration-500"
-                        style={{ width: `${analysisRun?.white_score || 50}%` }}
-                      />
+                  )}
+                  {profileChartsData.drawPct > 0 && (
+                    <div
+                      style={{ width: `${profileChartsData.drawPct}%` }}
+                      className="h-full bg-amber-500 flex items-center justify-center text-[11px] font-bold text-white transition-all duration-500"
+                      title={`Hòa: ${profileChartsData.totalDraws} ván (${profileChartsData.drawPct.toFixed(1)}%)`}
+                    >
+                      {profileChartsData.drawPct >= 12 && `${profileChartsData.drawPct.toFixed(1)}%`}
                     </div>
+                  )}
+                  {profileChartsData.lossPct > 0 && (
+                    <div
+                      style={{ width: `${profileChartsData.lossPct}%` }}
+                      className="h-full bg-rose-500 rounded-r-md flex items-center justify-center text-[11px] font-bold text-white transition-all duration-500"
+                      title={`Thua: ${profileChartsData.totalLosses} ván (${profileChartsData.lossPct.toFixed(1)}%)`}
+                    >
+                      {profileChartsData.lossPct >= 12 && `${profileChartsData.lossPct.toFixed(1)}%`}
+                    </div>
+                  )}
+                </div>
+
+                {/* 3 Metric Summary Cards */}
+                <div className="grid grid-cols-3 gap-3 pt-2 text-center">
+                  <div className="p-3 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/20">
+                    <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 block">Thắng</span>
+                    <span className="text-lg font-black text-foreground">{profileChartsData.totalWins}</span>
+                    <span className="text-[10px] text-muted-foreground block">({profileChartsData.winPct.toFixed(1)}%)</span>
                   </div>
-
-                  <div>
-                    <div className="flex justify-between text-xs font-bold mb-1">
-                      <span className="text-muted-foreground">⚫ Cầm Đen (Black Score)</span>
-                      <span className="text-foreground">{analysisRun?.black_score?.toFixed(1) || 50}%</span>
-                    </div>
-                    <div className="w-full h-3 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full bg-sky-500 rounded-full transition-all duration-500"
-                        style={{ width: `${analysisRun?.black_score || 50}%` }}
-                      />
-                    </div>
+                  <div className="p-3 rounded-lg bg-amber-500/[0.08] border border-amber-500/20">
+                    <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 block">Hòa</span>
+                    <span className="text-lg font-black text-foreground">{profileChartsData.totalDraws}</span>
+                    <span className="text-[10px] text-muted-foreground block">({profileChartsData.drawPct.toFixed(1)}%)</span>
+                  </div>
+                  <div className="p-3 rounded-lg bg-rose-500/[0.08] border border-rose-500/20">
+                    <span className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 block">Thua</span>
+                    <span className="text-lg font-black text-foreground">{profileChartsData.totalLosses}</span>
+                    <span className="text-[10px] text-muted-foreground block">({profileChartsData.lossPct.toFixed(1)}%)</span>
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Archetype & Quick Repertoire Summary */}
-              <div className="bg-card border border-border/70 rounded-3xl p-6 shadow-xs space-y-3">
-                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+            {/* Chart 2: Comparative White vs Black Chart (5 cols) */}
+            <div className="lg:col-span-5 bg-card border border-border/70 rounded-xl p-5 sm:p-6 shadow-xs flex flex-col justify-between space-y-4">
+              <div className="pb-3 border-b border-border/50">
+                <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-emerald-500" />
-                  Đặc Trưng Phong Cách Kỳ Thủ
+                  So Sánh Hiệu Suất Cầm Trắng vs Cầm Đen
                 </h3>
-                <div className="space-y-2.5 text-xs">
-                  <div className="flex justify-between py-1.5 border-b border-border/40">
-                    <span className="text-muted-foreground">Kiểu hình chủ đạo (Archetype):</span>
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                      {analysisRun?.dominant_archetype || "Tactical Attacker"}
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Lợi thế ghi điểm theo màu quân
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* White Bar */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold flex items-center gap-1.5 text-foreground">
+                      ⚪ Cầm Trắng ({profileChartsData.whiteGames} ván)
+                    </span>
+                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                      {profileChartsData.whiteScorePct.toFixed(1)}% điểm
                     </span>
                   </div>
-                  <div className="flex justify-between py-1.5 border-b border-border/40">
-                    <span className="text-muted-foreground">Hệ thống khai cuộc nhận diện:</span>
-                    <span className="font-bold text-foreground">
-                      {analysisRun?.repertoire_summary?.all_openings?.length || 0} hệ thống
+                  <div className="w-full h-3 rounded-full bg-muted overflow-hidden flex">
+                    <div style={{ width: `${profileChartsData.whiteWinPct}%` }} className="h-full bg-emerald-500" title={`Thắng: ${profileChartsData.whiteWins}`} />
+                    <div style={{ width: `${profileChartsData.whiteDrawPct}%` }} className="h-full bg-amber-500" title={`Hòa: ${profileChartsData.whiteDraws}`} />
+                    <div style={{ width: `${profileChartsData.whiteLossPct}%` }} className="h-full bg-rose-500" title={`Thua: ${profileChartsData.whiteLosses}`} />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>{profileChartsData.whiteWins} Thắng</span>
+                    <span>{profileChartsData.whiteDraws} Hòa</span>
+                    <span>{profileChartsData.whiteLosses} Thua</span>
+                  </div>
+                </div>
+
+                {/* Black Bar */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold flex items-center gap-1.5 text-foreground">
+                      ⚫ Cầm Đen ({profileChartsData.blackGames} ván)
+                    </span>
+                    <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
+                      {profileChartsData.blackScorePct.toFixed(1)}% điểm
                     </span>
                   </div>
-                  <div className="flex justify-between py-1.5">
-                    <span className="text-muted-foreground">Cấu trúc Tốt điển hình:</span>
-                    <span className="font-bold text-foreground">
-                      {analysisRun?.pawn_structures_summary?.structures?.length || 0} cấu trúc
-                    </span>
+                  <div className="w-full h-3 rounded-full bg-muted overflow-hidden flex">
+                    <div style={{ width: `${profileChartsData.blackWinPct}%` }} className="h-full bg-emerald-500" title={`Thắng: ${profileChartsData.blackWins}`} />
+                    <div style={{ width: `${profileChartsData.blackDrawPct}%` }} className="h-full bg-amber-500" title={`Hòa: ${profileChartsData.blackDraws}`} />
+                    <div style={{ width: `${profileChartsData.blackLossPct}%` }} className="h-full bg-rose-500" title={`Thua: ${profileChartsData.blackLosses}`} />
                   </div>
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>{profileChartsData.blackWins} Thắng</span>
+                    <span>{profileChartsData.blackDraws} Hòa</span>
+                    <span>{profileChartsData.blackLosses} Thua</span>
+                  </div>
+                </div>
+
+                {/* Difference / Advantage Delta */}
+                <div className="p-2.5 rounded-lg bg-muted/40 border border-border/50 flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Chênh lệch lợi thế màu quân:</span>
+                  <span className="font-bold text-foreground">
+                    {profileChartsData.whiteScorePct >= profileChartsData.blackScorePct ? (
+                      <span className="text-emerald-600 dark:text-emerald-400">
+                        ⚪ Ưu thế Trắng (+{(profileChartsData.whiteScorePct - profileChartsData.blackScorePct).toFixed(1)}%)
+                      </span>
+                    ) : (
+                      <span className="text-sky-600 dark:text-sky-400">
+                        ⚫ Ưu thế Đen (+{(profileChartsData.blackScorePct - profileChartsData.whiteScorePct).toFixed(1)}%)
+                      </span>
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Quick Starting Repertoire Table */}
-          {analysisRun?.opening_tree_snapshot && (
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">
-                  Khai Cuộc Trọng Tâm Từ Thế Khởi Đầu (Starting Position)
+          {/* Row 2: Top Openings Visual Chart + Pawn Structures Distribution */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Chart 3: Top Openings Breakdown */}
+            <div className="bg-card border border-border/70 rounded-xl p-5 sm:p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-border/50">
+                <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                  <Play className="w-4 h-4 text-emerald-500" />
+                  Khai Cuộc Được Sử Dụng Nhiều Nhất
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setActiveTab("board")}
-                  className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                  onClick={() => setProfileSubTab("openings")}
+                  className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
                 >
-                  Mở Bàn cờ Phân tích đầy đủ →
+                  Xem chi tiết Bayes →
                 </button>
               </div>
-              <OpeningTreeTable
-                continuations={analysisRun.opening_tree_snapshot.continuations}
-                totalGames={analysisRun.games_analyzed_count}
-                currentFen={analysisRun.opening_tree_snapshot.fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}
-                onSelectMove={() => setActiveTab("board")}
-                playerName={player.canonical_name}
-              />
+
+              {profileChartsData.topOpenings.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">
+                  Chưa có dữ liệu khai cuộc.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {profileChartsData.topOpenings.map((op, idx) => {
+                    const score = ((op.wins + op.draws * 0.5) / (op.count || 1)) * 100;
+                    const wPct = (op.wins / (op.count || 1)) * 100;
+                    const dPct = (op.draws / (op.count || 1)) * 100;
+                    const lPct = (op.losses / (op.count || 1)) * 100;
+                    const freq = (op.count / (profileChartsData.totalGames || 1)) * 100;
+
+                    return (
+                      <div key={`${op.eco}-${idx}`} className="space-y-1.5 p-2 rounded-lg hover:bg-muted/30 transition">
+                        <div className="flex justify-between items-center text-xs">
+                          <div className="flex items-center gap-1.5 truncate max-w-[240px] sm:max-w-[300px]">
+                            <span className="font-mono font-bold text-[11px] px-1.5 py-0.5 rounded bg-muted text-foreground shrink-0">
+                              {op.eco}
+                            </span>
+                            <span className="font-semibold text-foreground truncate" title={op.name}>
+                              {op.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[11px] text-muted-foreground font-medium">
+                              {op.count} ván ({freq.toFixed(1)}%)
+                            </span>
+                            <span className={`text-[11px] font-bold font-mono ${score >= 50 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                              {score.toFixed(0)}% điểm
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* W/D/L Mini Progress Bar */}
+                        <div className="w-full h-2 rounded-full bg-muted overflow-hidden flex">
+                          <div style={{ width: `${wPct}%` }} className="h-full bg-emerald-500" title={`Thắng: ${op.wins}`} />
+                          <div style={{ width: `${dPct}%` }} className="h-full bg-amber-500" title={`Hòa: ${op.draws}`} />
+                          <div style={{ width: `${lPct}%` }} className="h-full bg-rose-500" title={`Thua: ${op.losses}`} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Chart 4: Pawn Structures Distribution */}
+            <div className="bg-card border border-border/70 rounded-xl p-5 sm:p-6 shadow-xs space-y-4 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-border/50">
+                  <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-emerald-500" />
+                    Phân Bổ Cấu Trúc Tốt Nhận Diện
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setProfileSubTab("structures")}
+                    className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                  >
+                    Xem sơ đồ cấu trúc →
+                  </button>
+                </div>
+
+                {analysisRun?.pawn_structures_summary?.structures && analysisRun.pawn_structures_summary.structures.length > 0 ? (
+                  <div className="space-y-3 mt-3">
+                    {analysisRun.pawn_structures_summary.structures.slice(0, 5).map((st: any, idx: number) => {
+                      const count = st.games?.length || st.games_count || 0;
+                      const score = st.adjusted_score_pct ?? st.score_pct ?? 50;
+
+                      return (
+                        <div key={st.structure_key || idx} className="p-2.5 rounded-lg border border-border/50 bg-background/50 flex items-center justify-between gap-3">
+                          <div className="truncate">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-xs text-foreground truncate">
+                                {st.name}
+                              </span>
+                              <span
+                                className="px-1.5 py-0.2 rounded text-[10px] font-semibold border shrink-0"
+                                style={{
+                                  backgroundColor: `${st.assessment_color ?? "#94A3B8"}15`,
+                                  color: st.assessment_color ?? "#94A3B8",
+                                  borderColor: `${st.assessment_color ?? "#94A3B8"}30`
+                                }}
+                              >
+                                {st.assessment_badge || "Cấu trúc"}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-muted-foreground block mt-0.5">
+                              Xuất hiện ở {count} ván • Nước hình thành ~{st.typical_formation_move || 12}
+                            </span>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span className="font-mono font-bold text-xs text-foreground block">
+                              {score.toFixed(1)}%
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">Điểm Bayes</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-xs text-muted-foreground">
+                    Cấu trúc tốt được nhận diện tự động từ các ván đấu khi phân tích khai cuộc.
+                  </div>
+                )}
+              </div>
+
+              {/* Navigation button to analyze board */}
+              <div className="pt-3 border-t border-border/40 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  Muốn tương tác trực tiếp trên bàn cờ?
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("board")}
+                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-2xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <Sword className="w-3.5 h-3.5" />
+                  <span>Mở Bàn Cờ & Cây Khai Cuộc</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -936,9 +1212,9 @@ export default function ProfileDetailContent({
                       return (
                         <tr
                           key={g.id || `game-${idx}`}
-                          onClick={() => analyzeGame(g)}
+                          onClick={() => setDetailModalGame(g)}
                           className="cursor-pointer hover:bg-emerald-500/[0.04] dark:hover:bg-emerald-500/[0.08] transition group"
-                          title="Nhấp để mở bàn cờ phân tích ngay lập tức"
+                          title="Nhấp để xem chi tiết ván cờ"
                         >
                           <td className="px-4 py-3 font-medium text-foreground">
                             <span className={isWhite ? "font-bold text-emerald-600 dark:text-emerald-400" : ""}>
@@ -976,23 +1252,36 @@ export default function ProfileDetailContent({
                           </td>
                           <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1.5">
-                              {/* Direct Phân tích Button */}
-                              <button
-                                type="button"
-                                onClick={() => analyzeGame(g)}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition shadow-2xs flex items-center gap-1"
-                                title="Mở bàn cờ phân tích"
-                              >
-                                <Sword className="w-3 h-3" />
-                                <span>Phân tích</span>
-                              </button>
+                              {/* Direct Platform Link (Lichess / Chess.com) */}
+                              {pInfo.url ? (
+                                <a
+                                  href={pInfo.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition border shadow-2xs cursor-pointer ${
+                                    pInfo.platform === "lichess"
+                                      ? "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700"
+                                      : pInfo.platform === "chesscom"
+                                      ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                                      : "bg-secondary text-secondary-foreground hover:bg-muted border-border"
+                                  }`}
+                                  title={`Xem ván đấu trên ${pInfo.label}`}
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  <span>{pInfo.label}</span>
+                                </a>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground px-2 py-0.5 bg-muted/40 rounded border border-border/40 font-medium">
+                                  Ngoại tuyến
+                                </span>
+                              )}
 
                               {/* Detail info button */}
                               <button
                                 type="button"
                                 onClick={() => setDetailModalGame(g)}
-                                className="p-1 rounded-lg border border-border/70 text-muted-foreground hover:text-foreground hover:bg-muted"
-                                title="Chi tiết ván cờ"
+                                className="p-1.5 rounded-lg border border-border/70 text-muted-foreground hover:text-foreground hover:bg-muted transition cursor-pointer"
+                                title="Xem chi tiết ván cờ"
                               >
                                 <Info className="w-3.5 h-3.5" />
                               </button>

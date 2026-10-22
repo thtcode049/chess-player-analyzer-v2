@@ -73,6 +73,29 @@ function formatRelativeTime(timestamp: number): string {
 const GENERAL_CHAT_ID = "general";
 const GENERAL_PLAYER_NAME = "Trò chuyện Tự do";
 
+function hasUserMessages(session: ChatSession): boolean {
+  return session.messages.some((m) => m.role === "user");
+}
+
+function cleanDuplicateEmptySessions(sessionsList: ChatSession[]): ChatSession[] {
+  if (!Array.isArray(sessionsList)) return [];
+  const seenEmptyPlayerIds = new Set<string>();
+  const result: ChatSession[] = [];
+
+  for (const session of sessionsList) {
+    if (hasUserMessages(session)) {
+      result.push(session);
+    } else {
+      const pId = session.playerId || GENERAL_CHAT_ID;
+      if (!seenEmptyPlayerIds.has(pId)) {
+        seenEmptyPlayerIds.add(pId);
+        result.push(session);
+      }
+    }
+  }
+  return result;
+}
+
 function createDefaultSession(playerId: string = GENERAL_CHAT_ID, playerName: string = GENERAL_PLAYER_NAME): ChatSession {
   const isGeneral = !playerId || playerId === GENERAL_CHAT_ID;
   return {
@@ -119,6 +142,7 @@ export default function AiCoachPage() {
   const [activeSessionId, setActiveSessionId] = useState<string>("");
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({ [GENERAL_CHAT_ID]: true });
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isLoaded, setIsLoaded] = useState(false);
 
   // Session inline rename state
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -136,53 +160,63 @@ export default function AiCoachPage() {
         setPlayers(list);
         if (queryPlayerId && list.some((p) => p.id === queryPlayerId)) {
           setSelectedPlayerId(queryPlayerId);
-        } else if (list.length > 0) {
-          setSelectedPlayerId((prev) => (prev && prev !== GENERAL_CHAT_ID ? prev : list[0].id));
-        } else {
-          setSelectedPlayerId(GENERAL_CHAT_ID);
         }
       })
       .catch(() => {
-        setSelectedPlayerId(GENERAL_CHAT_ID);
+        // Keep current selectedPlayerId
       });
   }, [queryPlayerId]);
 
-  // 2. Load Chat Sessions from localStorage
+  // 2. Load Chat Sessions from localStorage on mount
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    let loadedSessions: ChatSession[] = [];
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed: ChatSession[] = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setSessions(parsed);
-          setActiveSessionId(parsed[0].id);
-          setExpandedFolders({ [parsed[0].playerId || GENERAL_CHAT_ID]: true });
-          return;
+          loadedSessions = cleanDuplicateEmptySessions(parsed);
         }
       }
     } catch (e) {
       console.warn("Failed to read chat sessions from localStorage:", e);
     }
-    // Initialize with a default free chat session immediately so guest mode never waits
-    const defaultInitial = createDefaultSession(
-      selectedPlayerId || GENERAL_CHAT_ID,
-      selectedPlayerId && selectedPlayerId !== GENERAL_CHAT_ID ? currentPlayerName : GENERAL_PLAYER_NAME
-    );
-    setSessions([defaultInitial]);
-    setActiveSessionId(defaultInitial.id);
-    setExpandedFolders({ [defaultInitial.playerId]: true });
-  }, []);
 
-  // 3. Save Chat Sessions to localStorage
+    const initialTargetPlayerId = queryPlayerId || GENERAL_CHAT_ID;
+    let initialSession = loadedSessions.find((s) => (s.playerId || GENERAL_CHAT_ID) === initialTargetPlayerId);
+
+    if (!initialSession) {
+      if (loadedSessions.length > 0 && !queryPlayerId) {
+        initialSession = loadedSessions[0];
+      } else {
+        initialSession = createDefaultSession(
+          initialTargetPlayerId,
+          initialTargetPlayerId === GENERAL_CHAT_ID ? GENERAL_PLAYER_NAME : "Kỳ thủ"
+        );
+        loadedSessions = [initialSession, ...loadedSessions];
+      }
+    }
+
+    const finalCleaned = cleanDuplicateEmptySessions(loadedSessions);
+    setSessions(finalCleaned);
+    setActiveSessionId(initialSession.id);
+    setSelectedPlayerId(initialSession.playerId || GENERAL_CHAT_ID);
+    setExpandedFolders({ [initialSession.playerId || GENERAL_CHAT_ID]: true });
+    setIsLoaded(true);
+  }, [queryPlayerId]);
+
+  // 3. Save Chat Sessions to localStorage (only after loaded)
   useEffect(() => {
-    if (typeof window === "undefined" || sessions.length === 0) return;
+    if (!isLoaded || typeof window === "undefined" || sessions.length === 0) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+      const toSave = cleanDuplicateEmptySessions(sessions);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
     } catch (e) {
       console.warn("Failed to save chat sessions to localStorage:", e);
     }
-  }, [sessions]);
+  }, [sessions, isLoaded]);
 
   // Selected player object
   const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
@@ -190,6 +224,8 @@ export default function AiCoachPage() {
 
   // 4. Ensure an active session exists whenever selectedPlayerId changes
   useEffect(() => {
+    if (!isLoaded) return;
+
     const targetPlayerId = selectedPlayerId || GENERAL_CHAT_ID;
     const isGeneral = targetPlayerId === GENERAL_CHAT_ID;
     const targetPlayerName = isGeneral
@@ -198,19 +234,22 @@ export default function AiCoachPage() {
 
     setExpandedFolders((prev) => ({ ...prev, [targetPlayerId]: true }));
 
-    const existingForPlayer = sessions.find((s) => s.playerId === targetPlayerId);
-    if (!activeSessionId || !sessions.some((s) => s.id === activeSessionId)) {
-      if (existingForPlayer) {
-        setActiveSessionId(existingForPlayer.id);
-      } else {
-        const newSession = createDefaultSession(targetPlayerId, targetPlayerName);
-        setSessions((prev) => [newSession, ...prev]);
-        setActiveSessionId(newSession.id);
-      }
-    } else if (activeSession && activeSession.playerId !== targetPlayerId && existingForPlayer) {
-      setActiveSessionId(existingForPlayer.id);
+    // Check if the current active session already matches targetPlayerId
+    const currentActive = sessions.find((s) => s.id === activeSessionId);
+    if (currentActive && (currentActive.playerId || GENERAL_CHAT_ID) === targetPlayerId) {
+      return;
     }
-  }, [selectedPlayerId, players]);
+
+    // Look for an existing session for this player
+    const existingForPlayer = sessions.find((s) => (s.playerId || GENERAL_CHAT_ID) === targetPlayerId);
+    if (existingForPlayer) {
+      setActiveSessionId(existingForPlayer.id);
+    } else {
+      const newSession = createDefaultSession(targetPlayerId, targetPlayerName);
+      setSessions((prev) => [newSession, ...cleanDuplicateEmptySessions(prev)]);
+      setActiveSessionId(newSession.id);
+    }
+  }, [selectedPlayerId, isLoaded, players]);
 
   // 5. Fetch Player Games when selected player changes
   useEffect(() => {
@@ -284,8 +323,29 @@ export default function AiCoachPage() {
     const pObj = players.find((p) => p.id === pId);
     const pName = isGeneral ? GENERAL_PLAYER_NAME : (pObj?.canonical_name || currentPlayerName);
 
+    // If current active session is already empty (no user messages), keep it!
+    const currentActive = sessions.find((s) => s.id === activeSessionId);
+    if (
+      currentActive &&
+      (currentActive.playerId || GENERAL_CHAT_ID) === pId &&
+      !hasUserMessages(currentActive)
+    ) {
+      setExpandedFolders((prev) => ({ ...prev, [pId]: true }));
+      return;
+    }
+
+    // If an empty session already exists for this player, switch to it!
+    const existingEmpty = sessions.find(
+      (s) => (s.playerId || GENERAL_CHAT_ID) === pId && !hasUserMessages(s)
+    );
+    if (existingEmpty) {
+      setActiveSessionId(existingEmpty.id);
+      setExpandedFolders((prev) => ({ ...prev, [pId]: true }));
+      return;
+    }
+
     const newSession = createDefaultSession(pId, pName);
-    setSessions((prev) => [newSession, ...prev]);
+    setSessions((prev) => [newSession, ...cleanDuplicateEmptySessions(prev)]);
     setActiveSessionId(newSession.id);
     setExpandedFolders((prev) => ({ ...prev, [pId]: true }));
     if (playerIdOverride && playerIdOverride !== selectedPlayerId) {
@@ -300,7 +360,9 @@ export default function AiCoachPage() {
       const filtered = prev.filter((s) => s.id !== sessionId);
       if (activeSessionId === sessionId) {
         if (filtered.length > 0) {
-          setActiveSessionId(filtered[0].id);
+          const nextSession = filtered.find((s) => (s.playerId || GENERAL_CHAT_ID) === selectedPlayerId) || filtered[0];
+          setActiveSessionId(nextSession.id);
+          setSelectedPlayerId(nextSession.playerId || GENERAL_CHAT_ID);
         } else {
           const fresh = createDefaultSession(selectedPlayerId, currentPlayerName);
           setActiveSessionId(fresh.id);

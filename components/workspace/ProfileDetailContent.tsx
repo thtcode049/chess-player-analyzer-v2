@@ -716,7 +716,7 @@ export default function ProfileDetailContent({
           }`}
         >
           <Play className="w-4 h-4" />
-          <span>Đánh Giá Khai Cuộc (Bayesian)</span>
+          <span>Đánh Giá Khai Cuộc</span>
         </button>
 
         <button
@@ -749,139 +749,236 @@ export default function ProfileDetailContent({
       {/* Sub-Tab 1: Visual Charts & Analytics */}
       {profileSubTab === "overview" && (
         <div className="space-y-6">
-          {/* Row 1: Overall Win/Draw/Loss Segments + White vs Black Comparison */}
+          {/* Row 1: Overall Donut Chart + White vs Black Comparative Column Chart */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Chart 1: Overall Game Results Distribution (7 cols) */}
+            {/* Chart 1: Donut Chart - Tỷ Lệ Kết Quả Toàn Diện (7 cols) */}
             <div className="lg:col-span-7 bg-card border border-border/70 rounded-xl p-5 sm:p-6 shadow-xs flex flex-col justify-between space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border/50">
                 <div>
                   <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
                     <Trophy className="w-4 h-4 text-emerald-500" />
-                    Tỷ Lệ Kết Quả Toàn Diện ({profileChartsData.totalGames} ván)
+                    Biểu Đồ Tròn Tỷ Lệ Kết Quả Toàn Diện ({profileChartsData.totalGames} ván)
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Tổng hợp toàn bộ lịch sử đấu của kỳ thủ {player.canonical_name}
+                    Phân bố kết quả Thắng - Hòa - Thua của {player.canonical_name}
                   </p>
                 </div>
                 <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-xs self-start sm:self-auto border border-emerald-500/20">
-                  Điểm số: {profileChartsData.overallScorePct.toFixed(1)}%
+                  Hiệu suất: {profileChartsData.overallScorePct.toFixed(1)}%
                 </span>
               </div>
 
-              {/* Segmented Horizontal Progress Bar */}
-              <div className="space-y-2">
-                <div className="w-full h-7 rounded-lg overflow-hidden flex shadow-inner bg-muted/60 p-0.5 gap-0.5">
-                  {profileChartsData.winPct > 0 && (
-                    <div
-                      style={{ width: `${profileChartsData.winPct}%` }}
-                      className="h-full bg-emerald-500 rounded-l-md flex items-center justify-center text-[11px] font-bold text-white transition-all duration-500"
-                      title={`Thắng: ${profileChartsData.totalWins} ván (${profileChartsData.winPct.toFixed(1)}%)`}
-                    >
-                      {profileChartsData.winPct >= 12 && `${profileChartsData.winPct.toFixed(1)}%`}
-                    </div>
-                  )}
-                  {profileChartsData.drawPct > 0 && (
-                    <div
-                      style={{ width: `${profileChartsData.drawPct}%` }}
-                      className="h-full bg-amber-500 flex items-center justify-center text-[11px] font-bold text-white transition-all duration-500"
-                      title={`Hòa: ${profileChartsData.totalDraws} ván (${profileChartsData.drawPct.toFixed(1)}%)`}
-                    >
-                      {profileChartsData.drawPct >= 12 && `${profileChartsData.drawPct.toFixed(1)}%`}
-                    </div>
-                  )}
-                  {profileChartsData.lossPct > 0 && (
-                    <div
-                      style={{ width: `${profileChartsData.lossPct}%` }}
-                      className="h-full bg-rose-500 rounded-r-md flex items-center justify-center text-[11px] font-bold text-white transition-all duration-500"
-                      title={`Thua: ${profileChartsData.totalLosses} ván (${profileChartsData.lossPct.toFixed(1)}%)`}
-                    >
-                      {profileChartsData.lossPct >= 12 && `${profileChartsData.lossPct.toFixed(1)}%`}
-                    </div>
-                  )}
+              {/* Donut Chart + 3 Metric Cards Side by Side */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-6 py-2">
+                {/* Donut SVG Chart */}
+                <div className="relative w-40 h-40 shrink-0 flex items-center justify-center">
+                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 140 140">
+                    {/* Background Ring */}
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r="52"
+                      className="text-muted/40 stroke-current"
+                      strokeWidth="15"
+                      fill="transparent"
+                    />
+                    {/* Win Segment (Emerald) */}
+                    {profileChartsData.winPct > 0 && (
+                      <circle
+                        cx="70"
+                        cy="70"
+                        r="52"
+                        className="text-emerald-500 stroke-current transition-all duration-700 ease-out"
+                        strokeWidth="15"
+                        strokeDasharray={`${(profileChartsData.winPct / 100) * 326.72} 326.72`}
+                        strokeDashoffset="0"
+                        strokeLinecap="round"
+                        fill="transparent"
+                      />
+                    )}
+                    {/* Draw Segment (Amber) */}
+                    {profileChartsData.drawPct > 0 && (
+                      <circle
+                        cx="70"
+                        cy="70"
+                        r="52"
+                        className="text-amber-500 stroke-current transition-all duration-700 ease-out"
+                        strokeWidth="15"
+                        strokeDasharray={`${(profileChartsData.drawPct / 100) * 326.72} 326.72`}
+                        strokeDashoffset={`-${(profileChartsData.winPct / 100) * 326.72}`}
+                        strokeLinecap="round"
+                        fill="transparent"
+                      />
+                    )}
+                    {/* Loss Segment (Rose) */}
+                    {profileChartsData.lossPct > 0 && (
+                      <circle
+                        cx="70"
+                        cy="70"
+                        r="52"
+                        className="text-rose-500 stroke-current transition-all duration-700 ease-out"
+                        strokeWidth="15"
+                        strokeDasharray={`${(profileChartsData.lossPct / 100) * 326.72} 326.72`}
+                        strokeDashoffset={`-${((profileChartsData.winPct + profileChartsData.drawPct) / 100) * 326.72}`}
+                        strokeLinecap="round"
+                        fill="transparent"
+                      />
+                    )}
+                  </svg>
+
+                  {/* Centered Stats inside Donut */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center select-none pointer-events-none">
+                    <span className="text-xl font-black text-foreground tracking-tight">
+                      {profileChartsData.overallScorePct.toFixed(1)}%
+                    </span>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      Điểm số
+                    </span>
+                  </div>
                 </div>
 
-                {/* 3 Metric Summary Cards */}
-                <div className="grid grid-cols-3 gap-3 pt-2 text-center">
-                  <div className="p-3 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/20">
-                    <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 block">Thắng</span>
-                    <span className="text-lg font-black text-foreground">{profileChartsData.totalWins}</span>
-                    <span className="text-[10px] text-muted-foreground block">({profileChartsData.winPct.toFixed(1)}%)</span>
+                {/* 3 Metric Cards with Color Indicators */}
+                <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="p-3 rounded-xl bg-emerald-500/[0.08] dark:bg-emerald-500/10 border border-emerald-500/25 flex sm:flex-col justify-between items-center sm:items-start transition hover:border-emerald-500/50">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                      <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Thắng</span>
+                    </div>
+                    <div className="text-right sm:text-left">
+                      <span className="text-lg font-black text-foreground block leading-tight">{profileChartsData.totalWins}</span>
+                      <span className="text-[11px] font-mono text-muted-foreground font-semibold">({profileChartsData.winPct.toFixed(1)}%)</span>
+                    </div>
                   </div>
-                  <div className="p-3 rounded-lg bg-amber-500/[0.08] border border-amber-500/20">
-                    <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 block">Hòa</span>
-                    <span className="text-lg font-black text-foreground">{profileChartsData.totalDraws}</span>
-                    <span className="text-[10px] text-muted-foreground block">({profileChartsData.drawPct.toFixed(1)}%)</span>
+
+                  <div className="p-3 rounded-xl bg-amber-500/[0.08] dark:bg-amber-500/10 border border-amber-500/25 flex sm:flex-col justify-between items-center sm:items-start transition hover:border-amber-500/50">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                      <span className="text-xs font-bold text-amber-700 dark:text-amber-400">Hòa</span>
+                    </div>
+                    <div className="text-right sm:text-left">
+                      <span className="text-lg font-black text-foreground block leading-tight">{profileChartsData.totalDraws}</span>
+                      <span className="text-[11px] font-mono text-muted-foreground font-semibold">({profileChartsData.drawPct.toFixed(1)}%)</span>
+                    </div>
                   </div>
-                  <div className="p-3 rounded-lg bg-rose-500/[0.08] border border-rose-500/20">
-                    <span className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 block">Thua</span>
-                    <span className="text-lg font-black text-foreground">{profileChartsData.totalLosses}</span>
-                    <span className="text-[10px] text-muted-foreground block">({profileChartsData.lossPct.toFixed(1)}%)</span>
+
+                  <div className="p-3 rounded-xl bg-rose-500/[0.08] dark:bg-rose-500/10 border border-rose-500/25 flex sm:flex-col justify-between items-center sm:items-start transition hover:border-rose-500/50">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                      <span className="text-xs font-bold text-rose-700 dark:text-rose-400">Thua</span>
+                    </div>
+                    <div className="text-right sm:text-left">
+                      <span className="text-lg font-black text-foreground block leading-tight">{profileChartsData.totalLosses}</span>
+                      <span className="text-[11px] font-mono text-muted-foreground font-semibold">({profileChartsData.lossPct.toFixed(1)}%)</span>
+                    </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Total Games & Score Row */}
+              <div className="pt-2 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground font-medium">
+                <span>Tổng số ván đã phân tích: <b className="text-foreground">{profileChartsData.totalGames} ván</b></span>
+                <span>Ghi được: <b className="text-foreground">{(profileChartsData.totalWins + profileChartsData.totalDraws * 0.5).toFixed(1)}</b> / {profileChartsData.totalGames} điểm</span>
               </div>
             </div>
 
-            {/* Chart 2: Comparative White vs Black Chart (5 cols) */}
+            {/* Chart 2: Grouped Column Chart - So Sánh Cầm Trắng vs Cầm Đen (5 cols) */}
             <div className="lg:col-span-5 bg-card border border-border/70 rounded-xl p-5 sm:p-6 shadow-xs flex flex-col justify-between space-y-4">
-              <div className="pb-3 border-b border-border/50">
-                <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-emerald-500" />
-                  So Sánh Hiệu Suất Cầm Trắng vs Cầm Đen
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Lợi thế ghi điểm theo màu quân
-                </p>
+              <div className="pb-3 border-b border-border/50 flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-500" />
+                    Biểu Đồ Cột: Cầm Trắng vs Cầm Đen
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    So sánh cột từng chỉ số kết quả theo màu quân
+                  </p>
+                </div>
+                {/* Legend */}
+                <div className="flex items-center gap-2.5 text-[11px] font-bold shrink-0">
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500 inline-block" />
+                    ⚪ Trắng
+                  </span>
+                  <span className="flex items-center gap-1 text-sky-600 dark:text-sky-400">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-sky-500 inline-block" />
+                    ⚫ Đen
+                  </span>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                {/* White Bar */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold flex items-center gap-1.5 text-foreground">
-                      ⚪ Cầm Trắng ({profileChartsData.whiteGames} ván)
-                    </span>
-                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                      {profileChartsData.whiteScorePct.toFixed(1)}% điểm
-                    </span>
-                  </div>
-                  <div className="w-full h-3 rounded-full bg-muted overflow-hidden flex">
-                    <div style={{ width: `${profileChartsData.whiteWinPct}%` }} className="h-full bg-emerald-500" title={`Thắng: ${profileChartsData.whiteWins}`} />
-                    <div style={{ width: `${profileChartsData.whiteDrawPct}%` }} className="h-full bg-amber-500" title={`Hòa: ${profileChartsData.whiteDraws}`} />
-                    <div style={{ width: `${profileChartsData.whiteLossPct}%` }} className="h-full bg-rose-500" title={`Thua: ${profileChartsData.whiteLosses}`} />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>{profileChartsData.whiteWins} Thắng</span>
-                    <span>{profileChartsData.whiteDraws} Hòa</span>
-                    <span>{profileChartsData.whiteLosses} Thua</span>
-                  </div>
+              {/* Grouped Vertical Columns Chart */}
+              <div className="pt-2 pb-1">
+                <div className="h-44 w-full flex items-end justify-between gap-2 sm:gap-4 px-2 sm:px-4 border-b border-border/60 pb-1">
+                  {[
+                    {
+                      label: "Tỷ lệ Thắng",
+                      wVal: profileChartsData.whiteWinPct,
+                      bVal: profileChartsData.blackWinPct,
+                    },
+                    {
+                      label: "Tỷ lệ Hòa",
+                      wVal: profileChartsData.whiteDrawPct,
+                      bVal: profileChartsData.blackDrawPct,
+                    },
+                    {
+                      label: "Tỷ lệ Thua",
+                      wVal: profileChartsData.whiteLossPct,
+                      bVal: profileChartsData.blackLossPct,
+                    },
+                    {
+                      label: "Điểm số",
+                      wVal: profileChartsData.whiteScorePct,
+                      bVal: profileChartsData.blackScorePct,
+                      highlight: true,
+                    },
+                  ].map((col, idx) => (
+                    <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
+                      {/* Bars Pair Container */}
+                      <div className="w-full flex items-end justify-center gap-1 sm:gap-1.5 h-32">
+                        {/* White Bar */}
+                        <div className="flex-1 max-w-[28px] flex flex-col items-center justify-end h-full">
+                          <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 mb-0.5 leading-none">
+                            {col.wVal.toFixed(0)}%
+                          </span>
+                          <div
+                            style={{ height: `${Math.max(col.wVal, 4)}%` }}
+                            className="w-full rounded-t-md bg-emerald-500 hover:bg-emerald-400 transition-all duration-500 shadow-2xs"
+                            title={`Cầm Trắng - ${col.label}: ${col.wVal.toFixed(1)}%`}
+                          />
+                        </div>
+
+                        {/* Black Bar */}
+                        <div className="flex-1 max-w-[28px] flex flex-col items-center justify-end h-full">
+                          <span className="text-[10px] font-mono font-bold text-sky-600 dark:text-sky-400 mb-0.5 leading-none">
+                            {col.bVal.toFixed(0)}%
+                          </span>
+                          <div
+                            style={{ height: `${Math.max(col.bVal, 4)}%` }}
+                            className="w-full rounded-t-md bg-sky-500 hover:bg-sky-400 transition-all duration-500 shadow-2xs"
+                            title={`Cầm Đen - ${col.label}: ${col.bVal.toFixed(1)}%`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* X-axis Label */}
+                      <span className={`text-[11px] font-bold text-center truncate max-w-full ${col.highlight ? "text-foreground font-black" : "text-muted-foreground"}`}>
+                        {col.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Games count row + Advantage Delta badge */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>⚪ Cầm Trắng: <b className="text-foreground">{profileChartsData.whiteGames} ván</b> ({profileChartsData.whiteScorePct.toFixed(1)}% điểm)</span>
+                  <span>⚫ Cầm Đen: <b className="text-foreground">{profileChartsData.blackGames} ván</b> ({profileChartsData.blackScorePct.toFixed(1)}% điểm)</span>
                 </div>
 
-                {/* Black Bar */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold flex items-center gap-1.5 text-foreground">
-                      ⚫ Cầm Đen ({profileChartsData.blackGames} ván)
-                    </span>
-                    <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
-                      {profileChartsData.blackScorePct.toFixed(1)}% điểm
-                    </span>
-                  </div>
-                  <div className="w-full h-3 rounded-full bg-muted overflow-hidden flex">
-                    <div style={{ width: `${profileChartsData.blackWinPct}%` }} className="h-full bg-emerald-500" title={`Thắng: ${profileChartsData.blackWins}`} />
-                    <div style={{ width: `${profileChartsData.blackDrawPct}%` }} className="h-full bg-amber-500" title={`Hòa: ${profileChartsData.blackDraws}`} />
-                    <div style={{ width: `${profileChartsData.blackLossPct}%` }} className="h-full bg-rose-500" title={`Thua: ${profileChartsData.blackLosses}`} />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>{profileChartsData.blackWins} Thắng</span>
-                    <span>{profileChartsData.blackDraws} Hòa</span>
-                    <span>{profileChartsData.blackLosses} Thua</span>
-                  </div>
-                </div>
-
-                {/* Difference / Advantage Delta */}
                 <div className="p-2.5 rounded-lg bg-muted/40 border border-border/50 flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Chênh lệch lợi thế màu quân:</span>
-                  <span className="font-bold text-foreground">
+                  <span className="font-bold">
                     {profileChartsData.whiteScorePct >= profileChartsData.blackScorePct ? (
                       <span className="text-emerald-600 dark:text-emerald-400">
                         ⚪ Ưu thế Trắng (+{(profileChartsData.whiteScorePct - profileChartsData.blackScorePct).toFixed(1)}%)
@@ -897,21 +994,21 @@ export default function ProfileDetailContent({
             </div>
           </div>
 
-          {/* Row 2: Top Openings Visual Chart + Pawn Structures Distribution */}
+          {/* Row 2: Top Openings Bar Chart + Pawn Structures Distribution Bar Chart */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Chart 3: Top Openings Breakdown */}
+            {/* Chart 3: Top Openings Breakdown (Horizontal Bar Chart) */}
             <div className="bg-card border border-border/70 rounded-xl p-5 sm:p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-border/50">
                 <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
                   <Play className="w-4 h-4 text-emerald-500" />
-                  Khai Cuộc Được Sử Dụng Nhiều Nhất
+                  Khai Cuộc Sử Dụng Nhiều Nhất (Biểu đồ Cột)
                 </h3>
                 <button
                   type="button"
                   onClick={() => setProfileSubTab("openings")}
                   className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
                 >
-                  Xem chi tiết Bayes →
+                  Xem chi tiết khai cuộc →
                 </button>
               </div>
 
@@ -920,40 +1017,47 @@ export default function ProfileDetailContent({
                   Chưa có dữ liệu khai cuộc.
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3.5">
                   {profileChartsData.topOpenings.map((op, idx) => {
                     const score = ((op.wins + op.draws * 0.5) / (op.count || 1)) * 100;
                     const wPct = (op.wins / (op.count || 1)) * 100;
                     const dPct = (op.draws / (op.count || 1)) * 100;
                     const lPct = (op.losses / (op.count || 1)) * 100;
                     const freq = (op.count / (profileChartsData.totalGames || 1)) * 100;
+                    const maxCount = profileChartsData.topOpenings[0]?.count || 1;
+                    const barWidth = Math.max((op.count / maxCount) * 100, 15);
 
                     return (
-                      <div key={`${op.eco}-${idx}`} className="space-y-1.5 p-2 rounded-lg hover:bg-muted/30 transition">
-                        <div className="flex justify-between items-center text-xs">
-                          <div className="flex items-center gap-1.5 truncate max-w-[240px] sm:max-w-[300px]">
-                            <span className="font-mono font-bold text-[11px] px-1.5 py-0.5 rounded bg-muted text-foreground shrink-0">
+                      <div key={`${op.eco}-${idx}`} className="space-y-1.5 p-2 rounded-lg hover:bg-muted/40 transition">
+                        <div className="flex justify-between items-center text-xs gap-2">
+                          <div className="flex items-center gap-2 truncate min-w-0">
+                            <span className="w-5 h-5 rounded-md bg-secondary text-foreground font-black text-[10px] flex items-center justify-center shrink-0">
+                              #{idx + 1}
+                            </span>
+                            <span className="font-mono font-bold text-[11px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 shrink-0">
                               {op.eco}
                             </span>
                             <span className="font-semibold text-foreground truncate" title={op.name}>
                               {op.name}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-[11px] text-muted-foreground font-medium">
-                              {op.count} ván ({freq.toFixed(1)}%)
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-[11px] text-muted-foreground font-semibold">
+                              {op.count} ván ({freq.toFixed(0)}%)
                             </span>
-                            <span className={`text-[11px] font-bold font-mono ${score >= 50 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                            <span className={`text-[11px] font-bold font-mono px-1.5 py-0.2 rounded ${score >= 50 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/10 text-rose-600 dark:text-rose-400"}`}>
                               {score.toFixed(0)}% điểm
                             </span>
                           </div>
                         </div>
 
-                        {/* W/D/L Mini Progress Bar */}
-                        <div className="w-full h-2 rounded-full bg-muted overflow-hidden flex">
-                          <div style={{ width: `${wPct}%` }} className="h-full bg-emerald-500" title={`Thắng: ${op.wins}`} />
-                          <div style={{ width: `${dPct}%` }} className="h-full bg-amber-500" title={`Hòa: ${op.draws}`} />
-                          <div style={{ width: `${lPct}%` }} className="h-full bg-rose-500" title={`Thua: ${op.losses}`} />
+                        {/* Relative Frequency Bar Container */}
+                        <div className="w-full bg-muted/60 h-3 rounded-full overflow-hidden p-0.5">
+                          <div style={{ width: `${barWidth}%` }} className="h-full rounded-full overflow-hidden flex transition-all duration-500">
+                            <div style={{ width: `${wPct}%` }} className="h-full bg-emerald-500" title={`Thắng: ${op.wins} (${wPct.toFixed(0)}%)`} />
+                            <div style={{ width: `${dPct}%` }} className="h-full bg-amber-500" title={`Hòa: ${op.draws} (${dPct.toFixed(0)}%)`} />
+                            <div style={{ width: `${lPct}%` }} className="h-full bg-rose-500" title={`Thua: ${op.losses} (${lPct.toFixed(0)}%)`} />
+                          </div>
                         </div>
                       </div>
                     );
@@ -962,13 +1066,13 @@ export default function ProfileDetailContent({
               )}
             </div>
 
-            {/* Chart 4: Pawn Structures Distribution */}
+            {/* Chart 4: Pawn Structures Distribution (Bar Chart) */}
             <div className="bg-card border border-border/70 rounded-xl p-5 sm:p-6 shadow-xs space-y-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-border/50">
                   <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
                     <Layers className="w-4 h-4 text-emerald-500" />
-                    Phân Bổ Cấu Trúc Tốt Nhận Diện
+                    Phân Bổ Cấu Trúc Tốt Nhận Diện (Biểu đồ Cột)
                   </h3>
                   <button
                     type="button"
@@ -981,42 +1085,60 @@ export default function ProfileDetailContent({
 
                 {analysisRun?.pawn_structures_summary?.structures && analysisRun.pawn_structures_summary.structures.length > 0 ? (
                   <div className="space-y-3 mt-3">
-                    {analysisRun.pawn_structures_summary.structures.slice(0, 5).map((st: any, idx: number) => {
-                      const count = st.games?.length || st.games_count || 0;
-                      const score = st.adjusted_score_pct ?? st.score_pct ?? 50;
+                    {(() => {
+                      const structs = analysisRun.pawn_structures_summary.structures.slice(0, 5);
+                      const maxStCount = Math.max(...structs.map((st: any) => st.games?.length || st.games_count || 1), 1);
 
-                      return (
-                        <div key={st.structure_key || idx} className="p-2.5 rounded-lg border border-border/50 bg-background/50 flex items-center justify-between gap-3">
-                          <div className="truncate">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-xs text-foreground truncate">
-                                {st.name}
-                              </span>
-                              <span
-                                className="px-1.5 py-0.2 rounded text-[10px] font-semibold border shrink-0"
-                                style={{
-                                  backgroundColor: `${st.assessment_color ?? "#94A3B8"}15`,
-                                  color: st.assessment_color ?? "#94A3B8",
-                                  borderColor: `${st.assessment_color ?? "#94A3B8"}30`
-                                }}
-                              >
-                                {st.assessment_badge || "Cấu trúc"}
-                              </span>
+                      return structs.map((st: any, idx: number) => {
+                        const count = st.games?.length || st.games_count || 0;
+                        const score = st.adjusted_score_pct ?? st.score_pct ?? 50;
+                        const barWidth = Math.max((count / maxStCount) * 100, 15);
+                        const color = st.assessment_color ?? "#10B981";
+
+                        return (
+                          <div key={st.structure_key || idx} className="p-2.5 rounded-lg border border-border/50 bg-background/50 space-y-1.5 hover:bg-muted/30 transition">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 truncate min-w-0">
+                                <span className="font-bold text-xs text-foreground truncate">
+                                  {st.name}
+                                </span>
+                                <span
+                                  className="px-1.5 py-0.2 rounded text-[10px] font-semibold border shrink-0"
+                                  style={{
+                                    backgroundColor: `${color}15`,
+                                    color: color,
+                                    borderColor: `${color}30`
+                                  }}
+                                >
+                                  {st.assessment_badge || "Cấu trúc"}
+                                </span>
+                              </div>
+
+                              <div className="text-right shrink-0 flex items-center gap-2">
+                                <span className="text-[11px] text-muted-foreground font-semibold">
+                                  {count} ván
+                                </span>
+                                <span className="font-mono font-bold text-xs text-foreground bg-muted px-1.5 py-0.2 rounded">
+                                  {score.toFixed(1)}% điểm
+                                </span>
+                              </div>
                             </div>
-                            <span className="text-[11px] text-muted-foreground block mt-0.5">
-                              Xuất hiện ở {count} ván • Nước hình thành ~{st.typical_formation_move || 12}
-                            </span>
-                          </div>
 
-                          <div className="text-right shrink-0">
-                            <span className="font-mono font-bold text-xs text-foreground block">
-                              {score.toFixed(1)}%
-                            </span>
-                            <span className="text-[10px] text-muted-foreground">Điểm Bayes</span>
+                            {/* Frequency Bar */}
+                            <div className="w-full bg-muted/60 h-2 rounded-full overflow-hidden">
+                              <div
+                                style={{
+                                  width: `${barWidth}%`,
+                                  backgroundColor: color,
+                                }}
+                                className="h-full rounded-full transition-all duration-500"
+                                title={`${st.name}: ${count} ván (${score.toFixed(1)}% điểm)`}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 ) : (
                   <div className="py-8 text-center text-xs text-muted-foreground">
@@ -1044,7 +1166,7 @@ export default function ProfileDetailContent({
         </div>
       )}
 
-      {/* Sub-Tab 2: Openings (Bayesian Adjusted) */}
+      {/* Sub-Tab 2: Openings */}
       {profileSubTab === "openings" && (
         <div className="space-y-6">
           <div className="space-y-3">
@@ -1052,10 +1174,10 @@ export default function ProfileDetailContent({
               <div>
                 <h3 className="text-base font-bold text-foreground flex items-center gap-2">
                   <Play className="w-5 h-5 text-emerald-500" />
-                  Đánh Giá Hiệu Suất Khai Cuộc (Bayesian Adjusted)
+                  Đánh Giá Hiệu Suất Khai Cuộc
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Phân tích độ tin cậy thống kê và hiệu suất thực tế so với điểm cơ sở.
+                  Phân tích hiệu suất thực tế và mức độ ổn định so với điểm cơ sở.
                 </p>
               </div>
               <span className="text-xs px-3 py-1.5 rounded-xl bg-muted font-mono font-semibold text-foreground">
@@ -1073,7 +1195,6 @@ export default function ProfileDetailContent({
                         <th className="px-3 py-3">Số ván</th>
                         <th className="px-4 py-3 min-w-[140px]">Tỷ lệ Kết quả (Thắng/Hòa/Thua)</th>
                         <th className="px-3 py-3 text-right">Điểm thực</th>
-                        <th className="px-3 py-3 text-right">Điểm Bayes</th>
                         <th className="px-3 py-3 text-right">Độ lệch (Δ)</th>
                         <th className="px-4 py-3">Đánh giá Hiệu suất</th>
                         <th className="px-3 py-3 text-center">Hành động</th>
@@ -1119,9 +1240,6 @@ export default function ProfileDetailContent({
                             </td>
                             <td className="px-3 py-3 text-right font-mono font-bold text-foreground">
                               {op.raw_score_pct?.toFixed(1) || op.score_pct?.toFixed(1)}%
-                            </td>
-                            <td className="px-3 py-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                              {op.adjusted_score_pct?.toFixed(1)}%
                             </td>
                             <td
                               className={`px-3 py-3 text-right font-mono font-bold ${

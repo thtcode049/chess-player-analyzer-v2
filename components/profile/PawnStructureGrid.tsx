@@ -176,10 +176,10 @@ export default function PawnStructureGrid({
           </div>
         </div>
 
-        {/* Bayesian Adjusted Score & Actions */}
+        {/* Performance Score & Actions */}
         <div>
           <div className="flex items-center justify-between pt-1">
-            <span className="text-xs text-muted-foreground">Độ tin cậy Bayes:</span>
+            <span className="text-xs text-muted-foreground">Điểm hiệu suất:</span>
             <div className="text-right">
               <span className="text-sm font-extrabold text-foreground">
                 {(item.adjusted_score_pct ?? item.score_pct).toFixed(1)}%

@@ -17,6 +17,11 @@ export default function MobileBottomNav() {
   const router = useRouter();
   const { activeTab, setActiveTab, isHubOpen, openHub, closeHub, activeMode, activePlayerId } = useProfileWorkspaceStore();
 
+  // Do not render bottom nav on homepage or auth pages to keep landing page clean
+  if (pathname === "/" || pathname === "/login" || pathname === "/register") {
+    return null;
+  }
+
   const isWorkspace = useMemo(() => {
     const current = typeof window !== "undefined" ? window.location.pathname : pathname;
     return (

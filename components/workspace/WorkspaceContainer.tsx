@@ -90,7 +90,7 @@ export default function WorkspaceContainer({
       {isHubOpen ? (
         <ProfileHub />
       ) : (
-        <div className="w-full relative">
+        <div className="w-full relative pb-20 md:pb-2">
           {/* Tab 1: Hồ sơ & Ván đấu (Keep-Alive: mount hidden when not active) */}
           <div style={{ display: activeTab === "profile" ? "block" : "none" }}>
             <ProfileDetailContent targetPlayerId={activePlayerId || undefined} />

@@ -237,16 +237,15 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md transition-colors shadow-2xs">
       <div className="w-full max-w-[1720px] mx-auto flex h-16 items-center justify-between px-3 sm:px-6 lg:px-8 2xl:px-10 gap-2 sm:gap-4">
-        {/* Left: Brand Logo & Profile Hub trigger */}
+        {/* Left: Brand Logo */}
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={handleOpenHub}
+          <Link
+            href="/"
             className="flex items-center transition hover:opacity-90 cursor-pointer"
-            title="Quay lại Thư viện Hồ sơ Kỳ thủ"
+            title="Trang chủ ChessLook"
           >
             <ChessLookLogo size="md" />
-          </button>
+          </Link>
         </div>
 
         {/* Center: Profile Switcher Dropdown + Core Workspace Tabs */}
@@ -557,13 +556,13 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Desktop Workspace Segmented Navigation Pills */}
-          <nav className="hidden md:flex items-center gap-1 bg-slate-100/90 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/60 shadow-2xs">
+          {/* Desktop & iPad Workspace Segmented Navigation Pills */}
+          <nav className="hidden md:flex items-center gap-0.5 sm:gap-1 bg-slate-100/90 dark:bg-slate-800/80 p-0.5 sm:p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/60 shadow-2xs">
             {/* Tab 0: Thư viện (Quản lý tất cả hồ sơ) */}
             <button
               type="button"
               onClick={handleOpenHub}
-              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`relative flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                 isWorkspace && isHubOpen
                   ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
@@ -578,7 +577,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => handleNavTab("profile")}
-              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`relative flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                 isWorkspace && activeTab === "profile" && !isHubOpen
                   ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
@@ -592,7 +591,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => handleNavTab("board")}
-              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`relative flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                 isWorkspace && activeTab === "board" && !isHubOpen
                   ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
@@ -606,7 +605,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => handleNavTab("ai")}
-              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`relative flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                 isWorkspace && activeTab === "ai" && !isHubOpen
                   ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
@@ -682,7 +681,7 @@ export default function Navbar() {
           {/* Primary CTA + Nạp Ván */}
           <Link
             href="/import"
-            className={`hidden lg:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-xs transition ${
+            className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs transition ${
               pathname === "/import"
                 ? "bg-emerald-700 dark:bg-emerald-600 text-white ring-2 ring-emerald-400/50"
                 : "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white"
@@ -707,6 +706,21 @@ export default function Navbar() {
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl px-4 py-4 space-y-3 shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="space-y-1">
+            <Link
+              href="/"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-semibold transition ${
+                pathname === "/"
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                  : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <ChessLookLogo size="sm" />
+                <span>Trang chủ</span>
+              </div>
+            </Link>
+
             <button
               type="button"
               onClick={handleOpenHub}

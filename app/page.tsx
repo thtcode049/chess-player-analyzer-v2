@@ -43,23 +43,23 @@ export default function LandingPage() {
     "Kỳ thủ";
 
   return (
-    <div className="flex flex-col items-center justify-center py-8 sm:py-16 text-center animate-fade-in">
+    <div className="flex flex-col items-center justify-center py-6 sm:py-16 text-center animate-fade-in px-2 sm:px-4">
       {/* Official Brand Logo Mark */}
       <div className="relative max-w-5xl mx-auto flex flex-col items-center">
-        <div className="mb-5 flex items-center justify-center">
-          <div className="p-3.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 shadow-md backdrop-blur-md transition-transform duration-300 hover:scale-105">
-            <img src="/logo.png" alt="ChessLook Logo" className="w-16 h-16 sm:w-20 sm:h-20 object-contain filter drop-shadow-md" />
+        <div className="mb-4 sm:mb-5 flex items-center justify-center">
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 shadow-md backdrop-blur-md transition-transform duration-300 hover:scale-105">
+            <img src="/logo.png" alt="ChessLook Logo" className="w-14 h-14 sm:w-20 sm:h-20 object-contain filter drop-shadow-md" />
           </div>
         </div>
 
         {/* Brand Pill Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-6 backdrop-blur-sm">
-          <BarChart3 className="w-3.5 h-3.5 text-emerald-500" />
-          <span>ChessLook • Nền Tảng Phân Tích Dữ Liệu Ván Đấu & Hỗ Trợ Kỳ Thủ</span>
+        <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] sm:text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-4 sm:mb-6 backdrop-blur-sm max-w-full text-center">
+          <BarChart3 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+          <span className="truncate">ChessLook • Nền Tảng Phân Tích Dữ Liệu Ván Đấu & Hỗ Trợ Kỳ Thủ</span>
         </div>
 
         {/* Main Hero Title */}
-        <h1 className="text-4xl sm:text-6xl font-black text-slate-900 dark:text-white tracking-tight max-w-4xl leading-[1.15]">
+        <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-slate-900 dark:text-white tracking-tight max-w-4xl leading-[1.2] sm:leading-[1.15] px-2 sm:px-0">
           Làm Chủ Bàn Cờ Với{" "}
           <span className="bg-clip-text text-transparent bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-300">
             Trí Tuệ Phân Tích Chuyên Sâu
@@ -67,23 +67,23 @@ export default function LandingPage() {
         </h1>
 
         {/* Subtitle */}
-        <p className="mt-6 text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
+        <p className="mt-4 sm:mt-6 text-sm sm:text-base lg:text-lg text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed px-3 sm:px-0">
           Chuyển hóa dữ liệu ván đấu thô từ Lichess và Chess.com thành cây khai cuộc trực quan, 
           phân tích cấu trúc Tốt, đo lường sai số từng giai đoạn và tương tác trực quan cùng Trợ lí AI.
         </p>
 
         {/* Dual Primary CTA Buttons */}
-        <div className="mt-8 flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+        <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full sm:w-auto px-4 sm:px-0">
           <Link
             href="/dashboard"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg shadow-emerald-600/25 transition-all duration-200 text-base group"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl shadow-lg shadow-emerald-600/25 transition-all duration-200 text-sm sm:text-base group active:scale-95"
           >
             <span>{isMounted && user ? "Vào Bảng Điều Khiển" : "Khám Phá Bảng Điều Khiển"}</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </Link>
           <Link
             href="/import"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/80 font-bold px-7 py-3.5 rounded-xl transition-all duration-200 text-base shadow-sm"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/80 font-bold px-6 sm:px-7 py-3 sm:py-3.5 rounded-xl transition-all duration-200 text-sm sm:text-base shadow-sm active:scale-95"
           >
             <Upload className="w-4 h-4 text-emerald-500" />
             <span>Nhập Ván Đấu Của Bạn</span>

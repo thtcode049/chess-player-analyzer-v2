@@ -387,6 +387,9 @@ export function AnalyzeContent() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Mobile & iPad Sub-Tabs State (Learned from Chess.com & Lichess)
+  const [mobileTab, setMobileTab] = useState<"moves" | "tree" | "structures" | "games">("moves");
+
   // Dynamic Opening Tree Continuations
   const [continuations, setContinuations] = useState<OpeningContinuation[]>([]);
   const [treeLoading, setTreeLoading] = useState(false);
@@ -1458,8 +1461,8 @@ export function AnalyzeContent() {
 
       {/* Main Analysis Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 items-start">
-        {/* Left Column: Interactive ChessBoard (7 Cols) */}
-        <div className="lg:col-span-7 flex flex-col items-center w-full">
+        {/* Left Column: Interactive ChessBoard (7 Cols) - Sticky on mobile / iPad */}
+        <div className="lg:col-span-7 flex flex-col items-center w-full sticky top-14 z-20 bg-background/95 backdrop-blur-md pt-1 pb-2 border-b border-border/40 lg:static lg:bg-transparent lg:p-0 lg:border-none">
           <ChessBoard
             initialFen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
             moves={moves}
@@ -1473,14 +1476,14 @@ export function AnalyzeContent() {
             }}
             isEngineEnabled={isEngineEnabled}
             multiPv={multiPv}
-            height={720}
+            height={isLgScreen ? 720 : 420}
             onBoardWidthChange={(size) => setBoardSize(size)}
           />
 
           {/* Move Navigation Control Bar (Keypad / Buttons for iPad & Touch) */}
           <div
             style={{ width: `${boardSize + 22}px`, maxWidth: "100%" }}
-            className="mt-2.5 bg-card/90 dark:bg-slate-900/90 border border-border/70 rounded-xl px-2 sm:px-3 py-2 flex items-center justify-between shadow-xs select-none"
+            className="mt-2 bg-card/90 dark:bg-slate-900/90 border border-border/70 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 flex items-center justify-between shadow-xs select-none"
           >
             {/* Navigation buttons */}
             <div className="flex items-center gap-1 sm:gap-1.5">
@@ -1489,7 +1492,7 @@ export function AnalyzeContent() {
                 onClick={() => handleNavigatePly(0)}
                 disabled={currentPly === 0 || moves.length === 0}
                 title="Về thế cờ ban đầu (Home)"
-                className="h-9 w-9 sm:h-9 sm:w-10 rounded-lg flex items-center justify-center bg-secondary/60 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
+                className="h-8.5 w-8.5 sm:h-9 sm:w-10 rounded-lg flex items-center justify-center bg-secondary/60 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
               >
                 <ChevronsLeft className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
               </button>
@@ -1499,12 +1502,12 @@ export function AnalyzeContent() {
                 onClick={() => handleNavigatePly(currentPly - 1)}
                 disabled={currentPly === 0 || moves.length === 0}
                 title="Lùi 1 nước (Phím < hoặc phím mũi tên Trái)"
-                className="h-9 w-10 sm:h-9 sm:w-12 rounded-lg flex items-center justify-center bg-secondary/80 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
+                className="h-8.5 w-9 sm:h-9 sm:w-12 rounded-lg flex items-center justify-center bg-secondary/80 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
               >
                 <ChevronLeft className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
               </button>
 
-              <div className="px-2.5 py-1.5 min-w-[75px] sm:min-w-[90px] text-center font-mono text-xs font-bold text-foreground bg-background rounded-lg border border-border/80 shadow-2xs">
+              <div className="px-2 py-1 sm:px-2.5 sm:py-1.5 min-w-[70px] sm:min-w-[90px] text-center font-mono text-[11px] sm:text-xs font-bold text-foreground bg-background rounded-lg border border-border/80 shadow-2xs">
                 {moves.length === 0 ? "Ban đầu" : currentPly === 0 ? "Bắt đầu" : `Nước ${currentPly}/${moves.length}`}
               </div>
 
@@ -1513,7 +1516,7 @@ export function AnalyzeContent() {
                 onClick={() => handleNavigatePly(currentPly + 1)}
                 disabled={currentPly >= moves.length || moves.length === 0}
                 title="Tiến 1 nước (Phím > hoặc phím mũi tên Phải)"
-                className="h-9 w-10 sm:h-9 sm:w-12 rounded-lg flex items-center justify-center bg-secondary/80 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
+                className="h-8.5 w-9 sm:h-9 sm:w-12 rounded-lg flex items-center justify-center bg-secondary/80 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
               >
                 <ChevronRight className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
               </button>
@@ -1523,7 +1526,7 @@ export function AnalyzeContent() {
                 onClick={() => handleNavigatePly(moves.length)}
                 disabled={currentPly >= moves.length || moves.length === 0}
                 title="Đến nước cuối cùng (End)"
-                className="h-9 w-9 sm:h-9 sm:w-10 rounded-lg flex items-center justify-center bg-secondary/60 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
+                className="h-8.5 w-8.5 sm:h-9 sm:w-10 rounded-lg flex items-center justify-center bg-secondary/60 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
               >
                 <ChevronsRight className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
               </button>
@@ -1535,7 +1538,7 @@ export function AnalyzeContent() {
                 type="button"
                 onClick={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
                 title={`Đổi góc nhìn bàn cờ (Đang xem: ${boardOrientation === "white" ? "Trắng" : "Đen"})`}
-                className="h-9 px-2.5 rounded-lg flex items-center gap-1.5 bg-secondary/50 hover:bg-secondary dark:hover:bg-slate-800 text-muted-foreground hover:text-foreground text-xs font-semibold transition cursor-pointer active:scale-95"
+                className="h-8.5 sm:h-9 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 bg-secondary/50 hover:bg-secondary dark:hover:bg-slate-800 text-muted-foreground hover:text-foreground text-xs font-semibold transition cursor-pointer active:scale-95"
               >
                 <RotateCw className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Lật cờ</span>
@@ -1551,7 +1554,7 @@ export function AnalyzeContent() {
                 }}
                 disabled={moves.length === 0 && currentFen === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}
                 title="Xóa ván cờ về bàn cờ trống ban đầu"
-                className="h-9 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 bg-secondary/50 hover:bg-destructive/10 hover:text-destructive text-muted-foreground disabled:opacity-30 disabled:pointer-events-none text-xs font-semibold transition cursor-pointer active:scale-95"
+                className="h-8.5 sm:h-9 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 bg-secondary/50 hover:bg-destructive/10 hover:text-destructive text-muted-foreground disabled:opacity-30 disabled:pointer-events-none text-xs font-semibold transition cursor-pointer active:scale-95"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Làm mới</span>
@@ -1560,115 +1563,331 @@ export function AnalyzeContent() {
           </div>
         </div>
 
-        {/* Right Column: Unified Move History & Opening Variations Panel (Like Lichess) */}
-        <div
-          style={isLgScreen ? { height: `${boardSize}px` } : undefined}
-          className="lg:col-span-5 h-[480px] sm:h-[520px] lg:h-auto flex flex-col bg-card border border-border/50 rounded-xl shadow-2xs overflow-hidden"
-        >
-          {/* Top: Move History (Notation + Stockfish Eval) - 50% equal height */}
-          <div className="flex-1 min-h-0 border-b border-border/50 flex flex-col overflow-hidden">
-            <MoveHistory
-              moves={moves}
-              currentPly={currentPly}
-              onSelectPly={(ply) => {
-                setCurrentPly(ply);
-                checkOpeningTransition(moves.slice(0, ply));
-              }}
-              currentFen={currentFen}
-              evaluation={evaluation}
-              isThinking={isThinking}
-              isEngineEnabled={isEngineEnabled}
-              onToggleEngine={() => setIsEngineEnabled((prev) => !prev)}
-              multiPv={multiPv}
-              onMultiPvChange={(count) => setMultiPv(count)}
-              embedded={true}
-            />
-          </div>
-
-          {/* Middle: Compact Color Filter / Perspective Toolbar */}
-          <div className="px-3.5 py-1 bg-slate-50/80 dark:bg-slate-800/40 border-b border-border/50 flex items-center justify-between shrink-0 text-xs">
-            <div className="flex items-center gap-1.5 text-muted-foreground font-semibold text-[11px]">
-              <Layers className="w-3.5 h-3.5 text-primary" />
-              <span>Góc nhìn:</span>
-            </div>
-            <div className="flex items-center gap-1 p-0.5 bg-secondary/60 rounded-lg">
-              <button
-                onClick={() => setColorFilter("all")}
-                className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition ${colorFilter === "all"
-                    ? "bg-primary text-primary-foreground shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  }`}
-              >
-                Tất cả
-              </button>
-              <button
-                onClick={() => {
-                  setColorFilter("white");
-                  setBoardOrientation("white");
+        {/* Right Column (Desktop >= 1024px): Unified Move History & Opening Variations Panel */}
+        {isLgScreen ? (
+          <div
+            style={{ height: `${boardSize}px` }}
+            className="lg:col-span-5 flex flex-col bg-card border border-border/50 rounded-xl shadow-2xs overflow-hidden"
+          >
+            {/* Top: Move History (Notation + Stockfish Eval) - 50% equal height */}
+            <div className="flex-1 min-h-0 border-b border-border/50 flex flex-col overflow-hidden">
+              <MoveHistory
+                moves={moves}
+                currentPly={currentPly}
+                onSelectPly={(ply) => {
+                  setCurrentPly(ply);
+                  checkOpeningTransition(moves.slice(0, ply));
                 }}
-                className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${colorFilter === "white"
-                    ? "bg-primary text-primary-foreground shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-white border border-slate-300 dark:border-slate-500 shadow-2xs" />
-                <span>Trắng</span>
-              </button>
-              <button
-                onClick={() => {
-                  setColorFilter("black");
-                  setBoardOrientation("black");
-                }}
-                className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${colorFilter === "black"
-                    ? "bg-primary text-primary-foreground shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-600 shadow-2xs" />
-                <span>Đen</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Bottom: Opening Continuations & Master Database - 50% equal height */}
-          <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden">
-            {treeLoading && (
-              <div
-                className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-primary to-blue-500 animate-pulse z-30 pointer-events-none"
-                title="Đang cập nhật biến thể..."
+                currentFen={currentFen}
+                evaluation={evaluation}
+                isThinking={isThinking}
+                isEngineEnabled={isEngineEnabled}
+                onToggleEngine={() => setIsEngineEnabled((prev) => !prev)}
+                multiPv={multiPv}
+                onMultiPvChange={(count) => setMultiPv(count)}
+                embedded={true}
               />
-            )}
-            <OpeningTreeTable
-              continuations={continuations}
-              totalGames={continuations.reduce((acc, c) => acc + c.games_count, 0)}
-              currentFen={currentFen}
-              onSelectMove={handleSelectMove}
-              onLoadGame={handleLoadSingleGame}
-              playerName={currentPlayerObj?.canonical_name}
-              players={players}
-              selectedPlayerId={selectedPlayerId || undefined}
-              onSelectPlayer={handlePlayerChange}
-              embedded={true}
-              isSandboxMode={workspaceStore.activeMode === "sandbox"}
-              isMultiMode={workspaceStore.activeMode === "multi"}
-              multiTitle={
-                workspaceStore.activeMode === "multi"
-                  ? `Matchup: ⚪ ${
-                      workspaceStore.multiProfiles
-                        .filter((m) => m.role === "white" || m.role === "both")
-                        .map((m) => m.player.canonical_name)
-                        .join(", ") || "Trắng"
-                    } vs ⚫ ${
-                      workspaceStore.multiProfiles
-                        .filter((m) => m.role === "black" || m.role === "both")
-                        .map((m) => m.player.canonical_name)
-                        .join(", ") || "Đen"
-                    }`
-                  : undefined
-              }
-            />
+            </div>
+
+            {/* Middle: Compact Color Filter / Perspective Toolbar */}
+            <div className="px-3.5 py-1 bg-slate-50/80 dark:bg-slate-800/40 border-b border-border/50 flex items-center justify-between shrink-0 text-xs">
+              <div className="flex items-center gap-1.5 text-muted-foreground font-semibold text-[11px]">
+                <Layers className="w-3.5 h-3.5 text-primary" />
+                <span>Góc nhìn:</span>
+              </div>
+              <div className="flex items-center gap-1 p-0.5 bg-secondary/60 rounded-lg">
+                <button
+                  onClick={() => setColorFilter("all")}
+                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition ${colorFilter === "all" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+                >
+                  Tất cả
+                </button>
+                <button
+                  onClick={() => {
+                    setColorFilter("white");
+                    setBoardOrientation("white");
+                  }}
+                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${colorFilter === "white" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-white border border-slate-300 dark:border-slate-500 shadow-2xs" />
+                  <span>Trắng</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setColorFilter("black");
+                    setBoardOrientation("black");
+                  }}
+                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${colorFilter === "black" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-600 shadow-2xs" />
+                  <span>Đen</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom: Opening Continuations & Master Database - 50% equal height */}
+            <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden">
+              {treeLoading && (
+                <div
+                  className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-primary to-blue-500 animate-pulse z-30 pointer-events-none"
+                  title="Đang cập nhật biến thể..."
+                />
+              )}
+              <OpeningTreeTable
+                continuations={continuations}
+                totalGames={continuations.reduce((acc, c) => acc + c.games_count, 0)}
+                currentFen={currentFen}
+                onSelectMove={handleSelectMove}
+                onLoadGame={handleLoadSingleGame}
+                playerName={currentPlayerObj?.canonical_name}
+                players={players}
+                selectedPlayerId={selectedPlayerId || undefined}
+                onSelectPlayer={handlePlayerChange}
+                embedded={true}
+                isSandboxMode={workspaceStore.activeMode === "sandbox"}
+                isMultiMode={workspaceStore.activeMode === "multi"}
+                multiTitle={
+                  workspaceStore.activeMode === "multi"
+                    ? `Matchup: ⚪ ${
+                        workspaceStore.multiProfiles
+                          .filter((m) => m.role === "white" || m.role === "both")
+                          .map((m) => m.player.canonical_name)
+                          .join(", ") || "Trắng"
+                      } vs ⚫ ${
+                        workspaceStore.multiProfiles
+                          .filter((m) => m.role === "black" || m.role === "both")
+                          .map((m) => m.player.canonical_name)
+                          .join(", ") || "Đen"
+                      }`
+                    : undefined
+                }
+              />
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Mobile & iPad (< 1024px) Streamlined Tabbed Layout (Learned from Chess.com & Lichess) */
+          <div className="w-full flex flex-col gap-3">
+            {/* Tab navigation pills */}
+            <div className="flex items-center gap-1 p-1 bg-card/90 dark:bg-slate-900/90 border border-border/70 rounded-xl overflow-x-auto no-scrollbar shadow-xs">
+              <button
+                type="button"
+                onClick={() => setMobileTab("moves")}
+                className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  mobileTab === "moves"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Nước đi</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMobileTab("tree")}
+                className={`flex-1 min-w-[75px] py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  mobileTab === "tree"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Khai cuộc</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMobileTab("structures")}
+                className={`flex-1 min-w-[80px] py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  mobileTab === "structures"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                }`}
+              >
+                <Compass className="w-3.5 h-3.5" />
+                <span>Thế trận Tốt</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMobileTab("games")}
+                className={`flex-1 min-w-[75px] py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  mobileTab === "games"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                }`}
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span>Ván đấu {matchingOpeningGames.length > 0 ? `(${matchingOpeningGames.length})` : ""}</span>
+              </button>
+            </div>
+
+            {/* Mobile Tab 1: Nước đi */}
+            {mobileTab === "moves" && (
+              <div className="h-[380px] sm:h-[450px] flex flex-col bg-card border border-border/60 rounded-xl overflow-hidden shadow-2xs">
+                <MoveHistory
+                  moves={moves}
+                  currentPly={currentPly}
+                  onSelectPly={(ply) => {
+                    setCurrentPly(ply);
+                    checkOpeningTransition(moves.slice(0, ply));
+                  }}
+                  currentFen={currentFen}
+                  evaluation={evaluation}
+                  isThinking={isThinking}
+                  isEngineEnabled={isEngineEnabled}
+                  onToggleEngine={() => setIsEngineEnabled((prev) => !prev)}
+                  multiPv={multiPv}
+                  onMultiPvChange={(count) => setMultiPv(count)}
+                  embedded={true}
+                />
+              </div>
+            )}
+
+            {/* Mobile Tab 2: Khai cuộc (Opening Tree) */}
+            {mobileTab === "tree" && (
+              <div className="h-[420px] sm:h-[480px] flex flex-col bg-card border border-border/60 rounded-xl overflow-hidden shadow-2xs">
+                <div className="px-3 py-1.5 bg-slate-50/80 dark:bg-slate-800/40 border-b border-border/50 flex items-center justify-between shrink-0 text-xs">
+                  <div className="flex items-center gap-1.5 text-muted-foreground font-semibold text-[11px]">
+                    <Layers className="w-3.5 h-3.5 text-primary" />
+                    <span>Góc nhìn:</span>
+                  </div>
+                  <div className="flex items-center gap-1 p-0.5 bg-secondary/60 rounded-lg">
+                    <button
+                      onClick={() => setColorFilter("all")}
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition ${colorFilter === "all" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+                    >
+                      Tất cả
+                    </button>
+                    <button
+                      onClick={() => {
+                        setColorFilter("white");
+                        setBoardOrientation("white");
+                      }}
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${colorFilter === "white" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-white border border-slate-300 dark:border-slate-500 shadow-2xs" />
+                      <span>Trắng</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setColorFilter("black");
+                        setBoardOrientation("black");
+                      }}
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${colorFilter === "black" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-600 shadow-2xs" />
+                      <span>Đen</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden">
+                  <OpeningTreeTable
+                    continuations={continuations}
+                    totalGames={continuations.reduce((acc, c) => acc + c.games_count, 0)}
+                    currentFen={currentFen}
+                    onSelectMove={handleSelectMove}
+                    onLoadGame={handleLoadSingleGame}
+                    playerName={currentPlayerObj?.canonical_name}
+                    players={players}
+                    selectedPlayerId={selectedPlayerId || undefined}
+                    onSelectPlayer={handlePlayerChange}
+                    embedded={true}
+                    isSandboxMode={workspaceStore.activeMode === "sandbox"}
+                    isMultiMode={workspaceStore.activeMode === "multi"}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Mobile Tab 3: Thế trận Tốt */}
+            {mobileTab === "structures" && (
+              <div className="bg-card border border-border/60 rounded-xl p-3 sm:p-4 shadow-2xs space-y-3">
+                {selectedStructure ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between pb-2 border-b border-border/50">
+                      <h4 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                        <Compass className="w-4 h-4 text-primary" />
+                        <span>{selectedStructure.name}</span>
+                      </h4>
+                      <button
+                        onClick={() => setSelectedStructure(null)}
+                        className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                      >
+                        Đóng
+                      </button>
+                    </div>
+                    {selectedStructure.strategic_plan && (
+                      <div className="space-y-1.5 text-xs text-muted-foreground">
+                        <div>
+                          <b className="text-emerald-600 dark:text-emerald-400">Kế hoạch: </b>
+                          <span>{selectedStructure.strategic_plan.ideas.join(" ")}</span>
+                        </div>
+                        <div>
+                          <b className="text-rose-600 dark:text-rose-400">Đối ứng: </b>
+                          <span>{selectedStructure.strategic_plan.counter_ideas.join(" ")}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-xs text-muted-foreground space-y-2">
+                    <Compass className="w-8 h-8 text-primary/60 mx-auto" />
+                    <p>Chưa có cấu trúc Tốt nào được chọn. Đi các nước cờ để hình thành cấu trúc Tốt hoặc chọn từ danh sách bên dưới.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Mobile Tab 4: Ván đấu */}
+            {mobileTab === "games" && (
+              <div className="bg-card border border-border/60 rounded-xl p-3 sm:p-4 shadow-2xs space-y-3">
+                {selectedOpening ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                      <div className="font-bold text-xs text-foreground truncate">
+                        Khai cuộc: <span className="text-primary">{selectedOpening}</span>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground font-mono shrink-0">
+                        {matchingOpeningGames.length} ván
+                      </span>
+                    </div>
+                    <div className="max-h-[360px] overflow-y-auto space-y-1.5">
+                      {matchingOpeningGames.slice(0, 40).map((g, idx) => (
+                        <div
+                          key={g.id || idx}
+                          className="flex items-center justify-between p-2 rounded-lg bg-secondary/40 hover:bg-secondary/70 border border-border/40 text-xs"
+                        >
+                          <div className="truncate min-w-0 pr-2">
+                            <div className="font-semibold text-foreground truncate">
+                              {g.white_player} vs {g.black_player}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground font-mono">
+                              Kết quả: {g.result || "*"} • ECO: {g.eco || "N/A"}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleLoadOpeningGame(g)}
+                            className="px-2.5 py-1 rounded bg-primary text-primary-foreground font-bold text-[11px] shrink-0 active:scale-95 transition cursor-pointer"
+                          >
+                            Xem ván
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-xs text-muted-foreground space-y-2">
+                    <BookOpen className="w-8 h-8 text-primary/60 mx-auto" />
+                    <p>Hãy chọn một khai cuộc từ Cây khai cuộc để xem danh sách các ván đấu tương ứng.</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Current FEN Bar & Action Buttons (Centered directly under the chessboard) */}
@@ -1708,9 +1927,9 @@ export function AnalyzeContent() {
         </div>
       </div>
 
-      {/* MODE A: OPENING GAMES LIST PANEL */}
+      {/* MODE A: OPENING GAMES LIST PANEL (Chỉ hiển thị trên desktop vì mobile/tablet đã có sub-tab ván đấu riêng) */}
       {selectedOpening && !selectedStructure && (
-        <div className="bg-card border border-border/50 rounded-xl p-4 sm:p-5 shadow-2xs space-y-3.5 animate-fade-in">
+        <div className="hidden lg:block bg-card border border-border/50 rounded-xl p-4 sm:p-5 shadow-2xs space-y-3.5 animate-fade-in">
           {/* Header & Search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/30 pb-3">
             <div>
@@ -1915,9 +2134,9 @@ export function AnalyzeContent() {
         </div>
       )}
 
-      {/* MODE B: STRUCTURE GAMES LIST PANEL */}
+      {/* MODE B: STRUCTURE GAMES LIST PANEL (Chỉ hiển thị trên desktop vì mobile/tablet đã có sub-tab cấu trúc riêng) */}
       {selectedStructure && (
-        <div className="bg-card border border-border/50 rounded-xl p-4 sm:p-5 shadow-2xs space-y-3.5 animate-fade-in">
+        <div className="hidden lg:block bg-card border border-border/50 rounded-xl p-4 sm:p-5 shadow-2xs space-y-3.5 animate-fade-in">
           {/* Header & Search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/30 pb-3">
             <div>

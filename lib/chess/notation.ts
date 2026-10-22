@@ -16,15 +16,49 @@ export interface NormalizedMove {
 }
 
 /**
- * Checks if a string looks like a valid FEN position
+ * Checks if a string looks like a valid FEN position (standard board or pawn skeleton)
  */
 export function isFenString(str: string): boolean {
   if (!str) return false;
-  const trimmed = str.trim();
-  const parts = trimmed.split(/\s+/);
-  if (parts.length < 2) return false;
+  const clean = str.trim().replace(/^[(`"']+|[`"';.,)]+$/g, "");
+  const parts = clean.split(/\s+/);
+  if (parts.length < 1 || parts.length > 6) return false;
   const ranks = parts[0].split("/");
-  return ranks.length === 8 && /^[rnbqkpRNBQKP1-8]+$/.test(ranks.join(""));
+  if (ranks.length !== 8) return false;
+  for (const r of ranks) {
+    let count = 0;
+    for (const ch of r) {
+      if (/[1-8]/.test(ch)) count += parseInt(ch, 10);
+      else if (/[rnbqkpRNBQKP]/.test(ch)) count += 1;
+      else return false;
+    }
+    if (count !== 8) return false;
+  }
+  return true;
+}
+
+/**
+ * Normalizes a FEN string. If only the piece placement part is provided,
+ * adds standard active color, castling, en-passant, and move clocks: " w - - 0 1"
+ */
+export function normalizeFen(str: string): string {
+  if (!str) return "";
+  const clean = str.trim().replace(/^[(`"']+|[`"';.,)]+$/g, "");
+  const parts = clean.split(/\s+/);
+  if (parts.length === 1) {
+    return `${parts[0]} w - - 0 1`;
+  }
+  return clean;
+}
+
+/**
+ * Checks if a FEN represents a bare pawn structure skeleton (only pawns, with or without kings)
+ */
+export function isPawnSkeletonFen(str: string): boolean {
+  if (!isFenString(str)) return false;
+  const placement = normalizeFen(str).split(" ")[0];
+  // A bare pawn skeleton has pawns, empty numbers, and at most kings (no Q, R, B, N)
+  return !/[qrbnQRBN]/.test(placement) && /[pP]/.test(placement);
 }
 
 /**

@@ -1,10 +1,30 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Chess, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { useStockfish } from "@/lib/stockfish/useStockfish";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
+import { normalizeFen } from "@/lib/chess/notation";
+
+function tryCreateChess(fen?: string): Chess {
+  if (!fen) return new Chess();
+  try {
+    return new Chess(normalizeFen(fen));
+  } catch {
+    return new Chess();
+  }
+}
+
+function checkPlayable(fen: string): boolean {
+  if (!fen) return false;
+  try {
+    new Chess(normalizeFen(fen));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 interface ChessBoardProps {
   initialFen?: string;
@@ -34,10 +54,14 @@ export default function ChessBoard({
   onBoardWidthChange,
   fitParentHeight = false,
 }: ChessBoardProps) {
-  const [game, setGame] = useState(new Chess(initialFen));
+  const [game, setGame] = useState(() => tryCreateChess(initialFen));
+  const [currentPositionFen, setCurrentPositionFen] = useState<string>(
+    () => normalizeFen(initialFen) || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  );
+  const isPlayable = useMemo(() => checkPlayable(currentPositionFen), [currentPositionFen]);
   const [boardOrientation, setBoardOrientation] = useState<"white" | "black">(orientation);
   const [currentPly, setCurrentPly] = useState(0);
-  const [historyFens, setHistoryFens] = useState<string[]>([initialFen]);
+  const [historyFens, setHistoryFens] = useState<string[]>([normalizeFen(initialFen)]);
   const lastProcessedMoves = useRef<string>("");
   const rootRef = useRef<HTMLDivElement>(null);
   const boardContainerRef = useRef<HTMLDivElement>(null);
@@ -144,42 +168,65 @@ export default function ChessBoard({
     (targetPly: number) => {
       if (targetPly < 0 || targetPly >= historyFens.length) return;
       const targetFen = historyFens[targetPly];
-      const updatedGame = new Chess(targetFen);
-      setGame(updatedGame);
+      const playable = checkPlayable(targetFen);
+      if (playable) {
+        try {
+          setGame(new Chess(targetFen));
+        } catch {}
+      }
+      setCurrentPositionFen(targetFen);
       setCurrentPly(targetPly);
 
-      if (isEngineEnabled) {
+      if (isEngineEnabled && playable) {
         evaluateFen(targetFen, 14);
+      } else if (!playable) {
+        stop();
       }
       if (onPositionChange) {
         onPositionChange(targetFen, targetPly);
       }
     },
-    [historyFens, isEngineEnabled, evaluateFen, onPositionChange]
+    [historyFens, isEngineEnabled, evaluateFen, stop, onPositionChange]
   );
 
   // Stop or restart evaluation ONLY when isEngineEnabled toggles
   useEffect(() => {
-    if (!isEngineEnabled) {
+    if (!isEngineEnabled || !isPlayable) {
       stop();
     } else {
-      const activeFen = historyFens[currentPly] || game.fen();
-      evaluateFen(activeFen, 14);
+      const activeFen = historyFens[currentPly] || currentPositionFen;
+      if (checkPlayable(activeFen)) {
+        evaluateFen(activeFen, 14);
+      }
     }
-  }, [isEngineEnabled]);
+  }, [isEngineEnabled, isPlayable]);
 
   // Reset or initialize if external moves or initialFen prop changes
   useEffect(() => {
-    const movesKey = `${initialFen}__${moves.join(" ")}`;
+    const cleanInitial = normalizeFen(initialFen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    const movesKey = `${cleanInitial}__${moves.join(" ")}`;
     if (movesKey === lastProcessedMoves.current) {
       return;
     }
     lastProcessedMoves.current = movesKey;
 
+    const playable = checkPlayable(cleanInitial);
+    if (!playable) {
+      // Non-playable board (e.g. bare pawn skeleton without kings)
+      setHistoryFens([cleanInitial]);
+      setCurrentPositionFen(cleanInitial);
+      setCurrentPly(0);
+      stop();
+      if (onPositionChange) {
+        onPositionChange(cleanInitial, 0);
+      }
+      return;
+    }
+
     const newGame = new Chess();
-    if (initialFen && initialFen !== "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
+    if (cleanInitial && cleanInitial !== "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
       try {
-        newGame.load(initialFen);
+        newGame.load(cleanInitial);
       } catch {}
     }
     const fens = [newGame.fen()];
@@ -204,7 +251,10 @@ export default function ChessBoard({
         : fens.length - 1;
 
     const targetFen = fens[targetPly];
-    setGame(new Chess(targetFen));
+    try {
+      setGame(new Chess(targetFen));
+    } catch {}
+    setCurrentPositionFen(targetFen);
     setCurrentPly(targetPly);
 
     if (isEngineEnabled) {
@@ -274,12 +324,14 @@ export default function ChessBoard({
   // Make move on the board
   const makeAMove = useCallback(
     (move: { from: string; to: string; promotion?: string }) => {
+      if (!isPlayable) return false;
       try {
-        const gameCopy = new Chess(game.fen());
+        const gameCopy = new Chess(currentPositionFen);
         const result = gameCopy.move(move);
         if (result) {
           const newFen = gameCopy.fen();
           setGame(gameCopy);
+          setCurrentPositionFen(newFen);
           const nextPly = currentPly + 1;
           const newFens = historyFens.slice(0, currentPly + 1);
           newFens.push(newFen);
@@ -308,12 +360,13 @@ export default function ChessBoard({
       }
       return false;
     },
-    [game, currentPly, historyFens, moves, initialFen, isEngineEnabled, evaluateFen, onPositionChange, onMovesChange]
+    [isPlayable, currentPositionFen, currentPly, historyFens, moves, initialFen, isEngineEnabled, evaluateFen, onPositionChange, onMovesChange]
   );
 
   // Calculate legal move visual styles (dots for moves, rings for captures)
   const getMoveOptions = useCallback(
     (square: string) => {
+      if (!isPlayable) return {};
       try {
         const moves = game.moves({
           square: square as Square,
@@ -349,12 +402,14 @@ export default function ChessBoard({
         return {};
       }
     },
-    [game]
+    [game, isPlayable]
   );
 
   // Click-to-move square click handler
   const onSquareClick = useCallback(
     (square: string) => {
+      if (!isPlayable) return;
+
       // 1. If no piece was selected yet
       if (!moveFrom) {
         const piece = game.get(square as Square);
@@ -400,12 +455,13 @@ export default function ChessBoard({
       setMoveFrom(null);
       setOptionSquares({});
     },
-    [moveFrom, game, getMoveOptions, makeAMove]
+    [isPlayable, moveFrom, game, getMoveOptions, makeAMove]
   );
 
   const onDrop = (sourceSquare: string, targetSquare: string) => {
     setMoveFrom(null);
     setOptionSquares({});
+    if (!isPlayable) return false;
     const move = makeAMove({
       from: sourceSquare,
       to: targetSquare,
@@ -415,10 +471,10 @@ export default function ChessBoard({
   };
 
   // Calculate Eval Bar percentage (from White's perspective)
-  const scoreCp = isEngineEnabled && evaluation ? evaluation.score : 0;
-  const isMate = isEngineEnabled && evaluation ? evaluation.isMate : false;
+  const scoreCp = isEngineEnabled && isPlayable && evaluation ? evaluation.score : 0;
+  const isMate = isEngineEnabled && isPlayable && evaluation ? evaluation.isMate : false;
   let whiteWinningPct = 50;
-  if (isEngineEnabled && evaluation) {
+  if (isEngineEnabled && isPlayable && evaluation) {
     if (isMate) {
       whiteWinningPct = scoreCp > 0 ? 100 : 0;
     } else {
@@ -434,13 +490,15 @@ export default function ChessBoard({
         className="flex items-stretch gap-2 justify-center"
         style={{ height: `${boardWidth}px` }}
       >
-        {/* Eval Bar */}
-        <div className="w-3.5 bg-slate-900 rounded-[3px] overflow-hidden flex flex-col-reverse shrink-0 border border-slate-500 dark:border-slate-500 shadow-xs ring-1 ring-black/10 dark:ring-white/10">
-          <div
-            className="w-full bg-white transition-all duration-300 border-t border-slate-400/80 dark:border-slate-600"
-            style={{ height: `${whiteWinningPct}%` }}
-          />
-        </div>
+        {/* Eval Bar (Only displayed for playable positions) */}
+        {isPlayable ? (
+          <div className="w-3.5 bg-slate-900 rounded-[3px] overflow-hidden flex flex-col-reverse shrink-0 border border-slate-500 dark:border-slate-500 shadow-xs ring-1 ring-black/10 dark:ring-white/10">
+            <div
+              className="w-full bg-white transition-all duration-300 border-t border-slate-400/80 dark:border-slate-600"
+              style={{ height: `${whiteWinningPct}%` }}
+            />
+          </div>
+        ) : null}
 
         {/* The Chessboard */}
         <div
@@ -449,7 +507,7 @@ export default function ChessBoard({
           className="overflow-hidden rounded-[3px] flex justify-center shrink-0"
         >
           <Chessboard
-            position={game.fen()}
+            position={currentPositionFen}
             onPieceDrop={onDrop}
             onPieceDragBegin={() => {
               setMoveFrom(null);

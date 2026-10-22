@@ -18,7 +18,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { apiClient } from "@/lib/api/client";
-import { isFenString } from "@/lib/chess/notation";
+import { isFenString, normalizeFen } from "@/lib/chess/notation";
 
 export interface Message {
   role: "user" | "assistant";
@@ -118,7 +118,7 @@ function MarkdownRenderer({
             return (
               <button
                 type="button"
-                onClick={() => onApplyFen(strVal)}
+                onClick={() => onApplyFen(normalizeFen(strVal))}
                 title="Bấm để hiển thị thế cờ này lên bàn cờ"
                 className="inline-flex items-center gap-1 px-2 py-0.5 mx-1 rounded-md font-mono text-xs bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300/80 dark:border-emerald-700 hover:scale-105 transition-transform cursor-pointer shadow-2xs"
               >
@@ -264,7 +264,7 @@ export default function AiAssistantChat({
       const match = lastMsg.content.match(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/i);
       if (match) {
         const fen = match[1]?.trim();
-        onOpenBoard?.(fen);
+        onOpenBoard?.(fen ? normalizeFen(fen) : undefined);
       }
     }
   }, [messages, onOpenBoard]);

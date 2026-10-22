@@ -37,6 +37,7 @@ import AiAssistantChat from "@/components/ai/AiAssistantChat";
 import { apiClient } from "@/lib/api/client";
 import { Player, Game } from "@/lib/api/types";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
+import { isFenString, normalizeFen, isPawnSkeletonFen } from "@/lib/chess/notation";
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const STORAGE_KEY = "chess_ai_conversations_v3";
@@ -359,18 +360,29 @@ export default function AiCoachPage() {
   // Handler: Apply FEN onto board
   const handleApplyFen = (fen: string) => {
     setIsBoardOpen(true);
+    const cleanFen = normalizeFen(fen);
     try {
-      const chess = new Chess(fen);
+      const chess = new Chess(cleanFen);
       const validatedFen = chess.fen();
       setBaseFen(validatedFen);
       setCurrentFen(validatedFen);
-      setActiveMoves([]);
-      setCurrentPly(0);
-      setSelectedGameId("");
-    } catch (e) {
-      console.warn("Invalid FEN provided:", fen, e);
+    } catch {
+      // Non-playable position (e.g. bare pawn structure skeleton without kings)
+      if (isFenString(cleanFen)) {
+        setBaseFen(cleanFen);
+        setCurrentFen(cleanFen);
+      } else {
+        console.warn("Invalid FEN provided:", fen);
+        return;
+      }
     }
+    setActiveMoves([]);
+    setCurrentPly(0);
+    setSelectedGameId("");
   };
+
+  // Check if current position is a bare pawn skeleton
+  const isSkeleton = useMemo(() => isPawnSkeletonFen(currentFen), [currentFen]);
 
   // Currently selected game object
   const selectedGame = useMemo(
@@ -392,6 +404,10 @@ export default function AiCoachPage() {
 
   // Handler: Ask AI about the current board position
   const handleAskAboutBoard = () => {
+    if (isSkeleton) {
+      setPendingPrompt(`Hãy phân tích chi tiết hình thái cấu trúc Tốt (Pawn Skeleton) này: điểm mạnh, điểm yếu, các ô tiền đồn quan trọng và kế hoạch chiến lược then chốt cho cả hai bên! FEN: \`${currentFen}\``);
+      return;
+    }
     const activeColor = currentFen.split(" ")[1] === "w" ? "Trắng" : "Đen";
     let evalText = "";
     if (currentEval) {
@@ -989,9 +1005,14 @@ export default function AiCoachPage() {
                   Bàn cờ
                 </span>
 
-                {/* Stockfish Evaluation Tag with stable line height */}
+                {/* Stockfish Evaluation Tag or Pawn Skeleton Badge */}
                 <div className="h-5 flex items-center">
-                  {currentEval && (
+                  {isSkeleton ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300/60 dark:border-amber-700/60">
+                      <Layers className="w-3 h-3" />
+                      Hình thái Tốt (Skeleton)
+                    </span>
+                  ) : currentEval ? (
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
                         (currentEval.score || 0) >= 0
@@ -1004,7 +1025,7 @@ export default function AiCoachPage() {
                         ? `#M${currentEval.mateIn ?? currentEval.score}`
                         : `${currentEval.score > 0 ? "+" : ""}${(currentEval.score / 100).toFixed(2)}`}
                     </span>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
@@ -1050,7 +1071,7 @@ export default function AiCoachPage() {
                 <button
                   type="button"
                   onClick={() => setCurrentPly(0)}
-                  disabled={currentPly === 0}
+                  disabled={currentPly === 0 || isSkeleton}
                   title="Nước đầu tiên (Phím Home)"
                   className="p-1 rounded-lg hover:bg-card disabled:opacity-30 disabled:pointer-events-none text-muted-foreground hover:text-foreground transition cursor-pointer"
                 >
@@ -1059,7 +1080,7 @@ export default function AiCoachPage() {
                 <button
                   type="button"
                   onClick={() => setCurrentPly(Math.max(0, currentPly - 1))}
-                  disabled={currentPly === 0}
+                  disabled={currentPly === 0 || isSkeleton}
                   title="Lùi 1 nước (Phím mũi tên Trái / <)"
                   className="p-1 rounded-lg hover:bg-card disabled:opacity-30 disabled:pointer-events-none text-muted-foreground hover:text-foreground transition cursor-pointer"
                 >
@@ -1067,13 +1088,13 @@ export default function AiCoachPage() {
                 </button>
 
                 <span className="font-mono text-[11px] font-bold px-2 py-0.5 text-foreground bg-card rounded-md border border-border/60 shadow-2xs">
-                  {currentPly === 0 ? "Ban đầu" : `Nước ${currentPly}/${activeMoves.length}`}
+                  {isSkeleton ? "Hình thái Tốt" : currentPly === 0 ? "Ban đầu" : `Nước ${currentPly}/${activeMoves.length}`}
                 </span>
 
                 <button
                   type="button"
                   onClick={() => setCurrentPly(Math.min(activeMoves.length, currentPly + 1))}
-                  disabled={currentPly >= activeMoves.length}
+                  disabled={currentPly >= activeMoves.length || isSkeleton}
                   title="Tiến 1 nước (Phím mũi tên Phải / >)"
                   className="p-1 rounded-lg hover:bg-card disabled:opacity-30 disabled:pointer-events-none text-muted-foreground hover:text-foreground transition cursor-pointer"
                 >
@@ -1082,7 +1103,7 @@ export default function AiCoachPage() {
                 <button
                   type="button"
                   onClick={() => setCurrentPly(activeMoves.length)}
-                  disabled={currentPly >= activeMoves.length}
+                  disabled={currentPly >= activeMoves.length || isSkeleton}
                   title="Nước cuối cùng (Phím End)"
                   className="p-1 rounded-lg hover:bg-card disabled:opacity-30 disabled:pointer-events-none text-muted-foreground hover:text-foreground transition cursor-pointer"
                 >
@@ -1154,7 +1175,7 @@ export default function AiCoachPage() {
                   className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>{selectedGame ? `Thế cờ (Nước ${currentPly}) ↗` : "Gửi thế cờ vào chat ↗"}</span>
+                  <span>{isSkeleton ? "Phân tích cấu trúc Tốt ↗" : selectedGame ? `Thế cờ (Nước ${currentPly}) ↗` : "Gửi thế cờ vào chat ↗"}</span>
                 </button>
               </div>
             </div>

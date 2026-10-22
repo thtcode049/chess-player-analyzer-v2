@@ -537,23 +537,19 @@ export default function AiCoachView() {
             {isSidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
           </button>
 
-          {/* Profile Select dropdown */}
-          <div className="flex items-center gap-1.5 bg-background border border-border/70 rounded-xl px-2.5 py-1 shadow-2xs min-w-[210px] max-w-[320px]">
-            <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <select
-              value={selectedPlayerId || GENERAL_CHAT_ID}
-              onChange={(e) => setSelectedPlayerId(e.target.value)}
-              className="w-full bg-transparent border-0 text-xs font-bold text-foreground focus:outline-hidden cursor-pointer truncate"
-            >
-              <option value={GENERAL_CHAT_ID} className="bg-card text-foreground font-semibold">
-                ✨ Trò chuyện Tự do (Không chọn kỳ thủ)
-              </option>
-              {players.map((p) => (
-                <option key={p.id} value={p.id} className="bg-card text-foreground">
-                  Hồ sơ: {p.canonical_name} {p.title ? `(${p.title})` : ""}
-                </option>
-              ))}
-            </select>
+          {/* Active Profile Info Badge (No duplicate switcher) */}
+          <div className="flex items-center gap-2 bg-emerald-50/90 dark:bg-emerald-950/50 border border-emerald-300/70 dark:border-emerald-700/60 rounded-xl px-3 py-1.5 shadow-2xs">
+            <User className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 truncate max-w-[180px] sm:max-w-[240px]">
+              {selectedPlayerId && selectedPlayerId !== GENERAL_CHAT_ID && selectedPlayer
+                ? `Hồ sơ: ${selectedPlayer.canonical_name}`
+                : "Trợ lí AI Cờ Vua"}
+            </span>
+            {selectedPlayer?.title && (
+              <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                {selectedPlayer.title}
+              </span>
+            )}
           </div>
 
           {/* PGN Games Count Badge or Free Mode Badge */}
@@ -846,191 +842,178 @@ export default function AiCoachView() {
                 );
               })()}
 
-              {/* Divider if players exist */}
-              {players.length > 0 && (
-                <div className="pt-2 pb-1 px-2.5">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                    Hồ sơ kỳ thủ ({players.length})
-                  </span>
-                </div>
-              )}
+              {/* Active Player Profile Folder Only (No list of other players) */}
+              {selectedPlayer && selectedPlayerId !== GENERAL_CHAT_ID && (
+                (() => {
+                  const player = selectedPlayer;
+                  const playerSessions = groupedSessions[player.id] || [];
+                  const isExpanded = expandedFolders[player.id] ?? true;
 
-              {players.map((player) => {
-                const playerSessions = groupedSessions[player.id] || [];
-                const isExpanded = expandedFolders[player.id] ?? (player.id === selectedPlayerId);
+                  if (searchQuery && playerSessions.length === 0) return null;
 
-                // If searching and this player has no matching sessions, hide folder
-                if (searchQuery && playerSessions.length === 0) return null;
-
-                return (
-                  <div key={player.id} className="space-y-1">
-                    {/* Folder Header */}
-                    <div
-                      onClick={() => toggleFolder(player.id)}
-                      className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold cursor-pointer transition select-none border ${
-                        player.id === selectedPlayerId
-                          ? "bg-muted/70 text-foreground border-border/70 shadow-2xs"
-                          : "text-muted-foreground hover:bg-muted/40 hover:text-foreground border-transparent"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate min-w-0">
-                        <div className="w-5 h-5 rounded-md bg-secondary/80 flex items-center justify-center text-muted-foreground shrink-0 text-[10px] font-black uppercase">
-                          {player.canonical_name ? player.canonical_name.charAt(0) : "K"}
-                        </div>
-                        <span className="truncate">{player.canonical_name}</span>
-                        {player.title && (
-                          <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 font-extrabold border border-amber-500/20 shrink-0">
-                            {player.title}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCreateNewChat(player.id);
-                          }}
-                          title={`Tạo đoạn chat mới cho ${player.canonical_name}`}
-                          className="p-1 rounded-md hover:bg-background text-muted-foreground hover:text-emerald-600 transition"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </button>
-
-                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-secondary font-mono text-muted-foreground font-semibold">
-                          {playerSessions.length}
-                        </span>
-
-                        {isExpanded ? (
-                          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition" />
-                        ) : (
-                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground transition" />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Conversation Items under this folder */}
-                    {isExpanded && (
-                      <div className="pl-2 space-y-1 ml-2 border-l border-border/50">
-                        {playerSessions.length === 0 ? (
-                          <div className="py-2 px-2 text-[11px] text-muted-foreground/60 italic flex items-center justify-between">
-                            <span>Chưa có hội thoại</span>
-                            <button
-                              type="button"
-                              onClick={() => handleCreateNewChat(player.id)}
-                              className="text-emerald-600 hover:underline font-bold text-[10px]"
-                            >
-                              + Bắt đầu chat
-                            </button>
+                  return (
+                    <div key={player.id} className="space-y-1">
+                      {/* Folder Header */}
+                      <div
+                        onClick={() => toggleFolder(player.id)}
+                        className="flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold cursor-pointer transition select-none border bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 border-emerald-500/30 shadow-2xs"
+                      >
+                        <div className="flex items-center gap-2 truncate min-w-0">
+                          <div className="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0 text-[10px] font-black uppercase">
+                            {player.canonical_name ? player.canonical_name.charAt(0) : "K"}
                           </div>
-                        ) : (
-                          playerSessions.map((session) => {
-                            const isActive = session.id === activeSessionId;
-                            const isEditing = editingSessionId === session.id;
+                          <span className="truncate">{player.canonical_name}</span>
+                          {player.title && (
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 font-extrabold border border-amber-500/20 shrink-0">
+                              {player.title}
+                            </span>
+                          )}
+                        </div>
 
-                            return (
-                              <div
-                                key={session.id}
-                                onClick={() => {
-                                  if (isEditing) return;
-                                  setActiveSessionId(session.id);
-                                  if (session.playerId !== selectedPlayerId) {
-                                    setSelectedPlayerId(session.playerId);
-                                  }
-                                }}
-                                className={`group relative flex flex-col px-2.5 py-2 rounded-xl text-xs cursor-pointer transition select-none ${
-                                  isActive
-                                    ? "bg-emerald-500/10 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 font-bold border-l-3 border-l-emerald-600 border border-emerald-500/30 shadow-2xs"
-                                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground font-medium border border-transparent"
-                                }`}
-                              >
-                                {isEditing ? (
-                                  <div
-                                    className="flex items-center gap-1.5"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <input
-                                      type="text"
-                                      value={editingTitle}
-                                      onChange={(e) => setEditingTitle(e.target.value)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter") handleSaveRename(session.id);
-                                        if (e.key === "Escape") setEditingSessionId(null);
-                                      }}
-                                      autoFocus
-                                      className="flex-1 bg-background border border-emerald-500 rounded-lg px-2 py-0.5 text-xs text-foreground focus:outline-hidden"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSaveRename(session.id)}
-                                      className="p-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-500 transition"
-                                      title="Lưu"
-                                    >
-                                      <Check className="w-3 h-3" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditingSessionId(null)}
-                                      className="p-1 rounded-md bg-muted text-muted-foreground hover:text-foreground transition"
-                                      title="Hủy"
-                                    >
-                                      <X className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <div className="flex items-center justify-between gap-1.5 min-w-0">
-                                      <div className="flex items-center gap-1.5 truncate min-w-0">
-                                        <MessageSquare
-                                          className={`w-3.5 h-3.5 shrink-0 ${
-                                            isActive ? "text-emerald-600" : "text-muted-foreground/70"
-                                          }`}
-                                        />
-                                        <span className="truncate">{session.title}</span>
-                                      </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCreateNewChat(player.id);
+                            }}
+                            title={`Tạo đoạn chat mới cho ${player.canonical_name}`}
+                            className="p-1 rounded-md hover:bg-background text-muted-foreground hover:text-emerald-600 transition"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
 
-                                      {/* Action buttons on hover */}
-                                      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 shrink-0 transition-opacity">
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setEditingSessionId(session.id);
-                                            setEditingTitle(session.title);
-                                          }}
-                                          title="Đổi tên đoạn chat"
-                                          className="p-1 rounded-md hover:bg-card text-muted-foreground hover:text-foreground transition"
-                                        >
-                                          <Edit2 className="w-3 h-3" />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => handleDeleteSession(e, session.id)}
-                                          title="Xóa đoạn chat này"
-                                          className="p-1 rounded-md hover:bg-red-100 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600 transition"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
-                                      </div>
-                                    </div>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-secondary font-mono text-muted-foreground font-semibold">
+                            {playerSessions.length}
+                          </span>
 
-                                    {/* Subtitle row: Time & Message count */}
-                                    <div className="flex items-center justify-between mt-1 text-[10px] text-muted-foreground/70 font-mono">
-                                      <span>{formatRelativeTime(session.updatedAt)}</span>
-                                      <span>{session.messages.length} tin</span>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            );
-                          })
-                        )}
+                          {isExpanded ? (
+                            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition" />
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground transition" />
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+
+                      {/* Conversation Items under this folder */}
+                      {isExpanded && (
+                        <div className="pl-2 space-y-1 ml-2 border-l border-border/50">
+                          {playerSessions.length === 0 ? (
+                            <div className="py-2 px-2 text-[11px] text-muted-foreground/60 italic flex items-center justify-between">
+                              <span>Chưa có hội thoại</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCreateNewChat(player.id)}
+                                className="text-emerald-600 hover:underline font-bold text-[10px]"
+                              >
+                                + Bắt đầu chat
+                              </button>
+                            </div>
+                          ) : (
+                            playerSessions.map((session) => {
+                              const isActive = session.id === activeSessionId;
+                              const isEditing = editingSessionId === session.id;
+
+                              return (
+                                <div
+                                  key={session.id}
+                                  onClick={() => {
+                                    if (isEditing) return;
+                                    setActiveSessionId(session.id);
+                                  }}
+                                  className={`group relative flex flex-col px-2.5 py-2 rounded-xl text-xs cursor-pointer transition select-none ${
+                                    isActive
+                                      ? "bg-emerald-500/10 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 font-bold border-l-3 border-l-emerald-600 border border-emerald-500/30 shadow-2xs"
+                                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground font-medium border border-transparent"
+                                  }`}
+                                >
+                                  {isEditing ? (
+                                    <div
+                                      className="flex items-center gap-1.5"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <input
+                                        type="text"
+                                        value={editingTitle}
+                                        onChange={(e) => setEditingTitle(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") handleSaveRename(session.id);
+                                          if (e.key === "Escape") setEditingSessionId(null);
+                                        }}
+                                        autoFocus
+                                        className="flex-1 bg-background border border-emerald-500 rounded-lg px-2 py-0.5 text-xs text-foreground focus:outline-hidden"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSaveRename(session.id)}
+                                        className="p-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-500 transition"
+                                        title="Lưu"
+                                      >
+                                        <Check className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingSessionId(null)}
+                                        className="p-1 rounded-md bg-muted text-muted-foreground hover:text-foreground transition"
+                                        title="Hủy"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="flex items-center justify-between gap-1.5 min-w-0">
+                                        <div className="flex items-center gap-1.5 truncate min-w-0">
+                                          <MessageSquare
+                                            className={`w-3.5 h-3.5 shrink-0 ${
+                                              isActive ? "text-emerald-600" : "text-muted-foreground/70"
+                                            }`}
+                                          />
+                                          <span className="truncate">{session.title}</span>
+                                        </div>
+
+                                        {/* Action buttons on hover */}
+                                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 shrink-0 transition-opacity">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setEditingSessionId(session.id);
+                                              setEditingTitle(session.title);
+                                            }}
+                                            title="Đổi tên đoạn chat"
+                                            className="p-1 rounded-md hover:bg-card text-muted-foreground hover:text-foreground transition"
+                                          >
+                                            <Edit2 className="w-3 h-3" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => handleDeleteSession(e, session.id)}
+                                            title="Xóa đoạn chat này"
+                                            className="p-1 rounded-md hover:bg-red-100 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600 transition"
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {/* Subtitle row: Time & Message count */}
+                                      <div className="flex items-center justify-between mt-1 text-[10px] text-muted-foreground/70 font-mono">
+                                        <span>{formatRelativeTime(session.updatedAt)}</span>
+                                        <span>{session.messages.length} tin</span>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
+              )}
 
               {/* Guest hint card if no players exist */}
               {players.length === 0 && !searchQuery && (

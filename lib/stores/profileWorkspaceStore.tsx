@@ -284,12 +284,14 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
     setMatchupIndex(treeIdx);
 
     setActiveMode("multi");
-    if (multiProfiles.length > 0 && !selectedSubProfileId) {
-      setSelectedSubProfileId(multiProfiles[0].player.id);
+    if (multiProfiles.length > 0) {
+      const firstId = multiProfiles[0].player.id;
+      setSelectedSubProfileId(firstId);
+      loadProfileData(firstId);
     }
     setIsHubOpen(false);
     setActiveTabState("board");
-  }, [multiProfiles, cachedProfiles, loadProfileData, selectedSubProfileId]);
+  }, [multiProfiles, cachedProfiles, loadProfileData]);
 
   // 6. Open Sandbox Board
   const openSandboxBoard = useCallback(() => {
@@ -402,35 +404,59 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
 
   // Active player resolution
   const activeCached = activePlayerId ? cachedProfiles[activePlayerId] : null;
+
+  // In multi mode, safely determine the sub-profile to display (defaulting to the first group member)
+  const effectiveSubProfileId = useMemo(() => {
+    if (activeMode !== "multi") return null;
+    if (selectedSubProfileId && multiProfiles.some((m) => m.player.id === selectedSubProfileId)) {
+      return selectedSubProfileId;
+    }
+    return multiProfiles[0]?.player.id || null;
+  }, [activeMode, selectedSubProfileId, multiProfiles]);
+
+  // Synchronize selectedSubProfileId if it was unset or stale
+  useEffect(() => {
+    if (activeMode === "multi" && effectiveSubProfileId && selectedSubProfileId !== effectiveSubProfileId) {
+      setSelectedSubProfileId(effectiveSubProfileId);
+    }
+  }, [activeMode, effectiveSubProfileId, selectedSubProfileId]);
+
+  // Auto load data for the effective sub-profile if not yet in cache
+  useEffect(() => {
+    if (activeMode === "multi" && effectiveSubProfileId && !cachedProfiles[effectiveSubProfileId]) {
+      loadProfileData(effectiveSubProfileId);
+    }
+  }, [activeMode, effectiveSubProfileId, cachedProfiles, loadProfileData]);
+
   const activePlayer = useMemo(() => {
     if (activeMode === "single" && activePlayerId) {
       return activeCached?.player || players.find((p) => p.id === activePlayerId) || null;
     }
-    if (activeMode === "multi" && selectedSubProfileId) {
-      return cachedProfiles[selectedSubProfileId]?.player || players.find((p) => p.id === selectedSubProfileId) || null;
+    if (activeMode === "multi" && effectiveSubProfileId) {
+      return cachedProfiles[effectiveSubProfileId]?.player || players.find((p) => p.id === effectiveSubProfileId) || null;
     }
     return null;
-  }, [activeMode, activePlayerId, activeCached, players, selectedSubProfileId, cachedProfiles]);
+  }, [activeMode, activePlayerId, activeCached, players, effectiveSubProfileId, cachedProfiles]);
 
   const activePlayerGames = useMemo(() => {
     if (activeMode === "single" && activePlayerId) {
       return activeCached?.games || [];
     }
-    if (activeMode === "multi" && selectedSubProfileId) {
-      return cachedProfiles[selectedSubProfileId]?.games || [];
+    if (activeMode === "multi" && effectiveSubProfileId) {
+      return cachedProfiles[effectiveSubProfileId]?.games || [];
     }
     return [];
-  }, [activeMode, activePlayerId, activeCached, selectedSubProfileId, cachedProfiles]);
+  }, [activeMode, activePlayerId, activeCached, effectiveSubProfileId, cachedProfiles]);
 
   const activePlayerRun = useMemo(() => {
     if (activeMode === "single" && activePlayerId) {
       return activeCached?.run || null;
     }
-    if (activeMode === "multi" && selectedSubProfileId) {
-      return cachedProfiles[selectedSubProfileId]?.run || null;
+    if (activeMode === "multi" && effectiveSubProfileId) {
+      return cachedProfiles[effectiveSubProfileId]?.run || null;
     }
     return null;
-  }, [activeMode, activePlayerId, activeCached, selectedSubProfileId, cachedProfiles]);
+  }, [activeMode, activePlayerId, activeCached, effectiveSubProfileId, cachedProfiles]);
 
   // If players exist and no activePlayerId or mode has been chosen, default to the first player
   useEffect(() => {

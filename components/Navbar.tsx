@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Users,
+  User,
   Brain,
   UploadCloud,
   Sun,
@@ -60,6 +61,7 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [switcherSearch, setSwitcherSearch] = useState("");
+  const [switcherMode, setSwitcherMode] = useState<"single" | "multi">("single");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -123,6 +125,15 @@ export default function Navbar() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [profileDropdownOpen]);
+
+  // Keep switcherMode in sync with activeMode
+  useEffect(() => {
+    if (activeMode === "multi") {
+      setSwitcherMode("multi");
+    } else if (activeMode === "single") {
+      setSwitcherMode("single");
+    }
+  }, [activeMode]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -233,7 +244,40 @@ export default function Navbar() {
 
             {/* Profile Switcher Dropdown Content */}
             {profileDropdownOpen && (
-              <div className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-2 w-[340px] sm:w-[380px] rounded-3xl bg-card border border-border/80 shadow-2xl p-3 space-y-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-2 w-[340px] sm:w-[380px] rounded-3xl bg-card border border-border/80 shadow-2xl p-3 space-y-2.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                {/* Switcher Mode Tabs */}
+                <div className="grid grid-cols-2 p-1 bg-muted/70 rounded-xl gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setSwitcherMode("single")}
+                    className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      switcherMode === "single"
+                        ? "bg-background text-emerald-600 dark:text-emerald-400 shadow-2xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span>Đơn hồ sơ</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSwitcherMode("multi")}
+                    className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      switcherMode === "multi"
+                        ? "bg-background text-emerald-600 dark:text-emerald-400 shadow-2xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Swords className="w-3.5 h-3.5" />
+                    <span>Chế độ Đa hồ sơ</span>
+                    {multiProfiles.length > 0 && (
+                      <span className="w-4 h-4 rounded-full bg-emerald-500 text-white text-[9px] flex items-center justify-center font-bold">
+                        {multiProfiles.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
                 {/* Search Bar inside Dropdown */}
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
@@ -247,118 +291,179 @@ export default function Navbar() {
                   />
                 </div>
 
-                {/* Quick Switch Single Mode Players List */}
-                <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
-                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-0.5">
-                    Chuyển Nhanh Kỳ Thủ (1 Click)
-                  </div>
-                  {filteredDropdownPlayers.length === 0 ? (
-                    <div className="text-center py-4 text-xs text-muted-foreground">
-                      Không tìm thấy kỳ thủ phù hợp
+                {/* Mode Content */}
+                {switcherMode === "single" ? (
+                  /* Single Profile Switcher (1-click, NO role circles) */
+                  <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-0.5">
+                      Chuyển Nhanh Kỳ Thủ (1 Click)
                     </div>
-                  ) : (
-                    filteredDropdownPlayers.map((p) => {
-                      const isSelected = activeMode === "single" && activePlayer?.id === p.id;
-                      const multiItem = multiProfiles.find((m) => m.player.id === p.id);
-                      const currentRole = multiItem?.role;
+                    {filteredDropdownPlayers.length === 0 ? (
+                      <div className="text-center py-4 text-xs text-muted-foreground">
+                        Không tìm thấy kỳ thủ phù hợp
+                      </div>
+                    ) : (
+                      filteredDropdownPlayers.map((p) => {
+                        const isSelected = activeMode === "single" && activePlayer?.id === p.id;
 
-                      return (
-                        <div
-                          key={p.id}
-                          className={`flex items-center justify-between p-2 rounded-xl transition group ${
-                            isSelected
-                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold"
-                              : "hover:bg-muted text-foreground"
-                          }`}
-                        >
+                        return (
                           <button
+                            key={p.id}
                             type="button"
                             onClick={() => {
                               selectSingleProfile(p.id, activeTab);
                               setProfileDropdownOpen(false);
                             }}
-                            className="flex items-center gap-2 flex-1 text-left truncate mr-2"
+                            className={`w-full flex items-center justify-between p-2 rounded-xl transition text-left cursor-pointer ${
+                              isSelected
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-500/30"
+                                : "hover:bg-muted text-foreground border border-transparent"
+                            }`}
                           >
-                            <span className="w-5 h-5 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-[10px] font-black shrink-0">
-                              {p.canonical_name ? p.canonical_name[0].toUpperCase() : "P"}
-                            </span>
-                            <span className="truncate text-xs">{p.canonical_name}</span>
-                            {p.title && (
-                              <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                                {p.title}
+                            <div className="flex items-center gap-2 truncate min-w-0">
+                              <span className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-[10px] font-black shrink-0">
+                                {p.canonical_name ? p.canonical_name[0].toUpperCase() : "P"}
                               </span>
-                            )}
-                            {isSelected && <Check className="w-3.5 h-3.5 text-emerald-500 ml-auto shrink-0" />}
+                              <span className="truncate text-xs">{p.canonical_name}</span>
+                              {p.title && (
+                                <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
+                                  {p.title}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                              {p.total_games ? (
+                                <span className="text-[10px] text-muted-foreground font-mono">
+                                  {p.total_games} ván
+                                </span>
+                              ) : null}
+                              {isSelected && <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                            </div>
                           </button>
+                        );
+                      })
+                    )}
+                  </div>
+                ) : (
+                  /* Multi-profile Matchup Setup */
+                  <div className="space-y-2">
+                    <div className="px-2 py-0.5">
+                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        Ghép Đấu Đa Hồ Sơ (Matchup)
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">
+                        Gán màu quân cho từng kỳ thủ để phân tích đối đầu:
+                      </div>
+                    </div>
 
-                          {/* Quick Mini Role Switcher for Matchup */}
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setMultiProfileRole(p, currentRole === "white" ? null : "white");
-                              }}
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition border ${
-                                currentRole === "white"
-                                  ? "bg-white text-slate-900 border-white ring-1 ring-emerald-500 shadow-2xs"
-                                  : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/60"
-                              }`}
-                              title="Gán Cầm Trắng"
-                            >
-                              ⚪
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setMultiProfileRole(p, currentRole === "black" ? null : "black");
-                              }}
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition border ${
-                                currentRole === "black"
-                                  ? "bg-slate-900 text-white border-slate-700 ring-1 ring-emerald-500 shadow-2xs"
-                                  : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/60"
-                              }`}
-                              title="Gán Cầm Đen"
-                            >
-                              ⚫
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setMultiProfileRole(p, currentRole === "both" ? null : "both");
-                              }}
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition border ${
-                                currentRole === "both"
-                                  ? "bg-emerald-600 text-white border-emerald-500 ring-1 ring-emerald-500 shadow-2xs"
-                                  : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/60"
-                              }`}
-                              title="Gán Cả Hai"
-                            >
-                              ⚪⚫
-                            </button>
-                          </div>
+                    <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
+                      {filteredDropdownPlayers.length === 0 ? (
+                        <div className="text-center py-4 text-xs text-muted-foreground">
+                          Không tìm thấy kỳ thủ phù hợp
                         </div>
-                      );
-                    })
-                  )}
-                </div>
+                      ) : (
+                        filteredDropdownPlayers.map((p) => {
+                          const multiItem = multiProfiles.find((m) => m.player.id === p.id);
+                          const currentRole = multiItem?.role;
 
-                {/* Matchup Quick Apply if multiProfiles > 0 */}
-                {multiProfiles.length > 0 && (
-                  <div className="pt-2 border-t border-border/60">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        openMatchupBoard();
-                        setProfileDropdownOpen(false);
-                      }}
-                      className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition"
-                    >
-                      <Swords className="w-3.5 h-3.5" />
-                      <span>Áp Dụng Tổ Hợp Đa Hồ Sơ ({multiProfiles.length})</span>
-                    </button>
+                          return (
+                            <div
+                              key={p.id}
+                              className={`flex items-center justify-between p-2 rounded-xl transition ${
+                                currentRole
+                                  ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 font-bold"
+                                  : "hover:bg-muted text-foreground border border-transparent"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 truncate min-w-0 mr-2">
+                                <span className="w-5 h-5 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-[10px] font-black shrink-0">
+                                  {p.canonical_name ? p.canonical_name[0].toUpperCase() : "P"}
+                                </span>
+                                <span className="truncate text-xs">{p.canonical_name}</span>
+                                {p.title && (
+                                  <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
+                                    {p.title}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Role assignment buttons */}
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMultiProfileRole(p, currentRole === "white" ? null : "white");
+                                  }}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition border cursor-pointer ${
+                                    currentRole === "white"
+                                      ? "bg-white text-slate-900 border-white ring-2 ring-emerald-500 shadow-2xs"
+                                      : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/60"
+                                  }`}
+                                  title="Gán Cầm Trắng (⚪)"
+                                >
+                                  ⚪
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMultiProfileRole(p, currentRole === "black" ? null : "black");
+                                  }}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition border cursor-pointer ${
+                                    currentRole === "black"
+                                      ? "bg-slate-900 text-white border-slate-700 ring-2 ring-emerald-500 shadow-2xs"
+                                      : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/60"
+                                  }`}
+                                  title="Gán Cầm Đen (⚫)"
+                                >
+                                  ⚫
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMultiProfileRole(p, currentRole === "both" ? null : "both");
+                                  }}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition border cursor-pointer ${
+                                    currentRole === "both"
+                                      ? "bg-emerald-600 text-white border-emerald-500 ring-2 ring-emerald-400 shadow-2xs"
+                                      : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/60"
+                                  }`}
+                                  title="Gán Cả Hai Bên (⚪⚫)"
+                                >
+                                  ⚪⚫
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Matchup Apply button */}
+                    <div className="pt-2 border-t border-border/60">
+                      <button
+                        type="button"
+                        disabled={multiProfiles.length === 0}
+                        onClick={() => {
+                          openMatchupBoard();
+                          setProfileDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold shadow-xs transition ${
+                          multiProfiles.length > 0
+                            ? "bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
+                            : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+                        }`}
+                      >
+                        <Swords className="w-3.5 h-3.5" />
+                        <span>
+                          {multiProfiles.length > 0
+                            ? `Áp Dụng Tổ Hợp Đa Hồ Sơ (${multiProfiles.length})`
+                            : "Chọn ít nhất 1 kỳ thủ"}
+                        </span>
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -370,34 +475,16 @@ export default function Navbar() {
                       openSandboxBoard();
                       setProfileDropdownOpen(false);
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-muted hover:text-foreground transition"
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-muted hover:text-foreground transition cursor-pointer"
                   >
                     <Layers className="w-3.5 h-3.5 text-sky-500" />
                     <span>Chế độ Bàn cờ Tự do (Master DB / Sandbox)</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      openHub();
-                      setProfileDropdownOpen(false);
-                      if (window.location.pathname !== "/dashboard") {
-                        window.history.pushState(null, "", "/dashboard");
-                      }
-                    }}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition"
-                  >
-                    <div className="flex items-center gap-2">
-                      <FolderOpen className="w-3.5 h-3.5" />
-                      <span>📂 Quản lý tất cả hồ sơ (Thư viện)</span>
-                    </div>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-
                   <Link
                     href="/import"
                     onClick={() => setProfileDropdownOpen(false)}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-muted hover:text-foreground transition"
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-muted hover:text-foreground transition cursor-pointer"
                   >
                     <UploadCloud className="w-3.5 h-3.5 text-teal-500" />
                     <span>+ Tạo / Nạp hồ sơ mới</span>
@@ -409,6 +496,26 @@ export default function Navbar() {
 
           {/* Desktop Workspace Segmented Navigation Pills */}
           <nav className="hidden md:flex items-center gap-1 bg-slate-100/90 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-xs">
+            {/* Tab 0: Thư viện (Quản lý tất cả hồ sơ) */}
+            <button
+              type="button"
+              onClick={() => {
+                openHub();
+                if (window.location.pathname !== "/dashboard") {
+                  window.history.pushState(null, "", "/dashboard");
+                }
+              }}
+              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                isHubOpen
+                  ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
+              }`}
+              title="Quản lý và xem tất cả hồ sơ kỳ thủ (Thư viện)"
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              <span>Thư viện</span>
+            </button>
+
             {/* Tab 1: Hồ sơ & Ván đấu */}
             <button
               type="button"
@@ -540,6 +647,24 @@ export default function Navbar() {
           <div className="space-y-1">
             <button
               type="button"
+              onClick={() => {
+                openHub();
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
+                isHubOpen
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                  : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <FolderOpen className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>📁 Thư viện hồ sơ</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
               onClick={() => handleNavTab("profile")}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeTab === "profile" && !isHubOpen
@@ -584,18 +709,6 @@ export default function Navbar() {
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
                 AI
               </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                openHub();
-                setMobileMenuOpen(false);
-              }}
-              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition"
-            >
-              <FolderOpen className="w-4 h-4 text-emerald-500 shrink-0" />
-              <span>📂 Quản lý tất cả hồ sơ (Thư viện)</span>
             </button>
 
             <Link

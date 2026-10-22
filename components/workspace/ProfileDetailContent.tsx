@@ -118,6 +118,7 @@ export default function ProfileDetailContent({
     selectedSubProfileId,
     setSelectedSubProfileId,
     activeMode,
+    loadProfileData,
   } = useProfileWorkspaceStore();
 
   const player = activePlayer;
@@ -417,15 +418,18 @@ export default function ProfileDetailContent({
             Xem hồ sơ trong nhóm:
           </span>
           {multiProfiles.map((item) => {
-            const isSelected = item.player.id === player.id;
+            const isSelected = item.player.id === player?.id;
             const roleBadge = item.role === "white" ? "⚪ Trắng" : item.role === "black" ? "⚫ Đen" : "⚪⚫ Cả hai";
 
             return (
               <button
                 key={item.player.id}
                 type="button"
-                onClick={() => setSelectedSubProfileId(item.player.id)}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 border ${
+                onClick={() => {
+                  setSelectedSubProfileId(item.player.id);
+                  loadProfileData(item.player.id);
+                }}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 border cursor-pointer ${
                   isSelected
                     ? "bg-background text-emerald-600 dark:text-emerald-400 border-emerald-500 shadow-xs"
                     : "bg-card text-muted-foreground hover:text-foreground border-border/60"

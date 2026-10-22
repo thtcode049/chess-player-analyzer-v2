@@ -1,25 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { 
-  Users, 
-  Brain, 
-  UploadCloud, 
-  LayoutDashboard, 
-  Sun, 
-  Moon, 
+import { usePathname, useRouter } from "next/navigation";
+import {
+  Users,
+  Brain,
+  UploadCloud,
+  Sun,
+  Moon,
   Swords,
   Settings,
   LogOut,
   LogIn,
   UserPlus,
   Menu,
-  X
+  X,
+  ChevronDown,
+  Search,
+  Check,
+  FolderOpen,
+  Sparkles,
+  Layers,
+  ArrowRight
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ChessLookLogo from "@/components/ChessLookLogo";
+import { useProfileWorkspaceStore, ColorRole } from "@/lib/stores/profileWorkspaceStore";
 
 function UserAvatar({ url, name }: { url?: string | null; name: string }) {
   const [hasError, setHasError] = useState(false);
@@ -45,16 +52,38 @@ function UserAvatar({ url, name }: { url?: string | null; name: string }) {
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isDark, setIsDark] = useState(false);
   const [user, setUser] = useState<any>(null);
   const supabase = createClient();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [switcherSearch, setSwitcherSearch] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const {
+    players,
+    activeMode,
+    activePlayer,
+    activePlayerGames,
+    multiProfiles,
+    setMultiProfileRole,
+    selectSingleProfile,
+    openMatchupBoard,
+    openSandboxBoard,
+    activeTab,
+    setActiveTab,
+    isHubOpen,
+    openHub,
+    closeHub,
+  } = useProfileWorkspaceStore();
 
   useEffect(() => {
     // Check initial theme
     if (typeof window !== "undefined") {
-      const isDarkMode = localStorage.getItem("theme") === "dark" || 
+      const isDarkMode =
+        localStorage.getItem("theme") === "dark" ||
         (!("theme" in localStorage) && window.matchMedia("(prefers-color-scheme: dark)").matches);
       setIsDark(isDarkMode);
       if (isDarkMode) {
@@ -80,6 +109,21 @@ export default function Navbar() {
     };
   }, [pathname]);
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setProfileDropdownOpen(false);
+      }
+    };
+    if (profileDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [profileDropdownOpen]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -99,51 +143,320 @@ export default function Navbar() {
     }
   };
 
-  const navLinks = [
-    { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
-    { href: "/players", label: "Hồ sơ kỳ thủ", icon: Users },
-    { href: "/analyze", label: "Bàn cờ Phân tích", icon: Swords },
-    { href: "/ai-coach", label: "Trợ lí AI", icon: Brain, badge: "AI" },
-    { href: "/import", label: "Nạp ván đấu", icon: UploadCloud },
-    { href: "/settings", label: "Cài đặt", icon: Settings },
-  ];
+  // Compute Active Profile Switcher Label
+  const profileLabel = useMemo(() => {
+    if (activeMode === "multi") {
+      const whiteCount = multiProfiles.filter((m) => m.role === "white" || m.role === "both").length;
+      const blackCount = multiProfiles.filter((m) => m.role === "black" || m.role === "both").length;
+      return `Đa hồ sơ: ${whiteCount}⚪ vs ${blackCount}⚫`;
+    }
+    if (activeMode === "sandbox") {
+      return "Bàn cờ Tự do (Master DB)";
+    }
+    if (activePlayer) {
+      const gCount = activePlayerGames.length || activePlayer.total_games || 0;
+      return `${activePlayer.canonical_name} (${gCount} ván)`;
+    }
+    return "Chọn hồ sơ kỳ thủ";
+  }, [activeMode, activePlayer, activePlayerGames, multiProfiles]);
+
+  // Filtered players inside dropdown
+  const filteredDropdownPlayers = useMemo(() => {
+    if (!switcherSearch.trim()) return players;
+    const q = switcherSearch.toLowerCase().trim();
+    return players.filter((p) => p.canonical_name?.toLowerCase().includes(q));
+  }, [players, switcherSearch]);
+
+  // Tab click handler
+  const handleNavTab = (tab: "profile" | "board" | "ai") => {
+    setActiveTab(tab);
+    closeHub();
+    setMobileMenuOpen(false);
+
+    // Synchronize shallow route without unmounting
+    const targetPath = tab === "profile" ? "/dashboard" : tab === "board" ? "/analyze" : "/ai-coach";
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState(null, "", targetPath);
+    }
+  };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-slate-200/80 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md transition-colors">
-      <div className="w-full max-w-[1720px] mx-auto flex h-16 items-center justify-between px-3 sm:px-6 lg:px-8 2xl:px-10">
-        {/* ChessLook Brand Logo */}
-        <Link href="/dashboard" className="flex items-center">
-          <ChessLookLogo size="md" />
-        </Link>
+    <header className="sticky top-0 z-50 w-full border-b border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md transition-colors shadow-2xs">
+      <div className="w-full max-w-[1720px] mx-auto flex h-16 items-center justify-between px-3 sm:px-6 lg:px-8 2xl:px-10 gap-2 sm:gap-4">
+        {/* Left: Brand Logo & Profile Hub trigger */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              openHub();
+              if (window.location.pathname !== "/dashboard") {
+                window.history.pushState(null, "", "/dashboard");
+              }
+            }}
+            className="flex items-center transition hover:opacity-90 cursor-pointer"
+            title="Quay lại Thư viện Hồ sơ Kỳ thủ"
+          >
+            <ChessLookLogo size="md" />
+          </button>
+        </div>
 
-        {/* Desktop Segmented Navigation Pills */}
-        <nav className="hidden md:flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/60 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-700/50">
-          {navLinks.map((link) => {
-            const Icon = link.icon;
-            const isActive = pathname.startsWith(link.href);
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                  isActive
-                    ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs"
-                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                <span>{link.label}</span>
-                {link.badge && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
-                    {link.badge}
-                  </span>
+        {/* Center: Profile Switcher Dropdown + Core Workspace Tabs */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-center max-w-3xl">
+          {/* Active Profile Switcher Dropdown Button */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+              className={`flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl text-xs font-bold transition-all border shadow-xs ${
+                activeMode === "multi"
+                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/20"
+                  : activeMode === "sandbox"
+                  ? "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-200"
+                  : "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200 border-emerald-300/80 dark:border-emerald-700/60 hover:border-emerald-500"
+              }`}
+              title="Nhấp để đổi nhanh kỳ thủ hoặc bật chế độ ghép Trắng/Đen"
+            >
+              <div className="flex items-center gap-1.5 truncate max-w-[140px] sm:max-w-[210px] md:max-w-[250px]">
+                {activeMode === "multi" ? (
+                  <Swords className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                 )}
-              </Link>
-            );
-          })}
-        </nav>
+                <span className="truncate">{profileLabel}</span>
+              </div>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 shrink-0 ${
+                  profileDropdownOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
 
-        {/* Right Controls */}
+            {/* Profile Switcher Dropdown Content */}
+            {profileDropdownOpen && (
+              <div className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-2 w-[340px] sm:w-[380px] rounded-3xl bg-card border border-border/80 shadow-2xl p-3 space-y-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                {/* Search Bar inside Dropdown */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={switcherSearch}
+                    onChange={(e) => setSwitcherSearch(e.target.value)}
+                    placeholder="Tìm nhanh kỳ thủ..."
+                    className="w-full bg-background border border-border/70 rounded-xl pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Quick Switch Single Mode Players List */}
+                <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
+                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-0.5">
+                    Chuyển Nhanh Kỳ Thủ (1 Click)
+                  </div>
+                  {filteredDropdownPlayers.length === 0 ? (
+                    <div className="text-center py-4 text-xs text-muted-foreground">
+                      Không tìm thấy kỳ thủ phù hợp
+                    </div>
+                  ) : (
+                    filteredDropdownPlayers.map((p) => {
+                      const isSelected = activeMode === "single" && activePlayer?.id === p.id;
+                      const multiItem = multiProfiles.find((m) => m.player.id === p.id);
+                      const currentRole = multiItem?.role;
+
+                      return (
+                        <div
+                          key={p.id}
+                          className={`flex items-center justify-between p-2 rounded-xl transition group ${
+                            isSelected
+                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold"
+                              : "hover:bg-muted text-foreground"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              selectSingleProfile(p.id, activeTab);
+                              setProfileDropdownOpen(false);
+                            }}
+                            className="flex items-center gap-2 flex-1 text-left truncate mr-2"
+                          >
+                            <span className="w-5 h-5 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-[10px] font-black shrink-0">
+                              {p.canonical_name ? p.canonical_name[0].toUpperCase() : "P"}
+                            </span>
+                            <span className="truncate text-xs">{p.canonical_name}</span>
+                            {p.title && (
+                              <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                                {p.title}
+                              </span>
+                            )}
+                            {isSelected && <Check className="w-3.5 h-3.5 text-emerald-500 ml-auto shrink-0" />}
+                          </button>
+
+                          {/* Quick Mini Role Switcher for Matchup */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMultiProfileRole(p, currentRole === "white" ? null : "white");
+                              }}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition border ${
+                                currentRole === "white"
+                                  ? "bg-white text-slate-900 border-white ring-1 ring-emerald-500 shadow-2xs"
+                                  : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/60"
+                              }`}
+                              title="Gán Cầm Trắng"
+                            >
+                              ⚪
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMultiProfileRole(p, currentRole === "black" ? null : "black");
+                              }}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition border ${
+                                currentRole === "black"
+                                  ? "bg-slate-900 text-white border-slate-700 ring-1 ring-emerald-500 shadow-2xs"
+                                  : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/60"
+                              }`}
+                              title="Gán Cầm Đen"
+                            >
+                              ⚫
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMultiProfileRole(p, currentRole === "both" ? null : "both");
+                              }}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition border ${
+                                currentRole === "both"
+                                  ? "bg-emerald-600 text-white border-emerald-500 ring-1 ring-emerald-500 shadow-2xs"
+                                  : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/60"
+                              }`}
+                              title="Gán Cả Hai"
+                            >
+                              ⚪⚫
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Matchup Quick Apply if multiProfiles > 0 */}
+                {multiProfiles.length > 0 && (
+                  <div className="pt-2 border-t border-border/60">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        openMatchupBoard();
+                        setProfileDropdownOpen(false);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition"
+                    >
+                      <Swords className="w-3.5 h-3.5" />
+                      <span>Áp Dụng Tổ Hợp Đa Hồ Sơ ({multiProfiles.length})</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Footer Actions inside Dropdown */}
+                <div className="pt-2 border-t border-border/60 space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openSandboxBoard();
+                      setProfileDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-muted hover:text-foreground transition"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-sky-500" />
+                    <span>Chế độ Bàn cờ Tự do (Master DB / Sandbox)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openHub();
+                      setProfileDropdownOpen(false);
+                      if (window.location.pathname !== "/dashboard") {
+                        window.history.pushState(null, "", "/dashboard");
+                      }
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FolderOpen className="w-3.5 h-3.5" />
+                      <span>📂 Quản lý tất cả hồ sơ (Thư viện)</span>
+                    </div>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+
+                  <Link
+                    href="/import"
+                    onClick={() => setProfileDropdownOpen(false)}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-muted hover:text-foreground transition"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5 text-teal-500" />
+                    <span>+ Tạo / Nạp hồ sơ mới</span>
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Desktop Workspace Segmented Navigation Pills */}
+          <nav className="hidden md:flex items-center gap-1 bg-slate-100/90 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-xs">
+            {/* Tab 1: Hồ sơ & Ván đấu */}
+            <button
+              type="button"
+              onClick={() => handleNavTab("profile")}
+              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "profile" && !isHubOpen
+                  ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
+              }`}
+            >
+              <Users className="h-3.5 w-3.5" />
+              <span>Hồ sơ & Ván đấu</span>
+            </button>
+
+            {/* Tab 2: Bàn cờ Phân tích */}
+            <button
+              type="button"
+              onClick={() => handleNavTab("board")}
+              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "board" && !isHubOpen
+                  ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
+              }`}
+            >
+              <Swords className="h-3.5 w-3.5" />
+              <span>Bàn cờ & Khai cuộc</span>
+            </button>
+
+            {/* Tab 3: Trợ lí AI */}
+            <button
+              type="button"
+              onClick={() => handleNavTab("ai")}
+              className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "ai" && !isHubOpen
+                  ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs ring-1 ring-slate-200/50 dark:ring-slate-600/50"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/40"
+              }`}
+            >
+              <Brain className="h-3.5 w-3.5" />
+              <span>Trợ lí AI</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                AI
+              </span>
+            </button>
+          </nav>
+        </div>
+
+        {/* Right Controls: Theme + User + Nạp Ván */}
         <div className="flex items-center gap-1.5 sm:gap-3">
           <button
             onClick={toggleTheme}
@@ -155,22 +468,20 @@ export default function Navbar() {
 
           {user ? (
             (() => {
-              const displayName = 
-                user.user_metadata?.full_name || 
-                user.user_metadata?.name || 
-                user.user_metadata?.display_name || 
-                user.email?.split("@")[0] || 
+              const displayName =
+                user.user_metadata?.full_name ||
+                user.user_metadata?.name ||
+                user.user_metadata?.display_name ||
+                user.email?.split("@")[0] ||
                 "Kỳ thủ";
-              const avatarUrl = 
-                user.user_metadata?.avatar_url || 
-                user.user_metadata?.picture || 
-                null;
+              const avatarUrl =
+                user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
 
               return (
                 <div className="flex items-center gap-2 pl-1 sm:pl-2 border-l border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/90 py-1.5 px-2.5 sm:px-3 rounded-2xl text-xs font-semibold text-foreground shadow-xs">
                     <UserAvatar url={avatarUrl} name={displayName} />
-                    <span className="max-w-[100px] sm:max-w-[150px] truncate hidden sm:inline-block font-semibold">
+                    <span className="max-w-[100px] sm:max-w-[140px] truncate hidden sm:inline-block font-semibold">
                       {displayName}
                     </span>
                   </div>
@@ -203,66 +514,117 @@ export default function Navbar() {
             </div>
           )}
 
+          {/* Primary CTA + Nạp Ván */}
           <Link
             href="/import"
             className="hidden lg:inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-xs transition"
           >
             <UploadCloud className="h-3.5 w-3.5" />
-            <span>Nạp Ván</span>
+            <span>+ Nạp Ván</span>
           </Link>
 
-          {/* Mobile Hamburger Toggle Button */}
+          {/* Mobile Hamburger Toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition focus:outline-none"
             aria-label="Mở menu điều hướng"
-            aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? <X className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Drawer Dropdown Menu */}
+      {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl px-4 py-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200 shadow-xl">
+        <div className="md:hidden border-t border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl px-4 py-4 space-y-3 shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="space-y-1">
-            {navLinks.map((link) => {
-              const Icon = link.icon;
-              const isActive = pathname.startsWith(link.href);
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
-                    isActive
-                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                      : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <span>{link.label}</span>
-                  </div>
-                  {link.badge && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
-                      {link.badge}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
+            <button
+              type="button"
+              onClick={() => handleNavTab("profile")}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
+                activeTab === "profile" && !isHubOpen
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                  : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Users className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>📊 Hồ sơ & Ván đấu</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleNavTab("board")}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
+                activeTab === "board" && !isHubOpen
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                  : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Swords className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>♟️ Bàn cờ Phân tích</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleNavTab("ai")}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
+                activeTab === "ai" && !isHubOpen
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                  : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Brain className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>🤖 Trợ lí AI</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                AI
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                openHub();
+                setMobileMenuOpen(false);
+              }}
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition"
+            >
+              <FolderOpen className="w-4 h-4 text-emerald-500 shrink-0" />
+              <span>📂 Quản lý tất cả hồ sơ (Thư viện)</span>
+            </button>
+
+            <Link
+              href="/import"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
+            >
+              <UploadCloud className="w-4 h-4 text-teal-500 shrink-0" />
+              <span>+ Nạp Ván Đấu</span>
+            </Link>
+
+            <Link
+              href="/settings"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60"
+            >
+              <Settings className="w-4 h-4 text-slate-500 shrink-0" />
+              <span>Cài đặt</span>
+            </Link>
           </div>
 
-          {/* User Section in Mobile Drawer */}
+          {/* User section on Mobile Drawer */}
           <div className="pt-3 border-t border-slate-200/80 dark:border-slate-800/80">
             {user ? (
               <div className="flex items-center justify-between px-2 py-1">
                 <div className="flex items-center gap-2.5">
-                  <UserAvatar 
-                    url={user.user_metadata?.avatar_url || user.user_metadata?.picture} 
-                    name={user.user_metadata?.full_name || user.email || "Kỳ thủ"} 
+                  <UserAvatar
+                    url={user.user_metadata?.avatar_url || user.user_metadata?.picture}
+                    name={user.user_metadata?.full_name || user.email || "Kỳ thủ"}
                   />
                   <div className="text-xs">
                     <div className="font-bold text-foreground truncate max-w-[180px]">

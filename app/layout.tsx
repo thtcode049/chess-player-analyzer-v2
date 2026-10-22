@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import MobileBottomNav from "@/components/MobileBottomNav";
+import { ProfileWorkspaceProvider } from "@/lib/stores/profileWorkspaceStore";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -27,11 +28,13 @@ export default function RootLayout({
   return (
     <html lang="vi" suppressHydrationWarning>
       <body className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased flex flex-col">
-        <Navbar />
-        <main className="flex-1 w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 2xl:px-10 py-3 sm:py-6 pb-24 md:pb-6">
-          {children}
-        </main>
-        <MobileBottomNav />
+        <ProfileWorkspaceProvider>
+          <Navbar />
+          <main className="flex-1 w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 2xl:px-10 py-3 sm:py-6 pb-24 md:pb-6">
+            {children}
+          </main>
+          <MobileBottomNav />
+        </ProfileWorkspaceProvider>
       </body>
     </html>
   );

@@ -279,6 +279,33 @@ async def get_player(
     raise HTTPException(status_code=404, detail="Player not found")
 
 
+def _parse_game_datetime(g: Dict[str, Any]) -> Optional[datetime]:
+    val = g.get("played_at")
+    if isinstance(val, datetime):
+        return val
+    if isinstance(val, str) and val.strip():
+        try:
+            return datetime.fromisoformat(val.replace("Z", "+00:00"))
+        except Exception:
+            pass
+
+    raw_h = g.get("raw_headers") or {}
+    raw_date = str(g.get("date") or raw_h.get("Date") or raw_h.get("UTCDate") or "").strip()
+    if raw_date and raw_date not in ["?", "????.??.??", "????-??-??"]:
+        clean_d = raw_date.replace(".", "-").replace("?", "01")
+        raw_time = str(g.get("time") or raw_h.get("Time") or raw_h.get("UTCTime") or "").strip()
+        if raw_time and raw_time not in ["?", "??:??:??"]:
+            try:
+                return datetime.fromisoformat(f"{clean_d}T{raw_time}")
+            except Exception:
+                pass
+        try:
+            return datetime.fromisoformat(clean_d)
+        except Exception:
+            pass
+    return None
+
+
 @router.get("/{player_id}/games", response_model=BaseResponse[PaginatedResponse[GameResponse]])
 async def list_player_games(
     player_id: str,
@@ -329,7 +356,7 @@ async def list_player_games(
     if result:
         filtered = [g for g in filtered if g.get("result") == result]
 
-    # Search by opponent, player, ECO, opening, time control
+    # Search by opponent, player, ECO, opening, time control, date, event
     if search:
         s_low = search.strip().lower()
         filtered = [
@@ -339,7 +366,12 @@ async def list_player_games(
             or s_low in str(g.get("eco", "")).lower()
             or s_low in str(g.get("opening_name") or g.get("opening", "")).lower()
             or s_low in str(g.get("result", "")).lower()
-            or s_low in str(g.get("time_control", "")).lower()
+            or s_low in str(g.get("time_control", "") or (g.get("raw_headers") or {}).get("TimeControl", "")).lower()
+            or s_low in str(g.get("played_at", "")).lower()
+            or s_low in str(g.get("date", "")).lower()
+            or s_low in str((g.get("raw_headers") or {}).get("Date", "")).lower()
+            or s_low in str(g.get("event", "")).lower()
+            or s_low in str((g.get("raw_headers") or {}).get("Event", "")).lower()
         ]
 
     total = len(filtered)
@@ -352,27 +384,48 @@ async def list_player_games(
         end_idx = start_idx + page_size
         paginated_games = filtered[start_idx:end_idx]
 
-    items = [
-        GameResponse(
-            id=g.get("id", str(uuid.uuid4())),
-            dataset_id=g.get("dataset_id", "ds_default"),
-            external_id=g.get("external_id"),
-            site_url=g.get("site_url") or g.get("link"),
-            white_player=g.get("white_player") or g.get("white", "White"),
-            black_player=g.get("black_player") or g.get("black", "Black"),
-            white_elo=g.get("white_elo"),
-            black_elo=g.get("black_elo"),
-            result=g.get("result", "*"),
-            eco=g.get("eco"),
-            opening_name=g.get("opening_name") or g.get("opening"),
-            time_control=g.get("time_control"),
-            ply_count=g.get("ply_count", len(g.get("moves", []))),
-            moves_san=g.get("moves_san", " ".join(g.get("moves", []))),
-            has_embedded_eval=bool(g.get("has_embedded_eval") or g.get("evaluations")),
-            raw_headers=g.get("raw_headers", {})
+    items = []
+    for g in paginated_games:
+        raw_h = dict(g.get("raw_headers") or {})
+        played_at = _parse_game_datetime(g)
+        if "Date" not in raw_h and (g.get("date") or g.get("played_at")):
+            raw_h["Date"] = str(g.get("date") or str(g.get("played_at")).split("T")[0])
+        if "Event" not in raw_h and g.get("event"):
+            raw_h["Event"] = str(g.get("event"))
+        if "Site" not in raw_h and g.get("site"):
+            raw_h["Site"] = str(g.get("site"))
+        if "Link" not in raw_h and (g.get("site_url") or g.get("link")):
+            raw_h["Link"] = str(g.get("site_url") or g.get("link"))
+        if "Round" not in raw_h and g.get("round"):
+            raw_h["Round"] = str(g.get("round"))
+        if "TimeControl" not in raw_h and g.get("time_control"):
+            raw_h["TimeControl"] = str(g.get("time_control"))
+        if "WhiteElo" not in raw_h and g.get("white_elo"):
+            raw_h["WhiteElo"] = str(g.get("white_elo"))
+        if "BlackElo" not in raw_h and g.get("black_elo"):
+            raw_h["BlackElo"] = str(g.get("black_elo"))
+
+        items.append(
+            GameResponse(
+                id=str(g.get("id") or uuid.uuid4()),
+                dataset_id=str(g.get("dataset_id") or "ds_default"),
+                external_id=g.get("external_id"),
+                site_url=g.get("site_url") or g.get("link") or raw_h.get("Link") or (raw_h.get("Site") if str(raw_h.get("Site", "")).startswith("http") else None),
+                played_at=played_at,
+                white_player=g.get("white_player") or g.get("white", "White"),
+                black_player=g.get("black_player") or g.get("black", "Black"),
+                white_elo=g.get("white_elo"),
+                black_elo=g.get("black_elo"),
+                result=g.get("result", "*"),
+                eco=g.get("eco"),
+                opening_name=g.get("opening_name") or g.get("opening"),
+                time_control=g.get("time_control") or raw_h.get("TimeControl"),
+                ply_count=g.get("ply_count", len(g.get("moves", []))),
+                moves_san=g.get("moves_san", " ".join(g.get("moves", []))),
+                has_embedded_eval=bool(g.get("has_embedded_eval") or g.get("evaluations")),
+                raw_headers=raw_h
+            )
         )
-        for g in paginated_games
-    ]
 
     return BaseResponse(
         success=True,

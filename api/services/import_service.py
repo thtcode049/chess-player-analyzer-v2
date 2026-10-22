@@ -111,20 +111,46 @@ class ImportService:
         # Check for embedded [%eval] in moves or raw headers
         has_embedded_eval = bool(raw_game.get("evaluations") or "[%eval" in str(raw_game.get("raw_pgn", "")))
 
-        # Parse date safely
-        date_str = raw_game.get("date", "")
+        # Parse date & time safely
+        headers = raw_game.get("headers", {})
+        date_str = str(raw_game.get("date") or headers.get("Date") or headers.get("UTCDate") or "").strip()
+        time_str = str(raw_game.get("time") or headers.get("Time") or headers.get("UTCTime") or "").strip()
         played_at = None
-        if date_str and date_str not in ["????.??.??", "?"]:
-            try:
-                clean_date = date_str.replace("?", "01").replace(".", "-")
-                played_at = datetime.fromisoformat(clean_date)
-            except Exception:
-                played_at = None
+        if date_str and date_str not in ["????.??.??", "?", "????-??-??"]:
+            clean_date = date_str.replace("?", "01").replace(".", "-")
+            if time_str and time_str not in ["?", "??:??:??"]:
+                try:
+                    played_at = datetime.fromisoformat(f"{clean_date}T{time_str}")
+                except Exception:
+                    pass
+            if not played_at:
+                try:
+                    played_at = datetime.fromisoformat(clean_date)
+                except Exception:
+                    played_at = None
+
+        # Enrich raw_headers
+        if date_str and "Date" not in headers:
+            headers["Date"] = date_str
+        if raw_game.get("event") and "Event" not in headers:
+            headers["Event"] = raw_game["event"]
+        if raw_game.get("site") and "Site" not in headers:
+            headers["Site"] = raw_game["site"]
+        link_cand = raw_game.get("link") or headers.get("Link")
+        if link_cand and "Link" not in headers:
+            headers["Link"] = link_cand
+        if raw_game.get("round") and "Round" not in headers:
+            headers["Round"] = raw_game["round"]
+        tc = raw_game.get("time_control") or headers.get("TimeControl")
+        if tc and "TimeControl" not in headers:
+            headers["TimeControl"] = tc
+
+        site_url = link_cand or (raw_game.get("site", "") if str(raw_game.get("site", "")).startswith("http") else None)
 
         return {
             "dataset_id": dataset_id,
-            "external_id": raw_game.get("site", ""),
-            "site_url": raw_game.get("link", "") or (raw_game.get("site", "") if str(raw_game.get("site", "")).startswith("http") else None),
+            "external_id": raw_game.get("site", "") or raw_game.get("link", ""),
+            "site_url": site_url,
             "played_at": played_at,
             "white_player": raw_game.get("white", "White"),
             "black_player": raw_game.get("black", "Black"),

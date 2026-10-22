@@ -24,13 +24,108 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-  Filter
+  Filter,
+  Info,
+  Copy,
+  Calendar,
+  Globe,
+  Clock,
+  Hash,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { Player, Game, AnalysisRun } from "@/lib/api/types";
 import OpeningTreeTable from "@/components/analysis/OpeningTreeTable";
 import PawnStructureGrid from "@/components/profile/PawnStructureGrid";
 import AiAssistantChat from "@/components/ai/AiAssistantChat";
+
+function getPlatformInfo(g: Game): { url: string | null; platform: "lichess" | "chesscom" | "other" | null; label: string } {
+  const headers = (g.raw_headers as Record<string, any>) || {};
+  const link = headers.Link || headers.link || "";
+  const site = headers.Site || headers.site || "";
+  const siteUrl = g.site_url || "";
+  const extId = g.external_id || "";
+
+  // Check candidates for explicit links
+  const candidates = [siteUrl, link, site, extId];
+  for (const cand of candidates) {
+    if (typeof cand === "string") {
+      const trimmed = cand.trim();
+      const lower = trimmed.toLowerCase();
+      if (lower.includes("lichess.org")) {
+        const url = trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
+        return { url, platform: "lichess", label: "Lichess" };
+      }
+      if (lower.includes("chess.com")) {
+        const url = trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
+        return { url, platform: "chesscom", label: "Chess.com" };
+      }
+    }
+  }
+
+  // Fallback when site is "Chess.com" or "Lichess" and extId is present
+  if (typeof site === "string" && site.toLowerCase().includes("lichess") && extId) {
+    const cleanId = extId.replace(/^https?:\/\/[^/]+\//, "");
+    return { url: `https://lichess.org/${cleanId}`, platform: "lichess", label: "Lichess" };
+  }
+  if (typeof site === "string" && site.toLowerCase().includes("chess.com") && extId) {
+    const cleanId = extId.replace(/^https?:\/\/[^/]+\//, "");
+    return { url: `https://www.chess.com/game/live/${cleanId}`, platform: "chesscom", label: "Chess.com" };
+  }
+
+  for (const cand of [siteUrl, link, site]) {
+    if (typeof cand === "string") {
+      const trimmed = cand.trim();
+      if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+        return { url: trimmed, platform: "other", label: "Xem trận đấu" };
+      }
+    }
+  }
+
+  return { url: null, platform: null, label: "Ngoại tuyến" };
+}
+
+function formatGameDate(g: Game): string {
+  const headers = (g.raw_headers as Record<string, any>) || {};
+  const rawDate = g.played_at || headers.Date || headers.UTCDate || headers.EventDate || "";
+  if (!rawDate || typeof rawDate !== "string") return "---";
+
+  const cleaned = rawDate.trim();
+  if (cleaned.startsWith("?") || cleaned === "") return "---";
+
+  // ISO string with T (e.g., 2024-05-12T14:30:00)
+  if (cleaned.includes("T")) {
+    const dPart = cleaned.split("T")[0];
+    const parts = dPart.split("-");
+    if (parts.length === 3 && parts[0].length === 4) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`; // DD/MM/YYYY
+    }
+    return dPart;
+  }
+
+  // YYYY.MM.DD
+  if (cleaned.includes(".")) {
+    const parts = cleaned.split(".");
+    if (parts.length === 3 && parts[0].length === 4) {
+      if (parts[1].includes("?") || parts[2].includes("?")) {
+        return parts[0];
+      }
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+  }
+
+  // YYYY-MM-DD
+  if (cleaned.includes("-")) {
+    const parts = cleaned.split("-");
+    if (parts.length === 3 && parts[0].length === 4) {
+      if (parts[1].includes("?") || parts[2].includes("?")) {
+        return parts[0];
+      }
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+  }
+
+  return cleaned;
+}
 
 export default function PlayerDetailPage() {
   const params = useParams();
@@ -54,6 +149,10 @@ export default function PlayerDetailPage() {
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Detail Modal Game state
+  const [detailModalGame, setDetailModalGame] = useState<Game | null>(null);
+  const [copiedPgn, setCopiedPgn] = useState(false);
+
   // Toast notice state
   const [notice, setNotice] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
@@ -66,12 +165,13 @@ export default function PlayerDetailPage() {
 
   // Handle Escape key and body scroll locking when modal dialog is open
   useEffect(() => {
-    if (activeAction !== "none") {
+    if (activeAction !== "none" || detailModalGame !== null) {
       const originalStyle = window.getComputedStyle(document.body).overflow;
       document.body.style.overflow = "hidden";
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === "Escape") {
           handleCloseAction();
+          setDetailModalGame(null);
         }
       };
       window.addEventListener("keydown", handleKeyDown);
@@ -80,7 +180,7 @@ export default function PlayerDetailPage() {
         window.removeEventListener("keydown", handleKeyDown);
       };
     }
-  }, [activeAction]);
+  }, [activeAction, detailModalGame]);
 
   const handleOpenEdit = () => {
     if (!player) return;
@@ -962,11 +1062,17 @@ export default function PlayerDetailPage() {
                       const pName = (player?.canonical_name || "").toLowerCase();
                       const isWhite = (g.white_player || "").toLowerCase().includes(pName);
                       const isBlack = (g.black_player || "").toLowerCase().includes(pName);
-                      const dateStr = g.played_at || (g.raw_headers as any)?.Date || "";
+                      const dateDisplay = formatGameDate(g);
                       const eventStr = (g.raw_headers as any)?.Event || "";
+                      const pInfo = getPlatformInfo(g);
 
                       return (
-                        <tr key={g.id || `game-${idx}`} className="hover:bg-muted/20 transition-colors">
+                        <tr
+                          key={g.id || `game-${idx}`}
+                          onClick={() => router.push(`/analyze?gameId=${g.id}&playerId=${playerId}`)}
+                          className="cursor-pointer hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors border-b border-border/40 group"
+                          title="Nhấp vào dòng này để mở bàn cờ phân tích ván đấu"
+                        >
                           <td className="px-4 py-3 font-medium text-foreground">
                             <span className={isWhite ? "font-bold text-primary" : "text-foreground"}>
                               {g.white_player}
@@ -1007,21 +1113,57 @@ export default function PlayerDetailPage() {
                             </span>
                           </td>
                           <td className="px-3 py-3 text-muted-foreground text-[11px]">
-                            <div className="font-mono">{dateStr ? dateStr.replace(/\./g, "/") : "---"}</div>
+                            <div className="font-mono font-medium text-foreground/90">{dateDisplay}</div>
                             {eventStr && eventStr !== "?" && (
-                              <div className="truncate max-w-[120px] text-[10px] text-muted-foreground/80" title={eventStr}>
+                              <div className="truncate max-w-[140px] text-[10px] text-muted-foreground/80" title={eventStr}>
                                 {eventStr}
                               </div>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <Link
-                              href={`/analyze?gameId=${g.id}&playerId=${playerId}`}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:bg-primary hover:text-primary-foreground transition-all shadow-2xs"
-                            >
-                              Phân Tích
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </Link>
+                          <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Nút ! xem chi tiết ván */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDetailModalGame(g);
+                                }}
+                                className="p-1.5 rounded-lg border border-border/60 hover:border-primary/50 text-muted-foreground hover:text-primary hover:bg-primary/10 transition shadow-2xs"
+                                title="Xem thông tin chi tiết ván đấu (!)"
+                              >
+                                <Info className="w-4 h-4" />
+                              </button>
+
+                              {/* Xem trận đấu trên nền tảng tương ứng (Lichess / Chess.com) */}
+                              {pInfo.url ? (
+                                <a
+                                  href={pInfo.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition border shadow-2xs ${
+                                    pInfo.platform === "lichess"
+                                      ? "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700"
+                                      : pInfo.platform === "chesscom"
+                                      ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                                      : "bg-secondary text-secondary-foreground hover:bg-muted border-border"
+                                  }`}
+                                  title={`Xem trận đấu trên ${pInfo.label}`}
+                                >
+                                  <Globe className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">{pInfo.label}</span>
+                                  <ExternalLink className="w-3 h-3 opacity-70" />
+                                </a>
+                              ) : (
+                                <span
+                                  className="text-[11px] text-muted-foreground/60 px-2 py-1 rounded bg-muted/30 border border-border/30 cursor-default"
+                                  title="Ván đấu nạp từ PGN ngoại tuyến (không có link trực tiếp)"
+                                >
+                                  PGN
+                                </span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1290,6 +1432,220 @@ export default function PlayerDetailPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Game Detail Modal */}
+      {detailModalGame && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div
+            className="w-full max-w-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 pb-3 border-b border-zinc-200 dark:border-zinc-800">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-xl bg-primary/10 text-primary">
+                    <Info className="w-5 h-5" />
+                  </span>
+                  <h3 className="font-bold text-lg text-zinc-950 dark:text-white">
+                    Thông Tin Chi Tiết Ván Đấu
+                  </h3>
+                </div>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {detailModalGame.eco && <span className="font-mono font-bold text-primary mr-1.5">[{detailModalGame.eco}]</span>}
+                  {detailModalGame.opening_name || "Khai cuộc không xác định"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailModalGame(null)}
+                className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white p-1.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                title="Đóng hộp thoại"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body - Scrollable */}
+            <div className="overflow-y-auto space-y-4 pr-1 text-xs">
+              {/* Cặp đấu & Kết quả */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 items-center text-center sm:text-left">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 justify-center sm:justify-start">
+                    <span className="w-3 h-3 rounded-full bg-white border border-zinc-400 shadow-2xs inline-block" />
+                    <span className="font-bold text-zinc-950 dark:text-white truncate max-w-[160px]" title={detailModalGame.white_player}>
+                      {detailModalGame.white_player}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-zinc-500 font-mono">
+                    Elo: {detailModalGame.white_elo || "Chưa xếp hạng"}
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-center justify-center">
+                  <span
+                    className={`px-3 py-1 rounded-xl text-xs font-mono font-black ${
+                      detailModalGame.result === "1-0"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                        : detailModalGame.result === "0-1"
+                        ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
+                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                    }`}
+                  >
+                    {detailModalGame.result}
+                  </span>
+                  <span className="text-[10px] text-zinc-400 mt-1">
+                    {detailModalGame.ply_count ? `${Math.ceil(detailModalGame.ply_count / 2)} nước đi` : ""}
+                  </span>
+                </div>
+
+                <div className="space-y-1 sm:text-right">
+                  <div className="flex items-center gap-1.5 justify-center sm:justify-end">
+                    <span className="font-bold text-zinc-950 dark:text-white truncate max-w-[160px]" title={detailModalGame.black_player}>
+                      {detailModalGame.black_player}
+                    </span>
+                    <span className="w-3 h-3 rounded-full bg-zinc-900 border border-zinc-600 shadow-2xs inline-block" />
+                  </div>
+                  <div className="text-[11px] text-zinc-500 font-mono">
+                    Elo: {detailModalGame.black_elo || "Chưa xếp hạng"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Thông số kỹ thuật / Metadata */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 space-y-0.5">
+                  <div className="text-[11px] text-zinc-500 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5" /> Ngày thi đấu
+                  </div>
+                  <div className="font-semibold text-zinc-900 dark:text-zinc-100 font-mono">
+                    {formatGameDate(detailModalGame)}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 space-y-0.5">
+                  <div className="text-[11px] text-zinc-500 flex items-center gap-1">
+                    <Trophy className="w-3.5 h-3.5" /> Giải đấu / Sự kiện
+                  </div>
+                  <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate" title={(detailModalGame.raw_headers as any)?.Event || "-"}>
+                    {(detailModalGame.raw_headers as any)?.Event || "-"}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 space-y-0.5">
+                  <div className="text-[11px] text-zinc-500 flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5" /> Thời gian (TC)
+                  </div>
+                  <div className="font-semibold text-zinc-900 dark:text-zinc-100 font-mono">
+                    {detailModalGame.time_control || (detailModalGame.raw_headers as any)?.TimeControl || "-"}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 space-y-0.5">
+                  <div className="text-[11px] text-zinc-500 flex items-center gap-1">
+                    <Globe className="w-3.5 h-3.5" /> Nền tảng / Địa điểm
+                  </div>
+                  <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate" title={(detailModalGame.raw_headers as any)?.Site || "-"}>
+                    {(detailModalGame.raw_headers as any)?.Site || getPlatformInfo(detailModalGame).label}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 space-y-0.5">
+                  <div className="text-[11px] text-zinc-500 flex items-center gap-1">
+                    <Hash className="w-3.5 h-3.5" /> Vòng đấu
+                  </div>
+                  <div className="font-semibold text-zinc-900 dark:text-zinc-100 font-mono">
+                    {(detailModalGame.raw_headers as any)?.Round || "-"}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 space-y-0.5">
+                  <div className="text-[11px] text-zinc-500 flex items-center gap-1">
+                    <Sword className="w-3.5 h-3.5" /> Mã ECO
+                  </div>
+                  <div className="font-semibold text-zinc-900 dark:text-zinc-100 font-mono">
+                    {detailModalGame.eco || "---"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Các nước đi ván cờ (SAN Moves) */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-zinc-600 dark:text-zinc-400">
+                  <span className="font-semibold text-[11px]">Danh Sách Nước Đi (SAN)</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (detailModalGame.moves_san) {
+                        navigator.clipboard.writeText(detailModalGame.moves_san);
+                        setCopiedPgn(true);
+                        setTimeout(() => setCopiedPgn(false), 2000);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] text-primary transition"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    {copiedPgn ? "Đã sao chép!" : "Sao chép nước đi"}
+                  </button>
+                </div>
+                <div className="p-3 rounded-2xl bg-zinc-900 text-zinc-200 font-mono text-[11px] leading-relaxed max-h-36 overflow-y-auto select-all border border-zinc-800">
+                  {detailModalGame.moves_san || "Không có dữ liệu nước đi"}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-2.5">
+              <div>
+                {(() => {
+                  const pInfo = getPlatformInfo(detailModalGame);
+                  if (!pInfo.url) return null;
+                  return (
+                    <a
+                      href={pInfo.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition border shadow-2xs ${
+                        pInfo.platform === "lichess"
+                          ? "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700"
+                          : pInfo.platform === "chesscom"
+                          ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                          : "bg-secondary text-secondary-foreground hover:bg-muted border-border"
+                      }`}
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                      Xem trận đấu trên {pInfo.label}
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  );
+                })()}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDetailModalGame(null)}
+                  className="px-4 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold transition"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const gId = detailModalGame.id;
+                    setDetailModalGame(null);
+                    router.push(`/analyze?gameId=${gId}&playerId=${playerId}`);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition flex items-center gap-1.5 shadow-md shadow-primary/25"
+                >
+                  <Sword className="w-3.5 h-3.5" />
+                  Mở Bàn Cờ Phân Tích
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

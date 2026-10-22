@@ -114,14 +114,25 @@ def format_games_pgn_for_context(games: Optional[List[Dict[str, Any]]], max_game
         res = g.get("result") or "*"
         eco = g.get("eco") or ""
         opening = g.get("opening") or g.get("opening_name") or "Khai cuộc không tên"
-        date = g.get("date") or g.get("played_at") or "Không rõ ngày"
+        raw_h = g.get("raw_headers") or {}
+        date = g.get("date") or g.get("played_at") or raw_h.get("Date") or raw_h.get("UTCDate") or "Không rõ ngày"
+        event = g.get("event") or raw_h.get("Event") or ""
+        site = g.get("site") or g.get("site_url") or raw_h.get("Site") or raw_h.get("Link") or ""
+        tc = g.get("time_control") or raw_h.get("TimeControl") or ""
         moves_list = g.get("moves") or g.get("moves_san") or []
         moves_str = format_moves_san(moves_list)
 
         w_str = f"{white} ({w_elo})" if w_elo else white
         b_str = f"{black} ({b_elo})" if b_elo else black
         lines.append(f"\n#### [Ván {idx}] ⚪ {w_str} vs ⚫ {b_str}")
-        lines.append(f"- **Kết quả**: {res} | **Khai cuộc**: {eco} {opening} | **Ngày**: {date}")
+        meta_items = [f"**Kết quả**: {res}", f"**Khai cuộc**: {eco} {opening}".strip(), f"**Ngày**: {date}"]
+        if event and event not in ["?", "Unknown Event"]:
+            meta_items.append(f"**Giải**: {event}")
+        if site and site not in ["?", "Unknown Site"]:
+            meta_items.append(f"**Nguồn/Link**: {site}")
+        if tc and tc != "?":
+            meta_items.append(f"**Thời gian**: {tc}")
+        lines.append(f"- {' | '.join(meta_items)}")
         if moves_str:
             lines.append(f"- **Biên bản nước đi (PGN)**: {moves_str}")
         else:
@@ -163,20 +174,37 @@ def build_opponent_ai_context(
     if selected_game:
         g_white = selected_game.get("white") or selected_game.get("white_player") or "Trắng"
         g_black = selected_game.get("black") or selected_game.get("black_player") or "Đen"
+        g_w_elo = selected_game.get("white_elo") or ""
+        g_b_elo = selected_game.get("black_elo") or ""
         g_res = selected_game.get("result") or "*"
         g_eco = selected_game.get("eco") or ""
         g_open = selected_game.get("opening") or selected_game.get("opening_name") or ""
-        g_date = selected_game.get("date") or selected_game.get("played_at") or "Không rõ ngày"
+        raw_h = selected_game.get("raw_headers") or {}
+        g_date = selected_game.get("date") or selected_game.get("played_at") or raw_h.get("Date") or raw_h.get("UTCDate") or "Không rõ ngày"
+        g_event = selected_game.get("event") or raw_h.get("Event") or ""
+        g_site = selected_game.get("site") or selected_game.get("site_url") or raw_h.get("Site") or raw_h.get("Link") or ""
+        g_round = selected_game.get("round") or raw_h.get("Round") or ""
+        g_tc = selected_game.get("time_control") or raw_h.get("TimeControl") or ""
         g_moves = selected_game.get("moves_san") or format_moves_san(selected_game.get("moves", []))
         curr_ply = selected_game.get("current_ply", 0)
         tot_ply = selected_game.get("total_ply", 0)
 
         ctx_parts.append("## 🏆 VÁN ĐẤU ĐANG ĐƯỢC CHỌN TRÊN BÀN CỜ ĐỂ PHÂN TÍCH:")
-        ctx_parts.append(f"- **Cặp đấu**: ⚪ {g_white} vs ⚫ {g_black}")
+        w_text = f"{g_white} ({g_w_elo})" if g_w_elo else g_white
+        b_text = f"{g_black} ({g_b_elo})" if g_b_elo else g_black
+        ctx_parts.append(f"- **Cặp đấu**: ⚪ {w_text} vs ⚫ {b_text}")
         ctx_parts.append(f"- **Kết quả**: {g_res}")
         if g_eco or g_open:
             ctx_parts.append(f"- **Khai cuộc**: {g_eco} {g_open}".strip())
-        ctx_parts.append(f"- **Ngày / Sự kiện**: {g_date}")
+        ctx_parts.append(f"- **Ngày thi đấu**: {g_date}")
+        if g_event and g_event not in ["?", "Unknown Event"]:
+            ctx_parts.append(f"- **Giải đấu / Sự kiện**: {g_event}")
+        if g_site and g_site not in ["?", "Unknown Site"]:
+            ctx_parts.append(f"- **Nền tảng / Địa điểm (Lichess/Chess.com)**: {g_site}")
+        if g_round and g_round != "?":
+            ctx_parts.append(f"- **Vòng đấu**: {g_round}")
+        if g_tc and g_tc != "?":
+            ctx_parts.append(f"- **Kiểm soát thời gian**: {g_tc}")
         if tot_ply > 0:
             ctx_parts.append(f"- **Vị trí nước đi đang xem trên bàn cờ**: Nước {curr_ply}/{tot_ply}")
         if g_moves:

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Chess } from "chess.js";
 import {
   OpeningContinuation,
@@ -103,6 +103,21 @@ export default function OpeningTreeTable({
 
   // Top Master Game Loading state
   const [loadingGameId, setLoadingGameId] = useState<string | null>(null);
+
+  // Player Selection Custom Dropdown state
+  const [isPlayerMenuOpen, setIsPlayerMenuOpen] = useState(false);
+  const playerMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isPlayerMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (playerMenuRef.current && !playerMenuRef.current.contains(e.target as Node)) {
+        setIsPlayerMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isPlayerMenuOpen]);
 
   // Sync authorization status with localStorage
   const refreshAuthStatus = () => {
@@ -307,27 +322,54 @@ export default function OpeningTreeTable({
             </button>
 
             {players && players.length > 0 ? (
-              <div className="relative flex items-center">
-                <select
-                  value={selectedPlayerId}
-                  onChange={(e) => {
-                    setActiveTab("player");
-                    onSelectPlayer?.(e.target.value);
-                  }}
-                  className="bg-transparent font-bold text-xs text-inherit focus:outline-none cursor-pointer pr-3.5 appearance-none max-w-[110px] sm:max-w-[150px] truncate"
+              <div className="relative flex items-center" ref={playerMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsPlayerMenuOpen(!isPlayerMenuOpen)}
+                  className="flex items-center gap-1.5 px-2 py-0.5 rounded-md hover:bg-slate-200/60 dark:hover:bg-slate-700/60 font-bold text-xs text-inherit transition cursor-pointer max-w-[130px] sm:max-w-[180px]"
                   title="Chọn hồ sơ kỳ thủ"
                 >
-                  {players.map((p) => (
-                    <option
-                      key={p.id}
-                      value={p.id}
-                      className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-medium"
-                    >
-                      {p.canonical_name} ({p.total_games || 0} ván)
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3 h-3 absolute right-0 pointer-events-none opacity-60" />
+                  <span className="truncate">
+                    {players.find((p) => p.id === selectedPlayerId)?.canonical_name || playerName || "Kỳ thủ"}
+                  </span>
+                  <ChevronDown
+                    className={`w-3 h-3 shrink-0 opacity-60 transition-transform duration-200 ${
+                      isPlayerMenuOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+
+                {isPlayerMenuOpen && (
+                  <div className="absolute left-0 top-full mt-1.5 w-64 max-h-60 overflow-y-auto rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl p-1.5 z-50 space-y-0.5 animate-in fade-in zoom-in-95">
+                    <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2.5 py-1">
+                      Chọn kỳ thủ
+                    </div>
+                    {players.map((p) => {
+                      const isSelected = selectedPlayerId === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveTab("player");
+                            onSelectPlayer?.(p.id);
+                            setIsPlayerMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center justify-between gap-2 cursor-pointer ${
+                            isSelected
+                              ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 font-bold"
+                              : "hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-800 dark:text-slate-200 font-medium"
+                          }`}
+                        >
+                          <span className="truncate">{p.canonical_name}</span>
+                          <span className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0 font-normal">
+                            ({p.total_games || 0} ván)
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ) : (
               <span

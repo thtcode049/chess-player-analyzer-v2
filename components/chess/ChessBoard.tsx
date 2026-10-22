@@ -484,15 +484,15 @@ export default function ChessBoard({
   }
 
   return (
-    <div ref={rootRef} className="flex flex-col items-center justify-center w-full h-full">
+    <div ref={rootRef} className="flex flex-col items-center justify-center w-full h-full py-1">
       {/* Board with Left Evaluation Bar */}
       <div
-        className="flex items-stretch gap-2 justify-center"
+        className="flex items-stretch gap-2.5 justify-center"
         style={{ height: `${boardWidth}px` }}
       >
         {/* Eval Bar (Only displayed for playable positions) */}
         {isPlayable ? (
-          <div className="w-3.5 bg-slate-900 rounded-[3px] overflow-hidden flex flex-col-reverse shrink-0 border border-slate-500 dark:border-slate-500 shadow-xs ring-1 ring-black/10 dark:ring-white/10">
+          <div className="w-3.5 bg-slate-900 rounded-md overflow-hidden flex flex-col-reverse shrink-0 border border-slate-500/80 dark:border-slate-500/80 shadow-xs ring-1 ring-black/10 dark:ring-white/10">
             <div
               className="w-full bg-white transition-all duration-300 border-t border-slate-400/80 dark:border-slate-600"
               style={{ height: `${whiteWinningPct}%` }}
@@ -504,7 +504,7 @@ export default function ChessBoard({
         <div
           ref={boardContainerRef}
           style={{ width: `${boardWidth}px`, height: `${boardWidth}px` }}
-          className="overflow-hidden rounded-[3px] flex justify-center shrink-0"
+          className="overflow-hidden rounded-md border border-slate-300 dark:border-slate-700 shadow-xs flex justify-center shrink-0"
         >
           <Chessboard
             position={currentPositionFen}

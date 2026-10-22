@@ -1067,7 +1067,7 @@ export function AnalyzeContent() {
   }, [availableOpenings, selectedOpening]);
 
   return (
-    <div className="w-full max-w-[1720px] mx-auto animate-fade-in pb-4 -mt-3 sm:-mt-6 space-y-4">
+    <div className="w-full max-w-[1720px] mx-auto animate-fade-in pt-1 sm:pt-3 pb-6 space-y-5">
 
       {/* MATCHUP MODE BANNER */}
       {workspaceStore.activeMode === "multi" && workspaceStore.multiProfiles.length > 0 && (

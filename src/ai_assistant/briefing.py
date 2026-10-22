@@ -115,9 +115,9 @@ def generate_initial_strategic_briefing(
             lines.append("- Chưa phát hiện cấu trúc Tốt nào có độ lệch tiêu cực đáng kể.")
         lines.append("")
 
-        # 3. Giai đoạn & Độ chính xác
-        lines.append("#### 3. 🎯 Độ chính xác từng Giai đoạn & Giáo trình Đề xuất")
-        if best_phase and worst_phase:
+        # 3. Giai đoạn (chỉ hiển thị nếu có dữ liệu đánh giá)
+        if best_phase and worst_phase and best_phase[1].get('accuracy') is not None:
+            lines.append("#### 3. 🎯 Độ chính xác từng Giai đoạn & Giáo trình Đề xuất")
             lines.append(
                 f"- 🏆 **Giai đoạn vững vàng nhất:** **{phase_vn.get(best_phase[0], best_phase[0])}** "
                 f"(Độ chính xác: **{best_phase[1].get('accuracy', 0)}%**).\n"
@@ -130,16 +130,17 @@ def generate_initial_strategic_briefing(
                 lines.append("  - 📚 **Giáo án trọng tâm:** Rèn luyện đòn phối hợp chiến thuật (Tactical Puzzles) và kỹ năng duy trì kế hoạch trung cuộc khi thế trận phức tạp.")
             else:
                 lines.append("  - 📚 **Giáo án trọng tâm:** Ôn tập các nguyên tắc phát triển quân khai cuộc và kiểm soát trung tâm từ sớm.")
-        lines.append("")
+            lines.append("")
 
-        # 4. Phong cách & Động lực
-        lines.append("#### 4. ⚡ Phong cách Thi đấu & Tâm lý Ván đấu")
-        lines.append(
-            f"- **Phong cách chủ đạo:** **{style_name}**.\n"
-            f"- **Chỉ số động lực:** Tỷ lệ Sai lầm lớn (Blunder): `{blunder_rate}%` | "
-            f"Tỷ lệ Đánh mất ưu thế (Throw): `{throw_rate}%` | "
-            f"Khả năng Lội ngược dòng (Resilience): `{resilience_rate}%`."
-        )
+        # 4. Phong cách (chỉ hiển thị nếu có chỉ số cụ thể)
+        if dynamics and (blunder_rate > 0 or throw_rate > 0 or resilience_rate > 0):
+            lines.append("#### 4. ⚡ Phong cách Thi đấu & Tâm lý Ván đấu")
+            lines.append(
+                f"- **Phong cách chủ đạo:** **{style_name}**.\n"
+                f"- **Chỉ số động lực:** Tỷ lệ Sai lầm lớn (Blunder): `{blunder_rate}%` | "
+                f"Tỷ lệ Đánh mất ưu thế (Throw): `{throw_rate}%` | "
+                f"Khả năng Lội ngược dòng (Resilience): `{resilience_rate}%`."
+            )
 
     else:
         # =====================================================================
@@ -182,10 +183,10 @@ def generate_initial_strategic_briefing(
             lines.append(f"- ⚠️ **Cấu trúc sở trường của đối thủ:** **{top_struct['name']}** (Nên tránh tạo điều kiện cho đối thủ xây dựng cấu trúc này).")
         lines.append("")
 
-        # 3. Giai đoạn
-        lines.append("#### 3. 📉 Giai đoạn Đối thủ Dễ Mắc Sai lầm")
-        if worst_phase:
+        # 3. Giai đoạn (chỉ hiển thị nếu có dữ liệu đánh giá)
+        if worst_phase and worst_phase[1].get('accuracy') is not None:
             phase_name = phase_vn.get(worst_phase[0], worst_phase[0])
+            lines.append("#### 3. 📉 Giai đoạn Đối thủ Dễ Mắc Sai lầm")
             lines.append(
                 f"- 🎯 **Giai đoạn đối thủ sụt giảm độ chính xác:** **{phase_name}** "
                 f"(Chỉ đạt **{worst_phase[1].get('accuracy', 0)}%** độ chính xác)."
@@ -196,15 +197,16 @@ def generate_initial_strategic_briefing(
                 lines.append("  - 💡 *Kế hoạch tác chiến:* Làm phức tạp hóa thế trận trung cuộc, tạo nhiều đòn phối hợp chiến thuật để ép đối thủ rơi vào khủng hoảng thời gian.")
             else:
                 lines.append("  - 💡 *Kế hoạch tác chiến:* Tạo áp lực ngay từ giai đoạn khai cuộc để bắt đối thủ tiêu hao nhiều thời gian suy nghĩ.")
-        lines.append("")
+            lines.append("")
 
         # 4. Phong cách
-        lines.append("#### 4. 🎭 Phong cách & Điểm Nhạy cảm Tâm lý")
-        lines.append(
-            f"- **Phong cách đối thủ:** **{style_name}**.\n"
-            f"- **Tỷ lệ Throw (Mất ưu thế):** `{throw_rate}%` | "
-            f"**Tỷ lệ Blunder:** `{blunder_rate}%`."
-        )
+        if dynamics and (throw_rate > 0 or blunder_rate > 0):
+            lines.append("#### 4. 🎭 Phong cách & Điểm Nhạy cảm Tâm lý")
+            lines.append(
+                f"- **Phong cách đối thủ:** **{style_name}**.\n"
+                f"- **Tỷ lệ Throw (Mất ưu thế):** `{throw_rate}%` | "
+                f"**Tỷ lệ Blunder:** `{blunder_rate}%`."
+            )
 
     lines.append("\n---")
     lines.append("💡 *Hãy đặt câu hỏi bên dưới hoặc chọn một trong các gợi ý đào sâu nhanh để tiếp tục!*")

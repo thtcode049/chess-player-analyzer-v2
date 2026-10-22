@@ -89,19 +89,27 @@ def test_build_opponent_ai_context_valid():
 
     ctx = build_opponent_ai_context(deep_profile, stats, selected_player="Magnus")
     assert "BÁO CÁO DỮ LIỆU THỰC NGHIỆM KỲ THỦ: MAGNUS" in ctx
-    assert "Simplifier" in ctx
     assert "Carlsbad" in ctx
     assert "Sicilian Defense" in ctx
-    assert "91.2%" in ctx
-    assert "65.0" in ctx
 
-    # Test sample warning in context
-    ctx_sample = build_opponent_ai_context(
-        deep_profile, stats, selected_player="Magnus",
-        analyzed_games_count=5, total_games_count=20
+    # Test selected_game support in context
+    selected_game = {
+        "white": "Magnus",
+        "black": "Hikaru",
+        "result": "1-0",
+        "eco": "B90",
+        "opening": "Sicilian Defense, Najdorf",
+        "moves_san": "1.e4 c5 2.Nf3 d6 3.d4 cxd4",
+        "current_ply": 4,
+        "total_ply": 6,
+    }
+    ctx_game = build_opponent_ai_context(
+        deep_profile, stats, selected_player="Magnus", selected_game=selected_game
     )
-    assert "CẢNH BÁO ĐỘ TIN CẬY DỮ LIỆU ĐÁNH GIÁ NƯỚC ĐI" in ctx_sample
-    assert "5/20 ván" in ctx_sample
+    assert "VÁN ĐẤU ĐANG ĐƯỢC CHỌN TRÊN BÀN CỜ ĐỂ PHÂN TÍCH" in ctx_game
+    assert "Magnus vs ⚫ Hikaru" in ctx_game
+    assert "1.e4 c5 2.Nf3 d6" in ctx_game
+    assert "Nước 4/6" in ctx_game
 
 
 def test_initial_strategic_briefing():

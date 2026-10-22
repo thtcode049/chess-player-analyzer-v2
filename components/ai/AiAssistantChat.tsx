@@ -10,7 +10,6 @@ import {
   Check,
   RotateCcw,
   Zap,
-  Play,
   Layers,
   PanelLeft,
   Eye,
@@ -19,7 +18,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { apiClient } from "@/lib/api/client";
-import { isFenString, isChessMoveCandidate } from "@/lib/chess/notation";
+import { isFenString } from "@/lib/chess/notation";
 
 export interface Message {
   role: "user" | "assistant";
@@ -34,11 +33,12 @@ interface AiAssistantChatProps {
   gamesCount?: number;
   currentFen?: string;
   currentEval?: any;
+  selectedGame?: any;
+  currentPly?: number;
   isBoardOpen?: boolean;
   onToggleBoard?: () => void;
   onOpenBoard?: (fen?: string) => void;
   onApplyFen?: (fen: string) => void;
-  onApplyMove?: (san: string, contextFen?: string) => void;
   messages?: Message[];
   setMessages?: React.Dispatch<React.SetStateAction<Message[]>>;
   isSidebarOpen?: boolean;
@@ -51,18 +51,14 @@ interface AiAssistantChatProps {
 }
 
 /**
- * Rich Markdown Renderer with interactive Chess Move & FEN click triggers
+ * Rich Markdown Renderer with interactive FEN click triggers
  */
 function MarkdownRenderer({
   content,
-  messageFen,
   onApplyFen,
-  onApplyMove,
 }: {
   content: string;
-  messageFen?: string;
   onApplyFen?: (fen: string) => void;
-  onApplyMove?: (san: string, contextFen?: string) => void;
 }) {
   // Strip [OPEN_BOARD] tags cleanly so they don't appear in markdown
   const cleanContent = content.replace(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/gi, "").trim();
@@ -111,27 +107,11 @@ function MarkdownRenderer({
             {children}
           </li>
         ),
-        strong: ({ children }) => {
-          const strVal = String(children).trim();
-          if (isChessMoveCandidate(strVal) && onApplyMove) {
-            return (
-              <button
-                type="button"
-                onClick={() => onApplyMove(strVal, messageFen)}
-                title={`Bấm để đi nước ${strVal} trên bàn cờ`}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-xs bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-bold border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-200 dark:hover:bg-emerald-800/80 transition cursor-pointer shadow-2xs active:scale-95"
-              >
-                <Play className="w-2.5 h-2.5 fill-current text-emerald-600 dark:text-emerald-400" />
-                <span>{strVal}</span>
-              </button>
-            );
-          }
-          return (
-            <strong className="font-bold text-slate-950 dark:text-white">
-              {children}
-            </strong>
-          );
-        },
+        strong: ({ children }) => (
+          <strong className="font-bold text-slate-950 dark:text-white">
+            {children}
+          </strong>
+        ),
         code: ({ children }) => {
           const strVal = String(children).trim();
           if (isFenString(strVal) && onApplyFen) {
@@ -148,22 +128,8 @@ function MarkdownRenderer({
             );
           }
 
-          if (isChessMoveCandidate(strVal) && onApplyMove) {
-            return (
-              <button
-                type="button"
-                onClick={() => onApplyMove(strVal, messageFen)}
-                title={`Bấm để đi nước ${strVal} trên bàn cờ`}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-xs bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-300/60 dark:border-emerald-700/60 hover:bg-emerald-200 dark:hover:bg-emerald-800/60 transition cursor-pointer shadow-2xs active:scale-95"
-              >
-                <Play className="w-2.5 h-2.5 fill-current" />
-                <span>{strVal}</span>
-              </button>
-            );
-          }
-
           return (
-            <code className="px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-xs bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-200/60 dark:border-emerald-800/60">
+            <code className="px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-xs bg-muted text-foreground font-semibold border border-border/60">
               {children}
             </code>
           );
@@ -186,29 +152,11 @@ function MarkdownRenderer({
             {children}
           </th>
         ),
-        td: ({ children }) => {
-          const strVal = String(children).trim();
-          if (isChessMoveCandidate(strVal) && onApplyMove) {
-            return (
-              <td className="px-3 py-2 border-b border-slate-100 dark:border-slate-800/60 text-slate-700 dark:text-slate-300">
-                <button
-                  type="button"
-                  onClick={() => onApplyMove(strVal, messageFen)}
-                  title={`Bấm để đi nước ${strVal} trên bàn cờ`}
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-mono text-xs bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-300/60 dark:border-emerald-700/60 hover:bg-emerald-200 dark:hover:bg-emerald-800/60 transition cursor-pointer"
-                >
-                  <Play className="w-2.5 h-2.5 fill-current" />
-                  <span>{strVal}</span>
-                </button>
-              </td>
-            );
-          }
-          return (
-            <td className="px-3 py-2 border-b border-slate-100 dark:border-slate-800/60 text-slate-700 dark:text-slate-300">
-              {children}
-            </td>
-          );
-        },
+        td: ({ children }) => (
+          <td className="px-3 py-2 border-b border-slate-100 dark:border-slate-800/60 text-slate-700 dark:text-slate-300">
+            {children}
+          </td>
+        ),
       }}
     >
       {cleanContent}
@@ -269,11 +217,12 @@ export default function AiAssistantChat({
   gamesCount,
   currentFen,
   currentEval,
+  selectedGame,
+  currentPly,
   isBoardOpen = true,
   onToggleBoard,
   onOpenBoard,
   onApplyFen,
-  onApplyMove,
   messages: externalMessages,
   setMessages: externalSetMessages,
   isSidebarOpen,
@@ -359,6 +308,18 @@ export default function AiAssistantChat({
         history: newMessages,
         current_fen: currentFen,
         is_board_open: isBoardOpen,
+        selected_game: selectedGame ? {
+          id: selectedGame.id,
+          white: selectedGame.white_player || selectedGame.white || "Trắng",
+          black: selectedGame.black_player || selectedGame.black || "Đen",
+          result: selectedGame.result || "*",
+          eco: selectedGame.eco || "",
+          opening: selectedGame.opening_name || selectedGame.opening || "",
+          date: selectedGame.played_at || selectedGame.date || "",
+          moves_san: selectedGame.moves_san || (Array.isArray(selectedGame.moves) ? selectedGame.moves.join(" ") : ""),
+          current_ply: currentPly ?? 0,
+          total_ply: selectedGame.moves_san ? selectedGame.moves_san.split(/\s+/).filter(Boolean).length : (Array.isArray(selectedGame.moves) ? selectedGame.moves.length : 0),
+        } : undefined,
         engine_eval: currentEval ? {
           score: currentEval.score,
           scoreType: currentEval.scoreType,
@@ -524,9 +485,7 @@ export default function AiAssistantChat({
                     {isBot ? (
                       <MarkdownRenderer
                         content={msg.content}
-                        messageFen={msg.fen}
                         onApplyFen={onApplyFen}
-                        onApplyMove={onApplyMove}
                       />
                     ) : (
                       <span className="whitespace-pre-wrap font-medium">{msg.content}</span>

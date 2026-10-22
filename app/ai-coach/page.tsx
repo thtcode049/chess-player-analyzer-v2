@@ -37,7 +37,6 @@ import AiAssistantChat from "@/components/ai/AiAssistantChat";
 import { apiClient } from "@/lib/api/client";
 import { Player, Game } from "@/lib/api/types";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
-import { normalizeMoveToSan } from "@/lib/chess/notation";
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const STORAGE_KEY = "chess_ai_conversations_v3";
@@ -373,143 +372,22 @@ export default function AiCoachPage() {
     }
   };
 
-  // Handler: Apply move (supports standard international SAN, move numbers, past moves, and alternative branches)
-  const handleApplyMove = (rawMove: string, contextFen?: string) => {
-    setIsBoardOpen(true);
-    try {
-      const { moveNumber, isBlack, san: cleanSan } = normalizeMoveToSan(rawMove);
-      if (!cleanSan) return;
+  // Currently selected game object
+  const selectedGame = useMemo(
+    () => playerGames.find((g) => g.id === selectedGameId) || null,
+    [playerGames, selectedGameId]
+  );
 
-      // 1. If contextFen is provided (e.g. from the chat message when question was asked) and move is legal there:
-      if (contextFen) {
-        try {
-          const testChess = new Chess(contextFen);
-          const res = testChess.move(cleanSan, { strict: false });
-          if (res) {
-            setBaseFen(contextFen);
-            setActiveMoves([res.san]);
-            setCurrentPly(1);
-            setCurrentFen(testChess.fen());
-            return;
-          }
-        } catch {}
-      }
-
-      // 2. Check if the move is legal from current position
-      const chess = new Chess(currentFen);
-      let moveRes: any = null;
-      try {
-        moveRes = chess.move(cleanSan, { strict: false });
-      } catch {
-        try {
-          moveRes = chess.move(cleanSan);
-        } catch {}
-      }
-
-      if (moveRes) {
-        const nextFen = chess.fen();
-        const updatedMoves = [...activeMoves.slice(0, currentPly), moveRes.san];
-        setActiveMoves(updatedMoves);
-        setCurrentPly(updatedMoves.length);
-        setCurrentFen(nextFen);
-        return;
-      }
-
-      // 3. If move has moveNumber (e.g. 3...c5, 3...Nh5, 3.Tc4, 1.e4):
-      if (moveNumber !== null) {
-        const plyBefore = isBlack ? (moveNumber - 1) * 2 + 1 : (moveNumber - 1) * 2;
-        const plyAfter = plyBefore + 1;
-
-        // Check A: If it matches an existing move in activeMoves, jump directly to that ply in history
-        if (
-          plyAfter <= activeMoves.length &&
-          normalizeMoveToSan(activeMoves[plyAfter - 1]).san.toLowerCase() === cleanSan.toLowerCase()
-        ) {
-          const replay = new Chess(baseFen);
-          for (let i = 0; i < plyAfter; i++) {
-            replay.move(activeMoves[i]);
-          }
-          setCurrentFen(replay.fen());
-          setCurrentPly(plyAfter);
-          return;
-        }
-
-        // Check B: Alternative variation at plyBefore (e.g. user clicked 3...Nh5 after having clicked 3...c5)
-        if (plyBefore >= 0 && plyBefore <= activeMoves.length) {
-          const replay = new Chess(baseFen);
-          let validReplay = true;
-          for (let i = 0; i < plyBefore; i++) {
-            try {
-              replay.move(activeMoves[i]);
-            } catch {
-              validReplay = false;
-              break;
-            }
-          }
-          if (validReplay) {
-            try {
-              const altRes = replay.move(cleanSan, { strict: false });
-              if (altRes) {
-                const branchedMoves = [...activeMoves.slice(0, plyBefore), altRes.san];
-                setActiveMoves(branchedMoves);
-                setCurrentPly(branchedMoves.length);
-                setCurrentFen(replay.fen());
-                return;
-              }
-            } catch {}
-          }
-        }
-      }
-
-      // 4. If move is not legal in currentFen and has no moveNumber:
-      // What if user clicked an alternative candidate for the same turn (1 ply ago)?
-      if (currentPly > 0) {
-        const replay = new Chess(baseFen);
-        for (let i = 0; i < currentPly - 1; i++) {
-          replay.move(activeMoves[i]);
-        }
-        try {
-          const altRes = replay.move(cleanSan, { strict: false });
-          if (altRes) {
-            const branchedMoves = [...activeMoves.slice(0, currentPly - 1), altRes.san];
-            setActiveMoves(branchedMoves);
-            setCurrentPly(branchedMoves.length);
-            setCurrentFen(replay.fen());
-            return;
-          }
-        } catch {}
-      }
-
-      // 5. Search activeMoves history to see if cleanSan was played somewhere in this game
-      const foundIdx = activeMoves.findIndex(
-        (m) => normalizeMoveToSan(m).san.toLowerCase() === cleanSan.toLowerCase()
-      );
-      if (foundIdx !== -1) {
-        const replay = new Chess(baseFen);
-        for (let i = 0; i <= foundIdx; i++) {
-          replay.move(activeMoves[i]);
-        }
-        setCurrentFen(replay.fen());
-        setCurrentPly(foundIdx + 1);
-        return;
-      }
-
-      // 6. Last resort: what if it's an initial move from START_FEN (like 1.e4 or 1.d4)?
-      if (baseFen === START_FEN) {
-        const fresh = new Chess(START_FEN);
-        try {
-          const res = fresh.move(cleanSan, { strict: false });
-          if (res) {
-            setActiveMoves([res.san]);
-            setCurrentPly(1);
-            setCurrentFen(fresh.fen());
-            return;
-          }
-        } catch {}
-      }
-    } catch (err) {
-      console.warn("Could not apply move:", rawMove, err);
-    }
+  // Handler: Ask AI to analyze the entire selected game
+  const handleAskAboutEntireGame = () => {
+    if (!selectedGame) return;
+    const white = selectedGame.white_player || "Trắng";
+    const black = selectedGame.black_player || "Đen";
+    const res = selectedGame.result || "*";
+    const eco = selectedGame.eco ? `[${selectedGame.eco}] ` : "";
+    const op = selectedGame.opening_name ? `- ${selectedGame.opening_name}` : "";
+    const prompt = `Phân tích toàn bộ ván cờ này giúp tôi: ${white} vs ${black} (${res}) ${eco}${op}. Hãy đánh giá diễn biến toàn bộ ván đấu từ khai cuộc, các bước ngoặt ở trung cuộc đến kết thúc ván!`;
+    setPendingPrompt(prompt);
   };
 
   // Handler: Ask AI about the current board position
@@ -522,7 +400,10 @@ export default function AiCoachPage() {
         : `${currentEval.score > 0 ? "+" : ""}${(currentEval.score / 100).toFixed(2)} Tốt`;
       evalText = ` (Stockfish chấm: ${scoreStr}, nước tối ưu: ${currentEval.bestMove || "chưa rõ"})`;
     }
-    const prompt = `Phân tích thế cờ hiện tại trên bàn cờ giúp tôi (Lượt đi: ${activeColor}${evalText}). Đánh giá kế hoạch chiến lược và nước đi tiếp theo nên là gì?`;
+    const moveContext = selectedGame
+      ? ` ở Nước ${currentPly}/${activeMoves.length} trong ván ${selectedGame.white_player || "Trắng"} vs ${selectedGame.black_player || "Đen"}`
+      : "";
+    const prompt = `Phân tích thế cờ hiện tại trên bàn cờ giúp tôi (Lượt đi: ${activeColor}${evalText}${moveContext}). Đánh giá kế hoạch chiến lược và nước đi tiếp theo nên là gì?`;
     setPendingPrompt(prompt);
   };
 
@@ -1241,7 +1122,7 @@ export default function AiCoachPage() {
               </div>
 
               {/* Action Buttons: Copy FEN & Ask AI */}
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0 flex-wrap sm:flex-nowrap justify-end">
                 <button
                   type="button"
                   onClick={() => {
@@ -1255,6 +1136,17 @@ export default function AiCoachPage() {
                   {copiedFen ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
 
+                {selectedGame && (
+                  <button
+                    type="button"
+                    onClick={handleAskAboutEntireGame}
+                    title="Yêu cầu AI phân tích toàn bộ diễn biến ván đấu này từ khai cuộc đến tàn cuộc"
+                    className="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 font-bold text-xs shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Phân tích cả ván 📋</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={handleAskAboutBoard}
@@ -1262,7 +1154,7 @@ export default function AiCoachPage() {
                   className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Gửi thế cờ vào chat ↗</span>
+                  <span>{selectedGame ? `Thế cờ (Nước ${currentPly}) ↗` : "Gửi thế cờ vào chat ↗"}</span>
                 </button>
               </div>
             </div>
@@ -1280,6 +1172,8 @@ export default function AiCoachPage() {
               gamesCount={activeSession.playerId === GENERAL_CHAT_ID ? 0 : playerGames.length}
               currentFen={currentFen}
               currentEval={currentEval}
+              selectedGame={selectedGame}
+              currentPly={currentPly}
               isBoardOpen={isBoardOpen}
               onToggleBoard={() => setIsBoardOpen((prev) => !prev)}
               onOpenBoard={(fen) => {
@@ -1287,7 +1181,6 @@ export default function AiCoachPage() {
                 if (fen) handleApplyFen(fen);
               }}
               onApplyFen={handleApplyFen}
-              onApplyMove={handleApplyMove}
               messages={activeSession.messages}
               setMessages={(msgs) => handleUpdateActiveMessages(msgs)}
               isSidebarOpen={isSidebarOpen}

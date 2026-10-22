@@ -25,4 +25,6 @@ class ChatRequest(BaseModel):
     history: List[ChatMessage] = []
     current_fen: Optional[str] = None
     engine_eval: Optional[Dict[str, Any]] = None
+    selected_game: Optional[Dict[str, Any]] = None
+    is_board_open: Optional[bool] = True
     player_id: Optional[str] = None

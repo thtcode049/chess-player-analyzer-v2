@@ -141,14 +141,15 @@ def build_opponent_ai_context(
     is_board_open: bool = True,
     current_fen: Optional[str] = None,
     engine_eval: Optional[Dict[str, Any]] = None,
+    selected_game: Optional[Dict[str, Any]] = None,
     games: Optional[List[Dict[str, Any]]] = None
 ) -> str:
     """
     Chuyển đổi toàn bộ dữ liệu thống kê khách quan từ Profile, Cây Khai cuộc,
-    Thế cờ bàn cờ tương tác (current_fen, engine_eval) và Toàn bộ ván đấu PGN
+    Ván đấu đang chọn (selected_game), Thế cờ bàn cờ tương tác (current_fen) và Toàn bộ ván đấu PGN
     thành ngữ cảnh chuẩn xác (Ground Truth) cho Trợ lí AI.
     """
-    if not deep_profile and not stats and not games:
+    if not deep_profile and not stats and not games and not selected_game:
         return "Hiện chưa có dữ liệu phân tích nào được nạp."
 
     deep_profile = deep_profile or {}
@@ -158,13 +159,36 @@ def build_opponent_ai_context(
     ctx_parts.append(f"# BÁO CÁO DỮ LIỆU THỰC NGHIỆM KỲ THỦ: {selected_player.upper()}")
     ctx_parts.append("*(Nguồn dữ liệu thực nghiệm: 100% trích xuất từ ván đấu thực tế & bàn cờ phân tích)*\n")
 
-    if analyzed_games_count is not None and total_games_count is not None and total_games_count > analyzed_games_count:
+    # 1. VÁN ĐẤU ĐANG ĐƯỢC CHỌN ĐỂ PHÂN TÍCH TRÊN GIAO DIỆN
+    if selected_game:
+        g_white = selected_game.get("white") or selected_game.get("white_player") or "Trắng"
+        g_black = selected_game.get("black") or selected_game.get("black_player") or "Đen"
+        g_res = selected_game.get("result") or "*"
+        g_eco = selected_game.get("eco") or ""
+        g_open = selected_game.get("opening") or selected_game.get("opening_name") or ""
+        g_date = selected_game.get("date") or selected_game.get("played_at") or "Không rõ ngày"
+        g_moves = selected_game.get("moves_san") or format_moves_san(selected_game.get("moves", []))
+        curr_ply = selected_game.get("current_ply", 0)
+        tot_ply = selected_game.get("total_ply", 0)
+
+        ctx_parts.append("## 🏆 VÁN ĐẤU ĐANG ĐƯỢC CHỌN TRÊN BÀN CỜ ĐỂ PHÂN TÍCH:")
+        ctx_parts.append(f"- **Cặp đấu**: ⚪ {g_white} vs ⚫ {g_black}")
+        ctx_parts.append(f"- **Kết quả**: {g_res}")
+        if g_eco or g_open:
+            ctx_parts.append(f"- **Khai cuộc**: {g_eco} {g_open}".strip())
+        ctx_parts.append(f"- **Ngày / Sự kiện**: {g_date}")
+        if tot_ply > 0:
+            ctx_parts.append(f"- **Vị trí nước đi đang xem trên bàn cờ**: Nước {curr_ply}/{tot_ply}")
+        if g_moves:
+            ctx_parts.append(f"- **TOÀN BỘ BIÊN BẢN NƯỚC ĐI CỦA VÁN ĐẤU (PGN ĐẦY ĐỦ)**:\n  {g_moves}\n")
         ctx_parts.append(
-            f"⚠️ **CẢNH BÁO ĐỘ TIN CẬY DỮ LIỆU ĐÁNH GIÁ NƯỚC ĐI**: "
-            f"Hệ thống hiện mới chỉ phân tích mẫu **{analyzed_games_count}/{total_games_count} ván**.\n"
+            "> ⚠️ **HƯỚNG DẪN QUAN TRỌNG DÀNH CHO TRỢ LÍ AI**: Người dùng đang chọn xem ván đấu này trên giao diện. "
+            "Khi người dùng hỏi 'phân tích toàn bộ ván cờ', 'nhận xét ván này', 'ván cờ diễn ra thế nào' hoặc hỏi về kết quả/sai lầm của ván, "
+            "bạn PHẢI phân tích toàn diện toàn bộ tiến trình ván đấu từ Khai cuộc, Trung cuộc đến Kết thúc dựa trên toàn bộ chuỗi nước đi PGN của ván ở trên. "
+            "KHÔNG ĐƯỢC chỉ phân tích duy nhất hình cờ FEN hiện tại (hình cờ FEN chỉ là nước cờ người dùng đang tạm dừng để xem trên bàn cờ).\n"
         )
 
-    # 1. THẾ CỜ TRÊN BÀN CỜ TƯƠNG TÁC
+    # 2. THẾ CỜ TRÊN BÀN CỜ TƯƠNG TÁC
     if is_board_open and current_fen:
         ctx_parts.append("## ♟️ THẾ CỜ HIỆN TẠI TRÊN BÀN CỜ TƯƠNG TÁC (BÀN CỜ ĐANG MỞ)")
         ctx_parts.append(f"- **Chuỗi FEN**: `{current_fen}`")
@@ -180,7 +204,6 @@ def build_opponent_ai_context(
             if is_mate:
                 eval_str = f"Chiếu bí sau {mate_in or score} nước (#M{mate_in or score})"
             elif isinstance(score, (int, float)):
-                # Stockfish client sends centipawns (e.g. 64 cp = +0.64 pawns)
                 pawn_val = score / 100.0 if abs(score) >= 10 else float(score)
                 adv = "Trắng ưu thế nhẹ" if pawn_val > 0.3 else "Đen ưu thế nhẹ" if pawn_val < -0.3 else "Thế cờ cân bằng"
                 eval_str = f"{pawn_val:+.2f} Tốt ({int(score)} centipawns - {adv})"
@@ -200,7 +223,7 @@ def build_opponent_ai_context(
         ctx_parts.append("- **Quy tắc**: Bạn KHÔNG cần bình luận về thế cờ hay điểm số Stockfish nếu người dùng chỉ hỏi về ván đấu hoặc lý thuyết. NẾU người dùng hỏi về một thế cờ cụ thể hoặc bạn thấy cần thiết phải mở bàn cờ để minh họa một hình cờ, hãy viết mã `[OPEN_BOARD]` hoặc `[OPEN_BOARD: <chuỗi FEN>]` trong câu trả lời để hệ thống tự động mở bàn cờ cho người dùng.")
         ctx_parts.append("")
 
-    # 2. Thống kê cơ bản
+    # 3. Thống kê cơ bản
     ctx_parts.append("## I. THỐNG KÊ TỔNG QUAN")
     ctx_parts.append(f"- **Tổng số ván đấu đã phân tích**: {stats.get('total_games', len(games or []))} ván")
     ctx_parts.append(f"- **Kết quả chung**: {stats.get('wins', 0)} Thắng ({stats.get('win_rate', 0)}%), {stats.get('draws', 0)} Hòa ({stats.get('draw_rate', 0)}%), {stats.get('losses', 0)} Thua ({stats.get('loss_rate', 0)}%)")
@@ -210,13 +233,13 @@ def build_opponent_ai_context(
     if stats.get("white_elo"):
         ctx_parts.append(f"- **Elo trung bình**: ~{stats.get('white_elo', 0)}")
 
-    # 3. Cây Khai cuộc & Phản ứng nước đi (nếu có)
+    # 4. Cây Khai cuộc & Phản ứng nước đi (nếu có)
     if fen_map_white or fen_map_black:
         ctx_parts.append("\n## II. CÂY KHAI CUỘC (OPENING TREE)")
         tree_summary = summarize_opening_tree(fen_map_white, fen_map_black)
         ctx_parts.append(tree_summary)
 
-    # 4. Danh mục Khai cuộc Chi tiết (Repertoire)
+    # 5. Danh mục Khai cuộc Chi tiết (Repertoire)
     rep = deep_profile.get("repertoire", {})
     w_rep = rep.get("white_repertoire", [])
     b_rep = rep.get("black_repertoire", [])
@@ -235,41 +258,18 @@ def build_opponent_ai_context(
                     f"- **{item.get('name', 'N/A')}**: {item.get('games_count', 0)} ván ({item.get('wins', 0)}T/{item.get('draws', 0)}H/{item.get('losses', 0)}B) | Score: {item.get('score_pct', 0)}%"
                 )
 
-    # 5. Đặc trưng phong cách thi đấu
-    style_prof = deep_profile.get("style_profile", {})
-    if style_prof:
-        ctx_parts.append("\n## IV. ĐẶC TRƯNG PHONG CÁCH THI ĐẤU (PLAYING STYLE PROFILE)")
-        raw_m = style_prof.get("raw_metrics", {})
-        if raw_m:
-            ctx_parts.append(f"- Độ biến động chiến thuật (Volatility Score): {raw_m.get('volatility_score', 50.0)}")
-            ctx_parts.append(f"- Tỉ lệ thí quân (Sacrifice Rate): {raw_m.get('sacrifice_rate', 0.0)}%")
-            ctx_parts.append(f"- Tỉ lệ chuyển tàn cuộc (Simplification Rate): {raw_m.get('simplification_rate', 0.0)}%")
-        evidence = style_prof.get("evidence", [])
-        for ev in evidence:
-            ctx_parts.append(f"- {ev}")
-
     # 6. Cấu trúc Tốt
     structs = deep_profile.get("structures", {}).get("structures", [])
     if structs:
-        ctx_parts.append("\n## V. CẤU TRÚC TỐT NỔI BẬT")
+        ctx_parts.append("\n## IV. CẤU TRÚC TỐT NỔI BẬT")
         for s in structs[:6]:
             ctx_parts.append(
                 f"- **{s.get('name', 'N/A')}**: {s.get('games_count', 0)} ván | Score: {s.get('score_pct', 0)}% | Hình thành quanh nước: {s.get('typical_move', 'N/A')}"
             )
 
-    # 7. Độ chính xác theo giai đoạn (Phase Accuracy)
-    phases = deep_profile.get("phases", {}).get("phases", {})
-    if phases:
-        ctx_parts.append("\n## VI. ĐỘ CHÍNH XÁC THEO GIAI ĐOẠN (PHASE ACCURACY)")
-        for p_key, p_name in [("opening", "Khai cuộc"), ("middlegame", "Trung cuộc"), ("endgame", "Tàn cuộc")]:
-            p_data = phases.get(p_key, {})
-            acc = p_data.get("accuracy") or p_data.get("accuracy_pct")
-            if acc is not None:
-                ctx_parts.append(f"- **{p_name}**: Độ chính xác: {acc}% ({p_data.get('games_count', 0)} ván)")
-
-    # 8. TOÀN BỘ CƠ SỞ DỮ LIỆU BIÊN BẢN VÁN ĐẤU (PGN GAMES ARCHIVE)
+    # 7. TOÀN BỘ CƠ SỞ DỮ LIỆU BIÊN BẢN VÁN ĐẤU (PGN GAMES ARCHIVE)
     if games:
-        ctx_parts.append("\n## VII. TOÀN BỘ BIÊN BẢN VÁN ĐẤU THỰC TẾ (PGN GAMES ARCHIVE)")
+        ctx_parts.append("\n## V. TOÀN BỘ BIÊN BẢN VÁN ĐẤU THỰC TẾ (PGN GAMES ARCHIVE)")
         ctx_parts.append(format_games_pgn_for_context(games))
 
     return "\n".join(ctx_parts)

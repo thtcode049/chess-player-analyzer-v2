@@ -68,14 +68,6 @@ def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], 
         wins = int(round(total_games * (win_rate / 100.0)))
         repertoire = db_run.get("repertoire_summary") or {}
         pawn_structures = db_run.get("pawn_structures_summary") or {}
-        radar_m = db_run.get("style_radar_metrics") or {}
-        opening_acpl = db_run.get("acpl_opening")
-        middlegame_acpl = db_run.get("acpl_middlegame")
-        endgame_acpl = db_run.get("acpl_endgame")
-        dominant_archetype = db_run.get("dominant_archetype") or radar_m.get("dominant_archetype") or "Toàn diện (Universal)"
-
-        total_blunders = radar_m.get("total_blunders", 0)
-        blunder_rate = round(total_blunders / max(1, total_games) * 100, 1) if total_games > 0 else 0.0
 
         stats = {
             "total_games": total_games,
@@ -95,28 +87,6 @@ def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], 
         deep_profile = {
             "repertoire": repertoire,
             "structures": pawn_structures,
-            "phases": {
-                "phases": {
-                    "opening": {"avg_acpl": opening_acpl, "accuracy": max(0, min(100, int(100 - (opening_acpl or 25) * 0.8))) if opening_acpl else None},
-                    "middlegame": {"avg_acpl": middlegame_acpl, "accuracy": max(0, min(100, int(100 - (middlegame_acpl or 35) * 0.8))) if middlegame_acpl else None},
-                    "endgame": {"avg_acpl": endgame_acpl, "accuracy": max(0, min(100, int(100 - (endgame_acpl or 30) * 0.8))) if endgame_acpl else None},
-                }
-            },
-            "style_profile": {
-                "primary_style": dominant_archetype,
-                "dominant_archetype": dominant_archetype,
-                "raw_metrics": radar_m,
-                "evidence": [
-                    f"Đạt hiệu suất tổng thể {overall_score}% trên {total_games} ván đấu đã phân tích.",
-                    f"Độ chính xác các giai đoạn: Khai cuộc ACPL {opening_acpl or 'N/A'}, Trung cuộc ACPL {middlegame_acpl or 'N/A'}, Cờ tàn ACPL {endgame_acpl or 'N/A'}.",
-                    f"Chỉ số thí quân: {radar_m.get('sacrifice_rate', 0)}% | Khả năng lội ngược dòng: {radar_m.get('resilience', 50)}%."
-                ]
-            },
-            "dynamics": {
-                "blunder_rate": blunder_rate,
-                "throw_rate": 0.0,
-                "resilience_rate": float(radar_m.get("resilience_rate", radar_m.get("resilience", 50.0)))
-            }
         }
 
         # Cache in memory for subsequent requests
@@ -199,6 +169,8 @@ async def chat_with_ai_coach(req: ChatRequest):
         deep_profile=deep_profile,
         current_fen=req.current_fen,
         engine_eval=req.engine_eval,
+        selected_game=req.selected_game,
+        is_board_open=req.is_board_open if req.is_board_open is not None else True,
         games=games
     )
 

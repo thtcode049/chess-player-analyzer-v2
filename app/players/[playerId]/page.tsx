@@ -31,8 +31,6 @@ import { Player, Game, AnalysisRun } from "@/lib/api/types";
 import OpeningTreeTable from "@/components/analysis/OpeningTreeTable";
 import PawnStructureGrid from "@/components/profile/PawnStructureGrid";
 import AiAssistantChat from "@/components/ai/AiAssistantChat";
-import WasmAnalysisCard from "@/components/analysis/WasmAnalysisCard";
-import { formatAccuracy, acplToAccuracy } from "@/lib/utils";
 
 export default function PlayerDetailPage() {
   const params = useParams();
@@ -411,31 +409,20 @@ export default function PlayerDetailPage() {
               </span>
             </div>
             <div className="p-2 sm:p-0 bg-muted/30 sm:bg-transparent rounded-xl sm:rounded-none">
-              <span className="text-[10px] sm:text-[11px] uppercase font-bold text-muted-foreground block truncate">Điểm chung</span>
+              <span className="text-[10px] sm:text-[11px] uppercase font-bold text-muted-foreground block truncate">Tỷ lệ thắng</span>
               <span className="text-base sm:text-xl font-extrabold text-emerald-500">
-                {analysisRun?.overall_score ? `${analysisRun.overall_score.toFixed(1)}%` : "N/A"}
+                {analysisRun?.overall_win_rate ? `${analysisRun.overall_win_rate.toFixed(1)}%` : "0.0%"}
               </span>
             </div>
             <div className="p-2 sm:p-0 bg-muted/30 sm:bg-transparent rounded-xl sm:rounded-none">
-              <span className="text-[10px] sm:text-[11px] uppercase font-bold text-muted-foreground block truncate">Độ chính xác</span>
-              <span className="text-base sm:text-xl font-extrabold text-sky-500">
-                {formatAccuracy(analysisRun?.overall_acpl)}
+              <span className="text-[10px] sm:text-[11px] uppercase font-bold text-muted-foreground block truncate">Điểm chung</span>
+              <span className="text-base sm:text-xl font-extrabold text-primary">
+                {analysisRun?.overall_score ? `${analysisRun.overall_score.toFixed(1)}%` : "N/A"}
               </span>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Wasm Multi-Worker Analysis Card */}
-      <WasmAnalysisCard
-        playerId={playerId}
-        playerName={player?.canonical_name || "Player"}
-        games={games}
-        currentRun={analysisRun}
-        onAnalysisComplete={(updatedRun) => {
-          setAnalysisRun(updatedRun);
-        }}
-      />
 
       {/* Tabs Navigation */}
       <div className="flex border-b border-border/60 overflow-x-auto gap-1 sm:gap-2 pb-1 scrollbar-none">
@@ -499,7 +486,7 @@ export default function PlayerDetailPage() {
       {/* Tab 1: Overview */}
       {activeTab === "overview" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Score by Color */}
             <div className="bg-card border border-border/60 rounded-2xl p-6 shadow-sm">
               <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
@@ -535,70 +522,28 @@ export default function PlayerDetailPage() {
               </div>
             </div>
 
-            {/* Phase Accuracy Breakdown */}
-            <div className="bg-card border border-border/60 rounded-2xl p-6 shadow-sm">
+            {/* Quick Summary Card */}
+            <div className="bg-card border border-border/60 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
               <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
-                <BarChart2 className="w-4 h-4 text-sky-500" />
-                Độ Chính Xác Từng Giai Đoạn (Accuracy %)
-              </h3>
-              <div className="space-y-3.5 text-xs">
-                <div>
-                  <div className="flex justify-between py-1 border-b border-border/40 mb-1">
-                    <span className="text-muted-foreground">Khai cuộc (Opening Accuracy):</span>
-                    <span className="font-bold text-foreground">{formatAccuracy(analysisRun?.acpl_opening)}</span>
-                  </div>
-                  <div className="w-full h-1.5 rounded-full bg-secondary/80 overflow-hidden">
-                    <div 
-                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                      style={{ width: `${acplToAccuracy(analysisRun?.acpl_opening) || 0}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between py-1 border-b border-border/40 mb-1">
-                    <span className="text-muted-foreground">Trung cuộc (Middlegame Accuracy):</span>
-                    <span className="font-bold text-foreground">{formatAccuracy(analysisRun?.acpl_middlegame)}</span>
-                  </div>
-                  <div className="w-full h-1.5 rounded-full bg-secondary/80 overflow-hidden">
-                    <div 
-                      className="h-full bg-sky-500 rounded-full transition-all duration-500"
-                      style={{ width: `${acplToAccuracy(analysisRun?.acpl_middlegame) || 0}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between py-1 border-b border-border/40 mb-1">
-                    <span className="text-muted-foreground">Cờ tàn (Endgame Accuracy):</span>
-                    <span className="font-bold text-foreground">{formatAccuracy(analysisRun?.acpl_endgame)}</span>
-                  </div>
-                  <div className="w-full h-1.5 rounded-full bg-secondary/80 overflow-hidden">
-                    <div 
-                      className="h-full bg-indigo-500 rounded-full transition-all duration-500"
-                      style={{ width: `${acplToAccuracy(analysisRun?.acpl_endgame) || 0}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Engine Status & Coverage */}
-            <div className="bg-card border border-border/60 rounded-2xl p-6 shadow-sm">
-              <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                Trạng Thái Động Cơ Đánh Giá
+                <BarChart2 className="w-4 h-4 text-primary" />
+                Tổng Quan Hồ Sơ Khai Cuộc & Ván Đấu
               </h3>
               <div className="space-y-3 text-xs">
-                <div className="flex justify-between py-1 border-b border-border/40">
-                  <span className="text-muted-foreground">Cơ chế engine:</span>
-                  <span className="font-bold text-emerald-500">
-                    {analysisRun?.engine_name || (analysisRun?.engine_status === "stockfish_parallel" ? "Stockfish 19 Parallel" : analysisRun?.engine_status?.toUpperCase() || "STOCKFISH")}
+                <div className="flex justify-between py-1.5 border-b border-border/40">
+                  <span className="text-muted-foreground">Tổng ván đã thu thập:</span>
+                  <span className="font-bold text-foreground">{games.length} ván PGN</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-border/40">
+                  <span className="text-muted-foreground">Số hệ thống khai cuộc đã phân loại:</span>
+                  <span className="font-bold text-primary">
+                    {analysisRun?.repertoire_summary?.all_openings?.length || 0} hệ thống
                   </span>
                 </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-muted-foreground">Độ phủ engine:</span>
-                  <span className="font-bold text-foreground">{analysisRun?.engine_coverage_pct?.toFixed(1) || 0}% ván</span>
+                <div className="flex justify-between py-1.5">
+                  <span className="text-muted-foreground">Số cấu trúc Tốt nhận diện:</span>
+                  <span className="font-bold text-emerald-500">
+                    {analysisRun?.pawn_structures_summary?.structures?.length || 0} cấu trúc
+                  </span>
                 </div>
               </div>
             </div>

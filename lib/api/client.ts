@@ -584,6 +584,7 @@ export const apiClient = {
       perspective_mode?: string;
       history?: Array<{ role: string; content: string }>;
       current_fen?: string;
+      selected_game?: any;
       engine_eval?: any;
       is_board_open?: boolean;
     },

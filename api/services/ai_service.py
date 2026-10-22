@@ -42,11 +42,13 @@ class AIService:
         deep_profile: Dict[str, Any],
         current_fen: Optional[str] = None,
         engine_eval: Optional[Dict[str, Any]] = None,
+        selected_game: Optional[Dict[str, Any]] = None,
+        is_board_open: bool = True,
         games: Optional[List[Dict[str, Any]]] = None
     ) -> str:
         """
         Creates structured Ground Truth text to prevent LLM hallucinations,
-        including player stats, full PGN games, and current interactive board state.
+        including player stats, selected game, full PGN games, and current interactive board state.
         """
         return build_player_ai_context(
             deep_profile=deep_profile,
@@ -54,6 +56,8 @@ class AIService:
             selected_player=player_name,
             current_fen=current_fen,
             engine_eval=engine_eval,
+            selected_game=selected_game,
+            is_board_open=is_board_open,
             games=games
         )
 

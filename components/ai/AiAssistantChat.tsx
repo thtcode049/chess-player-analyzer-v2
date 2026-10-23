@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Brain,
   Send,
@@ -54,7 +54,7 @@ interface AiAssistantChatProps {
 /**
  * Rich Markdown Renderer with interactive FEN click triggers
  */
-function MarkdownRenderer({
+const MarkdownRenderer = React.memo(function MarkdownRenderer({
   content,
   onApplyFen,
 }: {
@@ -62,108 +62,117 @@ function MarkdownRenderer({
   onApplyFen?: (fen: string) => void;
 }) {
   // Strip [OPEN_BOARD] tags cleanly so they don't appear in markdown
-  const cleanContent = content.replace(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/gi, "").trim();
+  const cleanContent = useMemo(() => {
+    return content.replace(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/gi, "").trim();
+  }, [content]);
+
+  const components = useMemo(
+    () => ({
+      h1: ({ children }: any) => (
+        <h1 className="text-base font-black text-slate-900 dark:text-white mt-3 mb-2 flex items-center gap-1.5 border-b border-slate-200/80 dark:border-slate-800 pb-1">
+          {children}
+        </h1>
+      ),
+      h2: ({ children }: any) => (
+        <h2 className="text-sm font-black text-slate-900 dark:text-white mt-3 mb-1.5 flex items-center gap-1.5">
+          {children}
+        </h2>
+      ),
+      h3: ({ children }: any) => (
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-2.5 mb-1.5 pb-1 border-b border-slate-200/60 dark:border-slate-800 flex items-center gap-1.5">
+          {children}
+        </h3>
+      ),
+      h4: ({ children }: any) => (
+        <h4 className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mt-2.5 mb-1">
+          {children}
+        </h4>
+      ),
+      p: ({ children }: any) => (
+        <p className="text-sm leading-relaxed text-slate-800 dark:text-slate-200 mb-2 last:mb-0">
+          {children}
+        </p>
+      ),
+      ul: ({ children }: any) => (
+        <ul className="space-y-1.5 my-2 pl-4 list-disc marker:text-emerald-500 text-sm">
+          {children}
+        </ul>
+      ),
+      ol: ({ children }: any) => (
+        <ol className="space-y-2 my-2 pl-4 list-decimal marker:text-emerald-600 dark:marker:text-emerald-400 font-semibold text-sm">
+          {children}
+        </ol>
+      ),
+      li: ({ children }: any) => (
+        <li className="text-sm leading-relaxed text-slate-800 dark:text-slate-200">
+          {children}
+        </li>
+      ),
+      strong: ({ children }: any) => (
+        <strong className="font-bold text-slate-950 dark:text-white">
+          {children}
+        </strong>
+      ),
+      code: ({ children }: any) => {
+        const strVal = String(children).trim();
+        if (isFenString(strVal) && onApplyFen) {
+          return (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onApplyFen(normalizeFen(strVal));
+              }}
+              title="Bấm để hiển thị thế cờ này lên bàn cờ"
+              className="inline-flex items-center gap-1 px-2 py-0.5 mx-1 rounded-md font-mono text-xs bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300/80 dark:border-emerald-700 hover:scale-105 transition-transform cursor-pointer shadow-2xs"
+            >
+              <Layers className="w-3 h-3 text-emerald-600" />
+              <span>[Xem thế cờ trên Bàn cờ]</span>
+            </button>
+          );
+        }
+
+        // Clean inline text without borders, background box or rounded corners
+        return (
+          <code className="font-mono text-xs font-bold text-foreground px-0.5">
+            {children}
+          </code>
+        );
+      },
+      blockquote: ({ children }: any) => (
+        <blockquote className="border-l-3 border-emerald-500 pl-3 py-1.5 my-2 bg-emerald-50/50 dark:bg-emerald-950/20 text-slate-700 dark:text-slate-300 italic text-xs rounded-r-xl">
+          {children}
+        </blockquote>
+      ),
+      hr: () => (
+        <hr className="my-3 border-t border-slate-200/80 dark:border-slate-800" />
+      ),
+      table: ({ children }: any) => (
+        <div className="overflow-x-auto my-2 rounded-xl border border-slate-200 dark:border-slate-800">
+          <table className="w-full text-xs text-left border-collapse">{children}</table>
+        </div>
+      ),
+      th: ({ children }: any) => (
+        <th className="bg-slate-100 dark:bg-slate-800/80 px-3 py-2 font-bold border-b border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
+          {children}
+        </th>
+      ),
+      td: ({ children }: any) => (
+        <td className="px-3 py-2 border-b border-slate-100 dark:border-slate-800/60 text-slate-700 dark:text-slate-300">
+          {children}
+        </td>
+      ),
+    }),
+    [onApplyFen]
+  );
 
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        h1: ({ children }) => (
-          <h1 className="text-base font-black text-slate-900 dark:text-white mt-3 mb-2 flex items-center gap-1.5 border-b border-slate-200/80 dark:border-slate-800 pb-1">
-            {children}
-          </h1>
-        ),
-        h2: ({ children }) => (
-          <h2 className="text-sm font-black text-slate-900 dark:text-white mt-3 mb-1.5 flex items-center gap-1.5">
-            {children}
-          </h2>
-        ),
-        h3: ({ children }) => (
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-2.5 mb-1.5 pb-1 border-b border-slate-200/60 dark:border-slate-800 flex items-center gap-1.5">
-            {children}
-          </h3>
-        ),
-        h4: ({ children }) => (
-          <h4 className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mt-2.5 mb-1">
-            {children}
-          </h4>
-        ),
-        p: ({ children }) => (
-          <p className="text-sm leading-relaxed text-slate-800 dark:text-slate-200 mb-2 last:mb-0">
-            {children}
-          </p>
-        ),
-        ul: ({ children }) => (
-          <ul className="space-y-1.5 my-2 pl-4 list-disc marker:text-emerald-500 text-sm">
-            {children}
-          </ul>
-        ),
-        ol: ({ children }) => (
-          <ol className="space-y-2 my-2 pl-4 list-decimal marker:text-emerald-600 dark:marker:text-emerald-400 font-semibold text-sm">
-            {children}
-          </ol>
-        ),
-        li: ({ children }) => (
-          <li className="text-sm leading-relaxed text-slate-800 dark:text-slate-200">
-            {children}
-          </li>
-        ),
-        strong: ({ children }) => (
-          <strong className="font-bold text-slate-950 dark:text-white">
-            {children}
-          </strong>
-        ),
-        code: ({ children }) => {
-          const strVal = String(children).trim();
-          if (isFenString(strVal) && onApplyFen) {
-            return (
-              <button
-                type="button"
-                onClick={() => onApplyFen(normalizeFen(strVal))}
-                title="Bấm để hiển thị thế cờ này lên bàn cờ"
-                className="inline-flex items-center gap-1 px-2 py-0.5 mx-1 rounded-md font-mono text-xs bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300/80 dark:border-emerald-700 hover:scale-105 transition-transform cursor-pointer shadow-2xs"
-              >
-                <Layers className="w-3 h-3 text-emerald-600" />
-                <span>[Xem thế cờ trên Bàn cờ]</span>
-              </button>
-            );
-          }
-
-          return (
-            <code className="px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-xs bg-muted text-foreground font-semibold border border-border/60">
-              {children}
-            </code>
-          );
-        },
-        blockquote: ({ children }) => (
-          <blockquote className="border-l-3 border-emerald-500 pl-3 py-1.5 my-2 bg-emerald-50/50 dark:bg-emerald-950/20 text-slate-700 dark:text-slate-300 italic text-xs rounded-r-xl">
-            {children}
-          </blockquote>
-        ),
-        hr: () => (
-          <hr className="my-3 border-t border-slate-200/80 dark:border-slate-800" />
-        ),
-        table: ({ children }) => (
-          <div className="overflow-x-auto my-2 rounded-xl border border-slate-200 dark:border-slate-800">
-            <table className="w-full text-xs text-left border-collapse">{children}</table>
-          </div>
-        ),
-        th: ({ children }) => (
-          <th className="bg-slate-100 dark:bg-slate-800/80 px-3 py-2 font-bold border-b border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
-            {children}
-          </th>
-        ),
-        td: ({ children }) => (
-          <td className="px-3 py-2 border-b border-slate-100 dark:border-slate-800/60 text-slate-700 dark:text-slate-300">
-            {children}
-          </td>
-        ),
-      }}
-    >
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
       {cleanContent}
     </ReactMarkdown>
   );
-}
+});
 
 /**
  * Animated Thinking Indicator
@@ -249,7 +258,28 @@ export default function AiAssistantChat({
   const [isStreaming, setIsStreaming] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleApplyFen = useCallback(
+    (fen: string) => {
+      if (!onApplyFen) return;
+      const container = scrollContainerRef.current;
+      const savedTop = container ? container.scrollTop : null;
+
+      onApplyFen(fen);
+
+      if (savedTop !== null && container) {
+        requestAnimationFrame(() => {
+          if (container) container.scrollTop = savedTop;
+        });
+        setTimeout(() => {
+          if (container) container.scrollTop = savedTop;
+        }, 50);
+      }
+    },
+    [onApplyFen]
+  );
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -455,7 +485,7 @@ export default function AiAssistantChat({
       )}
 
       {/* Chat Messages Stream Log */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-3.5 sm:p-4 space-y-4">
+      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto p-3.5 sm:p-4 space-y-4">
         {messages.map((msg, idx) => {
           const isBot = msg.role === "assistant";
           const isLatestBot = isBot && idx === messages.length - 1;
@@ -495,7 +525,7 @@ export default function AiAssistantChat({
                     {isBot ? (
                       <MarkdownRenderer
                         content={msg.content}
-                        onApplyFen={onApplyFen}
+                        onApplyFen={handleApplyFen}
                       />
                     ) : (
                       <span className="whitespace-pre-wrap font-medium">{msg.content}</span>

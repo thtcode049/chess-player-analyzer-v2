@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Brain,
   RotateCcw,
@@ -170,6 +170,11 @@ export default function AiCoachView() {
     if (workspaceStore.activeMode === "single" && workspaceStore.activePlayerId) {
       if (selectedPlayerId !== workspaceStore.activePlayerId) {
         setSelectedPlayerId(workspaceStore.activePlayerId);
+        setSelectedGameId("");
+        setBaseFen(START_FEN);
+        setCurrentFen(START_FEN);
+        setActiveMoves([]);
+        setCurrentPly(0);
       }
     }
   }, [workspaceStore.activeMode, workspaceStore.activePlayerId, selectedPlayerId]);
@@ -348,7 +353,7 @@ export default function AiCoachView() {
     }
   }, [selectedPlayerId, isLoaded, players, workspaceStore.activeMode, workspaceStore.activePlayerId, sessions, activeSessionId]);
 
-  // 5. Fetch Player Games when selected player or multi profile changes
+  // 5. Fetch or Synchronize Player Games when selected player or multi profile changes
   useEffect(() => {
     if (workspaceStore.activeMode === "multi") {
       if (selectedMultiPlayerIds.length === 0) {
@@ -356,15 +361,19 @@ export default function AiCoachView() {
         setSelectedGameId("");
         return;
       }
+      let isCurrent = true;
       Promise.all(
         selectedMultiPlayerIds.map((pId) =>
           apiClient.getPlayerGames(pId, { page: 1, pageSize: 30, allGames: true }).catch(() => ({ items: [] }))
         )
       ).then((resList) => {
+        if (!isCurrent) return;
         const combined = resList.flatMap((r) => r?.items || []);
         setPlayerGames(combined);
       });
-      return;
+      return () => {
+        isCurrent = false;
+      };
     }
 
     if (!selectedPlayerId || selectedPlayerId === GENERAL_CHAT_ID || selectedPlayerId === MULTI_MATCHUP_ID) {
@@ -380,17 +389,63 @@ export default function AiCoachView() {
     setCurrentPly(0);
     setSelectedGameId("");
 
+    // Check if workspaceStore or cache already has the games for this player
+    const cachedGames = workspaceStore.cachedProfiles[selectedPlayerId]?.games;
+    if (cachedGames && cachedGames.length > 0) {
+      setPlayerGames(cachedGames);
+      return;
+    }
+
+    if (
+      workspaceStore.activeMode === "single" &&
+      workspaceStore.activePlayerId === selectedPlayerId &&
+      workspaceStore.activePlayerGames.length > 0
+    ) {
+      setPlayerGames(workspaceStore.activePlayerGames);
+      return;
+    }
+
+    // Immediately clear previous player games to avoid showing old games during fetch
+    setPlayerGames([]);
+
+    let isCurrent = true;
     apiClient
-      .getPlayerGames(selectedPlayerId, { page: 1, pageSize: 60, allGames: true })
+      .getPlayerGames(selectedPlayerId, { page: 1, pageSize: 100, allGames: true })
       .then((res) => {
+        if (!isCurrent) return;
         const items = res?.items || [];
         setPlayerGames(items);
       })
       .catch((err) => {
+        if (!isCurrent) return;
         console.warn("Failed to fetch player games:", err);
         setPlayerGames([]);
       });
-  }, [selectedPlayerId, workspaceStore.activeMode, selectedMultiPlayerIds]);
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [
+    selectedPlayerId,
+    workspaceStore.activeMode,
+    workspaceStore.activePlayerId,
+    workspaceStore.cachedProfiles,
+    workspaceStore.activePlayerGames,
+    selectedMultiPlayerIds,
+  ]);
+
+  // 5b. Keep playerGames in sync whenever workspaceStore loads games in background
+  useEffect(() => {
+    if (
+      workspaceStore.activeMode === "single" &&
+      workspaceStore.activePlayerId &&
+      workspaceStore.activePlayerId === selectedPlayerId &&
+      workspaceStore.activePlayerGames.length > 0 &&
+      playerGames.length === 0
+    ) {
+      setPlayerGames(workspaceStore.activePlayerGames);
+    }
+  }, [workspaceStore.activeMode, workspaceStore.activePlayerId, workspaceStore.activePlayerGames, selectedPlayerId, playerGames.length]);
 
   // Get active session with guaranteed fallback
   const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0] || createDefaultSession(selectedPlayerId || GENERAL_CHAT_ID, currentPlayerName);
@@ -548,7 +603,7 @@ export default function AiCoachView() {
   };
 
   // Handler: Apply FEN onto board
-  const handleApplyFen = (fen: string) => {
+  const handleApplyFen = useCallback((fen: string) => {
     setIsBoardOpen(true);
     const cleanFen = normalizeFen(fen);
     try {
@@ -569,7 +624,7 @@ export default function AiCoachView() {
     setActiveMoves([]);
     setCurrentPly(0);
     setSelectedGameId("");
-  };
+  }, []);
 
   // Check if current position is a bare pawn skeleton
   const isSkeleton = useMemo(() => isPawnSkeletonFen(currentFen), [currentFen]);
@@ -653,6 +708,13 @@ export default function AiCoachView() {
           setActiveSessionId(session.id);
           if (session.playerId && session.playerId !== selectedPlayerId) {
             setSelectedPlayerId(session.playerId);
+            if (
+              workspaceStore.activeMode === "single" &&
+              session.playerId !== GENERAL_CHAT_ID &&
+              session.playerId !== MULTI_MATCHUP_ID
+            ) {
+              workspaceStore.selectSingleProfile(session.playerId, "ai");
+            }
           }
         }}
         className={`group relative flex flex-col px-2.5 py-2 rounded-xl text-xs cursor-pointer transition select-none ${
@@ -1356,8 +1418,15 @@ export default function AiCoachView() {
                   <ChevronLeft className="w-5 h-5" />
                 </button>
 
-                <span className="font-mono text-[11px] font-bold px-2 py-1 text-foreground bg-card rounded-md border border-border/70 shadow-2xs min-w-[70px] text-center">
-                  {isSkeleton ? "Hình thái Tốt" : currentPly === 0 ? "Ban đầu" : `Nước ${currentPly}/${activeMoves.length}`}
+                <span
+                  title={currentPly === 0 ? "Ban đầu" : `Nước ${Math.ceil(currentPly / 2)}/${Math.ceil(activeMoves.length / 2)} (${currentPly % 2 === 1 ? "Trắng" : "Đen"} đi)`}
+                  className="font-mono text-[11px] font-bold px-2 py-1 text-foreground bg-card rounded-md border border-border/70 shadow-2xs min-w-[70px] text-center"
+                >
+                  {isSkeleton
+                    ? "Hình thái Tốt"
+                    : currentPly === 0
+                    ? "Ban đầu"
+                    : `Nước ${Math.ceil(currentPly / 2)}/${Math.ceil(activeMoves.length / 2)}`}
                 </span>
 
                 <button
@@ -1410,31 +1479,30 @@ export default function AiCoachView() {
             </div>
 
             {/* Bottom Controls: Game Loader & Ask AI about board */}
-            <div className="w-full mt-2 pt-2 border-t border-border/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 shrink-0">
-              {/* Game Selector */}
-              <div className="flex-1 min-w-[180px]">
-                <select
-                  value={selectedGameId}
-                  onChange={(e) => handleSelectGame(e.target.value)}
-                  className="w-full bg-background border border-border/70 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none cursor-pointer truncate"
-                >
-                  <option value="">-- Xếp ván đấu ({playerGames.length} ván) --</option>
-                  {playerGames.map((g, idx) => {
-                    const white = g.white_player || "Trắng";
-                    const black = g.black_player || "Đen";
-                    const res = g.result || "*";
-                    const eco = g.eco ? `[${g.eco}]` : "";
-                    return (
-                      <option key={g.id || idx} value={g.id}>
-                        Ván {idx + 1}: {white} vs {black} ({res}) {eco}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
+            <div className="w-full mt-2 pt-2 border-t border-border/60 flex flex-col gap-2 shrink-0">
+              {/* Row 1: Game Selector & Copy FEN */}
+              <div className="flex items-center gap-1.5 w-full">
+                <div className="flex-1 min-w-0">
+                  <select
+                    value={selectedGameId}
+                    onChange={(e) => handleSelectGame(e.target.value)}
+                    className="w-full bg-background border border-border/70 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none cursor-pointer truncate"
+                  >
+                    <option value="">-- Xếp ván đấu ({playerGames.length} ván) --</option>
+                    {playerGames.map((g, idx) => {
+                      const white = g.white_player || "Trắng";
+                      const black = g.black_player || "Đen";
+                      const res = g.result || "*";
+                      const eco = g.eco ? `[${g.eco}]` : "";
+                      return (
+                        <option key={g.id || idx} value={g.id}>
+                          Ván {idx + 1}: {white} vs {black} ({res}) {eco}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
 
-              {/* Action Buttons: Copy FEN & Ask AI */}
-              <div className="flex items-center gap-1.5 shrink-0 flex-wrap sm:flex-nowrap justify-end">
                 <button
                   type="button"
                   onClick={() => {
@@ -1443,19 +1511,22 @@ export default function AiCoachView() {
                     setTimeout(() => setCopiedFen(false), 2000);
                   }}
                   title="Sao chép FEN của thế cờ hiện tại"
-                  className="p-2 rounded-xl border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer"
+                  className="p-1.5 sm:p-2 rounded-xl border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer shrink-0"
                 >
                   {copiedFen ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
+              </div>
 
+              {/* Row 2: Action Buttons: Phân tích cả ván & Ask AI */}
+              <div className="flex items-center gap-1.5 w-full">
                 {selectedGame && (
                   <button
                     type="button"
                     onClick={handleAskAboutEntireGame}
                     title="Yêu cầu AI phân tích toàn bộ diễn biến ván đấu này từ khai cuộc đến tàn cuộc"
-                    className="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 font-bold text-xs shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
+                    className="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 font-bold text-xs shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer truncate"
                   >
-                    <span>Phân tích cả ván 📋</span>
+                    <span className="truncate">Phân tích cả ván 📋</span>
                   </button>
                 )}
 
@@ -1463,10 +1534,18 @@ export default function AiCoachView() {
                   type="button"
                   onClick={handleAskAboutBoard}
                   title="Gửi thế cờ này cho Trợ lí AI phân tích"
-                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
+                  className={`${selectedGame ? "flex-1 min-w-0" : "w-full"} px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer truncate`}
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{isSkeleton ? "Phân tích cấu trúc Tốt ↗" : selectedGame ? `Thế cờ (Nước ${currentPly}) ↗` : "Gửi thế cờ vào chat ↗"}</span>
+                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">
+                    {isSkeleton
+                      ? "Phân tích cấu trúc Tốt ↗"
+                      : selectedGame
+                      ? currentPly === 0
+                        ? "Thế cờ đầu ↗"
+                        : `Thế cờ (Nước ${Math.ceil(currentPly / 2)}) ↗`
+                      : "Gửi thế cờ vào chat ↗"}
+                  </span>
                 </button>
               </div>
             </div>

@@ -1536,11 +1536,11 @@ export function AnalyzeContent() {
               <button
                 type="button"
                 onClick={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
-                title={`Đổi góc nhìn bàn cờ (Đang xem: ${boardOrientation === "white" ? "Trắng" : "Đen"})`}
+                title={`Xoay bàn cờ (Đang xem: ${boardOrientation === "white" ? "Trắng" : "Đen"})`}
                 className="h-8.5 sm:h-9 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 bg-secondary/50 hover:bg-secondary dark:hover:bg-slate-800 text-muted-foreground hover:text-foreground text-xs font-semibold transition cursor-pointer active:scale-95"
               >
                 <RotateCw className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Lật cờ</span>
+                <span className="hidden sm:inline">Xoay</span>
               </button>
 
               <button
@@ -1552,11 +1552,11 @@ export function AnalyzeContent() {
                   setSelectedOpening(null);
                 }}
                 disabled={moves.length === 0 && currentFen === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}
-                title="Xóa ván cờ về bàn cờ trống ban đầu"
+                title="Xóa ván cờ về bàn cờ ban đầu"
                 className="h-8.5 sm:h-9 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 bg-secondary/50 hover:bg-destructive/10 hover:text-destructive text-muted-foreground disabled:opacity-30 disabled:pointer-events-none text-xs font-semibold transition cursor-pointer active:scale-95"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Làm mới</span>
+                <span className="hidden sm:inline">Xóa bàn</span>
               </button>
             </div>
           </div>

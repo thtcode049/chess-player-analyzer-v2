@@ -904,7 +904,7 @@ export default function AiCoachView() {
           </div>
         </div>
 
-        {/* Right: Board Toggle & Action Buttons */}
+        {/* Right: Board Toggle Button */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
@@ -919,36 +919,6 @@ export default function AiCoachView() {
             <span>Bàn cờ:</span>
             <span className="uppercase">{isBoardOpen ? "Bật" : "Tắt"}</span>
           </button>
-
-          {isBoardOpen && (
-            <>
-              <button
-                type="button"
-                onClick={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
-                title="Xoay bàn cờ (Đổi bên Trắng / Đen)"
-                className="hidden md:flex px-2.5 py-1.5 rounded-lg border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-semibold items-center gap-1 transition cursor-pointer"
-              >
-                <RotateCw className="w-3.5 h-3.5" />
-                <span>Xoay</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setBaseFen(START_FEN);
-                  setCurrentFen(START_FEN);
-                  setActiveMoves([]);
-                  setCurrentPly(0);
-                  setSelectedGameId("");
-                }}
-                title="Xếp lại thế cờ ban đầu"
-                className="hidden md:flex px-2.5 py-1.5 rounded-lg border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-semibold items-center gap-1 transition cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Ban đầu</span>
-              </button>
-            </>
-          )}
         </div>
       </div>
 
@@ -1248,11 +1218,11 @@ export default function AiCoachView() {
                 <button
                   type="button"
                   onClick={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
-                  title={`Đổi góc nhìn bàn cờ (Đang xem: ${boardOrientation === "white" ? "Trắng" : "Đen"})`}
+                  title={`Xoay bàn cờ (Đang xem: ${boardOrientation === "white" ? "Trắng" : "Đen"})`}
                   className="h-8 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 bg-card hover:bg-secondary text-muted-foreground hover:text-foreground text-[11px] font-semibold border border-border/60 transition cursor-pointer active:scale-95"
                 >
                   <RotateCw className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Lật cờ</span>
+                  <span className="hidden sm:inline">Xoay</span>
                 </button>
                 <button
                   type="button"
@@ -1264,11 +1234,11 @@ export default function AiCoachView() {
                     setSelectedGameId("");
                   }}
                   disabled={activeMoves.length === 0 && currentFen === START_FEN}
-                  title="Đặt lại về bàn cờ ban đầu"
+                  title="Xóa ván cờ, đặt lại bàn cờ ban đầu"
                   className="h-8 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 bg-card hover:bg-destructive/10 hover:text-destructive text-muted-foreground disabled:opacity-30 disabled:pointer-events-none text-[11px] font-semibold border border-border/60 transition cursor-pointer active:scale-95"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Về đầu</span>
+                  <span className="hidden sm:inline">Xóa bàn</span>
                 </button>
               </div>
             </div>

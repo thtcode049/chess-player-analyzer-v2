@@ -1,22 +1,9 @@
 """
-Game and Critical Position Pydantic Schemas
+Game Pydantic Schemas
 """
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
-
-class CriticalPositionResponse(BaseModel):
-    id: Optional[str] = None
-    game_id: Optional[str] = None
-    ply: int
-    fen: str
-    eval_before: Optional[float] = None
-    eval_after: Optional[float] = None
-    cpl: Optional[float] = None
-    event_type: str  # 'BLUNDER', 'MISTAKE', 'INACCURACY', 'SWING'
-    played_move: str
-    best_move: Optional[str] = None
-    phase: str       # 'opening', 'middlegame', 'endgame'
 
 class GameResponse(BaseModel):
     id: str
@@ -34,9 +21,8 @@ class GameResponse(BaseModel):
     time_control: Optional[str] = None
     ply_count: Optional[int] = None
     moves_san: str
-    has_embedded_eval: bool = False
     raw_headers: Optional[Dict[str, Any]] = {}
     created_at: Optional[datetime] = None
 
 class GameDetailResponse(GameResponse):
-    critical_positions: List[CriticalPositionResponse] = []
+    pass

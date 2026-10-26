@@ -217,10 +217,6 @@ async def import_pgn_file(
                     logger.info(f"[Import PGN] Saved {inserted}/{len(new_unique_games)} new unique games to Supabase (skipped {skipped_count} duplicates)")
                     if inserted != len(new_unique_games):
                         DBService.update_dataset(dataset_id, {"games_count": inserted})
-
-                # Update total games count for player with verified inserted games
-                actual_total = len(existing_games) + (inserted if new_unique_games else 0)
-                DBService.update_player(actual_player_id, {"total_games": actual_total})
             except Exception as db_err:
                 logger.error(f"[Import PGN] DB save error: {db_err}")
         else:
@@ -476,9 +472,6 @@ async def import_lichess(
                     logger.info(f"[Import Lichess] Saved {inserted}/{len(new_unique_games)} new games to Supabase (skipped {skipped_count} duplicates)")
                     if inserted != len(new_unique_games):
                         DBService.update_dataset(dataset_id, {"games_count": inserted})
-
-                actual_total = len(existing_games) + (inserted if new_unique_games else 0)
-                DBService.update_player(target_player_id, {"total_games": actual_total})
             except Exception as db_err:
                 logger.error(f"[Import Lichess] DB save error: {db_err}")
         else:
@@ -729,9 +722,6 @@ async def import_chesscom(
                     logger.info(f"[Import Chess.com] Saved {inserted}/{len(new_unique_games)} new games to Supabase (skipped {skipped_count} duplicates)")
                     if inserted != len(new_unique_games):
                         DBService.update_dataset(dataset_id, {"games_count": inserted})
-
-                actual_total = len(existing_games) + (inserted if new_unique_games else 0)
-                DBService.update_player(target_player_id, {"total_games": actual_total})
             except Exception as db_err:
                 logger.error(f"[Import Chess.com] DB save error: {db_err}")
         else:

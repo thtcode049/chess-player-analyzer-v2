@@ -108,9 +108,6 @@ class ImportService:
                 moves_san_parts.append(f"{move}")
         moves_san_str = " ".join(moves_san_parts) if moves_san_parts else " ".join(moves_list)
 
-        # Check for embedded [%eval] in moves or raw headers
-        has_embedded_eval = bool(raw_game.get("evaluations") or "[%eval" in str(raw_game.get("raw_pgn", "")))
-
         # Parse date & time safely
         headers = raw_game.get("headers", {})
         date_str = str(raw_game.get("date") or headers.get("Date") or headers.get("UTCDate") or "").strip()
@@ -162,6 +159,5 @@ class ImportService:
             "time_control": headers.get("TimeControl", ""),
             "ply_count": len(moves_list),
             "moves_san": moves_san_str,
-            "raw_headers": headers,
-            "has_embedded_eval": has_embedded_eval
+            "raw_headers": headers
         }

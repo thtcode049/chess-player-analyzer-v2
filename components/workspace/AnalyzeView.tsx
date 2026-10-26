@@ -1049,7 +1049,6 @@ export function AnalyzeContent() {
       opening_name: sg.opening || sg.opening_name || sg.event || "",
       eco: sg.eco || "",
       site_url: sg.site || sg.link || "",
-      has_embedded_eval: false,
     };
     setGameInfo(targetGame);
   };

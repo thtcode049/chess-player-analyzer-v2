@@ -13,15 +13,15 @@ Hệ thống **Chess Player Analyzer V2 (ChessLook)** đã được nâng cấp 
 1. **Tầng 1 — Tầng Trình diễn & Không gian làm việc Hợp nhất (Next.js 14 App Router + React 18 + TypeScript + TailwindCSS)**:
    - Duy trì trạng thái DOM thông qua kiến trúc **Keep-Alive Workspace** (`components/workspace/WorkspaceContainer.tsx` & `lib/stores/profileWorkspaceStore.tsx`), cho phép chuyển đổi tức thời (`0ms`) giữa 3 phân hệ chính (**Hồ sơ & Ván đấu**, **Bàn cờ Phân tích & Khai cuộc**, **Trợ lý AI**) mà không làm mất trạng thái bàn cờ, luồng tính toán Stockfish hay luồng hội thoại AI.
    - Hỗ trợ 3 chế độ làm việc linh hoạt: **Đơn hồ sơ (`single`)**, **Đa hồ sơ ghép đôi (`multi` - Multi-Profile Matchup gán vai trò cầm quân Trắng ⚪, Đen ⚫ hoặc Cả hai ⚪⚫)** và **Bàn cờ phân tích tự do (`sandbox`)**.
-2. **Tầng 2 — Tầng Tính toán Cờ vua phía Trình duyệt (Stockfish 19 WebAssembly + Web Worker Pool)**:
-   - Chạy trực tiếp động cơ **Stockfish 19 WASM** (`/public/stockfish/stockfish.wasm`) bên trong tối đa 4 luồng nền độc lập (`lib/stockfish/engineWorker.ts`, `workerPool.ts`, `fullGameAnalyzer.ts`), kết hợp truy vấn **Lichess Cloud Evaluation API** cho các thế cờ khai cuộc.
+2. **Tầng 2 — Tầng Tính toán Cờ vua phía Trình duyệt (Stockfish 19 WebAssembly + Web Worker Controller)**:
+   - Chạy trực tiếp động cơ **Stockfish 19 WASM** (`/public/stockfish/stockfish.wasm`) bên trong luồng nền Web Worker độc lập (`lib/stockfish/engineWorker.ts` và hook `useStockfish.ts`), kết hợp truy vấn **Lichess Cloud Evaluation API** và **Lichess Masters Database** cho các thế cờ khai cuộc.
    - Giải phóng 100% tải CPU cho máy chủ Serverless và loại bỏ hoàn toàn giới hạn timeout phía máy chủ.
 3. **Tầng 3 — Tầng Dịch vụ API & Miền Phân tích (FastAPI Python 3.11+ Serverless)**:
    - Gắn kết tại `/api/py/*` (`api/index.py`), kiểm tra kiểu dữ liệu nghiêm ngặt bằng **Pydantic v2** và điều phối các dịch vụ `import_service.py`, `analysis_service.py`, `ai_service.py`, `db_service.py`, `lichess_masters_service.py`.
    - Tích hợp bộ trích xuất nhanh đánh giá nhúng `[%eval ...]` bằng biểu thức chính quy trong thời gian `<10ms` (`src/engine/evaluator.py`).
-4. **Tầng 4 — Tầng Lưu trữ Bền vững, Xác thực & Kho đối tượng (Supabase BaaS)**:
-   - **Supabase PostgreSQL**: 8 bảng quan hệ & JSONB (`profiles`, `players`, `player_sources`, `datasets`, `games`, `game_evaluations`, `analysis_runs`, `opening_tree_nodes`) được bảo vệ bởi chính sách **Row-Level Security (RLS)** và hỗ trợ **Guest Mode** (`user_id IS NULL`).
-   - **Supabase Storage (`pgn-vault`)**: Lưu trữ tệp `.pgn` nguyên bản.
+4. **Tầng 4 — Tầng Lưu trữ Bền vững & Xác thực (Supabase BaaS)**:
+   - **Supabase PostgreSQL**: 5 bảng quan hệ chuẩn hóa & JSONB (`profiles`, `players`, `datasets`, `games`, `analysis_runs`) được bảo vệ bởi chính sách **Row-Level Security (RLS)** và hỗ trợ **Guest Mode** qua bộ nhớ phiên làm việc.
+   - **Xử lý tệp trong bộ nhớ (Zero Storage Bloat)**: Tệp `.pgn` nạp vào được giải mã và chuẩn hóa trực tiếp trên RAM qua `ImportService.parse_pgn_bytes`, giải phóng hoàn toàn dung lượng lưu trữ kho đối tượng.
 
 ---
 

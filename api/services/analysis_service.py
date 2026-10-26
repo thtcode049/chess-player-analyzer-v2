@@ -38,12 +38,12 @@ class AnalysisService:
             return {
                 "run_label": run_label,
                 "games_analyzed_count": 0,
-                "engine_status": "statistical_only",
                 "overall_win_rate": 0.0,
                 "overall_score": 0.0,
+                "white_score": 0.0,
+                "black_score": 0.0,
                 "repertoire_summary": {},
                 "pawn_structures_summary": {},
-                "style_radar_metrics": {},
                 "opening_tree_snapshot": {},
                 "critical_positions": []
             }
@@ -127,30 +127,15 @@ class AnalysisService:
             "run_label": run_label,
             "games_analyzed_count": total_games,
             
-            # Engine Metadata
-            "engine_status": engine_status,
-            "engine_coverage_pct": coverage_pct,
-            "engine_games_count": analyzed_games_count,
-            "engine_name": engine_name,
-            "engine_depth": engine_depth,
-            
             # Basic & Bayesian metrics
             "overall_win_rate": float(stats.get("win_rate", 0.0)),
             "overall_score": float(stats.get("score_percentage", 0.0)),
             "white_score": float(stats.get("white_score_percentage", 0.0)),
             "black_score": float(stats.get("black_score_percentage", 0.0)),
             
-            # Phase ACPL metrics (centipawn — cp)
-            "overall_acpl": deep_profile.get("overall_acpl") or comp_res.get("overall_acpl"),
-            "acpl_opening": opening_acpl,
-            "acpl_middlegame": middlegame_acpl,
-            "acpl_endgame": endgame_acpl,
-            "dominant_archetype": dominant_archetype,
-            
             # Snapshots
             "repertoire_summary": repertoire_data,
             "pawn_structures_summary": deep_profile.get("structures", {}),
-            "style_radar_metrics": {},
             "opening_tree_snapshot": root_details,
             
             # Additional rich state

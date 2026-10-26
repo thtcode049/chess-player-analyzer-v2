@@ -181,7 +181,6 @@ class DBService:
         "ply_count",
         "moves_san",
         "raw_headers",
-        "has_embedded_eval"
     }
 
     @staticmethod
@@ -440,7 +439,7 @@ class DBService:
                 "date": str(g.get("played_at", "")),
                 "site": g.get("site_url", "") or g.get("external_id", ""),
                 "link": g.get("site_url", ""),
-                "evaluations": g.get("evaluations", []) if g.get("has_embedded_eval") else []
+                "evaluations": g.get("evaluations", [])
             })
         return analysis_games
 
@@ -455,23 +454,12 @@ class DBService:
             "run_label": run_res.get("run_label", "Analytical Snapshot"),
             "scope_filter": run_res.get("scope_filter", {}),
             "games_analyzed_count": int(run_res.get("games_analyzed_count", 0)),
-            "engine_status": str(run_res.get("engine_status", "statistical_only")),
-            "engine_coverage_pct": float(run_res.get("engine_coverage_pct", 0.0)),
-            "engine_games_count": int(run_res.get("engine_games_count", 0)),
-            "engine_name": run_res.get("engine_name"),
-            "engine_depth": run_res.get("engine_depth"),
             "overall_win_rate": float(run_res.get("overall_win_rate", 0.0)) if run_res.get("overall_win_rate") is not None else None,
             "overall_score": float(run_res.get("overall_score", 0.0)) if run_res.get("overall_score") is not None else None,
             "white_score": float(run_res.get("white_score", 0.0)) if run_res.get("white_score") is not None else None,
             "black_score": float(run_res.get("black_score", 0.0)) if run_res.get("black_score") is not None else None,
-            "overall_acpl": float(run_res.get("overall_acpl")) if run_res.get("overall_acpl") is not None else None,
-            "acpl_opening": float(run_res.get("acpl_opening")) if run_res.get("acpl_opening") is not None else None,
-            "acpl_middlegame": float(run_res.get("acpl_middlegame")) if run_res.get("acpl_middlegame") is not None else None,
-            "acpl_endgame": float(run_res.get("acpl_endgame")) if run_res.get("acpl_endgame") is not None else None,
-            "dominant_archetype": run_res.get("dominant_archetype"),
             "repertoire_summary": run_res.get("repertoire_summary", {}),
             "pawn_structures_summary": run_res.get("pawn_structures_summary", {}),
-            "style_radar_metrics": run_res.get("style_radar_metrics", {}),
             "opening_tree_snapshot": run_res.get("opening_tree_snapshot", {})
         }
         if run_id:

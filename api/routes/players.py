@@ -422,7 +422,6 @@ async def list_player_games(
                 time_control=g.get("time_control") or raw_h.get("TimeControl"),
                 ply_count=g.get("ply_count", len(g.get("moves", []))),
                 moves_san=g.get("moves_san", " ".join(g.get("moves", []))),
-                has_embedded_eval=bool(g.get("has_embedded_eval") or g.get("evaluations")),
                 raw_headers=raw_h
             )
         )

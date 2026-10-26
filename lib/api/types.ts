@@ -7,9 +7,6 @@ export interface Profile {
   id: string;
   email?: string;
   display_name?: string;
-  lichess_username?: string;
-  chesscom_username?: string;
-  avatar_url?: string;
   created_at: string;
 }
 
@@ -32,22 +29,7 @@ export interface Dataset {
   source_type: 'lichess' | 'chesscom' | 'pgn_upload';
   source_identifier: string;
   games_count: number;
-  pgn_storage_path?: string | null;
   imported_at: string;
-}
-
-export interface CriticalPosition {
-  id?: string;
-  game_id?: string;
-  ply: number;
-  fen: string;
-  eval_before?: number | null;
-  eval_after?: number | null;
-  cpl?: number | null;
-  event_type: 'BLUNDER' | 'MISTAKE' | 'INACCURACY' | 'SWING';
-  played_move: string;
-  best_move?: string | null;
-  phase: 'opening' | 'middlegame' | 'endgame';
 }
 
 export interface Game {
@@ -66,12 +48,8 @@ export interface Game {
   time_control?: string | null;
   ply_count?: number;
   moves_san: string;
-  has_embedded_eval: boolean;
   raw_headers?: Record<string, any>;
-  critical_positions?: CriticalPosition[];
 }
-
-export type EngineStatus = 'statistical_only' | 'embedded_eval' | 'sampled_wasm' | 'full_engine' | 'stockfish_parallel' | 'hybrid_stockfish' | 'stockfish_wasm';
 
 export interface OpeningContinuation {
   san: string;
@@ -117,30 +95,15 @@ export interface AnalysisRun {
   scope_filter: Record<string, any>;
   games_analyzed_count: number;
   
-  // Engine metadata
-  engine_status: EngineStatus;
-  engine_coverage_pct: number;
-  engine_games_count: number;
-  engine_name?: string | null;
-  engine_depth?: number | null;
-  
   // Metrics
   overall_win_rate?: number | null;
   overall_score?: number | null;
   white_score?: number | null;
   black_score?: number | null;
   
-  // Phase ACPL
-  overall_acpl?: number | null;
-  acpl_opening?: number | null;
-  acpl_middlegame?: number | null;
-  acpl_endgame?: number | null;
-  dominant_archetype?: string | null;
-  
   // Snapshots
   repertoire_summary?: Record<string, any> | null;
   pawn_structures_summary?: Record<string, any> | null;
-  style_radar_metrics?: Record<string, any> | null;
   opening_tree_snapshot?: OpeningTreeNode | null;
   
   status: 'completed' | 'processing' | 'failed';
@@ -232,23 +195,6 @@ export interface OpeningRepertoireItem {
   loss_pct?: number;
 }
 
-export interface AnalysisRunSyncRequest {
-  player_id: string;
-  run_id?: string;
-  engine_status?: EngineStatus;
-  engine_name?: string;
-  engine_depth?: number;
-  engine_coverage_pct?: number;
-  engine_games_count?: number;
-  overall_acpl?: number | null;
-  acpl_opening?: number | null;
-  acpl_middlegame?: number | null;
-  acpl_endgame?: number | null;
-  dominant_archetype?: string | null;
-  style_radar_metrics?: Record<string, any> | null;
-  critical_positions?: CriticalPosition[];
-}
-
 export interface LichessMasterMove {
   san: string;
   uci: string;
@@ -309,5 +255,3 @@ export interface LichessMastersResponse {
   is_rate_limited?: boolean;
   message?: string;
 }
-
-

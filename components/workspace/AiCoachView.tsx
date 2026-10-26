@@ -774,7 +774,7 @@ export default function AiCoachView() {
   return (
     <div className="w-full h-[calc(100dvh-8rem)] md:h-[calc(100dvh-5.5rem)] -mt-2 sm:-mt-4 mb-0 flex flex-col overflow-hidden select-none">
       {/* Sleek Top Compact Toolbar */}
-      <div className="shrink-0 h-12 px-3 bg-card/85 backdrop-blur-md border border-border/70 rounded-xl flex items-center justify-between gap-2.5 shadow-2xs mb-2">
+      <div className="shrink-0 h-12 px-3 bg-card/85 backdrop-blur-md border border-border/70 rounded-xl flex items-center justify-between gap-2.5 shadow-2xs mb-2 relative z-30">
         {/* Left: Sidebar toggle & Multi-Profile Matchup Selector */}
         <div className="flex items-center gap-2 min-w-0">
           <button
@@ -833,7 +833,7 @@ export default function AiCoachView() {
             )}
 
             {/* Add / Compare Player Dropdown Button */}
-            <div className="relative" ref={addPlayerRef}>
+            <div className="relative z-40" ref={addPlayerRef}>
               <button
                 type="button"
                 onClick={() => setIsAddingPlayerOpen((prev) => !prev)}
@@ -851,8 +851,8 @@ export default function AiCoachView() {
               </button>
 
               {isAddingPlayerOpen && (
-                <div className="absolute left-0 mt-1 w-64 bg-card border border-border/80 rounded-xl shadow-xl z-50 py-1.5 animate-in fade-in-50 zoom-in-95">
-                  <div className="px-3 py-1 text-[11px] font-bold text-muted-foreground uppercase border-b border-border/40 mb-1">
+                <div className="absolute left-0 mt-1.5 w-64 max-h-80 overflow-y-auto bg-card/95 backdrop-blur-md border border-border/80 rounded-xl shadow-2xl z-50 py-1.5 animate-in fade-in-50 zoom-in-95 ring-1 ring-black/10 dark:ring-white/10">
+                  <div className="px-3 py-1 text-[11px] font-bold text-muted-foreground uppercase border-b border-border/40 mb-1 sticky top-0 bg-card/95 backdrop-blur-xs">
                     Chọn kỳ thủ phân tích
                   </div>
                   {activeSession.playerIds.length > 0 && (

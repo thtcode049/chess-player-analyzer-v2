@@ -6,8 +6,6 @@ import {
   RotateCcw,
   Layers,
   RotateCw,
-  Folder,
-  FolderOpen,
   MessageSquare,
   Plus,
   Trash2,
@@ -31,6 +29,11 @@ import {
   Bot,
   Send,
   Swords,
+  Pin,
+  PinOff,
+  Sparkles,
+  Clock,
+  Calendar,
 } from "lucide-react";
 import { Chess } from "chess.js";
 import Link from "next/link";
@@ -43,7 +46,7 @@ import { isFenString, normalizeFen, isPawnSkeletonFen } from "@/lib/chess/notati
 import { useProfileWorkspaceStore } from "@/lib/stores/profileWorkspaceStore";
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-const STORAGE_KEY = "chess_ai_conversations_v3";
+const STORAGE_KEY = "chess_ai_conversations_v4";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -53,12 +56,15 @@ export interface ChatMessage {
 
 export interface ChatSession {
   id: string;
-  playerId: string;
-  playerName: string;
+  user_id?: string;
+  playerIds: string[];
   title: string;
+  perspectiveMode?: string;
+  pinned: boolean;
   createdAt: number;
   updatedAt: number;
   messages: ChatMessage[];
+  isDraft?: boolean;
 }
 
 function formatRelativeTime(timestamp: number): string {
@@ -69,55 +75,43 @@ function formatRelativeTime(timestamp: number): string {
   const diffHour = Math.floor(diffMin / 60);
   if (diffHour < 24) return `${diffHour}h`;
   const diffDay = Math.floor(diffHour / 24);
-  if (diffDay < 30) return `${diffDay}d`;
+  if (diffDay < 7) return `${diffDay}d`;
   return new Date(timestamp).toLocaleDateString("vi-VN", { month: "numeric", day: "numeric" });
 }
 
-const GENERAL_CHAT_ID = "general";
-const GENERAL_PLAYER_NAME = "Trò chuyện Tự do";
-const MULTI_MATCHUP_ID = "multi_matchup";
+function createDraftSession(playerIds: string[] = [], playersList: Player[] = []): ChatSession {
+  const isGeneral = playerIds.length === 0;
+  const isMulti = playerIds.length > 1;
+  let initialGreeting = "";
+  let title = "Đoạn chat mới";
 
-function hasUserMessages(session: ChatSession): boolean {
-  return session.messages.some((m) => m.role === "user");
-}
-
-function cleanDuplicateEmptySessions(sessionsList: ChatSession[]): ChatSession[] {
-  if (!Array.isArray(sessionsList)) return [];
-  const seenEmptyPlayerIds = new Set<string>();
-  const result: ChatSession[] = [];
-
-  for (const session of sessionsList) {
-    if (hasUserMessages(session)) {
-      result.push(session);
-    } else {
-      const pId = session.playerId || GENERAL_CHAT_ID;
-      if (!seenEmptyPlayerIds.has(pId)) {
-        seenEmptyPlayerIds.add(pId);
-        result.push(session);
-      }
-    }
+  if (isGeneral) {
+    title = "Trò chuyện tự do cùng AI";
+    initialGreeting =
+      "Xin chào! Tôi là Trợ lí AI Cờ Vua. Bạn có thể trò chuyện tự do về cờ vua, thảo luận khai cuộc, chiến thuật, hoặc đi các nước cờ trên bàn cờ bên cạnh rồi hỏi tôi nhận xét bất kỳ lúc nào!";
+  } else if (isMulti) {
+    const names = playerIds.map((id) => playersList.find((p) => p.id === id)?.canonical_name || "Kỳ thủ").join(" & ");
+    title = `So sánh: ${names}`;
+    initialGreeting = `Xin chào! Tôi là Trợ lí AI Cờ Vua chế độ Đa hồ sơ. Tôi đã sẵn sàng phân tích so sánh, đối chiếu khai cuộc, điểm mạnh/yếu chiến thuật và tư vấn kế hoạch đối đầu giữa **${names}**!`;
+  } else {
+    const p = playersList.find((pl) => pl.id === playerIds[0]);
+    const name = p?.canonical_name || "Kỳ thủ";
+    title = `Phân tích: ${name}`;
+    initialGreeting = `Xin chào! Tôi là Trợ lí AI phân tích cờ vua. Tôi đã nạp toàn bộ biên bản ván đấu PGN của **${name}** và kết nối trực tiếp với bàn cờ.\n\nBạn có thể hỏi tôi bất kỳ điều gì về các ván đấu, khai cuộc, phong cách thi đấu, hoặc đi thử một nước cờ trên bàn cờ rồi hỏi tôi nhận xét!`;
   }
-  return result;
-}
 
-function createDefaultSession(playerId: string = GENERAL_CHAT_ID, playerName: string = GENERAL_PLAYER_NAME): ChatSession {
-  const isGeneral = !playerId || playerId === GENERAL_CHAT_ID;
-  const isMulti = playerId === MULTI_MATCHUP_ID;
   return {
-    id: `chat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    playerId: isGeneral ? GENERAL_CHAT_ID : playerId,
-    playerName: isGeneral ? GENERAL_PLAYER_NAME : playerName,
-    title: isGeneral ? "Trò chuyện tự do cùng AI" : isMulti ? "Phân tích đối đầu Đa hồ sơ" : "Đoạn chat mới",
+    id: `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    playerIds,
+    title,
+    pinned: false,
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    isDraft: true,
     messages: [
       {
         role: "assistant",
-        content: isGeneral
-          ? `Xin chào! Tôi là Trợ lí AI Cờ Vua. Bạn có thể trò chuyện tự do về cờ vua, thảo luận khai cuộc, chiến thuật, hoặc đi các nước cờ trên bàn cờ bên cạnh rồi hỏi tôi nhận xét bất kỳ lúc nào!`
-          : isMulti
-          ? `Xin chào! Tôi là Trợ lí AI Cờ Vua chế độ Đa hồ sơ. Tôi đã sẵn sàng phân tích so sánh, đối chiếu khai cuộc, điểm mạnh/yếu chiến thuật và tư vấn kế hoạch đối đầu giữa các kỳ thủ được chọn!`
-          : `Xin chào! Tôi là Trợ lí AI phân tích cờ vua. Tôi đã nạp toàn bộ biên bản ván đấu PGN của **${playerName || "Kỳ thủ"}** và kết nối trực tiếp với bàn cờ.\n\nBạn có thể hỏi tôi bất kỳ điều gì về các ván đấu, khai cuộc, phong cách thi đấu, hoặc đi thử một nước cờ trên bàn cờ rồi hỏi tôi nhận xét!`,
+        content: initialGreeting,
       },
     ],
   };
@@ -127,60 +121,19 @@ export default function AiCoachView() {
   const queryPlayerId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("playerId") : null;
   const workspaceStore = useProfileWorkspaceStore();
   const [players, setPlayers] = useState<Player[]>([]);
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string>(() => {
-    if (workspaceStore.activeMode === "multi") {
-      return MULTI_MATCHUP_ID;
-    }
-    if (workspaceStore.activeMode === "single" && workspaceStore.activePlayerId) {
-      return workspaceStore.activePlayerId;
-    }
-    return queryPlayerId || GENERAL_CHAT_ID;
-  });
-  const [selectedMultiPlayerIds, setSelectedMultiPlayerIds] = useState<string[]>(() => {
-    if (workspaceStore.activeMode === "multi" && workspaceStore.multiProfiles.length > 0) {
-      return workspaceStore.multiProfiles.map((m) => m.player.id);
-    }
-    return [];
-  });
-  const [playerGames, setPlayerGames] = useState<Game[]>([]);
-  const [selectedGameId, setSelectedGameId] = useState<string>("");
 
-  // Sync selectedMultiPlayerIds when multiProfiles change
-  useEffect(() => {
-    if (workspaceStore.activeMode === "multi" && workspaceStore.multiProfiles.length > 0) {
-      const pIds = workspaceStore.multiProfiles.map((m) => m.player.id);
-      setSelectedMultiPlayerIds((prev) => {
-        const valid = prev.filter((id) => pIds.includes(id));
-        return valid.length > 0 ? valid : pIds;
-      });
-      setSelectedPlayerId(MULTI_MATCHUP_ID);
-    }
-  }, [workspaceStore.activeMode, workspaceStore.multiProfiles]);
+  // Chat sessions state
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [draftSession, setDraftSession] = useState<ChatSession | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string>("");
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  const multiSelectedPlayers = useMemo(() => {
-    return workspaceStore.multiProfiles.filter((m) => selectedMultiPlayerIds.includes(m.player.id));
-  }, [workspaceStore.multiProfiles, selectedMultiPlayerIds]);
+  // Search and editing state
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState<string>("");
 
-  const multiDisplayName = useMemo(() => {
-    const names = multiSelectedPlayers.map((m) => m.player.canonical_name);
-    return names.length > 0 ? `Đa hồ sơ (${names.join(" & ")})` : "Đa hồ sơ";
-  }, [multiSelectedPlayers]);
-
-  // Sync with workspace store active player if changed in single mode
-  useEffect(() => {
-    if (workspaceStore.activeMode === "single" && workspaceStore.activePlayerId) {
-      if (selectedPlayerId !== workspaceStore.activePlayerId) {
-        setSelectedPlayerId(workspaceStore.activePlayerId);
-        setSelectedGameId("");
-        setBaseFen(START_FEN);
-        setCurrentFen(START_FEN);
-        setActiveMoves([]);
-        setCurrentPly(0);
-      }
-    }
-  }, [workspaceStore.activeMode, workspaceStore.activePlayerId, selectedPlayerId]);
-
-  // UI layout toggles
+  // Board and UI layout toggles
   const [isBoardOpen, setIsBoardOpen] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -190,7 +143,7 @@ export default function AiCoachView() {
     }
   }, []);
 
-  // Board state - baseFen is the starting FEN for the activeMoves sequence
+  // Board state
   const [baseFen, setBaseFen] = useState<string>(START_FEN);
   const [currentFen, setCurrentFen] = useState<string>(START_FEN);
   const [boardOrientation, setBoardOrientation] = useState<"white" | "black">("white");
@@ -200,361 +153,286 @@ export default function AiCoachView() {
   const [isEngineThinking, setIsEngineThinking] = useState(false);
   const [copiedFen, setCopiedFen] = useState(false);
 
-  // Chat sessions state
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string>("");
-  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({ [GENERAL_CHAT_ID]: true });
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  // Session inline rename state
-  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  const [editingTitle, setEditingTitle] = useState<string>("");
+  // Games for board position loading
+  const [playerGames, setPlayerGames] = useState<Game[]>([]);
+  const [selectedGameId, setSelectedGameId] = useState<string>("");
 
   // Prompt trigger from Board
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
 
-  // 1. Fetch Players on mount
+  // Dropdown helper for adding player to context
+  const [isAddingPlayerOpen, setIsAddingPlayerOpen] = useState(false);
+  const addPlayerRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (addPlayerRef.current && !addPlayerRef.current.contains(event.target as Node)) {
+        setIsAddingPlayerOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // 1. Fetch Players list on mount
   useEffect(() => {
     apiClient
       .getPlayers()
       .then((data) => {
-        const list = data || [];
-        setPlayers(list);
-        if (queryPlayerId && list.some((p) => p.id === queryPlayerId)) {
-          setSelectedPlayerId(queryPlayerId);
-        }
+        setPlayers(data || []);
       })
-      .catch(() => {
-        // Keep current selectedPlayerId
-      });
-  }, [queryPlayerId]);
+      .catch(() => {});
+  }, []);
 
-  // 2. Load Chat Sessions from localStorage on mount
+  // 2. Load Chat Sessions on mount (from Supabase DB first, fallback to localStorage)
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    let isSubscribed = true;
 
-    let loadedSessions: ChatSession[] = [];
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed: ChatSession[] = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          loadedSessions = cleanDuplicateEmptySessions(parsed);
+    async function loadSessions() {
+      let loaded: ChatSession[] = [];
+
+      try {
+        const dbSessions = await apiClient.getAiChatSessions();
+        if (isSubscribed && Array.isArray(dbSessions) && dbSessions.length > 0) {
+          loaded = dbSessions.map((ds) => ({
+            id: ds.id,
+            user_id: ds.user_id,
+            playerIds: Array.isArray(ds.player_ids) ? ds.player_ids : [],
+            title: ds.title || "Cuộc trò chuyện",
+            perspectiveMode: ds.perspective_mode,
+            pinned: Boolean(ds.pinned),
+            createdAt: ds.created_at ? new Date(ds.created_at).getTime() : Date.now(),
+            updatedAt: ds.updated_at ? new Date(ds.updated_at).getTime() : Date.now(),
+            messages: (ds.messages || []).map((m: any) => ({
+              role: m.role || "user",
+              content: m.content || "",
+              fen: m.fen,
+            })),
+            isDraft: false,
+          }));
+        }
+      } catch (err) {
+        console.warn("Could not load sessions from DB, falling back to local storage:", err);
+      }
+
+      // If DB returned nothing or error, check localStorage
+      if (loaded.length === 0 && typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              loaded = parsed.filter((s) => s && s.messages && s.messages.some((m: any) => m.role === "user"));
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to parse local storage sessions:", e);
         }
       }
-    } catch (e) {
-      console.warn("Failed to read chat sessions from localStorage:", e);
-    }
 
-    const isSingleMode = workspaceStore.activeMode === "single";
-    const isMultiMode = workspaceStore.activeMode === "multi";
-    const initialTargetPlayerId = isSingleMode && workspaceStore.activePlayerId
-      ? workspaceStore.activePlayerId
-      : isMultiMode
-      ? MULTI_MATCHUP_ID
-      : (queryPlayerId || GENERAL_CHAT_ID);
+      if (!isSubscribed) return;
 
-    let initialSession = loadedSessions.find((s) => (s.playerId || GENERAL_CHAT_ID) === initialTargetPlayerId);
-
-    if (!initialSession) {
-      if (loadedSessions.length > 0 && !queryPlayerId && !isSingleMode && !isMultiMode) {
-        initialSession = loadedSessions[0];
+      if (loaded.length > 0) {
+        setSessions(loaded);
+        setActiveSessionId(loaded[0].id);
       } else {
-        const pObj = players.find((p) => p.id === initialTargetPlayerId);
-        const pName = initialTargetPlayerId === GENERAL_CHAT_ID
-          ? GENERAL_PLAYER_NAME
-          : initialTargetPlayerId === MULTI_MATCHUP_ID
-          ? "Phân tích Đối đầu Đa hồ sơ"
-          : (pObj?.canonical_name || "Kỳ thủ");
-        initialSession = createDefaultSession(
-          initialTargetPlayerId,
-          pName
-        );
-        loadedSessions = [initialSession, ...loadedSessions];
+        // No saved sessions: Initialize initial draft session (LAZY CREATION: not persisted!)
+        let initialPids: string[] = [];
+        if (queryPlayerId) {
+          initialPids = [queryPlayerId];
+        } else if (workspaceStore.activeMode === "single" && workspaceStore.activePlayerId) {
+          initialPids = [workspaceStore.activePlayerId];
+        } else if (workspaceStore.activeMode === "multi" && workspaceStore.multiProfiles.length > 0) {
+          initialPids = workspaceStore.multiProfiles.map((m) => m.player.id);
+        }
+        const initialDraft = createDraftSession(initialPids, players);
+        setDraftSession(initialDraft);
+        setActiveSessionId(initialDraft.id);
       }
+
+      setIsLoaded(true);
     }
 
-    const finalCleaned = cleanDuplicateEmptySessions(loadedSessions);
-    setSessions(finalCleaned);
-    setActiveSessionId(initialSession.id);
-    setSelectedPlayerId(initialSession.playerId || (isSingleMode && workspaceStore.activePlayerId ? workspaceStore.activePlayerId : isMultiMode ? MULTI_MATCHUP_ID : GENERAL_CHAT_ID));
-    setExpandedFolders({ [initialSession.playerId || (isMultiMode ? MULTI_MATCHUP_ID : GENERAL_CHAT_ID)]: true });
-    setIsLoaded(true);
-  }, [queryPlayerId, workspaceStore.activeMode, workspaceStore.activePlayerId, players]);
+    loadSessions();
 
-  // 3. Save Chat Sessions to localStorage (only after loaded)
+    return () => {
+      isSubscribed = false;
+    };
+  }, []);
+
+  // 3. Save concrete sessions to localStorage as offline/guest backup
   useEffect(() => {
-    if (!isLoaded || typeof window === "undefined" || sessions.length === 0) return;
+    if (!isLoaded || typeof window === "undefined") return;
     try {
-      const toSave = cleanDuplicateEmptySessions(sessions);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+      const concreteToSave = sessions.filter((s) => !s.isDraft && s.messages.some((m) => m.role === "user"));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(concreteToSave));
     } catch (e) {
-      console.warn("Failed to save chat sessions to localStorage:", e);
+      console.warn("Failed to save local storage backup:", e);
     }
   }, [sessions, isLoaded]);
 
-  // Selected player object
-  const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
-  const currentPlayerName =
-    selectedPlayer?.canonical_name ||
-    (selectedPlayerId === GENERAL_CHAT_ID
-      ? GENERAL_PLAYER_NAME
-      : selectedPlayerId === MULTI_MATCHUP_ID
-      ? "Phân tích Đối đầu Đa hồ sơ"
-      : "Kỳ thủ");
+  // Current active session (either from concrete sessions or the active draft)
+  const activeSession: ChatSession = useMemo(() => {
+    if (draftSession && draftSession.id === activeSessionId) {
+      return draftSession;
+    }
+    const found = sessions.find((s) => s.id === activeSessionId);
+    if (found) return found;
+    if (draftSession) return draftSession;
+    if (sessions.length > 0) return sessions[0];
+    return createDraftSession([], players);
+  }, [activeSessionId, sessions, draftSession, players]);
 
-  // 4. Ensure an active session exists whenever selectedPlayerId changes
+  // Player display names in active session
+  const activePlayerNames = useMemo(() => {
+    return activeSession.playerIds
+      .map((id) => players.find((p) => p.id === id)?.canonical_name)
+      .filter(Boolean) as string[];
+  }, [activeSession.playerIds, players]);
+
+  const activePlayerDisplayName = useMemo(() => {
+    if (activePlayerNames.length === 0) return "Trò chuyện tự do";
+    if (activePlayerNames.length === 1) return activePlayerNames[0];
+    return `So sánh: ${activePlayerNames.join(" & ")}`;
+  }, [activePlayerNames]);
+
+  // 4. Fetch or Synchronize Player Games for Board based on activeSession.playerIds
   useEffect(() => {
-    if (!isLoaded) return;
-
-    if (workspaceStore.activeMode === "single" && workspaceStore.activePlayerId) {
-      if (selectedPlayerId === GENERAL_CHAT_ID || selectedPlayerId !== workspaceStore.activePlayerId) {
-        setSelectedPlayerId(workspaceStore.activePlayerId);
-        return;
-      }
-    } else if (workspaceStore.activeMode === "multi") {
-      if (selectedPlayerId === GENERAL_CHAT_ID) {
-        setSelectedPlayerId(MULTI_MATCHUP_ID);
-        return;
-      }
-    }
-
-    const isMultiMode = workspaceStore.activeMode === "multi";
-    const targetPlayerId = selectedPlayerId || (isMultiMode ? MULTI_MATCHUP_ID : GENERAL_CHAT_ID);
-    const isGeneral = targetPlayerId === GENERAL_CHAT_ID;
-    const isMulti = targetPlayerId === MULTI_MATCHUP_ID;
-    const targetPlayerName = isGeneral
-      ? GENERAL_PLAYER_NAME
-      : isMulti
-      ? "Phân tích Đối đầu Đa hồ sơ"
-      : (players.find((p) => p.id === targetPlayerId)?.canonical_name || "Kỳ thủ");
-
-    setExpandedFolders((prev) => ({ ...prev, [targetPlayerId]: true }));
-
-    // Check if the current active session already matches targetPlayerId
-    const currentActive = sessions.find((s) => s.id === activeSessionId);
-    if (
-      currentActive &&
-      (currentActive.playerId || (isMultiMode ? MULTI_MATCHUP_ID : GENERAL_CHAT_ID)) === targetPlayerId
-    ) {
-      return;
-    }
-
-    // Look for an existing session for this player / matchup
-    const existingForPlayer = sessions.find(
-      (s) => (s.playerId || (isMultiMode ? MULTI_MATCHUP_ID : GENERAL_CHAT_ID)) === targetPlayerId
-    );
-    if (existingForPlayer) {
-      setActiveSessionId(existingForPlayer.id);
-    } else {
-      const newSession = createDefaultSession(targetPlayerId, targetPlayerName);
-      setSessions((prev) => [newSession, ...cleanDuplicateEmptySessions(prev)]);
-      setActiveSessionId(newSession.id);
-    }
-  }, [selectedPlayerId, isLoaded, players, workspaceStore.activeMode, workspaceStore.activePlayerId, sessions, activeSessionId]);
-
-  // 5. Fetch or Synchronize Player Games when selected player or multi profile changes
-  useEffect(() => {
-    if (workspaceStore.activeMode === "multi") {
-      if (selectedMultiPlayerIds.length === 0) {
-        setPlayerGames([]);
-        setSelectedGameId("");
-        return;
-      }
-      let isCurrent = true;
-      Promise.all(
-        selectedMultiPlayerIds.map((pId) =>
-          apiClient.getPlayerGames(pId, { page: 1, pageSize: 30, allGames: true }).catch(() => ({ items: [] }))
-        )
-      ).then((resList) => {
-        if (!isCurrent) return;
-        const combined = resList.flatMap((r) => r?.items || []);
-        setPlayerGames(combined);
-      });
-      return () => {
-        isCurrent = false;
-      };
-    }
-
-    if (!selectedPlayerId || selectedPlayerId === GENERAL_CHAT_ID || selectedPlayerId === MULTI_MATCHUP_ID) {
+    const pids = activeSession.playerIds;
+    if (pids.length === 0) {
       setPlayerGames([]);
       setSelectedGameId("");
       return;
     }
 
-    // Reset board to initial start position
-    setBaseFen(START_FEN);
-    setCurrentFen(START_FEN);
-    setActiveMoves([]);
-    setCurrentPly(0);
-    setSelectedGameId("");
-
-    // Check if workspaceStore or cache already has the games for this player
-    const cachedGames = workspaceStore.cachedProfiles[selectedPlayerId]?.games;
-    if (cachedGames && cachedGames.length > 0) {
-      setPlayerGames(cachedGames);
-      return;
-    }
-
-    if (
-      workspaceStore.activeMode === "single" &&
-      workspaceStore.activePlayerId === selectedPlayerId &&
-      workspaceStore.activePlayerGames.length > 0
-    ) {
-      setPlayerGames(workspaceStore.activePlayerGames);
-      return;
-    }
-
-    // Immediately clear previous player games to avoid showing old games during fetch
-    setPlayerGames([]);
-
     let isCurrent = true;
-    apiClient
-      .getPlayerGames(selectedPlayerId, { page: 1, pageSize: 100, allGames: true })
-      .then((res) => {
-        if (!isCurrent) return;
-        const items = res?.items || [];
-        setPlayerGames(items);
-      })
-      .catch((err) => {
-        if (!isCurrent) return;
-        console.warn("Failed to fetch player games:", err);
-        setPlayerGames([]);
-      });
+
+    Promise.all(
+      pids.map((pid) =>
+        apiClient.getPlayerGames(pid, { page: 1, pageSize: 50, allGames: true }).catch(() => ({ items: [] }))
+      )
+    ).then((resList) => {
+      if (!isCurrent) return;
+      const combined = resList.flatMap((r) => r?.items || []);
+      setPlayerGames(combined);
+    });
 
     return () => {
       isCurrent = false;
     };
-  }, [
-    selectedPlayerId,
-    workspaceStore.activeMode,
-    workspaceStore.activePlayerId,
-    workspaceStore.cachedProfiles,
-    workspaceStore.activePlayerGames,
-    selectedMultiPlayerIds,
-  ]);
+  }, [activeSession.playerIds]);
 
-  // 5b. Keep playerGames in sync whenever workspaceStore loads games in background
-  useEffect(() => {
-    if (
-      workspaceStore.activeMode === "single" &&
-      workspaceStore.activePlayerId &&
-      workspaceStore.activePlayerId === selectedPlayerId &&
-      workspaceStore.activePlayerGames.length > 0 &&
-      playerGames.length === 0
-    ) {
-      setPlayerGames(workspaceStore.activePlayerGames);
-    }
-  }, [workspaceStore.activeMode, workspaceStore.activePlayerId, workspaceStore.activePlayerGames, selectedPlayerId, playerGames.length]);
-
-  // Get active session with guaranteed fallback
-  const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0] || createDefaultSession(selectedPlayerId || GENERAL_CHAT_ID, currentPlayerName);
-
-  // Handler: Update active session's messages
-  const handleUpdateActiveMessages = (
+  // Handler: Update active session messages & lazy creation on first prompt
+  const handleUpdateActiveMessages = async (
     updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])
   ) => {
-    if (!activeSession) return;
+    const currentMsgs = activeSession.messages;
+    const nextMsgs = typeof updater === "function" ? updater(currentMsgs) : updater;
 
-    setSessions((prevSessions) => {
-      const idx = prevSessions.findIndex((s) => s.id === activeSession.id);
-      if (idx === -1) return prevSessions;
+    const firstUser = nextMsgs.find((m) => m.role === "user");
 
-      const currentMsgs = prevSessions[idx].messages;
-      const nextMsgs = typeof updater === "function" ? updater(currentMsgs) : updater;
+    // Compute title from user's first prompt if default
+    let newTitle = activeSession.title;
+    if (
+      activeSession.isDraft ||
+      newTitle === "Đoạn chat mới" ||
+      newTitle === "Trò chuyện tự do cùng AI" ||
+      newTitle.startsWith("Phân tích:") ||
+      newTitle.startsWith("So sánh:")
+    ) {
+      if (firstUser && firstUser.content) {
+        newTitle = firstUser.content.slice(0, 36) + (firstUser.content.length > 36 ? "..." : "");
+      }
+    }
 
-      // Auto update title if still default and user asked a question
-      let newTitle = prevSessions[idx].title;
-      if (newTitle === "Đoạn chat mới" || newTitle === "Trò chuyện tự do cùng AI") {
-        const firstUser = nextMsgs.find((m) => m.role === "user");
-        if (firstUser && firstUser.content) {
-          newTitle = firstUser.content.slice(0, 36) + (firstUser.content.length > 36 ? "..." : "");
-        }
+    if (activeSession.isDraft) {
+      // Lazy creation: only persist when user actually sends a question!
+      if (!firstUser) {
+        setDraftSession((prev) => (prev ? { ...prev, messages: nextMsgs } : null));
+        return;
       }
 
-      const updatedSession: ChatSession = {
-        ...prevSessions[idx],
+      const realId =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `chat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+      const concreteSession: ChatSession = {
+        ...activeSession,
+        id: realId,
+        title: newTitle,
+        isDraft: false,
+        updatedAt: Date.now(),
+        messages: nextMsgs,
+      };
+
+      setSessions((prev) => [concreteSession, ...prev]);
+      setActiveSessionId(realId);
+      setDraftSession(null);
+
+      apiClient
+        .createAiChatSession({
+          id: realId,
+          player_ids: concreteSession.playerIds,
+          title: newTitle,
+          pinned: concreteSession.pinned,
+          messages: nextMsgs,
+        })
+        .catch((err) => {
+          console.warn("Failed to persist session to Supabase:", err);
+        });
+    } else {
+      const updated: ChatSession = {
+        ...activeSession,
         title: newTitle,
         updatedAt: Date.now(),
         messages: nextMsgs,
       };
 
-      const nextList = [...prevSessions];
-      nextList[idx] = updatedSession;
-      return nextList;
-    });
-  };
+      setSessions((prev) => prev.map((s) => (s.id === activeSession.id ? updated : s)));
 
-  // Handler: Create a new chat session
-  const handleCreateNewChat = (playerIdOverride?: string) => {
-    const isSingleMode = workspaceStore.activeMode === "single";
-    const isMultiMode = workspaceStore.activeMode === "multi";
-    const defaultPid = isSingleMode
-      ? (workspaceStore.activePlayerId || selectedPlayerId)
-      : isMultiMode
-      ? (selectedPlayerId === GENERAL_CHAT_ID ? MULTI_MATCHUP_ID : (selectedPlayerId || MULTI_MATCHUP_ID))
-      : (selectedPlayerId || GENERAL_CHAT_ID);
-    const pId = playerIdOverride || defaultPid;
-    const isGeneral = pId === GENERAL_CHAT_ID;
-    const isMulti = pId === MULTI_MATCHUP_ID;
-    const pObj = players.find((p) => p.id === pId);
-    const pName = isGeneral
-      ? GENERAL_PLAYER_NAME
-      : isMulti
-      ? "Phân tích Đối đầu Đa hồ sơ"
-      : (pObj?.canonical_name || currentPlayerName);
-
-    // If current active session is already empty (no user messages), keep it!
-    const currentActive = sessions.find((s) => s.id === activeSessionId);
-    if (
-      currentActive &&
-      (currentActive.playerId || (isMultiMode ? MULTI_MATCHUP_ID : GENERAL_CHAT_ID)) === pId &&
-      !hasUserMessages(currentActive)
-    ) {
-      setExpandedFolders((prev) => ({ ...prev, [pId]: true }));
-      return;
-    }
-
-    // If an empty session already exists for this player, switch to it!
-    const existingEmpty = sessions.find(
-      (s) =>
-        (s.playerId || (isMultiMode ? MULTI_MATCHUP_ID : GENERAL_CHAT_ID)) === pId &&
-        !hasUserMessages(s)
-    );
-    if (existingEmpty) {
-      setActiveSessionId(existingEmpty.id);
-      setExpandedFolders((prev) => ({ ...prev, [pId]: true }));
-      return;
-    }
-
-    const newSession = createDefaultSession(pId, pName);
-    setSessions((prev) => [newSession, ...cleanDuplicateEmptySessions(prev)]);
-    setActiveSessionId(newSession.id);
-    setExpandedFolders((prev) => ({ ...prev, [pId]: true }));
-    if (playerIdOverride && playerIdOverride !== selectedPlayerId) {
-      setSelectedPlayerId(playerIdOverride);
+      apiClient
+        .updateAiChatSession(activeSession.id, {
+          title: newTitle,
+          player_ids: updated.playerIds,
+          messages: nextMsgs,
+        })
+        .catch((err) => {
+          console.warn("Failed to update session on Supabase:", err);
+        });
     }
   };
 
-  // Handler: Delete a chat session
-  const handleDeleteSession = (e: React.MouseEvent, sessionId: string) => {
-    e.stopPropagation();
-    setSessions((prev) => {
-      const filtered = prev.filter((s) => s.id !== sessionId);
-      if (activeSessionId === sessionId) {
-        if (filtered.length > 0) {
-          const nextSession = filtered.find((s) => (s.playerId || GENERAL_CHAT_ID) === selectedPlayerId) || filtered[0];
-          setActiveSessionId(nextSession.id);
-          setSelectedPlayerId(nextSession.playerId || GENERAL_CHAT_ID);
-        } else {
-          const fresh = createDefaultSession(selectedPlayerId, currentPlayerName);
-          setActiveSessionId(fresh.id);
-          return [fresh];
-        }
+  // Handler: Create a new chat session (enters in-memory draft state - LAZY CREATION)
+  const handleCreateNewChat = (specificPlayerIds?: string[]) => {
+    // If current session is already an empty draft, just switch or keep it
+    if (activeSession.isDraft && !activeSession.messages.some((m) => m.role === "user")) {
+      if (specificPlayerIds) {
+        setDraftSession(createDraftSession(specificPlayerIds, players));
       }
-      return filtered;
-    });
+      return;
+    }
+
+    const targetPids = specificPlayerIds !== undefined ? specificPlayerIds : activeSession.playerIds;
+    const newDraft = createDraftSession(targetPids, players);
+    setDraftSession(newDraft);
+    setActiveSessionId(newDraft.id);
+  };
+
+  // Handler: Pin / Unpin session
+  const handleTogglePin = (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id === sessionId) {
+          const nextPinned = !s.pinned;
+          apiClient.updateAiChatSession(s.id, { pinned: nextPinned }).catch(() => {});
+          return { ...s, pinned: nextPinned };
+        }
+        return s;
+      })
+    );
   };
 
   // Handler: Save inline rename of a chat session
@@ -562,14 +440,69 @@ export default function AiCoachView() {
     const trimmed = editingTitle.trim();
     if (trimmed) {
       setSessions((prev) =>
-        prev.map((s) => (s.id === sessionId ? { ...s, title: trimmed, updatedAt: Date.now() } : s))
+        prev.map((s) => {
+          if (s.id === sessionId) {
+            apiClient.updateAiChatSession(s.id, { title: trimmed }).catch(() => {});
+            return { ...s, title: trimmed, updatedAt: Date.now() };
+          }
+          return s;
+        })
       );
     }
     setEditingSessionId(null);
     setEditingTitle("");
   };
 
-  // Handler: Select a game onto the interactive board
+  // Handler: Delete a chat session
+  const handleDeleteSession = (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    apiClient.deleteAiChatSession(sessionId).catch(() => {});
+
+    setSessions((prev) => {
+      const remaining = prev.filter((s) => s.id !== sessionId);
+      if (activeSessionId === sessionId) {
+        if (remaining.length > 0) {
+          setActiveSessionId(remaining[0].id);
+        } else {
+          const fresh = createDraftSession([], players);
+          setDraftSession(fresh);
+          setActiveSessionId(fresh.id);
+        }
+      }
+      return remaining;
+    });
+  };
+
+  // Handler: Add or Remove player from active session context
+  const handleAddPlayerToContext = (playerId: string) => {
+    setIsAddingPlayerOpen(false);
+    if (activeSession.playerIds.includes(playerId)) return;
+    const nextPids = [...activeSession.playerIds, playerId];
+
+    if (activeSession.isDraft) {
+      setDraftSession(createDraftSession(nextPids, players));
+    } else {
+      setSessions((prev) =>
+        prev.map((s) => (s.id === activeSession.id ? { ...s, playerIds: nextPids } : s))
+      );
+      apiClient.updateAiChatSession(activeSession.id, { player_ids: nextPids }).catch(() => {});
+    }
+  };
+
+  const handleRemovePlayerFromContext = (playerId: string) => {
+    const nextPids = activeSession.playerIds.filter((id) => id !== playerId);
+
+    if (activeSession.isDraft) {
+      setDraftSession(createDraftSession(nextPids, players));
+    } else {
+      setSessions((prev) =>
+        prev.map((s) => (s.id === activeSession.id ? { ...s, playerIds: nextPids } : s))
+      );
+      apiClient.updateAiChatSession(activeSession.id, { player_ids: nextPids }).catch(() => {});
+    }
+  };
+
+  // Handler: Select game on board
   const handleSelectGame = (gameId: string) => {
     setSelectedGameId(gameId);
     if (!gameId) {
@@ -594,16 +527,16 @@ export default function AiCoachView() {
     setCurrentPly(0);
     setCurrentFen(START_FEN);
 
-    // Auto set board orientation based on player's color
-    const pName = selectedPlayer?.canonical_name?.toLowerCase() || "";
-    if (g.black_player && g.black_player.toLowerCase().includes(pName)) {
+    // Auto set board orientation if selected player is Black
+    const firstPName = activePlayerNames[0]?.toLowerCase() || "";
+    if (g.black_player && firstPName && g.black_player.toLowerCase().includes(firstPName)) {
       setBoardOrientation("black");
     } else {
       setBoardOrientation("white");
     }
   };
 
-  // Handler: Apply FEN onto board
+  // Handler: Apply FEN to board
   const handleApplyFen = useCallback((fen: string) => {
     setIsBoardOpen(true);
     const cleanFen = normalizeFen(fen);
@@ -613,7 +546,6 @@ export default function AiCoachView() {
       setBaseFen(validatedFen);
       setCurrentFen(validatedFen);
     } catch {
-      // Non-playable position (e.g. bare pawn structure skeleton without kings)
       if (isFenString(cleanFen)) {
         setBaseFen(cleanFen);
         setCurrentFen(cleanFen);
@@ -627,16 +559,12 @@ export default function AiCoachView() {
     setSelectedGameId("");
   }, []);
 
-  // Check if current position is a bare pawn skeleton
   const isSkeleton = useMemo(() => isPawnSkeletonFen(currentFen), [currentFen]);
-
-  // Currently selected game object
   const selectedGame = useMemo(
     () => playerGames.find((g) => g.id === selectedGameId) || null,
     [playerGames, selectedGameId]
   );
 
-  // Handler: Ask AI to analyze the entire selected game
   const handleAskAboutEntireGame = () => {
     if (!selectedGame) return;
     const white = selectedGame.white_player || "Trắng";
@@ -648,10 +576,11 @@ export default function AiCoachView() {
     setPendingPrompt(prompt);
   };
 
-  // Handler: Ask AI about the current board position
   const handleAskAboutBoard = () => {
     if (isSkeleton) {
-      setPendingPrompt(`Hãy phân tích chi tiết hình thái cấu trúc Tốt (Pawn Skeleton) này: điểm mạnh, điểm yếu, các ô tiền đồn quan trọng và kế hoạch chiến lược then chốt cho cả hai bên! FEN: \`${currentFen}\``);
+      setPendingPrompt(
+        `Hãy phân tích chi tiết hình thái cấu trúc Tốt (Pawn Skeleton) này: điểm mạnh, điểm yếu, các ô tiền đồn quan trọng và kế hoạch chiến lược then chốt cho cả hai bên! FEN: \`${currentFen}\``
+      );
       return;
     }
     const activeColor = currentFen.split(" ")[1] === "w" ? "Trắng" : "Đen";
@@ -669,37 +598,63 @@ export default function AiCoachView() {
     setPendingPrompt(prompt);
   };
 
-  // Filter sessions by search query
+  // Filtered & Chronologically Grouped Sessions
   const filteredSessions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return sessions;
-    return sessions.filter(
-      (s) =>
-        s.title.toLowerCase().includes(q) ||
-        s.playerName.toLowerCase().includes(q) ||
-        s.messages.some((m) => m.content.toLowerCase().includes(q))
-    );
-  }, [sessions, searchQuery]);
+    return sessions.filter((s) => {
+      const titleMatch = s.title.toLowerCase().includes(q);
+      const playerMatch = s.playerIds.some((id) => {
+        const p = players.find((pl) => pl.id === id);
+        return p && p.canonical_name.toLowerCase().includes(q);
+      });
+      const msgMatch = s.messages.some((m) => m.content.toLowerCase().includes(q));
+      return titleMatch || playerMatch || msgMatch;
+    });
+  }, [sessions, searchQuery, players]);
 
-  // Group conversations by player ID
-  const groupedSessions = useMemo(() => {
-    const map: Record<string, ChatSession[]> = {};
+  const chronologicalGroups = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfYesterday = startOfToday - 86400000;
+    const startOfLast7Days = startOfToday - 6 * 86400000;
+
+    const pinned: ChatSession[] = [];
+    const today: ChatSession[] = [];
+    const yesterday: ChatSession[] = [];
+    const last7Days: ChatSession[] = [];
+    const older: ChatSession[] = [];
+
     for (const s of filteredSessions) {
-      if (!map[s.playerId]) {
-        map[s.playerId] = [];
+      if (s.isDraft) continue;
+      if (s.pinned) {
+        pinned.push(s);
+        continue;
       }
-      map[s.playerId].push(s);
+      const t = s.updatedAt || s.createdAt;
+      if (t >= startOfToday) {
+        today.push(s);
+      } else if (t >= startOfYesterday) {
+        yesterday.push(s);
+      } else if (t >= startOfLast7Days) {
+        last7Days.push(s);
+      } else {
+        older.push(s);
+      }
     }
-    return map;
+
+    return { pinned, today, yesterday, last7Days, older };
   }, [filteredSessions]);
 
-  const toggleFolder = (pId: string) => {
-    setExpandedFolders((prev) => ({ ...prev, [pId]: !prev[pId] }));
-  };
-
+  // Render a session item row
   const renderSessionItem = (session: ChatSession) => {
     const isActive = session.id === activeSessionId;
     const isEditing = editingSessionId === session.id;
+
+    // Resolve player names for tags
+    const sessionPlayerNames = session.playerIds
+      .map((id) => players.find((p) => p.id === id)?.canonical_name)
+      .filter(Boolean);
 
     return (
       <div
@@ -707,16 +662,6 @@ export default function AiCoachView() {
         onClick={() => {
           if (isEditing) return;
           setActiveSessionId(session.id);
-          if (session.playerId && session.playerId !== selectedPlayerId) {
-            setSelectedPlayerId(session.playerId);
-            if (
-              workspaceStore.activeMode === "single" &&
-              session.playerId !== GENERAL_CHAT_ID &&
-              session.playerId !== MULTI_MATCHUP_ID
-            ) {
-              workspaceStore.selectSingleProfile(session.playerId, "ai");
-            }
-          }
         }}
         className={`group relative flex flex-col px-2.5 py-2 rounded-xl text-xs cursor-pointer transition select-none ${
           isActive
@@ -725,10 +670,7 @@ export default function AiCoachView() {
         }`}
       >
         {isEditing ? (
-          <div
-            className="flex items-center gap-1.5"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
             <input
               type="text"
               value={editingTitle}
@@ -761,16 +703,28 @@ export default function AiCoachView() {
           <>
             <div className="flex items-center justify-between gap-1.5 min-w-0">
               <div className="flex items-center gap-1.5 truncate min-w-0">
-                <MessageSquare
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    isActive ? "text-emerald-600" : "text-muted-foreground/70"
-                  }`}
-                />
+                {session.pinned ? (
+                  <Pin className="w-3 h-3 text-amber-500 shrink-0 fill-amber-500" />
+                ) : (
+                  <MessageSquare
+                    className={`w-3.5 h-3.5 shrink-0 ${
+                      isActive ? "text-emerald-600" : "text-muted-foreground/70"
+                    }`}
+                  />
+                )}
                 <span className="truncate">{session.title}</span>
               </div>
 
               {/* Action buttons on hover */}
-              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 shrink-0 transition-opacity">
+              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 shrink-0 transition-opacity">
+                <button
+                  type="button"
+                  onClick={(e) => handleTogglePin(e, session.id)}
+                  title={session.pinned ? "Bỏ ghim" : "Ghim lên đầu"}
+                  className="p-1 rounded-md hover:bg-card text-muted-foreground hover:text-amber-500 transition"
+                >
+                  {session.pinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
+                </button>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -794,10 +748,22 @@ export default function AiCoachView() {
               </div>
             </div>
 
-            {/* Subtitle row: Time & Message count */}
-            <div className="flex items-center justify-between mt-1 text-[10px] text-muted-foreground/70 font-mono">
-              <span>{formatRelativeTime(session.updatedAt)}</span>
-              <span>{session.messages.length} tin</span>
+            {/* Profile Tag & Timestamp */}
+            <div className="flex items-center justify-between mt-1 text-[10px] text-muted-foreground/70">
+              <div className="flex items-center gap-1 truncate max-w-[170px]">
+                {sessionPlayerNames.length === 0 ? (
+                  <span className="px-1.5 py-0.2 rounded bg-muted text-[9px] font-semibold">Tự do</span>
+                ) : sessionPlayerNames.length === 1 ? (
+                  <span className="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold truncate text-[9px]">
+                    {sessionPlayerNames[0]}
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.2 rounded bg-teal-500/15 text-teal-800 dark:text-teal-300 font-bold truncate text-[9px]">
+                    {sessionPlayerNames[0]} + {sessionPlayerNames.length - 1}
+                  </span>
+                )}
+              </div>
+              <span className="font-mono">{formatRelativeTime(session.updatedAt)}</span>
             </div>
           </>
         )}
@@ -809,7 +775,7 @@ export default function AiCoachView() {
     <div className="w-full h-[calc(100dvh-8rem)] md:h-[calc(100dvh-5.5rem)] -mt-2 sm:-mt-4 mb-0 flex flex-col overflow-hidden select-none">
       {/* Sleek Top Compact Toolbar */}
       <div className="shrink-0 h-12 px-3 bg-card/85 backdrop-blur-md border border-border/70 rounded-xl flex items-center justify-between gap-2.5 shadow-2xs mb-2">
-        {/* Left: Sidebar toggle & Player Selector */}
+        {/* Left: Sidebar toggle & Multi-Profile Matchup Selector */}
         <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
@@ -820,126 +786,126 @@ export default function AiCoachView() {
             {isSidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
           </button>
 
-          {/* Active Profile Info Badge / Switcher */}
-          {workspaceStore.activeMode === "multi" ? (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <div className="flex items-center gap-1 bg-emerald-500/10 dark:bg-emerald-950/60 border border-emerald-500/30 rounded-lg px-2 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-300 shrink-0">
-                <Swords className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="hidden sm:inline">Phân tích đa hồ sơ:</span>
-                <span className="sm:hidden">Đa hồ sơ:</span>
+          {/* Profile Matchup Pills Bar */}
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            {activeSession.playerIds.length === 0 ? (
+              <div className="flex items-center gap-1.5 bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/30 rounded-lg px-2.5 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-300 shrink-0">
+                <Bot className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Trợ lí AI Tự do</span>
               </div>
+            ) : (
+              <>
+                <div className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black uppercase text-muted-foreground bg-muted/50 border border-border/60">
+                  {activeSession.playerIds.length > 1 ? (
+                    <>
+                      <Swords className="w-3 h-3 text-emerald-600" />
+                      <span>So sánh:</span>
+                    </>
+                  ) : (
+                    <>
+                      <User className="w-3 h-3 text-emerald-600" />
+                      <span>Hồ sơ:</span>
+                    </>
+                  )}
+                </div>
 
-              {workspaceStore.multiProfiles.map((m) => {
-                const isSelected = selectedMultiPlayerIds.includes(m.player.id);
-                const roleBadge = m.role === "white" ? "⚪ Trắng" : m.role === "black" ? "⚫ Đen" : "⚪⚫ Hai bên";
-                return (
-                  <button
-                    key={m.player.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedMultiPlayerIds((prev) => {
-                        if (prev.includes(m.player.id)) {
-                          if (prev.length <= 1) return prev;
-                          return prev.filter((id) => id !== m.player.id);
-                        } else {
-                          return [...prev, m.player.id];
-                        }
-                      });
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
-                      isSelected
-                        ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
-                        : "bg-secondary/70 text-muted-foreground border-border/70 hover:bg-secondary hover:text-foreground"
-                    }`}
-                    title={isSelected ? "Bấm để bỏ chọn hồ sơ này trong phân tích" : "Bấm để chọn thêm hồ sơ này vào phân tích"}
-                  >
-                    <span>{m.player.canonical_name}</span>
-                    <span className="text-[10px] opacity-80 font-normal">({roleBadge})</span>
-                    {isSelected && <Check className="w-3 h-3 ml-0.5" />}
-                  </button>
-                );
-              })}
+                {activeSession.playerIds.map((pid) => {
+                  const p = players.find((pl) => pl.id === pid);
+                  const name = p?.canonical_name || "Kỳ thủ";
+                  return (
+                    <div
+                      key={pid}
+                      className="flex items-center gap-1 bg-emerald-600 text-white rounded-lg pl-2 pr-1.5 py-1 text-xs font-bold shadow-2xs animate-fade-in"
+                    >
+                      <span className="truncate max-w-[120px] sm:max-w-[160px]">{name}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePlayerFromContext(pid)}
+                        title={`Bỏ ${name} khỏi cuộc trò chuyện`}
+                        className="p-0.5 hover:bg-white/20 rounded-md transition cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </>
+            )}
 
-              {players.filter((p) => !workspaceStore.multiProfiles.some((m) => m.player.id === p.id)).length > 0 && (
-                <select
-                  value=""
-                  onChange={(e) => {
-                    if (!e.target.value) return;
-                    const p = players.find((pl) => pl.id === e.target.value);
-                    if (p) {
-                      workspaceStore.setMultiProfileRole(p, "both");
-                      setSelectedMultiPlayerIds((prev) => [...prev, p.id]);
-                    }
-                  }}
-                  className="bg-secondary/60 hover:bg-secondary text-xs text-muted-foreground hover:text-foreground border border-border/70 rounded-lg px-2 py-1 font-medium cursor-pointer"
-                  title="Thêm hồ sơ khác vào cuộc trò chuyện"
-                >
-                  <option value="">+ Thêm hồ sơ...</option>
-                  {players
-                    .filter((p) => !workspaceStore.multiProfiles.some((m) => m.player.id === p.id))
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.canonical_name}
-                      </option>
-                    ))}
-                </select>
-              )}
-            </div>
-          ) : workspaceStore.activeMode === "sandbox" ? (
-            <div className="flex items-center gap-1.5 bg-secondary/80 border border-border/70 rounded-lg px-2.5 sm:px-3 py-1 shadow-2xs">
-              <User className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <select
-                value={selectedPlayerId || GENERAL_CHAT_ID}
-                onChange={(e) => setSelectedPlayerId(e.target.value)}
-                className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer max-w-[140px] sm:max-w-[200px]"
-                title="Bấm thả chọn đổi hồ sơ kỳ thủ phân tích cùng Trợ lí AI"
+            {/* Add / Compare Player Dropdown Button */}
+            <div className="relative" ref={addPlayerRef}>
+              <button
+                type="button"
+                onClick={() => setIsAddingPlayerOpen((prev) => !prev)}
+                className="px-2 py-1 rounded-lg border border-dashed border-emerald-500/50 hover:border-emerald-500 bg-emerald-500/5 hover:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                title="Chọn thêm hồ sơ kỳ thủ để so sánh đánh giá"
               >
-                <option value={GENERAL_CHAT_ID}>Trợ lí AI Tự do</option>
-                {players.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    Hồ sơ: {p.canonical_name} ({p.total_games || 0} ván)
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 bg-emerald-50/90 dark:bg-emerald-950/50 border border-emerald-300/70 dark:border-emerald-700/60 rounded-lg px-2.5 sm:px-3 py-1.5 shadow-2xs">
-              <User className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 truncate max-w-[150px] sm:max-w-[240px]">
-                {selectedPlayerId && selectedPlayerId !== GENERAL_CHAT_ID && selectedPlayer
-                  ? `Hồ sơ: ${selectedPlayer.canonical_name}`
-                  : "Trợ lí AI Cờ Vua"}
-              </span>
-              {selectedPlayer?.title && (
-                <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                  {selectedPlayer.title}
+                <Plus className="w-3 h-3" />
+                <span>
+                  {activeSession.playerIds.length === 0
+                    ? "Chọn hồ sơ..."
+                    : activeSession.playerIds.length === 1
+                    ? "+ So sánh với..."
+                    : "+ Thêm kỳ thủ"}
                 </span>
+              </button>
+
+              {isAddingPlayerOpen && (
+                <div className="absolute left-0 mt-1 w-64 bg-card border border-border/80 rounded-xl shadow-xl z-50 py-1.5 animate-in fade-in-50 zoom-in-95">
+                  <div className="px-3 py-1 text-[11px] font-bold text-muted-foreground uppercase border-b border-border/40 mb-1">
+                    Chọn kỳ thủ phân tích
+                  </div>
+                  {activeSession.playerIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingPlayerOpen(false);
+                        handleCreateNewChat([]);
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-muted font-medium flex items-center gap-2"
+                    >
+                      <Bot className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span>Chuyển về Trò chuyện tự do</span>
+                    </button>
+                  )}
+                  {players
+                    .filter((p) => !activeSession.playerIds.includes(p.id))
+                    .map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleAddPlayerToContext(p.id)}
+                        className="w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-emerald-500/10 hover:text-emerald-800 dark:hover:text-emerald-200 font-medium flex items-center justify-between"
+                      >
+                        <span className="truncate">{p.canonical_name}</span>
+                        {p.title && (
+                          <span className="text-[10px] px-1 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold ml-1">
+                            {p.title}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  {players.filter((p) => !activeSession.playerIds.includes(p.id)).length === 0 && (
+                    <div className="px-3 py-2 text-xs text-muted-foreground text-center italic">
+                      Đã chọn tất cả kỳ thủ
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-          )}
 
-          {/* PGN Games Count Badge or Free Mode Badge */}
-          {workspaceStore.activeMode === "multi" ? (
-            <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold shrink-0">
-              <Swords className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Đối đầu Đa hồ sơ ({playerGames.length} ván PGN)</span>
-            </div>
-          ) : selectedPlayerId && selectedPlayerId !== GENERAL_CHAT_ID ? (
-            <div className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold shrink-0">
-              <Database className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{playerGames.length} ván PGN</span>
-            </div>
-          ) : (
-            <div className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold shrink-0">
-              <Bot className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Cố vấn tự do</span>
-            </div>
-          )}
+            {/* PGN Games Count Badge */}
+            {playerGames.length > 0 && (
+              <div className="hidden md:inline-flex items-center gap-1 px-2 py-0.8 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold shrink-0">
+                <Database className="w-3 h-3 text-emerald-600" />
+                <span>{playerGames.length} ván</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right: Board Toggle & Action Buttons */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Interactive Board Toggle Button */}
           <button
             type="button"
             onClick={() => setIsBoardOpen((prev) => !prev)}
@@ -954,7 +920,6 @@ export default function AiCoachView() {
             <span className="uppercase">{isBoardOpen ? "Bật" : "Tắt"}</span>
           </button>
 
-          {/* Quick flip & reset */}
           {isBoardOpen && (
             <>
               <button
@@ -989,7 +954,7 @@ export default function AiCoachView() {
 
       {/* Main Workspace: Sidebar + (Board) + Chat */}
       <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-2 sm:gap-2.5 overflow-hidden relative">
-        {/* Left: Chat History Sidebar (Grouped by Player Profile Folders) */}
+        {/* Left: Chat History Sidebar (Chronological & Professional Grouping) */}
         {isSidebarOpen && (
           <>
             <div
@@ -1005,7 +970,7 @@ export default function AiCoachView() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-bold uppercase tracking-wider text-foreground">
-                      Hội thoại AI
+                      Lịch sử trò chuyện
                     </span>
                     <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950/60 font-mono text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300/40">
                       {sessions.length}
@@ -1018,6 +983,7 @@ export default function AiCoachView() {
                     type="button"
                     onClick={() => handleCreateNewChat()}
                     className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shadow-2xs hover:shadow-xs transition cursor-pointer"
+                    title="Tạo đoạn chat mới (Lazy: chỉ lưu khi gửi tin nhắn đầu tiên)"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Mới</span>
@@ -1033,303 +999,128 @@ export default function AiCoachView() {
                 </div>
               </div>
 
-            {/* Search Filter Input */}
-            <div className="px-2.5 py-2 border-b border-border/40 shrink-0">
-              <div className="relative flex items-center">
-                <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 pointer-events-none" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Tìm kiếm cuộc trò chuyện..."
-                  className="w-full bg-muted/60 focus:bg-background border border-border/60 rounded-xl pl-8 pr-7 py-1 text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-2 text-muted-foreground hover:text-foreground p-0.5"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+              {/* Search Filter Input */}
+              <div className="px-2.5 py-2 border-b border-border/40 shrink-0">
+                <div className="relative flex items-center">
+                  <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Tìm kiếm cuộc trò chuyện..."
+                    className="w-full bg-muted/60 focus:bg-background border border-border/60 rounded-xl pl-8 pr-7 py-1 text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2 text-muted-foreground hover:text-foreground p-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Sidebar Body: Chronologically Grouped Sessions */}
+              <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-3">
+                {/* 1. PINNED SESSIONS */}
+                {chronologicalGroups.pinned.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="px-2 py-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                      <Pin className="w-3 h-3 fill-amber-500" />
+                      <span>Đã ghim ({chronologicalGroups.pinned.length})</span>
+                    </div>
+                    <div className="space-y-1">{chronologicalGroups.pinned.map(renderSessionItem)}</div>
+                  </div>
+                )}
+
+                {/* 2. TODAY */}
+                {chronologicalGroups.today.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="px-2 py-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <Clock className="w-3 h-3 text-emerald-600" />
+                      <span>Hôm nay ({chronologicalGroups.today.length})</span>
+                    </div>
+                    <div className="space-y-1">{chronologicalGroups.today.map(renderSessionItem)}</div>
+                  </div>
+                )}
+
+                {/* 3. YESTERDAY */}
+                {chronologicalGroups.yesterday.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="px-2 py-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <Calendar className="w-3 h-3 text-muted-foreground" />
+                      <span>Hôm qua ({chronologicalGroups.yesterday.length})</span>
+                    </div>
+                    <div className="space-y-1">{chronologicalGroups.yesterday.map(renderSessionItem)}</div>
+                  </div>
+                )}
+
+                {/* 4. PREVIOUS 7 DAYS */}
+                {chronologicalGroups.last7Days.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="px-2 py-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <Calendar className="w-3 h-3 text-muted-foreground" />
+                      <span>7 ngày trước ({chronologicalGroups.last7Days.length})</span>
+                    </div>
+                    <div className="space-y-1">{chronologicalGroups.last7Days.map(renderSessionItem)}</div>
+                  </div>
+                )}
+
+                {/* 5. OLDER */}
+                {chronologicalGroups.older.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="px-2 py-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <Calendar className="w-3 h-3 text-muted-foreground" />
+                      <span>Cũ hơn ({chronologicalGroups.older.length})</span>
+                    </div>
+                    <div className="space-y-1">{chronologicalGroups.older.map(renderSessionItem)}</div>
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {sessions.length === 0 && !searchQuery && (
+                  <div className="py-12 px-4 text-center space-y-2">
+                    <div className="w-10 h-10 mx-auto rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                      <Bot className="w-5 h-5" />
+                    </div>
+                    <p className="font-semibold text-foreground text-xs">Chưa có lịch sử trò chuyện</p>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Hãy nhập tin nhắn đầu tiên để bắt đầu phân tích chiến thuật cùng AI.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleCreateNewChat()}
+                      className="inline-block text-xs font-bold text-emerald-600 hover:underline pt-1"
+                    >
+                      + Bắt đầu chat mới
+                    </button>
+                  </div>
+                )}
+
+                {/* Search Empty State */}
+                {searchQuery && filteredSessions.length === 0 && (
+                  <div className="py-8 text-center text-xs text-muted-foreground/80 space-y-2">
+                    <p>Không tìm thấy cuộc trò chuyện nào phù hợp &quot;{searchQuery}&quot;</p>
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="text-emerald-600 hover:underline font-bold text-xs"
+                    >
+                      Xóa tìm kiếm
+                    </button>
+                  </div>
                 )}
               </div>
-            </div>
+            </aside>
+          </>
+        )}
 
-            {/* Sidebar Body: Profile Folders & Conversations List */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2">
-              {/* Folder 1: General Free Chat (CHỈ HIỂN THỊ ở chế độ bàn cờ tự do / sandbox) */}
-              {workspaceStore.activeMode === "sandbox" && (() => {
-                const generalSessions = groupedSessions[GENERAL_CHAT_ID] || [];
-                const isExpanded = expandedFolders[GENERAL_CHAT_ID] ?? (selectedPlayerId === GENERAL_CHAT_ID);
-
-                if (searchQuery && generalSessions.length === 0) return null;
-
-                return (
-                  <div key={GENERAL_CHAT_ID} className="space-y-1">
-                    {/* General Folder Header */}
-                    <div
-                      onClick={() => toggleFolder(GENERAL_CHAT_ID)}
-                      className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold cursor-pointer transition select-none border ${
-                        selectedPlayerId === GENERAL_CHAT_ID
-                          ? "bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 border-emerald-500/30 shadow-2xs"
-                          : "text-muted-foreground hover:bg-muted/40 hover:text-foreground border-transparent"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate min-w-0">
-                        <div className="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0">
-                          <Bot className="w-3 h-3" />
-                        </div>
-                        <span className="truncate">{GENERAL_PLAYER_NAME}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCreateNewChat(GENERAL_CHAT_ID);
-                          }}
-                          title="Tạo đoạn trò chuyện tự do mới"
-                          className="p-1 rounded-md hover:bg-background text-muted-foreground hover:text-emerald-600 transition"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </button>
-
-                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-secondary font-mono text-muted-foreground font-semibold">
-                          {generalSessions.length}
-                        </span>
-
-                        {isExpanded ? (
-                          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition" />
-                        ) : (
-                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground transition" />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Conversation Items under general folder */}
-                    {isExpanded && (
-                      <div className="pl-2 space-y-1 ml-2 border-l border-emerald-500/30">
-                        {generalSessions.length === 0 ? (
-                          <div className="py-2 px-2 text-[11px] text-muted-foreground/60 italic flex items-center justify-between">
-                            <span>Chưa có hội thoại</span>
-                            <button
-                              type="button"
-                              onClick={() => handleCreateNewChat(GENERAL_CHAT_ID)}
-                              className="text-emerald-600 hover:underline font-bold text-[10px]"
-                            >
-                              + Bắt đầu chat
-                            </button>
-                          </div>
-                        ) : (
-                          generalSessions.map(renderSessionItem)
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Folder 2: Multi-Profile Matchup Folder (CHUYÊN BIỆT cho chế độ Đa hồ sơ) */}
-              {workspaceStore.activeMode === "multi" && (() => {
-                const multiSessions = groupedSessions[MULTI_MATCHUP_ID] || [];
-                const isExpanded = expandedFolders[MULTI_MATCHUP_ID] ?? (selectedPlayerId === MULTI_MATCHUP_ID);
-
-                if (searchQuery && multiSessions.length === 0) return null;
-
-                return (
-                  <div key={MULTI_MATCHUP_ID} className="space-y-1">
-                    {/* Multi Matchup Folder Header */}
-                    <div
-                      onClick={() => toggleFolder(MULTI_MATCHUP_ID)}
-                      className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold cursor-pointer transition select-none border ${
-                        selectedPlayerId === MULTI_MATCHUP_ID
-                          ? "bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 border-emerald-500/30 shadow-2xs"
-                          : "text-muted-foreground hover:bg-muted/40 hover:text-foreground border-transparent"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate min-w-0">
-                        <div className="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0">
-                          <Swords className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="truncate">Phân tích Đối đầu</span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCreateNewChat(MULTI_MATCHUP_ID);
-                          }}
-                          title="Tạo đoạn trò chuyện đối đầu mới"
-                          className="p-1 rounded-md hover:bg-background text-muted-foreground hover:text-emerald-600 transition"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </button>
-
-                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-secondary font-mono text-muted-foreground font-semibold">
-                          {multiSessions.length}
-                        </span>
-
-                        {isExpanded ? (
-                          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition" />
-                        ) : (
-                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground transition" />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Conversation Items under multi matchup folder */}
-                    {isExpanded && (
-                      <div className="pl-2 space-y-1 ml-2 border-l border-emerald-500/30">
-                        {multiSessions.length === 0 ? (
-                          <div className="py-2 px-2 text-[11px] text-muted-foreground/60 italic flex items-center justify-between">
-                            <span>Chưa có hội thoại</span>
-                            <button
-                              type="button"
-                              onClick={() => handleCreateNewChat(MULTI_MATCHUP_ID)}
-                              className="text-emerald-600 hover:underline font-bold text-[10px]"
-                            >
-                              + Bắt đầu phân tích
-                            </button>
-                          </div>
-                        ) : (
-                          multiSessions.map(renderSessionItem)
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Folder 3: Player Profile Folders: In Sandbox Mode render all players; in Multi Mode render participating players; in Single Mode render only selectedPlayer */}
-              {(workspaceStore.activeMode === "sandbox"
-                ? players
-                : workspaceStore.activeMode === "multi"
-                ? workspaceStore.multiProfiles.map((mp) => mp.player).filter(Boolean)
-                : selectedPlayer && selectedPlayerId !== GENERAL_CHAT_ID && selectedPlayerId !== MULTI_MATCHUP_ID
-                ? [selectedPlayer]
-                : []
-              ).map((player) => {
-                const playerSessions = groupedSessions[player.id] || [];
-                const isExpanded = expandedFolders[player.id] ?? (player.id === selectedPlayerId);
-
-                if (workspaceStore.activeMode === "sandbox" && player.id !== selectedPlayerId && playerSessions.length === 0 && !searchQuery) {
-                  return null;
-                }
-                if (searchQuery && playerSessions.length === 0) return null;
-
-                return (
-                  <div key={player.id} className="space-y-1">
-                    {/* Folder Header */}
-                    <div
-                      onClick={() => toggleFolder(player.id)}
-                      className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold cursor-pointer transition select-none border ${
-                        selectedPlayerId === player.id
-                          ? "bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 border-emerald-500/30 shadow-2xs"
-                          : "text-muted-foreground hover:bg-muted/40 hover:text-foreground border-transparent"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate min-w-0">
-                        <div className="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0 text-[10px] font-black uppercase">
-                          {player.canonical_name ? player.canonical_name.charAt(0) : "K"}
-                        </div>
-                        <span className="truncate">{player.canonical_name}</span>
-                        {player.title && (
-                          <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 font-extrabold border border-amber-500/20 shrink-0">
-                            {player.title}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCreateNewChat(player.id);
-                          }}
-                          title={`Tạo đoạn chat mới cho ${player.canonical_name}`}
-                          className="p-1 rounded-md hover:bg-background text-muted-foreground hover:text-emerald-600 transition"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </button>
-
-                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-secondary font-mono text-muted-foreground font-semibold">
-                          {playerSessions.length}
-                        </span>
-
-                        {isExpanded ? (
-                          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition" />
-                        ) : (
-                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground transition" />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Conversation Items under this folder */}
-                    {isExpanded && (
-                      <div className="pl-2 space-y-1 ml-2 border-l border-border/50">
-                        {playerSessions.length === 0 ? (
-                          <div className="py-2 px-2 text-[11px] text-muted-foreground/60 italic flex items-center justify-between">
-                            <span>Chưa có hội thoại</span>
-                            <button
-                              type="button"
-                              onClick={() => handleCreateNewChat(player.id)}
-                              className="text-emerald-600 hover:underline font-bold text-[10px]"
-                            >
-                              + Bắt đầu chat
-                            </button>
-                          </div>
-                        ) : (
-                          playerSessions.map(renderSessionItem)
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* Guest hint card if no players exist */}
-              {players.length === 0 && !searchQuery && (
-                <div className="p-3 rounded-xl bg-muted/40 border border-border/50 text-xs text-muted-foreground space-y-1.5 mt-3">
-                  <p className="font-semibold text-foreground text-[11px]">Chế độ Khách</p>
-                  <p className="text-[11px] leading-relaxed">
-                    Bạn có thể trò chuyện tự do với AI hoặc nạp ván đấu PGN để phân tích hồ sơ kỳ thủ cá nhân.
-                  </p>
-                  <Link
-                    href="/import"
-                    className="inline-block text-[11px] font-bold text-emerald-600 hover:underline pt-0.5"
-                  >
-                    Nạp ván đấu ngay →
-                  </Link>
-                </div>
-              )}
-
-              {/* Empty search state */}
-              {searchQuery && Object.keys(groupedSessions).length === 0 && (
-                <div className="py-8 text-center text-xs text-muted-foreground/80 space-y-2">
-                  <p>Không tìm thấy cuộc trò chuyện nào phù hợp &quot;{searchQuery}&quot;</p>
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="text-emerald-600 hover:underline font-bold text-xs"
-                  >
-                    Xóa tìm kiếm
-                  </button>
-                </div>
-              )}
-            </div>
-          </aside>
-        </>
-      )}
-
-      {/* Center/Left: Interactive Chessboard Area (Toggleable) */}
-      {isBoardOpen && (
-        <div className="w-full max-w-full h-[360px] sm:h-[420px] md:h-full md:w-[380px] lg:w-[440px] xl:w-[480px] shrink-0 flex flex-col items-center bg-card border border-border/70 rounded-xl p-2 sm:p-2.5 shadow-2xs overflow-hidden">
-            {/* Board Top Status Bar - Fixed height h-9 to eliminate layout shift */}
+        {/* Center/Left: Interactive Chessboard Area (Toggleable) */}
+        {isBoardOpen && (
+          <div className="w-full max-w-full h-[360px] sm:h-[420px] md:h-full md:w-[380px] lg:w-[440px] xl:w-[480px] shrink-0 flex flex-col items-center bg-card border border-border/70 rounded-xl p-2 sm:p-2.5 shadow-2xs overflow-hidden">
+            {/* Board Top Status Bar */}
             <div className="w-full h-9 flex items-center justify-between pb-1.5 mb-1.5 border-b border-border/60 gap-2 shrink-0">
               <div className="flex items-center gap-2 truncate">
                 <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
@@ -1337,7 +1128,6 @@ export default function AiCoachView() {
                   Bàn cờ
                 </span>
 
-                {/* Stockfish Evaluation Tag or Pawn Skeleton Badge */}
                 <div className="h-5 flex items-center">
                   {isSkeleton ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300/60 dark:border-amber-700/60">
@@ -1372,7 +1162,7 @@ export default function AiCoachView() {
               </div>
             </div>
 
-            {/* ChessBoard Component (Dynamically fits container height and width without clipping) */}
+            {/* ChessBoard Component */}
             <div className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden p-0.5">
               <ChessBoard
                 initialFen={baseFen}
@@ -1397,7 +1187,7 @@ export default function AiCoachView() {
               />
             </div>
 
-            {/* Move Navigation Control Bar (Keypad / Buttons for iPad & Touch) */}
+            {/* Move Navigation Control Bar */}
             <div className="w-full flex items-center justify-between px-2 py-1.5 mt-1 bg-muted/50 rounded-xl border border-border/60 shrink-0 text-xs select-none">
               <div className="flex items-center gap-1 sm:gap-1.5">
                 <button
@@ -1420,7 +1210,11 @@ export default function AiCoachView() {
                 </button>
 
                 <span
-                  title={currentPly === 0 ? "Ban đầu" : `Nước ${Math.ceil(currentPly / 2)}/${Math.ceil(activeMoves.length / 2)} (${currentPly % 2 === 1 ? "Trắng" : "Đen"} đi)`}
+                  title={
+                    currentPly === 0
+                      ? "Ban đầu"
+                      : `Nước ${Math.ceil(currentPly / 2)}/${Math.ceil(activeMoves.length / 2)}`
+                  }
                   className="font-mono text-[11px] font-bold px-2 py-1 text-foreground bg-card rounded-md border border-border/70 shadow-2xs min-w-[70px] text-center"
                 >
                   {isSkeleton
@@ -1481,7 +1275,6 @@ export default function AiCoachView() {
 
             {/* Bottom Controls: Game Loader & Ask AI about board */}
             <div className="w-full mt-2 pt-2 border-t border-border/60 flex flex-col gap-2 shrink-0">
-              {/* Row 1: Game Selector & Copy FEN */}
               <div className="flex items-center gap-1.5 w-full">
                 <div className="flex-1 min-w-0">
                   <select
@@ -1489,12 +1282,12 @@ export default function AiCoachView() {
                     onChange={(e) => handleSelectGame(e.target.value)}
                     className="w-full bg-background border border-border/70 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none cursor-pointer truncate"
                   >
-                    <option value="">-- Xếp ván đấu ({playerGames.length} ván) --</option>
+                    <option value="">-- Xếp ván đấu ({playerGames.length} ván PGN) --</option>
                     {playerGames.map((g, idx) => {
                       const white = g.white_player || "Trắng";
                       const black = g.black_player || "Đen";
                       const res = g.result || "*";
-                      const eco = g.eco ? `[${g.eco}]` : "";
+                      const eco = g.eco ? `[${g.eco}] ` : "";
                       return (
                         <option key={g.id || idx} value={g.id}>
                           Ván {idx + 1}: {white} vs {black} ({res}) {eco}
@@ -1518,7 +1311,6 @@ export default function AiCoachView() {
                 </button>
               </div>
 
-              {/* Row 2: Action Buttons: Phân tích cả ván & Ask AI */}
               <div className="flex items-center gap-1.5 w-full">
                 {selectedGame && (
                   <button
@@ -1559,31 +1351,15 @@ export default function AiCoachView() {
             <AiAssistantChat
               key={activeSession.id}
               runId={
-                activeSession.playerId === GENERAL_CHAT_ID
+                activeSession.playerIds.length === 0
                   ? "general"
-                  : activeSession.playerId === MULTI_MATCHUP_ID
-                  ? "multi"
-                  : `run-${activeSession.playerId}`
+                  : activeSession.playerIds.length === 1
+                  ? `run-${activeSession.playerIds[0]}`
+                  : "multi"
               }
-              playerId={
-                activeSession.playerId === GENERAL_CHAT_ID || activeSession.playerId === MULTI_MATCHUP_ID
-                  ? ""
-                  : activeSession.playerId
-              }
-              playerIds={
-                workspaceStore.activeMode === "multi"
-                  ? selectedMultiPlayerIds
-                  : activeSession.playerId && activeSession.playerId !== GENERAL_CHAT_ID
-                  ? [activeSession.playerId]
-                  : undefined
-              }
-              playerName={
-                workspaceStore.activeMode === "multi"
-                  ? multiDisplayName
-                  : activeSession.playerId === GENERAL_CHAT_ID
-                  ? GENERAL_PLAYER_NAME
-                  : activeSession.playerName
-              }
+              playerId={activeSession.playerIds.length === 1 ? activeSession.playerIds[0] : ""}
+              playerIds={activeSession.playerIds}
+              playerName={activePlayerDisplayName}
               gamesCount={playerGames.length}
               currentFen={currentFen}
               currentEval={currentEval}
@@ -1602,7 +1378,7 @@ export default function AiCoachView() {
               onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
               pendingPrompt={pendingPrompt}
               onClearPendingPrompt={() => setPendingPrompt(null)}
-              onNewChat={() => handleCreateNewChat(activeSession.playerId)}
+              onNewChat={() => handleCreateNewChat()}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center bg-card border border-border/60 rounded-xl">

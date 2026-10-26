@@ -255,3 +255,21 @@ export interface LichessMastersResponse {
   is_rate_limited?: boolean;
   message?: string;
 }
+
+export interface AIChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  fen?: string;
+}
+
+export interface AIChatSession {
+  id: string;
+  user_id?: string;
+  player_ids: string[];
+  title: string;
+  perspective_mode?: string;
+  pinned: boolean;
+  messages: AIChatMessage[];
+  created_at?: string;
+  updated_at?: string;
+}

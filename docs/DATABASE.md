@@ -15,8 +15,9 @@ The database is built on **Supabase PostgreSQL 15** with Row Level Security (RLS
 ```
 [auth.users] (Supabase Auth)
      | (1:1)
-     v
- [profiles]
+     +----------------------------------+
+     v                                  v
+ [profiles]                     [ai_chat_sessions]
      | (1:N)
      v
   [players] <---------------------------------------------+
@@ -92,6 +93,18 @@ Analytical runs recording opening tree snapshots, Bayesian scores, and pawn stru
 - `opening_tree_snapshot` (JSONB)
 - `created_at` (TIMESTAMPTZ)
 
+### 6. `ai_chat_sessions`
+Persistent AI Coaching and Tactical Chat Sessions across all devices with multi-profile matchup support.
+- `id` (UUID, Primary Key, default `gen_random_uuid()`)
+- `user_id` (UUID, references `auth.users.id` ON DELETE CASCADE)
+- `player_ids` (JSONB, default `'[]'::jsonb`) - Array of player UUIDs involved in the session (supports 0 for general chat, 1 for single player profile, 2+ for multi-profile matchup evaluation).
+- `title` (TEXT, NOT NULL, default `'Cuộc trò chuyện mới'`)
+- `perspective_mode` (TEXT, default `'self'`)
+- `pinned` (BOOLEAN, default `false`)
+- `messages` (JSONB, default `'[]'::jsonb`)
+- `created_at` (TIMESTAMPTZ, default `now()`)
+- `updated_at` (TIMESTAMPTZ, default `now()`)
+
 ---
 
 ## 4. Row Level Security (RLS) Matrix
@@ -101,3 +114,4 @@ All tables have `ALTER TABLE ... ENABLE ROW LEVEL SECURITY;`.
 - **Datasets**: Exists through `players.user_id = auth.uid()`
 - **Games**: Exists through `datasets -> players.user_id = auth.uid()`
 - **Analysis Runs**: Exists through `players.user_id = auth.uid()`
+- **AI Chat Sessions**: `auth.uid() = user_id`

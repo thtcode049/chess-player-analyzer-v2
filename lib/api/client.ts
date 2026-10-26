@@ -10,6 +10,7 @@ import {
   LichessGameDetail,
   LichessMasterMove,
   LichessMasterTopGame,
+  AIChatSession,
 } from "./types";
 
 const API_BASE =
@@ -657,5 +658,68 @@ export const apiClient = {
     } catch (err) {
       callbacks.onError(err instanceof Error ? err : new Error(String(err)));
     }
+  },
+
+  async getAiChatSessions(): Promise<AIChatSession[]> {
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(`${API_BASE}/api/ai/sessions`, {
+      headers: authHeaders,
+    });
+    return handleResponse<AIChatSession[]>(res);
+  },
+
+  async getAiChatSession(sessionId: string): Promise<AIChatSession> {
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(`${API_BASE}/api/ai/sessions/${encodeURIComponent(sessionId)}`, {
+      headers: authHeaders,
+    });
+    return handleResponse<AIChatSession>(res);
+  },
+
+  async createAiChatSession(data: {
+    id?: string;
+    player_ids?: string[];
+    title?: string;
+    perspective_mode?: string;
+    pinned?: boolean;
+    messages?: Array<{ role: string; content: string; fen?: string }>;
+  }): Promise<AIChatSession> {
+    const authHeaders = await getAuthHeaders();
+    authHeaders["Content-Type"] = "application/json";
+    const res = await fetch(`${API_BASE}/api/ai/sessions`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<AIChatSession>(res);
+  },
+
+  async updateAiChatSession(
+    sessionId: string,
+    updates: {
+      player_ids?: string[];
+      title?: string;
+      perspective_mode?: string;
+      pinned?: boolean;
+      messages?: Array<{ role: string; content: string; fen?: string }>;
+    }
+  ): Promise<AIChatSession | null> {
+    const authHeaders = await getAuthHeaders();
+    authHeaders["Content-Type"] = "application/json";
+    const res = await fetch(`${API_BASE}/api/ai/sessions/${encodeURIComponent(sessionId)}`, {
+      method: "PATCH",
+      headers: authHeaders,
+      body: JSON.stringify(updates),
+    });
+    return handleResponse<AIChatSession | null>(res);
+  },
+
+  async deleteAiChatSession(sessionId: string): Promise<{ deleted: boolean }> {
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(`${API_BASE}/api/ai/sessions/${encodeURIComponent(sessionId)}`, {
+      method: "DELETE",
+      headers: authHeaders,
+    });
+    return handleResponse<{ deleted: boolean }>(res);
   },
 };

@@ -436,3 +436,32 @@ def test_cross_guest_session_isolation():
     assert data_b["skipped_count"] == 0
     assert data_b["player_id"] != player_id_a
 
+
+def test_ai_chat_sessions_endpoints():
+    """Verifies AI chat session CRUD endpoints for guest and authenticated modes."""
+    # 1. Guest list sessions: returns empty list
+    res = client.get("/api/ai/sessions")
+    assert res.status_code == 200
+    assert res.json()["success"] is True
+    assert res.json()["data"] == []
+
+    # 2. Guest create session: returns transient session representation
+    res_create = client.post(
+        "/api/ai/sessions",
+        json={
+            "title": "Phân tích đối đầu thử nghiệm",
+            "player_ids": ["player-uuid-1", "player-uuid-2"],
+            "messages": [{"role": "user", "content": "So sánh khai cuộc của 2 kỳ thủ này"}]
+        }
+    )
+    assert res_create.status_code == 200
+    created_data = res_create.json()["data"]
+    assert created_data["title"] == "Phân tích đối đầu thử nghiệm"
+    assert created_data["player_ids"] == ["player-uuid-1", "player-uuid-2"]
+    assert created_data["user_id"] == "guest"
+
+    # 3. Unauthorized fetch single session without x_user_id
+    res_get = client.get("/api/ai/sessions/some-session-id")
+    assert res_get.status_code == 401
+
+

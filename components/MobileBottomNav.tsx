@@ -37,6 +37,7 @@ export default function MobileBottomNav() {
         window.location.href = "/players";
       } else if (typeof window !== "undefined" && window.location.pathname !== "/players" && window.location.pathname !== "/dashboard") {
         window.history.pushState(null, "", "/dashboard");
+        window.dispatchEvent(new PopStateEvent("popstate"));
       }
     } else {
       setActiveTab(tab);
@@ -46,6 +47,7 @@ export default function MobileBottomNav() {
         window.location.href = targetPath;
       } else if (typeof window !== "undefined" && window.location.pathname !== targetPath) {
         window.history.pushState(null, "", targetPath);
+        window.dispatchEvent(new PopStateEvent("popstate"));
       }
     }
   };
@@ -138,9 +140,9 @@ export default function MobileBottomNav() {
         </button>
 
         {/* Import Link */}
-        <Link
+        <a
           href="/import"
-          className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all ${
+          className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all cursor-pointer ${
             pathname === "/import"
               ? "text-emerald-600 dark:text-emerald-400 font-bold"
               : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
@@ -153,7 +155,7 @@ export default function MobileBottomNav() {
           {pathname === "/import" && (
             <span className="absolute bottom-0.5 w-6 h-0.5 rounded-full bg-emerald-500 dark:bg-emerald-400 shadow-xs" />
           )}
-        </Link>
+        </a>
       </div>
     </nav>
   );

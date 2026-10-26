@@ -319,13 +319,18 @@ export default function AiAssistantChat({
     const text = (textToSend || inputMessage).trim();
     if (!text || isStreaming) return;
 
-    const newMessages: Message[] = [...messages, { role: "user", content: text, fen: currentFen }];
+    // Snapshot existing messages for AI history context before appending new turn
+    const historyForAi = [...messages];
+
+    // Atomically append user message AND initial assistant message for streaming
+    const newMessages: Message[] = [
+      ...messages,
+      { role: "user", content: text, fen: currentFen },
+      { role: "assistant", content: "", fen: currentFen },
+    ];
     setMessages(newMessages);
     setInputMessage("");
     setIsStreaming(true);
-
-    // Append empty assistant message for streaming
-    setMessages((prev) => [...prev, { role: "assistant", content: "", fen: currentFen }]);
 
     const targetPlayerId = (!playerId || playerId === "general") ? "" : playerId;
     const targetRunId = (!runId || runId === "run-general" || runId === "general" || runId === "default_run") ? "general" : runId;
@@ -337,7 +342,7 @@ export default function AiAssistantChat({
         player_ids: playerIds && playerIds.length > 0 ? playerIds : (targetPlayerId ? [targetPlayerId] : undefined),
         message: text,
         perspective_mode: "neutral",
-        history: messages,
+        history: historyForAi,
         current_fen: currentFen,
         is_board_open: isBoardOpen,
         selected_game: selectedGame ? {
@@ -370,11 +375,12 @@ export default function AiAssistantChat({
       {
         onChunk: (chunk) => {
           setMessages((prev) => {
+            if (!prev || prev.length === 0) return prev;
             const lastIdx = prev.length - 1;
             const updated = [...prev];
             updated[lastIdx] = {
               ...updated[lastIdx],
-              content: updated[lastIdx].content + chunk,
+              content: (updated[lastIdx].content || "") + chunk,
             };
             return updated;
           });
@@ -383,11 +389,12 @@ export default function AiAssistantChat({
         onError: (err) => {
           setIsStreaming(false);
           setMessages((prev) => {
+            if (!prev || prev.length === 0) return prev;
             const lastIdx = prev.length - 1;
             const updated = [...prev];
             updated[lastIdx] = {
               ...updated[lastIdx],
-              content: updated[lastIdx].content + `\n\n*(Lỗi kết nối: ${err.message})*`,
+              content: (updated[lastIdx].content || "") + `\n\n*(Lỗi kết nối: ${err.message})*`,
             };
             return updated;
           });

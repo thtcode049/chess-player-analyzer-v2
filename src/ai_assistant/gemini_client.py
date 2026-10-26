@@ -22,6 +22,8 @@ AVAILABLE_MODELS = {
     "gemini-3.8-flash": "Gemini 3.8 Flash ⚡ (Thế hệ mới nhất - Phân tích toàn diện)",
     "gemini-3.5-flash": "Gemini 3.5 Flash 🧠 (Suy luận chuyên sâu)",
     "gemini-3.1-flash-lite": "Gemini 3.1 Flash Lite 🚀 (Phản hồi tức thì & Siêu tốc)",
+    "gemini-3.5-flash-lite": "Gemini 3.5 Flash Lite (Dự phòng tốc độ cao)",
+    "gemini-3.6-flash": "Gemini 3.6 Flash (Dự phòng mở rộng)",
 }
 
 GEMINI_MODELS = list(AVAILABLE_MODELS.keys())
@@ -159,7 +161,7 @@ def stream_gemini_response(
     failover thông minh và báo lỗi minh bạch khi cần chuyển sang chế độ dự phòng.
     """
     clean_key = (api_key if api_key is not None else get_server_gemini_api_key()).strip()
-    target_model = model if model in GEMINI_MODELS else "gemini-3.1-flash-lite"
+    target_model = model if model in GEMINI_MODELS else "gemini-3.5-flash-lite"
 
     # Nếu không có API Key máy chủ, tự động báo lỗi và dùng Local Expert Engine stream
     if not clean_key:
@@ -202,7 +204,7 @@ def stream_gemini_response(
                     headers={"Content-Type": "application/json"}
                 )
                 hit_token_limit = False
-                with urllib.request.urlopen(req, timeout=12) as resp:
+                with urllib.request.urlopen(req, timeout=8) as resp:
                     for line in resp:
                         decoded_line = line.decode("utf-8")
                         if decoded_line.startswith("data: "):
@@ -292,7 +294,7 @@ def call_gemini_api(
     Tối ưu: 8192 max tokens, timeout 15s, failover an toàn.
     """
     clean_key = (api_key if api_key is not None else get_server_gemini_api_key()).strip()
-    target_model = model if model in GEMINI_MODELS else "gemini-3.1-flash-lite"
+    target_model = model if model in GEMINI_MODELS else "gemini-3.5-flash-lite"
 
     if not clean_key:
         notice = _format_fallback_notice("Chưa cấu hình GEMINI_API_KEY trong file .env")

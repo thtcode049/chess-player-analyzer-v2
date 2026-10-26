@@ -324,85 +324,113 @@ export default function AiCoachView() {
   }, [activeSession.playerIds]);
 
   // Handler: Update active session messages & lazy creation on first prompt
-  const handleUpdateActiveMessages = async (
-    updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])
-  ) => {
-    const currentMsgs = activeSession.messages;
-    const nextMsgs = typeof updater === "function" ? updater(currentMsgs) : updater;
+  const handleUpdateActiveMessages = useCallback(
+    (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
+      // 1. If currently in a draft session
+      if (draftSession && activeSessionId === draftSession.id) {
+        setDraftSession((prevDraft) => {
+          if (!prevDraft) return null;
+          const currentMsgs = prevDraft.messages;
+          const nextMsgs = typeof updater === "function" ? updater(currentMsgs) : updater;
+          const firstUser = nextMsgs.find((m) => m.role === "user");
 
-    const firstUser = nextMsgs.find((m) => m.role === "user");
+          // Still no user message? Keep as draft
+          if (!firstUser) {
+            return { ...prevDraft, messages: nextMsgs };
+          }
 
-    // Compute title from user's first prompt if default
-    let newTitle = activeSession.title;
-    if (
-      activeSession.isDraft ||
-      newTitle === "Đoạn chat mới" ||
-      newTitle === "Trò chuyện tự do cùng AI" ||
-      newTitle.startsWith("Phân tích:") ||
-      newTitle.startsWith("So sánh:")
-    ) {
-      if (firstUser && firstUser.content) {
-        newTitle = firstUser.content.slice(0, 36) + (firstUser.content.length > 36 ? "..." : "");
-      }
-    }
+          // Compute title from first user prompt
+          let title = prevDraft.title;
+          if (
+            title === "Đoạn chat mới" ||
+            title === "Trò chuyện tự do cùng AI" ||
+            title.startsWith("Phân tích:") ||
+            title.startsWith("So sánh:")
+          ) {
+            title = firstUser.content.slice(0, 36) + (firstUser.content.length > 36 ? "..." : "");
+          }
 
-    if (activeSession.isDraft) {
-      // Lazy creation: only persist when user actually sends a question!
-      if (!firstUser) {
-        setDraftSession((prev) => (prev ? { ...prev, messages: nextMsgs } : null));
+          const realId =
+            typeof crypto !== "undefined" && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `chat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+          const concreteSession: ChatSession = {
+            id: realId,
+            playerIds: prevDraft.playerIds,
+            title,
+            pinned: prevDraft.pinned,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            messages: nextMsgs,
+            isDraft: false,
+          };
+
+          // Promote immediately to concrete sessions
+          setSessions((prevSessions) => [concreteSession, ...prevSessions.filter((s) => s.id !== realId)]);
+          setActiveSessionId(realId);
+
+          apiClient
+            .createAiChatSession({
+              id: realId,
+              player_ids: concreteSession.playerIds,
+              title: concreteSession.title,
+              pinned: concreteSession.pinned,
+              messages: nextMsgs,
+            })
+            .catch((err) => {
+              console.warn("Failed to persist session to Supabase:", err);
+            });
+
+          return null; // clear draft!
+        });
         return;
       }
 
-      const realId =
-        typeof crypto !== "undefined" && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `chat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      // 2. Concrete session update (use functional state updater on prevSessions)
+      setSessions((prevSessions) => {
+        const idx = prevSessions.findIndex((s) => s.id === activeSessionId);
+        if (idx === -1) return prevSessions;
 
-      const concreteSession: ChatSession = {
-        ...activeSession,
-        id: realId,
-        title: newTitle,
-        isDraft: false,
-        updatedAt: Date.now(),
-        messages: nextMsgs,
-      };
+        const currentMsgs = prevSessions[idx].messages;
+        const nextMsgs = typeof updater === "function" ? updater(currentMsgs) : updater;
 
-      setSessions((prev) => [concreteSession, ...prev]);
-      setActiveSessionId(realId);
-      setDraftSession(null);
+        let title = prevSessions[idx].title;
+        if (
+          title === "Đoạn chat mới" ||
+          title === "Trò chuyện tự do cùng AI" ||
+          title.startsWith("Phân tích:") ||
+          title.startsWith("So sánh:")
+        ) {
+          const firstUser = nextMsgs.find((m) => m.role === "user");
+          if (firstUser && firstUser.content) {
+            title = firstUser.content.slice(0, 36) + (firstUser.content.length > 36 ? "..." : "");
+          }
+        }
 
-      apiClient
-        .createAiChatSession({
-          id: realId,
-          player_ids: concreteSession.playerIds,
-          title: newTitle,
-          pinned: concreteSession.pinned,
+        const updatedSession: ChatSession = {
+          ...prevSessions[idx],
+          title,
+          updatedAt: Date.now(),
           messages: nextMsgs,
-        })
-        .catch((err) => {
-          console.warn("Failed to persist session to Supabase:", err);
-        });
-    } else {
-      const updated: ChatSession = {
-        ...activeSession,
-        title: newTitle,
-        updatedAt: Date.now(),
-        messages: nextMsgs,
-      };
+        };
 
-      setSessions((prev) => prev.map((s) => (s.id === activeSession.id ? updated : s)));
+        const nextList = [...prevSessions];
+        nextList[idx] = updatedSession;
 
-      apiClient
-        .updateAiChatSession(activeSession.id, {
-          title: newTitle,
-          player_ids: updated.playerIds,
-          messages: nextMsgs,
-        })
-        .catch((err) => {
-          console.warn("Failed to update session on Supabase:", err);
-        });
-    }
-  };
+        apiClient
+          .updateAiChatSession(updatedSession.id, {
+            title: updatedSession.title,
+            player_ids: updatedSession.playerIds,
+            messages: nextMsgs,
+          })
+          .catch(() => {});
+
+        return nextList;
+      });
+    },
+    [activeSessionId, draftSession]
+  );
 
   // Handler: Create a new chat session (enters in-memory draft state - LAZY CREATION)
   const handleCreateNewChat = (specificPlayerIds?: string[]) => {

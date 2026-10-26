@@ -1,7 +1,8 @@
 -- ==============================================================================
 -- CHESS PLAYER ANALYZER V2: CLEANUP UNUSED DATABASE SCHEMA
 -- Migration: 20261026000002_cleanup_unused_schema.sql
--- Purpose: Remove obsolete tables, unused columns, and orphan policies
+-- Purpose: Remove obsolete tables, unused columns, and orphan indexes
+-- Note: Bucket 'pgn-vault' is already deleted via Storage API (direct SQL delete is blocked by Supabase)
 -- ==============================================================================
 
 -- 1. DROP UNUSED TABLES (with CASCADE for constraints, indexes & policies)
@@ -37,11 +38,7 @@ ALTER TABLE public.analysis_runs
     DROP COLUMN IF EXISTS acpl_middlegame,
     DROP COLUMN IF EXISTS acpl_endgame;
 
--- 6. DROP STORAGE POLICIES & REMOVE BUCKET REFERENCE
-DROP POLICY IF EXISTS "Users can access own PGN storage objects" ON storage.objects;
-DELETE FROM storage.buckets WHERE id = 'pgn-vault';
-
--- 7. CLEAN UP ORPHANED INDEXES IF NOT ALREADY DROPPED BY CASCADE
+-- 6. CLEAN UP ORPHANED INDEXES IF NOT ALREADY DROPPED BY CASCADE
 DROP INDEX IF EXISTS public.idx_game_analyses_run_id;
 DROP INDEX IF EXISTS public.idx_game_analyses_game_id;
 DROP INDEX IF EXISTS public.idx_critical_positions_game_id;

@@ -552,10 +552,11 @@ export default function ChessBoard({
               setCustomArrows([]);
             }
           }}
-          className="overflow-hidden rounded-md border border-slate-300 dark:border-slate-700 shadow-xs flex justify-center shrink-0 select-none"
+          className="overflow-hidden rounded-md border border-slate-300 dark:border-slate-700 shadow-xs flex justify-center shrink-0 select-none bg-[#edeed1]"
         >
           <Chessboard
-            position={currentPositionFen}
+            key={`cb-${boardWidth}-${boardOrientation}`}
+            position={currentPositionFen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}
             onPieceDrop={onDrop}
             onPieceDragBegin={() => {
               setMoveFrom(null);
@@ -571,7 +572,7 @@ export default function ChessBoard({
             onArrowsChange={handleArrowsChange}
             customArrowColor="rgb(235, 97, 80)"
             boardOrientation={boardOrientation}
-            boardWidth={boardWidth}
+            boardWidth={boardWidth || 360}
             customBoardStyle={{
               borderRadius: "3px",
             }}

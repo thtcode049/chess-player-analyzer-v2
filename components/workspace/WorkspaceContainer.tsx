@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect, Suspense } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { Loader2, Swords } from "lucide-react";
 import { useProfileWorkspaceStore, WorkspaceTab } from "@/lib/stores/profileWorkspaceStore";
 import ProfileHub from "@/components/profile/ProfileHub";
 import ProfileDetailContent from "@/components/workspace/ProfileDetailContent";
 import { AnalyzeContent } from "@/components/workspace/AnalyzeView";
 import AiCoachView from "@/components/workspace/AiCoachView";
+import SafeChessboardDnDProvider from "@/components/chess/SafeChessboardDnDProvider";
 
 interface WorkspaceContainerProps {
   initialTab?: WorkspaceTab;
@@ -34,6 +35,16 @@ export default function WorkspaceContainer({
 
   const mountedRef = React.useRef(false);
 
+  // Lazy mount tabs upon first visit, then keep them alive in DOM (prevents wasted workers and DND collisions on direct routes)
+  const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>(() => {
+    const start = initialTab || "board";
+    return { [start]: true };
+  });
+
+  useEffect(() => {
+    setVisitedTabs((prev) => (prev[activeTab] ? prev : { ...prev, [activeTab]: true }));
+  }, [activeTab]);
+
   // Handle URL route initialization
   useEffect(() => {
     if (!mountedRef.current) {
@@ -57,7 +68,7 @@ export default function WorkspaceContainer({
   }, [targetPlayerId, initialTab, initialView]);
 
   return (
-    <>
+    <SafeChessboardDnDProvider>
       {/* Full-Screen Matchup Loading Overlay */}
       {isMatchupLoading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
@@ -93,29 +104,33 @@ export default function WorkspaceContainer({
         <div className="w-full relative pb-20 md:pb-2">
           {/* Tab 1: Hồ sơ & Ván đấu (Keep-Alive: mount hidden when not active) */}
           <div style={{ display: activeTab === "profile" ? "block" : "none" }}>
-            <ProfileDetailContent targetPlayerId={activePlayerId || undefined} />
+            {visitedTabs["profile"] && (
+              <ProfileDetailContent targetPlayerId={activePlayerId || undefined} />
+            )}
           </div>
 
           {/* Tab 2: Bàn cờ Phân tích & Khai cuộc (Keep-Alive: engine worker and board position remain intact) */}
           <div style={{ display: activeTab === "board" ? "block" : "none" }}>
-            <Suspense
-              fallback={
-                <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-                  <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-                  <p className="text-sm text-muted-foreground font-medium">Đang tải bàn cờ phân tích...</p>
-                </div>
-              }
-            >
-              <AnalyzeContent />
-            </Suspense>
+            {visitedTabs["board"] && (
+              <Suspense
+                fallback={
+                  <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+                    <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+                    <p className="text-sm text-muted-foreground font-medium">Đang tải bàn cờ phân tích...</p>
+                  </div>
+                }
+              >
+                <AnalyzeContent />
+              </Suspense>
+            )}
           </div>
 
           {/* Tab 3: Trợ lí AI (Keep-Alive: conversation history, draft message and scroll position intact) */}
           <div style={{ display: activeTab === "ai" ? "block" : "none" }}>
-            <AiCoachView />
+            {visitedTabs["ai"] && <AiCoachView />}
           </div>
         </div>
       )}
-    </>
+    </SafeChessboardDnDProvider>
   );
 }

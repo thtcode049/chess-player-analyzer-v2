@@ -78,10 +78,16 @@ export default function ChessBoard({
   const [moveFrom, setMoveFrom] = useState<string | null>(null);
   const [optionSquares, setOptionSquares] = useState<Record<string, React.CSSProperties>>({});
 
-  // Reset selection when ply or FEN changes
+  // Right-click interactive highlights & arrows (Lichess/Chess.com style)
+  const [rightClickedSquares, setRightClickedSquares] = useState<Record<string, React.CSSProperties>>({});
+  const [customArrows, setCustomArrows] = useState<Array<[Square, Square, string?]>>([]);
+
+  // Reset selection and annotations when ply or FEN changes
   useEffect(() => {
     setMoveFrom(null);
     setOptionSquares({});
+    setRightClickedSquares({});
+    setCustomArrows([]);
   }, [currentPly, initialFen]);
 
   useEffect(() => {
@@ -405,9 +411,41 @@ export default function ChessBoard({
     [game, isPlayable]
   );
 
+  // Handle right-click on square to toggle highlight (red-orange)
+  const onSquareRightClick = useCallback((square: Square) => {
+    setRightClickedSquares((prev) => {
+      const next = { ...prev };
+      if (next[square]) {
+        delete next[square];
+      } else {
+        next[square] = {
+          backgroundColor: "rgba(235, 97, 80, 0.65)",
+        };
+      }
+      return next;
+    });
+  }, []);
+
+  // Handle right-click arrow changes (drawing or clearing arrows)
+  const handleArrowsChange = useCallback((arrows: Array<[Square, Square, string?]>) => {
+    setCustomArrows(arrows);
+  }, []);
+
+  // Combine right-click highlights and move option highlights
+  const mergedSquareStyles = useMemo(() => {
+    return {
+      ...rightClickedSquares,
+      ...optionSquares,
+    };
+  }, [rightClickedSquares, optionSquares]);
+
   // Click-to-move square click handler
   const onSquareClick = useCallback(
     (square: string) => {
+      // Clear right-click marks on any left-click interaction
+      setRightClickedSquares({});
+      setCustomArrows([]);
+
       if (!isPlayable) return;
 
       // 1. If no piece was selected yet
@@ -461,6 +499,8 @@ export default function ChessBoard({
   const onDrop = (sourceSquare: string, targetSquare: string) => {
     setMoveFrom(null);
     setOptionSquares({});
+    setRightClickedSquares({});
+    setCustomArrows([]);
     if (!isPlayable) return false;
     const move = makeAMove({
       from: sourceSquare,
@@ -504,7 +544,15 @@ export default function ChessBoard({
         <div
           ref={boardContainerRef}
           style={{ width: `${boardWidth}px`, height: `${boardWidth}px` }}
-          className="overflow-hidden rounded-md border border-slate-300 dark:border-slate-700 shadow-xs flex justify-center shrink-0"
+          onContextMenu={(e) => e.preventDefault()}
+          onMouseDown={(e) => {
+            // Left click on board clears right-click highlights and arrows
+            if (e.button === 0) {
+              setRightClickedSquares({});
+              setCustomArrows([]);
+            }
+          }}
+          className="overflow-hidden rounded-md border border-slate-300 dark:border-slate-700 shadow-xs flex justify-center shrink-0 select-none"
         >
           <Chessboard
             position={currentPositionFen}
@@ -512,9 +560,16 @@ export default function ChessBoard({
             onPieceDragBegin={() => {
               setMoveFrom(null);
               setOptionSquares({});
+              setRightClickedSquares({});
+              setCustomArrows([]);
             }}
             onSquareClick={onSquareClick}
-            customSquareStyles={optionSquares}
+            onSquareRightClick={onSquareRightClick}
+            customSquareStyles={mergedSquareStyles}
+            areArrowsAllowed={true}
+            customArrows={customArrows}
+            onArrowsChange={handleArrowsChange}
+            customArrowColor="rgb(235, 97, 80)"
             boardOrientation={boardOrientation}
             boardWidth={boardWidth}
             customBoardStyle={{

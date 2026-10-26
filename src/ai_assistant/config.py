@@ -13,22 +13,24 @@ from typing import Optional
 
 
 def load_server_env_file() -> None:
-    """Tự động đọc file .env ở thư mục gốc nếu chưa có trong os.environ."""
-    env_path = Path(__file__).resolve().parent.parent.parent / ".env"
-    if env_path.exists():
-        try:
-            with open(env_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#") or "=" not in line:
-                        continue
-                    key, val = line.split("=", 1)
-                    key = key.strip()
-                    val = val.strip().strip("'\"")
-                    if key and key not in os.environ:
-                        os.environ[key] = val
-        except Exception:
-            pass
+    """Tự động đọc file .env (hoặc .env.local) ở thư mục gốc nếu chưa có trong os.environ."""
+    root_dir = Path(__file__).resolve().parent.parent.parent
+    for fname in [".env", ".env.local"]:
+        env_path = root_dir / fname
+        if env_path.exists():
+            try:
+                with open(env_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        key, val = line.split("=", 1)
+                        key = key.strip()
+                        val = val.strip().strip("'\"")
+                        if key and (key not in os.environ or not os.environ[key].strip()):
+                            os.environ[key] = val
+            except Exception:
+                pass
 
 
 def get_server_gemini_api_key() -> str:

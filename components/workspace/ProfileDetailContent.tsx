@@ -23,7 +23,6 @@ import {
   Hash,
   Check,
   ExternalLink,
-  Sparkles,
   FolderOpen,
   UploadCloud,
   Swords,
@@ -886,7 +885,7 @@ export default function ProfileDetailContent({
               <div className="pb-3 border-b border-border/50 flex items-center justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-emerald-500" />
+                    <BarChart2 className="w-4 h-4 text-emerald-500" />
                     Biểu Đồ Cột: Cầm Trắng vs Cầm Đen
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">

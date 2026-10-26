@@ -9,7 +9,6 @@ import {
   Copy,
   Check,
   RotateCcw,
-  Zap,
   Layers,
   PanelLeft,
   Eye,
@@ -338,7 +337,7 @@ export default function AiAssistantChat({
         player_ids: playerIds && playerIds.length > 0 ? playerIds : (targetPlayerId ? [targetPlayerId] : undefined),
         message: text,
         perspective_mode: "neutral",
-        history: newMessages,
+        history: messages,
         current_fen: currentFen,
         is_board_open: isBoardOpen,
         selected_game: selectedGame ? {
@@ -420,10 +419,6 @@ export default function AiAssistantChat({
           <div className="truncate min-w-0">
             <h3 className="font-bold text-foreground text-xs sm:text-sm truncate flex items-center gap-1.5">
               <span>Trợ Lí AI Cờ Vua</span>
-              <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.2 text-[10px] font-extrabold uppercase rounded-md bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40">
-                <Zap className="w-2.5 h-2.5 text-emerald-600" />
-                Gemini 3.8
-              </span>
               <span className="hidden md:inline-flex text-[11px] font-medium text-muted-foreground truncate">
                 • {playerId && playerId !== "general" ? playerName : "Trò chuyện tự do"}
               </span>

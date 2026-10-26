@@ -20,7 +20,6 @@ import {
   Search,
   Check,
   FolderOpen,
-  Sparkles,
   Layers,
   ArrowRight,
   Loader2

@@ -15,7 +15,6 @@ import {
   CheckCircle2,
   X,
   Loader2,
-  Sparkles,
   ArrowRight,
   ShieldCheck,
   ChevronRight,

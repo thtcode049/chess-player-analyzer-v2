@@ -24,7 +24,7 @@ for env_filename in [".env.local", ".env"]:
                         k, v = line.split("=", 1)
                         k = k.strip()
                         v = v.strip().strip("'\"")
-                        if k and k not in os.environ:
+                        if k and (k not in os.environ or not os.environ[k].strip()):
                             os.environ[k] = v
         except Exception:
             pass

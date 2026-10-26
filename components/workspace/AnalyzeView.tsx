@@ -1461,7 +1461,7 @@ export function AnalyzeContent() {
       {/* Main Analysis Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 items-start">
         {/* Left Column: Interactive ChessBoard (7 Cols) - Sticky on mobile / iPad */}
-        <div className="lg:col-span-7 flex flex-col items-center w-full sticky top-14 z-20 bg-background/95 backdrop-blur-md pt-1 pb-2 border-b border-border/40 lg:static lg:bg-transparent lg:p-0 lg:border-none">
+        <div className="lg:col-span-7 flex flex-col items-center w-full sticky top-14 z-20 bg-background pt-1 pb-2 border-b border-border/40 lg:static lg:bg-transparent lg:p-0 lg:border-none">
           <ChessBoard
             initialFen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
             moves={moves}

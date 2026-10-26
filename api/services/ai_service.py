@@ -99,23 +99,29 @@ class AIService:
                     yield chunk
             
             if not yielded_any:
-                # Fallback to local expert
-                offline_res = generate_local_expert_response(
+                offline_res = (
+                    "> ⚠️ **Thông báo hệ thống:** Không nhận được phản hồi từ Google Gemini AI.\n"
+                    "> Hệ thống tạm thời chuyển sang **Chế độ Chuyên gia Cục bộ Dự phòng (Offline Fallback)** dựa trên số liệu phân tích của kỳ thủ:\n\n---\n\n"
+                    + generate_local_expert_response(
+                        prompt=prompt,
+                        deep_profile=deep_profile or {},
+                        stats=stats or {},
+                        selected_player=player_name,
+                        mode=perspective_mode
+                    )
+                )
+                yield offline_res
+        except Exception as e:
+            offline_res = (
+                f"> ⚠️ **Thông báo hệ thống:** Gặp sự cố kết nối tới dịch vụ AI ({type(e).__name__}: {str(e)[:80]}).\n"
+                "> Hệ thống tạm thời chuyển sang **Chế độ Chuyên gia Cục bộ Dự phòng (Offline Fallback)** dựa trên số liệu phân tích của kỳ thủ:\n\n---\n\n"
+                + generate_local_expert_response(
                     prompt=prompt,
                     deep_profile=deep_profile or {},
                     stats=stats or {},
                     selected_player=player_name,
                     mode=perspective_mode
                 )
-                yield offline_res
-        except Exception:
-            # Safe fallback to local rule-based expert
-            offline_res = generate_local_expert_response(
-                prompt=prompt,
-                deep_profile=deep_profile or {},
-                stats=stats or {},
-                selected_player=player_name,
-                mode=perspective_mode
             )
             yield offline_res
 

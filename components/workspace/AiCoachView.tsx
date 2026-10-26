@@ -28,7 +28,8 @@ import {
   Search,
   X,
   Edit2,
-  Sparkles,
+  Bot,
+  Send,
   Swords,
 } from "lucide-react";
 import { Chess } from "chess.js";
@@ -930,7 +931,7 @@ export default function AiCoachView() {
             </div>
           ) : (
             <div className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold shrink-0">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+              <Bot className="w-3.5 h-3.5 text-emerald-600" />
               <span>Cố vấn tự do</span>
             </div>
           )}
@@ -1077,7 +1078,7 @@ export default function AiCoachView() {
                     >
                       <div className="flex items-center gap-2 truncate min-w-0">
                         <div className="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0">
-                          <Sparkles className="w-3 h-3" />
+                          <Bot className="w-3 h-3" />
                         </div>
                         <span className="truncate">{GENERAL_PLAYER_NAME}</span>
                       </div>
@@ -1536,7 +1537,7 @@ export default function AiCoachView() {
                   title="Gửi thế cờ này cho Trợ lí AI phân tích"
                   className={`${selectedGame ? "flex-1 min-w-0" : "w-full"} px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer truncate`}
                 >
-                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  <Send className="w-3.5 h-3.5 shrink-0" />
                   <span className="truncate">
                     {isSkeleton
                       ? "Phân tích cấu trúc Tốt ↗"

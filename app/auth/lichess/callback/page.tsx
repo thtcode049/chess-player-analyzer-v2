@@ -50,18 +50,29 @@ function LichessCallbackContent() {
       })
       .then((res) => {
         if (res.access_token) {
-          localStorage.setItem("lichess_token", res.access_token);
-          if (res.username) {
-            localStorage.setItem("lichess_username", res.username);
-          }
+          try {
+            sessionStorage.setItem("lichess_token", res.access_token);
+            localStorage.setItem("lichess_token", res.access_token);
+            if (res.username) {
+              sessionStorage.setItem("lichess_username", res.username);
+              localStorage.setItem("lichess_username", res.username);
+            }
+          } catch {}
           setStatus("success");
 
           // Clean up temporary PKCE values
-          localStorage.removeItem("lichess_oauth_verifier");
-          localStorage.removeItem("lichess_oauth_state");
+          try {
+            localStorage.removeItem("lichess_oauth_verifier");
+            localStorage.removeItem("lichess_oauth_state");
+            sessionStorage.removeItem("lichess_oauth_verifier");
+            sessionStorage.removeItem("lichess_oauth_state");
+          } catch {}
 
-          const returnUrl = localStorage.getItem("lichess_oauth_return_url") || "/dashboard";
-          localStorage.removeItem("lichess_oauth_return_url");
+          const returnUrl = localStorage.getItem("lichess_oauth_return_url") || sessionStorage.getItem("lichess_oauth_return_url") || "/dashboard";
+          try {
+            localStorage.removeItem("lichess_oauth_return_url");
+            sessionStorage.removeItem("lichess_oauth_return_url");
+          } catch {}
 
           // Redirect back after a brief confirmation
           setTimeout(() => {

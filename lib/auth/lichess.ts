@@ -74,25 +74,42 @@ export async function initiateLichessOAuth(returnUrl?: string): Promise<void> {
 
 /**
  * Retrieves the currently saved Lichess authentication information.
+ * Checks sessionStorage first (isolated session), then localStorage.
  */
 export function getLichessAuth(): { isAuthorized: boolean; token: string; username: string } {
   if (typeof window === "undefined") {
     return { isAuthorized: false, token: "", username: "" };
   }
-  const token = (localStorage.getItem("lichess_token") || "").trim();
-  const username = (localStorage.getItem("lichess_username") || "").trim();
+  let token = (sessionStorage.getItem("lichess_token") || "").trim();
+  let username = (sessionStorage.getItem("lichess_username") || "").trim();
+
+  if (!token) {
+    token = (localStorage.getItem("lichess_token") || "").trim();
+    username = (localStorage.getItem("lichess_username") || "").trim();
+  }
+
   const isAuthorized = Boolean(token && token.length >= 10);
   return { isAuthorized, token, username };
 }
 
 /**
- * Disconnects the Lichess account and clears stored tokens.
+ * Disconnects the Lichess account and clears stored tokens from both localStorage and sessionStorage.
  */
 export function disconnectLichessAuth(): void {
   if (typeof window === "undefined") return;
-  localStorage.removeItem("lichess_token");
-  localStorage.removeItem("lichess_username");
-  localStorage.removeItem("lichess_oauth_verifier");
-  localStorage.removeItem("lichess_oauth_state");
-  localStorage.removeItem("lichess_oauth_return_url");
+  try {
+    localStorage.removeItem("lichess_token");
+    localStorage.removeItem("lichess_username");
+    localStorage.removeItem("lichess_oauth_verifier");
+    localStorage.removeItem("lichess_oauth_state");
+    localStorage.removeItem("lichess_oauth_return_url");
+
+    sessionStorage.removeItem("lichess_token");
+    sessionStorage.removeItem("lichess_username");
+    sessionStorage.removeItem("lichess_oauth_verifier");
+    sessionStorage.removeItem("lichess_oauth_state");
+    sessionStorage.removeItem("lichess_oauth_return_url");
+  } catch (e) {
+    console.warn("Could not clear Lichess auth storage:", e);
+  }
 }

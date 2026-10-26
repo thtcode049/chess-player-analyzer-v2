@@ -377,13 +377,24 @@ function ImportContent() {
   useEffect(() => {
     const syncLichessToken = () => {
       if (typeof window !== "undefined") {
-        const savedToken = localStorage.getItem("lichess_token");
-        const savedUser = localStorage.getItem("lichess_username");
-        if (savedToken) {
-          setLichessToken(savedToken);
-          if (savedUser) {
-            setLichessAuthUser(savedUser);
-            setLichessUsername(savedUser);
+        // Priority: isolated sessionStorage first, or localStorage only if logged in or explicitly authorized in this session
+        const sessionToken = sessionStorage.getItem("lichess_token");
+        const sessionUser = sessionStorage.getItem("lichess_username");
+        const localToken = localStorage.getItem("lichess_token");
+        const localUser = localStorage.getItem("lichess_username");
+
+        // When not logged in (guest), only accept token if authorized in the current session (sessionStorage)
+        // This prevents old/foreign tokens from localStorage from leaking into guest state!
+        const activeToken = sessionToken || (userId ? localToken : null);
+        const activeUser = sessionUser || (userId ? localUser : null);
+
+        if (activeToken) {
+          setLichessToken(activeToken);
+          if (activeUser) {
+            setLichessAuthUser(activeUser);
+            // DO NOT automatically force lichessUsername = activeUser!
+            // The linked account is only for unthrottled API rate-limiting.
+            // The user may want to import any player (e.g. NguyenHuuChien, Carlsen, etc.).
           }
         } else {
           setLichessToken("");
@@ -394,15 +405,15 @@ function ImportContent() {
     syncLichessToken();
     window.addEventListener("storage", syncLichessToken);
     return () => window.removeEventListener("storage", syncLichessToken);
-  }, []);
+  }, [userId]);
 
   // Handle Lichess OAuth redirect callback (fallback for direct callbacks)
   useEffect(() => {
     const code = searchParams.get("code");
     const state = searchParams.get("state");
     if (code && typeof window !== "undefined") {
-      const savedVerifier = localStorage.getItem("lichess_oauth_verifier");
-      const savedState = localStorage.getItem("lichess_oauth_state");
+      const savedVerifier = sessionStorage.getItem("lichess_oauth_verifier") || localStorage.getItem("lichess_oauth_verifier");
+      const savedState = sessionStorage.getItem("lichess_oauth_state") || localStorage.getItem("lichess_oauth_state");
 
       // Clean query parameters from URL
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -425,12 +436,19 @@ function ImportContent() {
           .then((res) => {
             if (res.access_token) {
               setLichessToken(res.access_token);
-              localStorage.setItem("lichess_token", res.access_token);
-              if (res.username) {
-                setLichessAuthUser(res.username);
-                setLichessUsername(res.username);
-                localStorage.setItem("lichess_username", res.username);
-              }
+              try {
+                sessionStorage.setItem("lichess_token", res.access_token);
+                if (userId) {
+                  localStorage.setItem("lichess_token", res.access_token);
+                }
+                if (res.username) {
+                  setLichessAuthUser(res.username);
+                  sessionStorage.setItem("lichess_username", res.username);
+                  if (userId) {
+                    localStorage.setItem("lichess_username", res.username);
+                  }
+                }
+              } catch {}
               setActiveTab("lichess");
             } else {
               setError(res.error || "Không thể xác thực OAuth với Lichess.");
@@ -441,12 +459,16 @@ function ImportContent() {
           })
           .finally(() => {
             setIsVerifyingLichess(false);
-            localStorage.removeItem("lichess_oauth_verifier");
-            localStorage.removeItem("lichess_oauth_state");
+            try {
+              localStorage.removeItem("lichess_oauth_verifier");
+              localStorage.removeItem("lichess_oauth_state");
+              sessionStorage.removeItem("lichess_oauth_verifier");
+              sessionStorage.removeItem("lichess_oauth_state");
+            } catch {}
           });
       }
     }
-  }, [searchParams]);
+  }, [searchParams, userId]);
 
   const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
 
@@ -459,7 +481,6 @@ function ImportContent() {
       setError("Không thể khởi tạo phiên xác thực Lichess: " + err.message);
     }
   };
-
 
   // Disconnect / Revoke Lichess Authorization
   const handleDisconnectLichess = () => {

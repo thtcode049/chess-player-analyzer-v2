@@ -36,32 +36,18 @@ def _resolve_games_for_player(
     player_name = "Player"
     games = []
 
-    # Guest Mode: strictly isolated to guest session, NEVER queries DB
+    # Guest Mode: strictly isolated to guest session, NEVER queries DB or shared stores
     if not x_user_id:
         guest_session = get_guest_session(x_guest_session_id)
         if player_id in guest_session.get("players", {}):
             player_name = guest_session["players"][player_id].get("canonical_name", "Player")
-        elif player_id in PLAYERS_STORE:
-            player_name = PLAYERS_STORE[player_id].get("canonical_name", "Player")
 
-        raw_games = guest_session.get("games", {}).get(player_id) or GAMES_STORE.get(player_id, [])
+        raw_games = guest_session.get("games", {}).get(player_id, [])
         if raw_games:
             if isinstance(raw_games[0].get("moves"), list):
                 games = raw_games
             else:
                 games = DBService.convert_db_games_to_analysis_games(raw_games, player_name)
-        else:
-            # Fallback to DB if player was persisted in database
-            try:
-                db_player = DBService.get_player(player_id)
-                if db_player:
-                    player_name = db_player.get("canonical_name", player_name)
-                db_games = DBService.get_player_games(player_id, limit=None)
-                if db_games:
-                    GAMES_STORE[player_id] = db_games
-                    games = DBService.convert_db_games_to_analysis_games(db_games, player_name)
-            except Exception as e:
-                logger.warning(f"Error resolving games from DB fallback in guest mode: {e}")
     else:
         # 1. Resolve player name for authenticated user
         if player_id in PLAYERS_STORE:

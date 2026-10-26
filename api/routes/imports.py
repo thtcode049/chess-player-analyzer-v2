@@ -95,8 +95,9 @@ async def import_pgn_file(
                     except Exception as db_err:
                         logger.warning(f"[Import PGN] DB player lookup error: {db_err}")
 
-                if not actual_player_id:
-                    for pid, p in PLAYERS_STORE.items():
+                else:
+                    session = get_guest_session(x_guest_session_id)
+                    for pid, p in session.get("players", {}).items():
                         if p.get("canonical_name", "").strip().lower() == p_lower:
                             actual_player_id = pid
                             break
@@ -115,14 +116,22 @@ async def import_pgn_file(
             if not actual_player_id:
                 actual_player_id = str(uuid.uuid4())
 
-        # Clean up any duplicate keys in PLAYERS_STORE for this player name
+        # Clean up any duplicate keys for this player name
         if not force_new_player:
             p_lower = final_player_name.strip().lower()
-            for pid in list(PLAYERS_STORE.keys()):
-                if pid != actual_player_id and PLAYERS_STORE[pid].get("canonical_name", "").strip().lower() == p_lower:
-                    del PLAYERS_STORE[pid]
-                    if pid in GAMES_STORE:
-                        del GAMES_STORE[pid]
+            if effective_user_id:
+                for pid in list(PLAYERS_STORE.keys()):
+                    if pid != actual_player_id and PLAYERS_STORE[pid].get("canonical_name", "").strip().lower() == p_lower:
+                        del PLAYERS_STORE[pid]
+                        if pid in GAMES_STORE:
+                            del GAMES_STORE[pid]
+            else:
+                session = get_guest_session(x_guest_session_id)
+                for pid in list(session.get("players", {}).keys()):
+                    if pid != actual_player_id and session["players"][pid].get("canonical_name", "").strip().lower() == p_lower:
+                        del session["players"][pid]
+                        if pid in session.get("games", {}):
+                            del session["games"][pid]
 
         # Prepare aliases list for fuzzy/variant matching
         alias_list = [final_player_name.lower().strip()]
@@ -174,10 +183,10 @@ async def import_pgn_file(
                 existing_games = DBService.get_player_games(actual_player_id, limit=None)
             except Exception as e:
                 logger.warning(f"[Import PGN] Could not fetch existing games from DB for dedup: {e}")
-
-        if not existing_games and actual_player_id in GAMES_STORE:
-            existing_games = GAMES_STORE[actual_player_id]
-        if not existing_games:
+            if not existing_games and actual_player_id in GAMES_STORE:
+                existing_games = GAMES_STORE[actual_player_id]
+        else:
+            # Guest mode: strictly retrieve from the current guest session only!
             session = get_guest_session(x_guest_session_id)
             existing_games = session.get("games", {}).get(actual_player_id, [])
 
@@ -219,6 +228,27 @@ async def import_pgn_file(
                         DBService.update_dataset(dataset_id, {"games_count": inserted})
             except Exception as db_err:
                 logger.error(f"[Import PGN] DB save error: {db_err}")
+
+            # Persist in memory store for logged-in user fast access
+            existing_store_datasets = PLAYERS_STORE.get(actual_player_id, {}).get("datasets", [])
+            store_dataset_entry = {
+                "id": dataset_id,
+                "player_id": actual_player_id,
+                "source_type": "pgn_upload",
+                "source_identifier": file.filename or "upload.pgn",
+                "games_count": len(new_unique_games),
+                "imported_at": datetime.now()
+            }
+            PLAYERS_STORE[actual_player_id] = {
+                "id": actual_player_id,
+                "user_id": effective_user_id,
+                "canonical_name": final_player_name,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+                "total_games": len(all_combined_games),
+                "datasets": existing_store_datasets + [store_dataset_entry]
+            }
+            GAMES_STORE[actual_player_id] = all_combined_games
         else:
             logger.info(f"[Import PGN] Guest mode — {len(new_unique_games)} new games cached in session (skipped {skipped_count} duplicates)")
             session = get_guest_session(x_guest_session_id)
@@ -242,27 +272,6 @@ async def import_pgn_file(
             }
             session["games"][actual_player_id] = all_combined_games
             db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
-
-        # --- In-Memory Session & Analysis Pre-computation (Fast interactive session) ---
-        existing_store_datasets = PLAYERS_STORE.get(actual_player_id, {}).get("datasets", [])
-        store_dataset_entry = {
-            "id": dataset_id,
-            "player_id": actual_player_id,
-            "source_type": "pgn_upload",
-            "source_identifier": file.filename or "upload.pgn",
-            "games_count": len(new_unique_games),
-            "imported_at": datetime.now()
-        }
-        PLAYERS_STORE[actual_player_id] = {
-            "id": actual_player_id,
-            "user_id": effective_user_id or "guest",
-            "canonical_name": final_player_name,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now(),
-            "total_games": len(all_combined_games),
-            "datasets": existing_store_datasets + [store_dataset_entry]
-        }
-        GAMES_STORE[actual_player_id] = all_combined_games
 
         run_id = str(uuid.uuid4())
         try:
@@ -387,8 +396,9 @@ async def import_lichess(
                     except Exception as db_err:
                         logger.warning(f"[Import Lichess] DB player lookup error: {db_err}")
 
-                if not target_player_id:
-                    for pid, p in PLAYERS_STORE.items():
+                if not effective_user_id:
+                    session = get_guest_session(x_guest_session_id)
+                    for pid, p in session.get("players", {}).items():
                         if p.get("canonical_name", "").strip().lower() == u_lower:
                             target_player_id = pid
                             break
@@ -407,13 +417,21 @@ async def import_lichess(
             if not target_player_id:
                 target_player_id = str(uuid.uuid4())
 
-        # Clean up any duplicate keys in PLAYERS_STORE for this player name
+        # Clean up any duplicate keys for this player name
         if not req.force_new_player:
-            for pid in list(PLAYERS_STORE.keys()):
-                if pid != target_player_id and PLAYERS_STORE[pid].get("canonical_name", "").strip().lower() == u_lower:
-                    del PLAYERS_STORE[pid]
-                    if pid in GAMES_STORE:
-                        del GAMES_STORE[pid]
+            if effective_user_id:
+                for pid in list(PLAYERS_STORE.keys()):
+                    if pid != target_player_id and PLAYERS_STORE[pid].get("canonical_name", "").strip().lower() == u_lower:
+                        del PLAYERS_STORE[pid]
+                        if pid in GAMES_STORE:
+                            del GAMES_STORE[pid]
+            else:
+                session = get_guest_session(x_guest_session_id)
+                for pid in list(session.get("players", {}).keys()):
+                    if pid != target_player_id and session["players"][pid].get("canonical_name", "").strip().lower() == u_lower:
+                        del session["players"][pid]
+                        if pid in session.get("games", {}):
+                            del session["games"][pid]
 
         # Tag player color using Lichess username
         for g in raw_games:
@@ -431,10 +449,10 @@ async def import_lichess(
                 existing_games = DBService.get_player_games(target_player_id, limit=None)
             except Exception as e:
                 logger.warning(f"[Import Lichess] Could not fetch existing games from DB for dedup: {e}")
-
-        if not existing_games and target_player_id in GAMES_STORE:
-            existing_games = GAMES_STORE[target_player_id]
-        if not existing_games:
+            if not existing_games and target_player_id in GAMES_STORE:
+                existing_games = GAMES_STORE[target_player_id]
+        else:
+            # Guest mode: strictly retrieve from the current guest session only!
             session = get_guest_session(x_guest_session_id)
             existing_games = session.get("games", {}).get(target_player_id, [])
 
@@ -474,6 +492,26 @@ async def import_lichess(
                         DBService.update_dataset(dataset_id, {"games_count": inserted})
             except Exception as db_err:
                 logger.error(f"[Import Lichess] DB save error: {db_err}")
+
+            existing_store_datasets = PLAYERS_STORE.get(target_player_id, {}).get("datasets", [])
+            store_dataset_entry = {
+                "id": dataset_id,
+                "player_id": target_player_id,
+                "source_type": "lichess",
+                "source_identifier": u_name,
+                "games_count": len(new_unique_games),
+                "imported_at": datetime.now()
+            }
+            PLAYERS_STORE[target_player_id] = {
+                "id": target_player_id,
+                "user_id": effective_user_id,
+                "canonical_name": player_display_name,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+                "total_games": len(all_combined_games),
+                "datasets": existing_store_datasets + [store_dataset_entry]
+            }
+            GAMES_STORE[target_player_id] = all_combined_games
         else:
             logger.info(f"[Import Lichess] Guest mode — {len(new_unique_games)} new games cached (skipped {skipped_count} duplicates)")
             session = get_guest_session(x_guest_session_id)
@@ -497,26 +535,6 @@ async def import_lichess(
             }
             session["games"][target_player_id] = all_combined_games
             db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
-
-        existing_store_datasets = PLAYERS_STORE.get(target_player_id, {}).get("datasets", [])
-        store_dataset_entry = {
-            "id": dataset_id,
-            "player_id": target_player_id,
-            "source_type": "lichess",
-            "source_identifier": u_name,
-            "games_count": len(new_unique_games),
-            "imported_at": datetime.now()
-        }
-        PLAYERS_STORE[target_player_id] = {
-            "id": target_player_id,
-            "user_id": effective_user_id or "guest",
-            "canonical_name": player_display_name,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now(),
-            "total_games": len(all_combined_games),
-            "datasets": existing_store_datasets + [store_dataset_entry]
-        }
-        GAMES_STORE[target_player_id] = all_combined_games
 
         run_id = str(uuid.uuid4())
         try:
@@ -637,8 +655,9 @@ async def import_chesscom(
                     except Exception as db_err:
                         logger.warning(f"[Import Chess.com] DB player lookup error: {db_err}")
 
-                if not target_player_id:
-                    for pid, p in PLAYERS_STORE.items():
+                if not effective_user_id:
+                    session = get_guest_session(x_guest_session_id)
+                    for pid, p in session.get("players", {}).items():
                         if p.get("canonical_name", "").strip().lower() == u_lower:
                             target_player_id = pid
                             break
@@ -657,13 +676,21 @@ async def import_chesscom(
             if not target_player_id:
                 target_player_id = str(uuid.uuid4())
 
-        # Clean up any duplicate keys in PLAYERS_STORE for this player name
+        # Clean up any duplicate keys for this player name
         if not req.force_new_player:
-            for pid in list(PLAYERS_STORE.keys()):
-                if pid != target_player_id and PLAYERS_STORE[pid].get("canonical_name", "").strip().lower() == u_lower:
-                    del PLAYERS_STORE[pid]
-                    if pid in GAMES_STORE:
-                        del GAMES_STORE[pid]
+            if effective_user_id:
+                for pid in list(PLAYERS_STORE.keys()):
+                    if pid != target_player_id and PLAYERS_STORE[pid].get("canonical_name", "").strip().lower() == u_lower:
+                        del PLAYERS_STORE[pid]
+                        if pid in GAMES_STORE:
+                            del GAMES_STORE[pid]
+            else:
+                session = get_guest_session(x_guest_session_id)
+                for pid in list(session.get("players", {}).keys()):
+                    if pid != target_player_id and session["players"][pid].get("canonical_name", "").strip().lower() == u_lower:
+                        del session["players"][pid]
+                        if pid in session.get("games", {}):
+                            del session["games"][pid]
 
         # Tag player color using Chess.com username
         for g in raw_games:
@@ -681,10 +708,10 @@ async def import_chesscom(
                 existing_games = DBService.get_player_games(target_player_id, limit=None)
             except Exception as e:
                 logger.warning(f"[Import Chess.com] Could not fetch existing games from DB for dedup: {e}")
-
-        if not existing_games and target_player_id in GAMES_STORE:
-            existing_games = GAMES_STORE[target_player_id]
-        if not existing_games:
+            if not existing_games and target_player_id in GAMES_STORE:
+                existing_games = GAMES_STORE[target_player_id]
+        else:
+            # Guest mode: strictly retrieve from the current guest session only!
             session = get_guest_session(x_guest_session_id)
             existing_games = session.get("games", {}).get(target_player_id, [])
 
@@ -724,6 +751,26 @@ async def import_chesscom(
                         DBService.update_dataset(dataset_id, {"games_count": inserted})
             except Exception as db_err:
                 logger.error(f"[Import Chess.com] DB save error: {db_err}")
+
+            existing_store_datasets = PLAYERS_STORE.get(target_player_id, {}).get("datasets", [])
+            store_dataset_entry = {
+                "id": dataset_id,
+                "player_id": target_player_id,
+                "source_type": "chesscom",
+                "source_identifier": u_name,
+                "games_count": len(new_unique_games),
+                "imported_at": datetime.now()
+            }
+            PLAYERS_STORE[target_player_id] = {
+                "id": target_player_id,
+                "user_id": effective_user_id,
+                "canonical_name": player_display_name,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+                "total_games": len(all_combined_games),
+                "datasets": existing_store_datasets + [store_dataset_entry]
+            }
+            GAMES_STORE[target_player_id] = all_combined_games
         else:
             logger.info(f"[Import Chess.com] Guest mode — {len(new_unique_games)} new games cached (skipped {skipped_count} duplicates)")
             session = get_guest_session(x_guest_session_id)
@@ -747,26 +794,6 @@ async def import_chesscom(
             }
             session["games"][target_player_id] = all_combined_games
             db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
-
-        existing_store_datasets = PLAYERS_STORE.get(target_player_id, {}).get("datasets", [])
-        store_dataset_entry = {
-            "id": dataset_id,
-            "player_id": target_player_id,
-            "source_type": "chesscom",
-            "source_identifier": u_name,
-            "games_count": len(new_unique_games),
-            "imported_at": datetime.now()
-        }
-        PLAYERS_STORE[target_player_id] = {
-            "id": target_player_id,
-            "user_id": effective_user_id or "guest",
-            "canonical_name": player_display_name,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now(),
-            "total_games": len(all_combined_games),
-            "datasets": existing_store_datasets + [store_dataset_entry]
-        }
-        GAMES_STORE[target_player_id] = all_combined_games
 
         run_id = str(uuid.uuid4())
         try:

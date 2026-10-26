@@ -1,14 +1,22 @@
 """
 AI Coach Route Handlers (Briefings & Streaming Tactical Chat)
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from typing import Dict, Any, Tuple, Optional, List
 import json
+import uuid
 import logging
 
 from api.schemas.common import BaseResponse
-from api.schemas.ai import BriefingRequest, BriefingResponse, ChatRequest
+from api.schemas.ai import (
+    BriefingRequest,
+    BriefingResponse,
+    ChatRequest,
+    ChatSessionResponse,
+    ChatSessionCreateRequest,
+    ChatSessionUpdateRequest,
+)
 from api.services.ai_service import AIService
 from api.services.db_service import DBService
 from api.routes.analyses import RUN_SNAPSHOTS_CACHE, _resolve_games_for_player
@@ -240,3 +248,86 @@ async def chat_with_ai_coach(req: ChatRequest):
             "X-Accel-Buffering": "no"
         }
     )
+
+
+# =============================================================================
+# AI CHAT SESSIONS CRUD (SUPABASE CROSS-DEVICE PERSISTENCE)
+# =============================================================================
+
+@router.get("/sessions", response_model=BaseResponse[List[ChatSessionResponse]])
+async def list_chat_sessions(x_user_id: Optional[str] = Header(None)):
+    """
+    List AI chat sessions for the authenticated user, ordered by pinned DESC, updated_at DESC.
+    Returns empty list for guest users.
+    """
+    if not x_user_id:
+        return BaseResponse(success=True, data=[])
+
+    sessions = DBService.get_chat_sessions(x_user_id)
+    return BaseResponse(success=True, data=sessions)
+
+
+@router.get("/sessions/{session_id}", response_model=BaseResponse[ChatSessionResponse])
+async def get_chat_session(session_id: str, x_user_id: Optional[str] = Header(None)):
+    """
+    Get a single chat session by ID.
+    """
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="Yêu cầu đăng nhập để truy cập lịch sử chat")
+
+    session = DBService.get_chat_session(session_id, x_user_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Không tìm thấy cuộc trò chuyện")
+
+    return BaseResponse(success=True, data=session)
+
+
+@router.post("/sessions", response_model=BaseResponse[ChatSessionResponse])
+async def create_chat_session(req: ChatSessionCreateRequest, x_user_id: Optional[str] = Header(None)):
+    """
+    Create or persist a new AI chat session.
+    """
+    if not x_user_id:
+        # Guest fallback: Return transient session representation
+        guest_session = req.model_dump()
+        guest_session["id"] = guest_session.get("id") or f"guest_{uuid.uuid4().hex}"
+        guest_session["user_id"] = "guest"
+        return BaseResponse(success=True, data=guest_session)
+
+    saved = DBService.upsert_chat_session(req.model_dump(), x_user_id)
+    if not saved:
+        fallback_session = req.model_dump()
+        fallback_session["id"] = fallback_session.get("id") or str(uuid.uuid4())
+        fallback_session["user_id"] = x_user_id
+        return BaseResponse(success=True, data=fallback_session)
+
+    return BaseResponse(success=True, data=saved)
+
+
+@router.patch("/sessions/{session_id}", response_model=BaseResponse[Optional[ChatSessionResponse]])
+async def update_chat_session(
+    session_id: str,
+    req: ChatSessionUpdateRequest,
+    x_user_id: Optional[str] = Header(None)
+):
+    """
+    Update a chat session (rename title, pin/unpin, add messages, update player_ids).
+    """
+    if not x_user_id:
+        return BaseResponse(success=True, data=None)
+
+    updated = DBService.update_chat_session(session_id, req.model_dump(exclude_unset=True), x_user_id)
+    return BaseResponse(success=True, data=updated)
+
+
+@router.delete("/sessions/{session_id}", response_model=BaseResponse[Dict[str, bool]])
+async def delete_chat_session(session_id: str, x_user_id: Optional[str] = Header(None)):
+    """
+    Delete a chat session.
+    """
+    if not x_user_id:
+        return BaseResponse(success=True, data={"deleted": True})
+
+    deleted = DBService.delete_chat_session(session_id, x_user_id)
+    return BaseResponse(success=True, data={"deleted": deleted})
+

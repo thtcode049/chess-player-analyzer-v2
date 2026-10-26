@@ -138,9 +138,23 @@ export default function Navbar() {
   }, [activeMode]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {}
     setUser(null);
     setMobileMenuOpen(false);
+
+    // Dọn dẹp triệt để localStorage và sessionStorage để tránh rò rỉ dữ liệu sang trạng thái khách
+    try {
+      localStorage.removeItem("lichess_token");
+      localStorage.removeItem("lichess_username");
+      localStorage.removeItem("setting_lichess_user");
+      localStorage.removeItem("setting_chesscom_user");
+      sessionStorage.removeItem("lichess_token");
+      sessionStorage.removeItem("lichess_username");
+      sessionStorage.removeItem("chess_guest_session_id");
+    } catch {}
+
     window.location.href = "/login";
   };
 

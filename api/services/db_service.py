@@ -499,3 +499,108 @@ class DBService:
             logger.warning(f"Failed to fetch analysis run for player {player_id}: {e}")
             return None
 
+    # =========================================================================
+    # AI CHAT SESSIONS CRUD
+    # =========================================================================
+
+    @staticmethod
+    def get_chat_sessions(user_id: str) -> List[Dict[str, Any]]:
+        """Fetch all chat sessions for a user, ordered by pinned DESC, updated_at DESC."""
+        try:
+            sb = get_supabase()
+            res = (
+                sb.table("ai_chat_sessions")
+                .select("*")
+                .eq("user_id", user_id)
+                .order("pinned", desc=True)
+                .order("updated_at", desc=True)
+                .execute()
+            )
+            return res.data or []
+        except Exception as e:
+            logger.warning(f"Failed to fetch chat sessions for user {user_id}: {e}")
+            return []
+
+    @staticmethod
+    def get_chat_session(session_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch single chat session by id and user_id."""
+        try:
+            sb = get_supabase()
+            res = (
+                sb.table("ai_chat_sessions")
+                .select("*")
+                .eq("id", session_id)
+                .eq("user_id", user_id)
+                .limit(1)
+                .execute()
+            )
+            return res.data[0] if res.data else None
+        except Exception as e:
+            logger.warning(f"Failed to fetch chat session {session_id} for user {user_id}: {e}")
+            return None
+
+    @staticmethod
+    def upsert_chat_session(session_data: Dict[str, Any], user_id: str) -> Optional[Dict[str, Any]]:
+        """Create or upsert a chat session record."""
+        try:
+            import datetime
+            now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            record = {
+                "user_id": user_id,
+                "player_ids": session_data.get("player_ids") or [],
+                "title": session_data.get("title") or "Cuộc trò chuyện mới",
+                "perspective_mode": session_data.get("perspective_mode") or "self",
+                "pinned": bool(session_data.get("pinned", False)),
+                "messages": session_data.get("messages") or [],
+                "updated_at": now_iso
+            }
+            if session_data.get("id"):
+                record["id"] = session_data["id"]
+            if session_data.get("created_at"):
+                record["created_at"] = session_data["created_at"]
+
+            sb = get_supabase()
+            res = sb.table("ai_chat_sessions").upsert(record).execute()
+            return res.data[0] if res.data else None
+        except Exception as e:
+            logger.warning(f"Failed to upsert chat session: {e}")
+            return None
+
+    @staticmethod
+    def update_chat_session(session_id: str, updates: Dict[str, Any], user_id: str) -> Optional[Dict[str, Any]]:
+        """Update specific fields of a chat session."""
+        try:
+            import datetime
+            clean_updates = {k: v for k, v in updates.items() if v is not None}
+            clean_updates["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            sb = get_supabase()
+            res = (
+                sb.table("ai_chat_sessions")
+                .update(clean_updates)
+                .eq("id", session_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
+            return res.data[0] if res.data else None
+        except Exception as e:
+            logger.warning(f"Failed to update chat session {session_id}: {e}")
+            return None
+
+    @staticmethod
+    def delete_chat_session(session_id: str, user_id: str) -> bool:
+        """Delete a chat session by id and user_id."""
+        try:
+            sb = get_supabase()
+            res = (
+                sb.table("ai_chat_sessions")
+                .delete()
+                .eq("id", session_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
+            return bool(res.data)
+        except Exception as e:
+            logger.warning(f"Failed to delete chat session {session_id}: {e}")
+            return False
+
+

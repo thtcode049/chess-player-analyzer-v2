@@ -157,7 +157,7 @@ async def create_player(
             )
         )
 
-    # 2. Guest mode: Pure session storage, no DB write
+    # 2. Guest mode: Pure session storage, no DB write, no shared PLAYERS_STORE
     session = get_guest_session(x_guest_session_id)
     record = {
         "id": new_id,
@@ -170,8 +170,6 @@ async def create_player(
         "updated_at": now
     }
     session["players"][new_id] = record
-    # Also keep in PLAYERS_STORE under new_id for local routing
-    PLAYERS_STORE[new_id] = record
 
     response_data = PlayerResponse(
         id=new_id,
@@ -196,10 +194,10 @@ async def get_player(
 ):
     """
     Retrieves player details by ID:
-    - In guest mode, checks guest session.
+    - In guest mode, checks guest session ONLY. Never touches DB or shared stores.
     - In logged-in mode, checks DB / user store.
     """
-    # 1. Check guest session first if in guest mode
+    # 1. Guest mode: strictly isolated to guest session
     if not x_user_id:
         session = get_guest_session(x_guest_session_id)
         if player_id in session["players"]:
@@ -227,6 +225,7 @@ async def get_player(
                 updated_at=p.get("updated_at", datetime.now()),
                 datasets=guest_datasets
             ))
+        raise HTTPException(status_code=404, detail="Player not found in guest session")
 
     # 2. Check in-memory store
     if player_id in PLAYERS_STORE:
@@ -325,23 +324,22 @@ async def list_player_games(
     """
     games: List[Dict[str, Any]] = []
 
-    # 1. DB query first (fetches all unique games for player if in DB)
-    try:
-        db_games = DBService.get_player_games(player_id, limit=None)
-        if db_games:
-            GAMES_STORE[player_id] = db_games
-            games = db_games
-    except Exception as e:
-        logger.warning(f"Error fetching player games from DB: {e}")
-
-    # 2. In-memory fallback
-    if not games and player_id in GAMES_STORE:
-        games = GAMES_STORE[player_id]
-
-    # 3. Guest session fallback
-    if not games:
+    # Guest mode: Strictly isolated to current guest session. Never queries DB or shared stores.
+    if not x_user_id:
         session = get_guest_session(x_guest_session_id)
         games = session.get("games", {}).get(player_id, [])
+    else:
+        # Logged-in mode
+        try:
+            db_games = DBService.get_player_games(player_id, limit=None)
+            if db_games:
+                GAMES_STORE[player_id] = db_games
+                games = db_games
+        except Exception as e:
+            logger.warning(f"Error fetching player games from DB: {e}")
+
+        if not games and player_id in GAMES_STORE:
+            games = GAMES_STORE[player_id]
 
     # Filter by Color
     filtered = games
@@ -453,60 +451,62 @@ async def update_player(
     updated = False
     player_data: Optional[Dict[str, Any]] = None
 
-    # 1. Check guest session
-    session = get_guest_session(x_guest_session_id)
-    if player_id in session["players"]:
-        p = session["players"][player_id]
+    # 1. Guest mode: strictly inside guest session
+    if not x_user_id:
+        session = get_guest_session(x_guest_session_id)
+        if player_id in session["players"]:
+            p = session["players"][player_id]
+            if req.canonical_name is not None:
+                p["canonical_name"] = req.canonical_name.strip()
+            if req.title is not None:
+                p["title"] = req.title.strip() or None
+            if req.fide_id is not None:
+                p["fide_id"] = req.fide_id
+            if req.notes is not None:
+                p["notes"] = req.notes.strip() or None
+            p["updated_at"] = now
+            session["players"][player_id] = p
+            player_data = p
+            updated = True
+        else:
+            raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ kỳ thủ trong phiên khách")
+
+    # 2. Logged-in mode: Check DB / user store
+    else:
+        if player_id in PLAYERS_STORE:
+            p = PLAYERS_STORE[player_id]
+            if req.canonical_name is not None:
+                p["canonical_name"] = req.canonical_name.strip()
+            if req.title is not None:
+                p["title"] = req.title.strip() or None
+            if req.fide_id is not None:
+                p["fide_id"] = req.fide_id
+            if req.notes is not None:
+                p["notes"] = req.notes.strip() or None
+            p["updated_at"] = now
+            PLAYERS_STORE[player_id] = p
+            player_data = p
+            updated = True
+
+        updates = {}
         if req.canonical_name is not None:
-            p["canonical_name"] = req.canonical_name.strip()
+            updates["canonical_name"] = req.canonical_name.strip()
         if req.title is not None:
-            p["title"] = req.title.strip() or None
+            updates["title"] = req.title.strip() or None
         if req.fide_id is not None:
-            p["fide_id"] = req.fide_id
+            updates["fide_id"] = req.fide_id
         if req.notes is not None:
-            p["notes"] = req.notes.strip() or None
-        p["updated_at"] = now
-        session["players"][player_id] = p
-        PLAYERS_STORE[player_id] = p
-        player_data = p
-        updated = True
+            updates["notes"] = req.notes.strip() or None
 
-    # 2. Check PLAYERS_STORE
-    elif player_id in PLAYERS_STORE:
-        p = PLAYERS_STORE[player_id]
-        if req.canonical_name is not None:
-            p["canonical_name"] = req.canonical_name.strip()
-        if req.title is not None:
-            p["title"] = req.title.strip() or None
-        if req.fide_id is not None:
-            p["fide_id"] = req.fide_id
-        if req.notes is not None:
-            p["notes"] = req.notes.strip() or None
-        p["updated_at"] = now
-        PLAYERS_STORE[player_id] = p
-        player_data = p
-        updated = True
-
-    # 3. Update DB if logged-in user
-    updates = {}
-    if req.canonical_name is not None:
-        updates["canonical_name"] = req.canonical_name.strip()
-    if req.title is not None:
-        updates["title"] = req.title.strip() or None
-    if req.fide_id is not None:
-        updates["fide_id"] = req.fide_id
-    if req.notes is not None:
-        updates["notes"] = req.notes.strip() or None
-
-    if updates and x_user_id:
-        updates["updated_at"] = now.isoformat()
-        try:
-            db_res = DBService.update_player(player_id, updates, user_id=x_user_id)
-            if db_res:
-                player_data = db_res
-                updated = True
-        except Exception as e:
-            logger.warning(f"Error updating player in DB: {e}")
+        if updates:
+            updates["updated_at"] = now.isoformat()
+            try:
+                db_res = DBService.update_player(player_id, updates, user_id=x_user_id)
+                if db_res:
+                    player_data = db_res
+                    updated = True
+            except Exception as e:
+                logger.warning(f"Error updating player in DB: {e}")
 
     if not updated or not player_data:
         raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ kỳ thủ cần chỉnh sửa")
@@ -515,9 +515,9 @@ async def update_player(
     total_g = 0
     if not x_user_id:
         total_g = len(session.get("games", {}).get(player_id, []))
-    if not total_g and player_id in GAMES_STORE:
+    elif player_id in GAMES_STORE:
         total_g = len(GAMES_STORE.get(player_id, []))
-    if not total_g and "datasets" in player_data:
+    elif "datasets" in player_data:
         total_g = sum(d.get("games_count", 0) for d in player_data.get("datasets", []))
 
     response_data = PlayerResponse(
@@ -543,7 +543,7 @@ async def delete_player(
 ):
     """
     Deletes a player profile:
-    - If guest, removes from guest session and memory.
+    - If guest, removes strictly from guest session.
     - If user, cascades delete across datasets, games, analysis_runs in Supabase DB.
     - Evicts any cached analysis snapshots.
     """
@@ -556,24 +556,24 @@ async def delete_player(
     except Exception:
         pass
 
-    # Remove from guest session
-    session = get_guest_session(x_guest_session_id)
-    if player_id in session["players"]:
-        del session["players"][player_id]
-        deleted = True
-    if player_id in session["games"]:
-        del session["games"][player_id]
-    if "runs" in session and player_id in session["runs"]:
-        del session["runs"][player_id]
+    # If guest mode, strictly remove from guest session
+    if not x_user_id:
+        session = get_guest_session(x_guest_session_id)
+        if player_id in session["players"]:
+            del session["players"][player_id]
+            deleted = True
+        if player_id in session["games"]:
+            del session["games"][player_id]
+        if "runs" in session and player_id in session["runs"]:
+            del session["runs"][player_id]
+    else:
+        # Logged-in user mode
+        if player_id in PLAYERS_STORE:
+            del PLAYERS_STORE[player_id]
+            deleted = True
+        if player_id in GAMES_STORE:
+            del GAMES_STORE[player_id]
 
-    if player_id in PLAYERS_STORE:
-        del PLAYERS_STORE[player_id]
-        deleted = True
-    if player_id in GAMES_STORE:
-        del GAMES_STORE[player_id]
-
-    # Delete from DB if logged-in user
-    if x_user_id:
         try:
             db_deleted = DBService.delete_player(player_id, user_id=x_user_id)
             if db_deleted:

@@ -378,3 +378,61 @@ def test_canonical_opening_endpoint():
     res3 = client.get("/api/analysis/openings/canonical?name=NonExistentOpeningXYZ123")
     assert res3.status_code == 404
 
+
+def test_cross_guest_session_isolation():
+    """
+    Verifies that two different guest users (distinct X-Guest-Session-Id headers)
+    are strictly isolated:
+    1. Guest A imports player 'NguyenHuuChien'.
+    2. Guest B lists players: must NOT see Guest A's player!
+    3. Guest B imports player 'NguyenHuuChien': must NOT detect duplicate games from Guest A!
+    """
+    session_a = "guest-session-alpha-111"
+    session_b = "guest-session-beta-222"
+
+    pgn_content = (
+        '[Event "Rated Blitz game"]\n'
+        '[Site "https://lichess.org/test1234"]\n'
+        '[Date "2025.01.01"]\n'
+        '[White "NguyenHuuChien"]\n'
+        '[Black "OpponentA"]\n'
+        '[Result "1-0"]\n\n'
+        '1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 1-0\n'
+    )
+
+    # 1. Guest A imports 'NguyenHuuChien'
+    file_bytes_a = io.BytesIO(pgn_content.encode("utf-8"))
+    res_a = client.post(
+        "/api/import/pgn-file",
+        files={"file": ("games_a.pgn", file_bytes_a, "application/x-chess-pgn")},
+        data={"max_games": 10},
+        headers={"x-guest-session-id": session_a}
+    )
+    assert res_a.status_code == 200
+    data_a = res_a.json()["data"]
+    assert data_a["imported_count"] == 1
+    assert data_a["skipped_count"] == 0
+    player_id_a = data_a["player_id"]
+
+    # 2. Guest B lists players: must be isolated and NOT see Guest A's player
+    res_list_b = client.get("/api/players", headers={"x-guest-session-id": session_b})
+    assert res_list_b.status_code == 200
+    players_b = res_list_b.json()["data"]
+    assert not any(p["id"] == player_id_a for p in players_b)
+    assert not any(p["canonical_name"] == "NguyenHuuChien" for p in players_b)
+
+    # 3. Guest B imports the same PGN with same player:
+    # Must import as a NEW game (imported_count == 1, skipped_count == 0) and NOT be skipped as duplicate!
+    file_bytes_b = io.BytesIO(pgn_content.encode("utf-8"))
+    res_b = client.post(
+        "/api/import/pgn-file",
+        files={"file": ("games_b.pgn", file_bytes_b, "application/x-chess-pgn")},
+        data={"max_games": 10},
+        headers={"x-guest-session-id": session_b}
+    )
+    assert res_b.status_code == 200
+    data_b = res_b.json()["data"]
+    assert data_b["imported_count"] == 1
+    assert data_b["skipped_count"] == 0
+    assert data_b["player_id"] != player_id_a
+

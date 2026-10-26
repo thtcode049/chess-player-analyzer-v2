@@ -435,24 +435,6 @@ export default function AiAssistantChat({
 
         {/* Right header controls */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Board Toggle Button */}
-          {onToggleBoard && (
-            <button
-              type="button"
-              onClick={onToggleBoard}
-              title={isBoardOpen ? "Thu gọn bàn cờ để chat toàn màn hình" : "Mở bàn cờ tương tác"}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
-                isBoardOpen
-                  ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300/50"
-                  : "bg-muted text-muted-foreground hover:text-foreground border border-border/70"
-              }`}
-            >
-              {isBoardOpen ? <Eye className="w-3.5 h-3.5 text-emerald-600" /> : <EyeOff className="w-3.5 h-3.5" />}
-              <span className="hidden md:inline">Bàn cờ:</span>
-              <span className="font-bold">{isBoardOpen ? "BẬT" : "TẮT"}</span>
-            </button>
-          )}
-
           {/* New Chat Button */}
           {onNewChat && (
             <button

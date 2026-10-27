@@ -7,9 +7,13 @@ Uses SERVICE_ROLE key (bypass RLS) for server-side inserts from FastAPI.
 import os
 import logging
 from typing import List, Dict, Any, Optional
+from datetime import datetime, timezone, timedelta
 from supabase import create_client, Client
 
 logger = logging.getLogger(__name__)
+
+# System Guest Account UUID in Supabase auth.users for persistent serverless guest sessions
+GUEST_SYSTEM_USER_ID = os.environ.get("GUEST_SYSTEM_USER_ID", "e789d895-173d-4c11-a828-43944a3b677b")
 
 def get_supabase() -> Client:
     url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
@@ -106,32 +110,37 @@ class DBService:
     """
 
     @staticmethod
-    def upsert_player(user_id: str, canonical_name: str, title: str = "", force_new: bool = False) -> Dict[str, Any]:
+    def upsert_player(user_id: str, canonical_name: str, title: str = "", force_new: bool = False, notes: str = "") -> Dict[str, Any]:
         """
         Insert or return existing player by canonical_name for a given user.
         If force_new is True, always inserts a new player record.
         """
         sb = get_supabase()
         if not force_new:
-            # Check if already exists
-            existing = (
+            # Check if already exists (scoped to specific guest session notes if present)
+            query = (
                 sb.table("players")
                 .select("*")
                 .eq("user_id", user_id)
                 .ilike("canonical_name", canonical_name)
-                .limit(1)
-                .execute()
             )
+            if notes:
+                query = query.eq("notes", notes)
+            existing = query.limit(1).execute()
             if existing.data:
                 return existing.data[0]
 
+        payload: Dict[str, Any] = {
+            "user_id": user_id,
+            "canonical_name": canonical_name,
+            "title": title or None,
+        }
+        if notes:
+            payload["notes"] = notes
+
         res = (
             sb.table("players")
-            .insert({
-                "user_id": user_id,
-                "canonical_name": canonical_name,
-                "title": title or None,
-            })
+            .insert(payload)
             .execute()
         )
         if not res.data:
@@ -236,11 +245,36 @@ class DBService:
     @staticmethod
     def get_player(player_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         sb = get_supabase()
-        query = sb.table("players").select("*, datasets(*)").eq("id", player_id)
         if user_id:
-            query = query.eq("user_id", user_id)
-        res = query.limit(1).execute()
-        return res.data[0] if res.data else None
+            res = (
+                sb.table("players")
+                .select("*, datasets(*)")
+                .eq("id", player_id)
+                .eq("user_id", user_id)
+                .limit(1)
+                .execute()
+            )
+            if res.data:
+                return res.data[0]
+        # Direct lookup by ID (fallback for shared, guest, or unlinked profiles)
+        fallback = sb.table("players").select("*, datasets(*)").eq("id", player_id).limit(1).execute()
+        return fallback.data[0] if fallback.data else None
+
+    @staticmethod
+    def get_players_by_notes_tag(notes_prefix: str) -> List[Dict[str, Any]]:
+        try:
+            sb = get_supabase()
+            res = (
+                sb.table("players")
+                .select("*, datasets(*)")
+                .ilike("notes", f"{notes_prefix}%")
+                .order("created_at", desc=True)
+                .execute()
+            )
+            return res.data or []
+        except Exception as e:
+            logger.warning(f"Error fetching players by notes tag: {e}")
+            return []
 
     @staticmethod
     def update_player(player_id: str, updates: Dict[str, Any], user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -290,6 +324,101 @@ class DBService:
         except Exception as e:
             logger.warning(f"Failed to delete player {player_id}: {e}")
             return False
+
+    @staticmethod
+    def cleanup_expired_guest_data(max_age_hours: int = 24) -> int:
+        """
+        Deletes players, datasets, games, and analysis_runs belonging to guest sessions
+        that are older than max_age_hours (default: 24h).
+        Returns the number of deleted guest players.
+        """
+        try:
+            sb = get_supabase()
+            cutoff = (datetime.now(timezone.utc) - timedelta(hours=max_age_hours)).isoformat()
+
+            # 1. Query guest-tagged players older than cutoff
+            res = (
+                sb.table("players")
+                .select("id, canonical_name, notes, created_at")
+                .ilike("notes", "guest:%")
+                .lt("created_at", cutoff)
+                .execute()
+            )
+            expired_players = res.data or []
+
+            # 2. Query any players under GUEST_SYSTEM_USER_ID older than cutoff
+            if GUEST_SYSTEM_USER_ID:
+                try:
+                    sys_res = (
+                        sb.table("players")
+                        .select("id, canonical_name, notes, created_at")
+                        .eq("user_id", GUEST_SYSTEM_USER_ID)
+                        .lt("created_at", cutoff)
+                        .execute()
+                    )
+                    existing_ids = {p["id"] for p in expired_players}
+                    for p in (sys_res.data or []):
+                        if p["id"] not in existing_ids:
+                            expired_players.append(p)
+                except Exception as e:
+                    logger.warning(f"[Cleanup] Error querying system guest players: {e}")
+
+            deleted_count = 0
+            for p in expired_players:
+                p_id = p["id"]
+                try:
+                    if DBService.delete_player(p_id):
+                        deleted_count += 1
+                        logger.info(f"[Cleanup] Purged expired guest player {p_id} ({p.get('canonical_name')})")
+                except Exception as err:
+                    logger.warning(f"[Cleanup] Failed to delete expired player {p_id}: {err}")
+
+            return deleted_count
+        except Exception as e:
+            logger.error(f"[Cleanup] Error during guest data cleanup: {e}")
+            return 0
+
+    @staticmethod
+    def claim_guest_data(guest_session_id: str, new_user_id: str) -> int:
+        """
+        Transfers all players and associated datasets/analyses created under
+        a guest session tag to a real authenticated user_id.
+        """
+        if not guest_session_id or not new_user_id:
+            return 0
+        try:
+            sb = get_supabase()
+            notes_prefix = f"guest:{guest_session_id.strip()}"
+
+            # Find players matching this guest session
+            res = (
+                sb.table("players")
+                .select("id, canonical_name, notes")
+                .ilike("notes", f"{notes_prefix}%")
+                .execute()
+            )
+            guest_players = res.data or []
+            if not guest_players:
+                return 0
+
+            claimed_count = 0
+            for p in guest_players:
+                p_id = p["id"]
+                raw_notes = p.get("notes") or ""
+                clean_notes = raw_notes.replace(notes_prefix, "").strip()
+                upd = {
+                    "user_id": new_user_id,
+                    "notes": clean_notes or None,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+                sb.table("players").update(upd).eq("id", p_id).execute()
+                claimed_count += 1
+                logger.info(f"[Claim] Claimed guest player {p_id} ({p.get('canonical_name')}) for user {new_user_id}")
+
+            return claimed_count
+        except Exception as e:
+            logger.error(f"[Claim] Error claiming guest data for {new_user_id}: {e}")
+            return 0
 
     @staticmethod
     def get_games(dataset_id: str, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:

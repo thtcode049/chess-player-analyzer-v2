@@ -43,8 +43,11 @@ interface ProfileWorkspaceContextType {
   // Profile Cache & Single-load
   cachedProfiles: Record<string, CachedProfileData>;
   loadingProfileId: string | null;
+  failedProfileIds: Record<string, string>;
   loadProfileData: (playerId: string, forceRefresh?: boolean) => Promise<CachedProfileData | null>;
   refreshProfileData: (playerId: string) => Promise<void>;
+  retryLoadProfile: (playerId: string) => Promise<CachedProfileData | null>;
+  seedProfileData: (profile: CachedProfileData) => void;
 
   // Active Mode & Selections
   activeMode: ProfileMode;
@@ -107,6 +110,21 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
   // In-memory cache for profiles
   const [cachedProfiles, setCachedProfiles] = useState<Record<string, CachedProfileData>>({});
   const [loadingProfileId, setLoadingProfileId] = useState<string | null>(null);
+  const [failedProfileIds, setFailedProfileIds] = useState<Record<string, string>>({});
+
+  const seedProfileData = useCallback((profile: CachedProfileData) => {
+    if (!profile?.player?.id) return;
+    setCachedProfiles((prev) => ({
+      ...prev,
+      [profile.player.id]: profile,
+    }));
+    setFailedProfileIds((prev) => {
+      if (!prev[profile.player.id]) return prev;
+      const next = { ...prev };
+      delete next[profile.player.id];
+      return next;
+    });
+  }, []);
 
   // Active Workspace Mode (Mặc định: Bàn cờ tự do / Master DB)
   const [activeMode, setActiveMode] = useState<ProfileMode>("sandbox");
@@ -155,10 +173,15 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
         return cachedProfiles[playerId];
       }
 
+      // If previously failed and not forcing refresh, avoid infinite retry loop
+      if (!forceRefresh && failedProfileIds[playerId]) {
+        return null;
+      }
+
       setLoadingProfileId(playerId);
       try {
         // Fetch player, games, and analysis run concurrently
-        const [player, gamesRes, run] = await Promise.all([
+        const [playerRes, gamesRes, run] = await Promise.all([
           apiClient.getPlayer(playerId).catch(() => null),
           apiClient.getPlayerGames(playerId, { allGames: true, pageSize: 10000 }).catch(() => ({ items: [] as Game[] })),
           apiClient.getAnalysisRun(playerId).catch(async () => {
@@ -170,7 +193,24 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
           }),
         ]);
 
-        if (!player) return null;
+        // Fallback: check if player is in players list if API returned null
+        const player = playerRes || players.find((p) => p.id === playerId) || null;
+
+        if (!player) {
+          setFailedProfileIds((prev) => ({
+            ...prev,
+            [playerId]: "Không tìm thấy hồ sơ kỳ thủ",
+          }));
+          return null;
+        }
+
+        // Clear failure if successful
+        setFailedProfileIds((prev) => {
+          if (!prev[playerId]) return prev;
+          const next = { ...prev };
+          delete next[playerId];
+          return next;
+        });
 
         const data: CachedProfileData = {
           player,
@@ -185,14 +225,30 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
         }));
 
         return data;
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to load profile data:", err);
+        setFailedProfileIds((prev) => ({
+          ...prev,
+          [playerId]: err?.message || "Lỗi khi tải dữ liệu hồ sơ kỳ thủ",
+        }));
         return null;
       } finally {
         setLoadingProfileId(null);
       }
     },
-    [cachedProfiles]
+    [cachedProfiles, failedProfileIds, players]
+  );
+
+  const retryLoadProfile = useCallback(
+    async (playerId: string) => {
+      setFailedProfileIds((prev) => {
+        const next = { ...prev };
+        delete next[playerId];
+        return next;
+      });
+      return await loadProfileData(playerId, true);
+    },
+    [loadProfileData]
   );
 
   const refreshProfileData = useCallback(
@@ -481,8 +537,11 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
 
     cachedProfiles,
     loadingProfileId,
+    failedProfileIds,
     loadProfileData,
     refreshProfileData,
+    retryLoadProfile,
+    seedProfileData,
 
     activeMode,
     activePlayerId,

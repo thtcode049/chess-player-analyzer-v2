@@ -176,6 +176,20 @@ export const apiClient = {
     return handleResponse<{ deleted: boolean; player_id: string }>(res);
   },
 
+  async claimGuestData(guestSessionId?: string): Promise<{ claimed: number }> {
+    const authHeaders = await getAuthHeaders();
+    let gid = guestSessionId;
+    if (!gid && typeof window !== "undefined") {
+      gid = sessionStorage.getItem("chess_guest_session_id") || undefined;
+    }
+    const res = await fetch(`${API_BASE}/api/players/claim-guest-data`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body: JSON.stringify({ guest_session_id: gid }),
+    });
+    return handleResponse<{ claimed: number }>(res);
+  },
+
   async getPlayerGames(
     playerId: string,
     params: { page?: number; pageSize?: number; color?: string; eco?: string; search?: string; allGames?: boolean } = {}

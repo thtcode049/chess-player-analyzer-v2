@@ -293,7 +293,7 @@ function ImportContent() {
   const paramPlayerId = searchParams.get("playerId") || "";
   const paramPlayerName = searchParams.get("playerName") || "";
 
-  const { selectSingleProfile, refreshPlayersList } = useProfileWorkspaceStore();
+  const { selectSingleProfile, refreshPlayersList, seedProfileData } = useProfileWorkspaceStore();
 
   const [activeTab, setActiveTab] = useState<"pgn" | "lichess" | "chesscom">("lichess");
   const [userId, setUserId] = useState<string | null>(null);
@@ -676,15 +676,48 @@ function ImportContent() {
         ? `${focusPlayer} PGN Import`
         : "PGN Import";
 
+      // Ensure active user ID is obtained
+      let activeUserId = userId;
+      if (!activeUserId && typeof window !== "undefined") {
+        try {
+          const { createClient } = await import("@/lib/supabase/client");
+          const sb = createClient();
+          const { data } = await sb.auth.getSession();
+          if (data?.session?.user?.id) {
+            activeUserId = data.session.user.id;
+            setUserId(activeUserId);
+          }
+        } catch {}
+      }
+
       if (pgnFile) {
-        res = await apiClient.importPgnFile(pgnFile, targetId, 1000, userId || undefined, focusPlayer, aliasNames, forceNewPlayer);
+        res = await apiClient.importPgnFile(pgnFile, targetId, 1000, activeUserId || undefined, focusPlayer, aliasNames, forceNewPlayer);
       } else if (pgnText.trim()) {
-        res = await apiClient.importPgnText(pgnText, autoDataset, targetId, 1000, userId || undefined, focusPlayer, aliasNames, forceNewPlayer);
+        res = await apiClient.importPgnText(pgnText, autoDataset, targetId, 1000, activeUserId || undefined, focusPlayer, aliasNames, forceNewPlayer);
       } else {
         throw new Error("Vui lòng tải lên tệp .pgn hoặc dán văn bản PGN.");
       }
       await finishProgress(timer);
       setResult(res);
+
+      if (res?.player_id) {
+        seedProfileData({
+          player: {
+            id: res.player_id,
+            user_id: activeUserId || "guest",
+            canonical_name: res.primary_player || focusPlayer || "Kỳ thủ",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            total_games: (res.imported_count || 0) + (res.skipped_count || 0),
+            is_guest: !activeUserId,
+            expires_at: !activeUserId ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
+          },
+          games: res.sample_games || [],
+          run: null,
+          loadedAt: Date.now(),
+        });
+      }
+
       refreshPlayersList().catch(() => {});
     } catch (err: any) {
       clearInterval(timer);
@@ -738,10 +771,24 @@ function ImportContent() {
     const timer = startProgress("lichess");
 
     try {
+      // Ensure active user ID is obtained
+      let activeUserId = userId;
+      if (!activeUserId && typeof window !== "undefined") {
+        try {
+          const { createClient } = await import("@/lib/supabase/client");
+          const sb = createClient();
+          const { data } = await sb.auth.getSession();
+          if (data?.session?.user?.id) {
+            activeUserId = data.session.user.id;
+            setUserId(activeUserId);
+          }
+        } catch {}
+      }
+
       const { since, until } = computeTimeBounds(lichessTimePreset, lichessCustomStart, lichessCustomEnd);
       const res = await apiClient.importLichess({
         player_id: targetId,
-        user_id: userId || undefined,
+        user_id: activeUserId || undefined,
         username: lichessUsername.trim(),
         max_games: Math.min(1000, Math.max(1, Number(lichessMaxGames) || 100)),
         rated_only: lichessRatedOnly,
@@ -753,6 +800,25 @@ function ImportContent() {
       });
       await finishProgress(timer);
       setResult(res);
+
+      if (res?.player_id) {
+        seedProfileData({
+          player: {
+            id: res.player_id,
+            user_id: activeUserId || "guest",
+            canonical_name: res.primary_player || lichessUsername.trim(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            total_games: (res.imported_count || 0) + (res.skipped_count || 0),
+            is_guest: !activeUserId,
+            expires_at: !activeUserId ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
+          },
+          games: res.sample_games || [],
+          run: null,
+          loadedAt: Date.now(),
+        });
+      }
+
       refreshPlayersList().catch(() => {});
     } catch (err: any) {
       clearInterval(timer);
@@ -804,10 +870,24 @@ function ImportContent() {
     const timer = startProgress("chesscom");
 
     try {
+      // Ensure active user ID is obtained
+      let activeUserId = userId;
+      if (!activeUserId && typeof window !== "undefined") {
+        try {
+          const { createClient } = await import("@/lib/supabase/client");
+          const sb = createClient();
+          const { data } = await sb.auth.getSession();
+          if (data?.session?.user?.id) {
+            activeUserId = data.session.user.id;
+            setUserId(activeUserId);
+          }
+        } catch {}
+      }
+
       const { since, until } = computeTimeBounds(chesscomTimePreset, chesscomCustomStart, chesscomCustomEnd);
       const res = await apiClient.importChesscom({
         player_id: targetId,
-        user_id: userId || undefined,
+        user_id: activeUserId || undefined,
         username: chesscomUsername.trim(),
         max_games: Math.min(1000, Math.max(1, Number(chesscomMaxGames) || 100)),
         rated_only: chesscomRatedOnly,
@@ -818,6 +898,25 @@ function ImportContent() {
       });
       await finishProgress(timer);
       setResult(res);
+
+      if (res?.player_id) {
+        seedProfileData({
+          player: {
+            id: res.player_id,
+            user_id: activeUserId || "guest",
+            canonical_name: res.primary_player || chesscomUsername.trim(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            total_games: (res.imported_count || 0) + (res.skipped_count || 0),
+            is_guest: !activeUserId,
+            expires_at: !activeUserId ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
+          },
+          games: res.sample_games || [],
+          run: null,
+          loadedAt: Date.now(),
+        });
+      }
+
       refreshPlayersList().catch(() => {});
     } catch (err: any) {
       clearInterval(timer);

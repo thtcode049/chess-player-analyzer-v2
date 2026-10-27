@@ -36,7 +36,7 @@ def _resolve_games_for_player(
     player_name = "Player"
     games = []
 
-    # Guest Mode: strictly isolated to guest session, NEVER queries DB or shared stores
+    # Guest Mode: check guest session memory, fallback to DB for serverless
     if not x_user_id:
         guest_session = get_guest_session(x_guest_session_id)
         if player_id in guest_session.get("players", {}):
@@ -48,6 +48,18 @@ def _resolve_games_for_player(
                 games = raw_games
             else:
                 games = DBService.convert_db_games_to_analysis_games(raw_games, player_name)
+        else:
+            # Fallback to DB
+            try:
+                db_player = DBService.get_player(player_id)
+                if db_player:
+                    player_name = db_player.get("canonical_name", player_name)
+                db_games = DBService.get_player_games(player_id, limit=None)
+                if db_games:
+                    games = DBService.convert_db_games_to_analysis_games(db_games, player_name)
+                    guest_session.setdefault("games", {})[player_id] = db_games
+            except Exception as e:
+                logger.warning(f"Error resolving guest games from DB: {e}")
     else:
         # 1. Resolve player name for authenticated user
         if player_id in PLAYERS_STORE:
@@ -236,6 +248,10 @@ async def get_analysis_run(
                     run_res["run_id"] = run_id
                     guest_session["runs"][run_id] = run_res
                     RUN_SNAPSHOTS_CACHE[run_id] = run_res
+                    try:
+                        DBService.save_analysis_run(run_id, run_res, run_id=run_id)
+                    except Exception:
+                        pass
                     cached = run_res
                 else:
                     raise HTTPException(status_code=404, detail="Analysis run not found")

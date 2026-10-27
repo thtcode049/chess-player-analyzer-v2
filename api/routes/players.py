@@ -3,14 +3,14 @@ Player Route Handlers
 """
 from fastapi import APIRouter, HTTPException, Query, Header
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import uuid
 import logging
 
 from api.schemas.common import BaseResponse, PaginatedResponse
 from api.schemas.players import PlayerCreate, PlayerUpdate, PlayerResponse
 from api.schemas.games import GameResponse
-from api.services.db_service import DBService
+from api.services.db_service import DBService, GUEST_SYSTEM_USER_ID
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/players", tags=["Players"])
@@ -21,6 +21,50 @@ GUEST_SESSIONS: Dict[str, Dict[str, Any]] = {}
 # Legacy in-memory store for fallback compatibility
 PLAYERS_STORE: Dict[str, Dict[str, Any]] = {}
 GAMES_STORE: Dict[str, List[Dict[str, Any]]] = {}
+
+
+def _parse_created_at(val: Any) -> datetime:
+    if isinstance(val, datetime):
+        if val.tzinfo is None:
+            return val.replace(tzinfo=timezone.utc)
+        return val
+    if isinstance(val, str):
+        try:
+            dt = datetime.fromisoformat(val.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt
+        except Exception:
+            pass
+    return datetime.now(timezone.utc)
+
+
+def _build_player_response(
+    p: Dict[str, Any],
+    p_id: str,
+    user_id: str,
+    total_g: int,
+    datasets: List[Any],
+    is_guest: bool = False
+) -> PlayerResponse:
+    created = _parse_created_at(p.get("created_at"))
+    updated = _parse_created_at(p.get("updated_at"))
+    expires = (created + timedelta(hours=24)) if is_guest else None
+
+    return PlayerResponse(
+        id=p_id,
+        user_id=user_id,
+        canonical_name=p["canonical_name"],
+        fide_id=p.get("fide_id"),
+        title=p.get("title"),
+        notes=p.get("notes"),
+        total_games=total_g,
+        created_at=created,
+        updated_at=updated,
+        datasets=datasets,
+        is_guest=is_guest,
+        expires_at=expires
+    )
 
 
 def get_guest_session(guest_session_id: Optional[str]) -> Dict[str, Any]:
@@ -58,28 +102,32 @@ async def list_players(
                 ds_sum = sum(d.get("games_count", 0) for d in datasets) if datasets else 0
                 total_g = max(p.get("total_games") or 0, ds_sum) or len(GAMES_STORE.get(p_id, []))
 
-                players_dict[p_id] = PlayerResponse(
-                    id=p_id,
+                players_dict[p_id] = _build_player_response(
+                    p=p,
+                    p_id=p_id,
                     user_id=p.get("user_id", x_user_id),
-                    canonical_name=p["canonical_name"],
-                    fide_id=p.get("fide_id"),
-                    title=p.get("title"),
-                    notes=p.get("notes"),
-                    total_games=total_g,
-                    created_at=p.get("created_at") or datetime.now(),
-                    updated_at=p.get("updated_at") or datetime.now(),
-                    datasets=datasets
+                    total_g=total_g,
+                    datasets=datasets,
+                    is_guest=False
                 )
         except Exception as e:
             logger.warning(f"Error fetching players for user {x_user_id} from DB: {e}")
 
         return BaseResponse(success=True, data=list(players_dict.values()))
 
-    # 2. GUEST MODE: Pure in-memory session. Never touch Supabase DB.
+    # 2. GUEST MODE: Check in-memory session, fallback to DB tagged with guest session
+    now = datetime.now(timezone.utc)
     session = get_guest_session(x_guest_session_id)
     guest_players = session.get("players", {})
 
-    for p_id, p in guest_players.items():
+    for p_id, p in list(guest_players.items()):
+        p_created = _parse_created_at(p.get("created_at"))
+        # 24-hour TTL check: if older than 24h, prune from guest session
+        if p_created + timedelta(hours=24) < now:
+            session.get("players", {}).pop(p_id, None)
+            session.get("games", {}).pop(p_id, None)
+            continue
+
         total_g = len(session.get("games", {}).get(p_id, []))
         guest_datasets = p.get("datasets", [])
         if not guest_datasets and total_g > 0:
@@ -89,20 +137,45 @@ async def list_players(
                 "source_type": "pgn_upload",
                 "source_identifier": "Bản ghi PGN cục bộ",
                 "games_count": total_g,
-                "imported_at": p.get("created_at") or datetime.now()
+                "imported_at": p.get("created_at") or now
             }]
-        players_dict[p_id] = PlayerResponse(
-            id=p_id,
+        players_dict[p_id] = _build_player_response(
+            p=p,
+            p_id=p_id,
             user_id="guest",
-            canonical_name=p["canonical_name"],
-            fide_id=p.get("fide_id"),
-            title=p.get("title"),
-            notes=p.get("notes"),
-            total_games=total_g,
-            created_at=p.get("created_at", datetime.now()),
-            updated_at=p.get("updated_at", datetime.now()),
-            datasets=guest_datasets
+            total_g=total_g,
+            datasets=guest_datasets,
+            is_guest=True
         )
+
+    # Fallback to query persistent guest players for this browser session on serverless
+    if x_guest_session_id:
+        try:
+            db_guests = DBService.get_players_by_notes_tag(f"guest:{x_guest_session_id}")
+            for p in db_guests:
+                p_id = p["id"]
+                p_created = _parse_created_at(p.get("created_at"))
+                # 24-hour TTL check: if expired, skip and delete
+                if p_created + timedelta(hours=24) < now:
+                    try:
+                        DBService.delete_player(p_id)
+                    except Exception:
+                        pass
+                    continue
+
+                if p_id not in players_dict:
+                    datasets = p.get("datasets", [])
+                    total_g = sum(d.get("games_count", 0) for d in datasets) if datasets else 0
+                    players_dict[p_id] = _build_player_response(
+                        p=p,
+                        p_id=p_id,
+                        user_id="guest",
+                        total_g=total_g,
+                        datasets=datasets,
+                        is_guest=True
+                    )
+        except Exception:
+            pass
 
     return BaseResponse(success=True, data=list(players_dict.values()))
 
@@ -143,17 +216,13 @@ async def create_player(
         return BaseResponse(
             success=True,
             message="Player created successfully in account",
-            data=PlayerResponse(
-                id=new_id,
+            data=_build_player_response(
+                p=record,
+                p_id=new_id,
                 user_id=x_user_id,
-                canonical_name=req.canonical_name,
-                fide_id=req.fide_id,
-                title=req.title,
-                notes=req.notes,
-                total_games=0,
-                created_at=now,
-                updated_at=now,
-                datasets=[]
+                total_g=0,
+                datasets=[],
+                is_guest=False
             )
         )
 
@@ -171,17 +240,13 @@ async def create_player(
     }
     session["players"][new_id] = record
 
-    response_data = PlayerResponse(
-        id=new_id,
+    response_data = _build_player_response(
+        p=record,
+        p_id=new_id,
         user_id="guest",
-        canonical_name=req.canonical_name,
-        fide_id=req.fide_id,
-        title=req.title,
-        notes=req.notes,
-        total_games=0,
-        created_at=now,
-        updated_at=now,
-        datasets=[]
+        total_g=0,
+        datasets=[],
+        is_guest=True
     )
     return BaseResponse(success=True, message="Player created in guest session", data=response_data)
 
@@ -194,14 +259,22 @@ async def get_player(
 ):
     """
     Retrieves player details by ID:
-    - In guest mode, checks guest session ONLY. Never touches DB or shared stores.
-    - In logged-in mode, checks DB / user store.
+    - In guest mode, checks guest session first, then falls back to Supabase DB.
+    - In logged-in mode, checks in-memory store and DB.
     """
-    # 1. Guest mode: strictly isolated to guest session
+    # 1. Guest mode: check guest session memory first
+    now = datetime.now(timezone.utc)
     if not x_user_id:
         session = get_guest_session(x_guest_session_id)
-        if player_id in session["players"]:
+        if player_id in session.get("players", {}):
             p = session["players"][player_id]
+            p_created = _parse_created_at(p.get("created_at"))
+            # 24h TTL expiration check
+            if p_created + timedelta(hours=24) < now:
+                session.get("players", {}).pop(player_id, None)
+                session.get("games", {}).pop(player_id, None)
+                raise HTTPException(status_code=404, detail="Phiên lưu tạm 24h của hồ sơ kỳ thủ này đã hết hạn")
+
             total_g = len(session.get("games", {}).get(player_id, []))
             guest_datasets = p.get("datasets", [])
             if not guest_datasets and total_g > 0:
@@ -211,20 +284,70 @@ async def get_player(
                     "source_type": "pgn_upload",
                     "source_identifier": "Bản ghi PGN cục bộ",
                     "games_count": total_g,
-                    "imported_at": p.get("created_at") or datetime.now()
+                    "imported_at": p.get("created_at") or now
                 }]
-            return BaseResponse(success=True, data=PlayerResponse(
-                id=p["id"],
-                user_id="guest",
-                canonical_name=p["canonical_name"],
-                fide_id=p.get("fide_id"),
-                title=p.get("title"),
-                notes=p.get("notes"),
-                total_games=total_g,
-                created_at=p.get("created_at", datetime.now()),
-                updated_at=p.get("updated_at", datetime.now()),
-                datasets=guest_datasets
-            ))
+            return BaseResponse(
+                success=True,
+                data=_build_player_response(
+                    p=p,
+                    p_id=p["id"],
+                    user_id="guest",
+                    total_g=total_g,
+                    datasets=guest_datasets,
+                    is_guest=True
+                )
+            )
+        # Fallback to Supabase DB in case of stateless serverless lambdas
+        try:
+            db_player = DBService.get_player(player_id)
+            if db_player:
+                p_created = _parse_created_at(db_player.get("created_at"))
+                if p_created + timedelta(hours=24) < now:
+                    try:
+                        DBService.delete_player(player_id)
+                    except Exception:
+                        pass
+                    raise HTTPException(status_code=404, detail="Phiên lưu tạm 24h của hồ sơ kỳ thủ này đã hết hạn")
+
+                datasets = db_player.get("datasets", [])
+                total_g = sum(d.get("games_count", 0) for d in datasets) if datasets else 0
+                return BaseResponse(
+                    success=True,
+                    data=_build_player_response(
+                        p=db_player,
+                        p_id=db_player["id"],
+                        user_id=db_player.get("user_id", "guest"),
+                        total_g=total_g,
+                        datasets=datasets,
+                        is_guest=True
+                    )
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Error fetching guest player from DB: {e}")
+
+        # Final memory fallback
+        if player_id in PLAYERS_STORE:
+            p = PLAYERS_STORE[player_id]
+            p_created = _parse_created_at(p.get("created_at"))
+            if p_created + timedelta(hours=24) < now:
+                PLAYERS_STORE.pop(player_id, None)
+                raise HTTPException(status_code=404, detail="Phiên lưu tạm 24h của hồ sơ kỳ thủ này đã hết hạn")
+
+            total_g = len(GAMES_STORE.get(player_id, []))
+            return BaseResponse(
+                success=True,
+                data=_build_player_response(
+                    p=p,
+                    p_id=p["id"],
+                    user_id="guest",
+                    total_g=total_g,
+                    datasets=p.get("datasets", []),
+                    is_guest=True
+                )
+            )
+
         raise HTTPException(status_code=404, detail="Player not found in guest session")
 
     # 2. Check in-memory store
@@ -239,20 +362,19 @@ async def get_player(
                 "source_type": "pgn_upload",
                 "source_identifier": "Bản ghi PGN cục bộ",
                 "games_count": total_g,
-                "imported_at": p.get("created_at") or datetime.now()
+                "imported_at": p.get("created_at") or now
             }]
-        return BaseResponse(success=True, data=PlayerResponse(
-            id=p["id"],
-            user_id=p.get("user_id", x_user_id or "guest"),
-            canonical_name=p["canonical_name"],
-            fide_id=p.get("fide_id"),
-            title=p.get("title"),
-            notes=p.get("notes"),
-            total_games=total_g,
-            created_at=p.get("created_at", datetime.now()),
-            updated_at=p.get("updated_at", datetime.now()),
-            datasets=mem_datasets
-        ))
+        return BaseResponse(
+            success=True,
+            data=_build_player_response(
+                p=p,
+                p_id=p["id"],
+                user_id=p.get("user_id", x_user_id),
+                total_g=total_g,
+                datasets=mem_datasets,
+                is_guest=False
+            )
+        )
 
     # 3. Check DB fallback (supports persisted players)
     try:
@@ -260,18 +382,21 @@ async def get_player(
         if db_player:
             datasets = db_player.get("datasets", [])
             total_g = sum(d.get("games_count", 0) for d in datasets) if datasets else 0
-            return BaseResponse(success=True, data=PlayerResponse(
-                id=db_player["id"],
-                user_id=db_player.get("user_id", x_user_id or "shared"),
-                canonical_name=db_player["canonical_name"],
-                fide_id=db_player.get("fide_id"),
-                title=db_player.get("title"),
-                notes=db_player.get("notes"),
-                total_games=total_g,
-                created_at=db_player.get("created_at") or datetime.now(),
-                updated_at=db_player.get("updated_at") or datetime.now(),
-                datasets=datasets
-            ))
+            is_guest = (
+                db_player.get("user_id") == GUEST_SYSTEM_USER_ID
+                or "guest:" in str(db_player.get("notes", ""))
+            )
+            return BaseResponse(
+                success=True,
+                data=_build_player_response(
+                    p=db_player,
+                    p_id=db_player["id"],
+                    user_id=db_player.get("user_id", x_user_id or "shared"),
+                    total_g=total_g,
+                    datasets=datasets,
+                    is_guest=is_guest
+                )
+            )
     except Exception as e:
         logger.warning(f"Error fetching player from DB: {e}")
 
@@ -324,10 +449,20 @@ async def list_player_games(
     """
     games: List[Dict[str, Any]] = []
 
-    # Guest mode: Strictly isolated to current guest session. Never queries DB or shared stores.
+    # Guest mode: First check in-memory guest session, fallback to DB for serverless
     if not x_user_id:
         session = get_guest_session(x_guest_session_id)
         games = session.get("games", {}).get(player_id, [])
+        if not games:
+            try:
+                db_games = DBService.get_player_games(player_id, limit=None)
+                if db_games:
+                    games = db_games
+                    session.setdefault("games", {})[player_id] = db_games
+            except Exception as e:
+                logger.warning(f"Error fetching guest games from DB: {e}")
+        if not games and player_id in GAMES_STORE:
+            games = GAMES_STORE[player_id]
     else:
         # Logged-in mode
         try:
@@ -520,17 +655,18 @@ async def update_player(
     elif "datasets" in player_data:
         total_g = sum(d.get("games_count", 0) for d in player_data.get("datasets", []))
 
-    response_data = PlayerResponse(
-        id=player_data["id"],
+    is_g = (
+        not x_user_id
+        or player_data.get("user_id") == "guest"
+        or "guest:" in str(player_data.get("notes", ""))
+    )
+    response_data = _build_player_response(
+        p=player_data,
+        p_id=player_data["id"],
         user_id=player_data.get("user_id", x_user_id or "guest"),
-        canonical_name=player_data["canonical_name"],
-        fide_id=player_data.get("fide_id"),
-        title=player_data.get("title"),
-        notes=player_data.get("notes"),
-        total_games=total_g,
-        created_at=player_data.get("created_at") or now,
-        updated_at=player_data.get("updated_at") or now,
-        datasets=player_data.get("datasets", [])
+        total_g=total_g,
+        datasets=player_data.get("datasets", []),
+        is_guest=is_g
     )
     return BaseResponse(success=True, message="Đã cập nhật hồ sơ kỳ thủ thành công", data=response_data)
 
@@ -566,6 +702,11 @@ async def delete_player(
             del session["games"][player_id]
         if "runs" in session and player_id in session["runs"]:
             del session["runs"][player_id]
+        try:
+            if DBService.delete_player(player_id):
+                deleted = True
+        except Exception:
+            pass
     else:
         # Logged-in user mode
         if player_id in PLAYERS_STORE:
@@ -585,4 +726,48 @@ async def delete_player(
         raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ kỳ thủ cần xóa")
 
     return BaseResponse(success=True, message="Đã xóa hồ sơ kỳ thủ thành công", data={"deleted": True, "player_id": player_id})
+
+
+@router.post("/claim-guest-data", response_model=BaseResponse[Dict[str, Any]])
+async def claim_guest_data_endpoint(
+    req: Optional[Dict[str, Any]] = None,
+    x_user_id: Optional[str] = Header(None),
+    x_guest_session_id: Optional[str] = Header(None)
+):
+    """
+    Transfers guest-imported players, games, and analyses to an authenticated user account.
+    Triggered when a guest logs in or registers.
+    """
+    effective_user_id = x_user_id or (req.get("user_id") if req else None)
+    effective_guest_session = x_guest_session_id or (req.get("guest_session_id") if req else None)
+
+    if not effective_user_id:
+        raise HTTPException(status_code=401, detail="Yêu cầu đăng nhập để liên kết dữ liệu khách")
+    if not effective_guest_session:
+        return BaseResponse(success=True, message="Không có phiên khách nào cần chuyển đổi", data={"claimed": 0})
+
+    claimed = DBService.claim_guest_data(effective_guest_session, effective_user_id)
+    GUEST_SESSIONS.pop(effective_guest_session, None)
+
+    return BaseResponse(
+        success=True,
+        message=f"Đã chuyển đổi thành công {claimed} hồ sơ kỳ thủ vào tài khoản của bạn",
+        data={"claimed": claimed}
+    )
+
+
+@router.get("/cleanup-expired-guests")
+@router.post("/cleanup-expired-guests")
+async def cleanup_expired_guests(
+    max_age_hours: int = 24
+):
+    """
+    Automated or manual cron job to delete guest players, datasets, and games older than max_age_hours.
+    """
+    deleted = DBService.cleanup_expired_guest_data(max_age_hours=max_age_hours)
+    return {
+        "success": True,
+        "deleted_count": deleted,
+        "message": f"Đã dọn dẹp {deleted} hồ sơ khách hết hạn sau {max_age_hours} giờ"
+    }
 

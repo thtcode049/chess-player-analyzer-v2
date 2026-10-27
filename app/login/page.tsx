@@ -40,6 +40,19 @@ function LoginContent() {
         throw error;
       }
 
+      // Check and claim any guest session data into newly authenticated account
+      try {
+        const guestId = sessionStorage.getItem("chess_guest_session_id");
+        if (guestId) {
+          const { apiClient } = await import("@/lib/api/client");
+          await apiClient.claimGuestData(guestId);
+          sessionStorage.removeItem("chess_guest_session_id");
+          sessionStorage.removeItem("chess_guest_created_at");
+        }
+      } catch (e) {
+        console.warn("Could not claim guest session on login:", e);
+      }
+
       window.location.href = "/dashboard";
     } catch (err: any) {
       const msg = err.message || "";

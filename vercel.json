@@ -5,5 +5,11 @@
       "source": "/api/:path*",
       "destination": "/api/index.py"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/cleanup-guests",
+      "schedule": "0 * * * *"
+    }
   ]
 }

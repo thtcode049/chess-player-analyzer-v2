@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 import io
 import json
+import uuid
 
 from api.index import app
 
@@ -387,8 +388,9 @@ def test_cross_guest_session_isolation():
     2. Guest B lists players: must NOT see Guest A's player!
     3. Guest B imports player 'NguyenHuuChien': must NOT detect duplicate games from Guest A!
     """
-    session_a = "guest-session-alpha-111"
-    session_b = "guest-session-beta-222"
+    unique_run = uuid.uuid4().hex[:8]
+    session_a = f"guest-session-alpha-{unique_run}"
+    session_b = f"guest-session-beta-{unique_run}"
 
     pgn_content = (
         '[Event "Rated Blitz game"]\n'
@@ -435,6 +437,13 @@ def test_cross_guest_session_isolation():
     assert data_b["imported_count"] == 1
     assert data_b["skipped_count"] == 0
     assert data_b["player_id"] != player_id_a
+
+    try:
+        from api.services.db_service import DBService
+        DBService.delete_player(player_id_a)
+        DBService.delete_player(data_b["player_id"])
+    except Exception:
+        pass
 
 
 def test_ai_chat_sessions_endpoints():

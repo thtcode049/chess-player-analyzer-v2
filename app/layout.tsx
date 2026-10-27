@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import MobileBottomNav from "@/components/MobileBottomNav";
+import GuestCountdownBanner from "@/components/GuestCountdownBanner";
 import { ProfileWorkspaceProvider } from "@/lib/stores/profileWorkspaceStore";
 
 export const viewport: Viewport = {
@@ -30,6 +31,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-background text-foreground antialiased flex flex-col">
         <ProfileWorkspaceProvider>
           <Navbar />
+          <GuestCountdownBanner />
           <main className="flex-1 w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 2xl:px-10 py-3 sm:py-6 pb-6">
             {children}
           </main>

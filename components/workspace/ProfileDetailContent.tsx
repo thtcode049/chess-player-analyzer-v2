@@ -27,7 +27,9 @@ import {
   UploadCloud,
   Swords,
   Users,
-  Loader2
+  Loader2,
+  AlertCircle,
+  RotateCcw
 } from "lucide-react";
 import { Player, Game, AnalysisRun } from "@/lib/api/types";
 import { apiClient } from "@/lib/api/client";
@@ -124,8 +126,10 @@ export default function ProfileDetailContent({
     setSelectedSubProfileId,
     activeMode,
     loadProfileData,
+    retryLoadProfile,
     loadingProfileId,
     cachedProfiles,
+    failedProfileIds,
     loadingPlayers,
     activePlayerId,
     players,
@@ -136,22 +140,30 @@ export default function ProfileDetailContent({
   const analysisRun = activePlayerRun;
 
   const effectivePlayerId = targetPlayerId || activePlayerId;
+  const profileError = effectivePlayerId ? failedProfileIds[effectivePlayerId] : null;
 
-  // Auto-trigger profile loading if not yet cached
+  // Auto-trigger profile loading if not yet cached and not in error state
   useEffect(() => {
     const idToLoad = player?.id || effectivePlayerId;
-    if (idToLoad && !cachedProfiles[idToLoad] && loadingProfileId !== idToLoad) {
+    if (
+      idToLoad &&
+      !cachedProfiles[idToLoad] &&
+      !failedProfileIds[idToLoad] &&
+      loadingProfileId !== idToLoad
+    ) {
       loadProfileData(idToLoad);
     }
-  }, [player?.id, effectivePlayerId, cachedProfiles, loadingProfileId, loadProfileData]);
+  }, [player?.id, effectivePlayerId, cachedProfiles, failedProfileIds, loadingProfileId, loadProfileData]);
 
   // Determine if this profile's data is actively loading
   const isProfileLoading = Boolean(
-    (player && loadingProfileId === player.id) ||
-    (player && !cachedProfiles[player.id]) ||
-    (!player && effectivePlayerId && loadingProfileId === effectivePlayerId) ||
-    (!player && effectivePlayerId && !cachedProfiles[effectivePlayerId]) ||
-    (!player && loadingPlayers)
+    !profileError && (
+      (player && loadingProfileId === player.id) ||
+      (player && !cachedProfiles[player.id]) ||
+      (!player && effectivePlayerId && loadingProfileId === effectivePlayerId) ||
+      (!player && effectivePlayerId && !cachedProfiles[effectivePlayerId] && !failedProfileIds[effectivePlayerId]) ||
+      (!player && loadingPlayers && !effectivePlayerId)
+    )
   );
 
   // Sub-tabs inside profile detail: "overview" | "openings" | "structures" | "games"
@@ -503,6 +515,48 @@ export default function ProfileDetailContent({
         <div className="flex flex-col items-center justify-center py-6 gap-2 text-center text-muted-foreground">
           <Loader2 className="w-6 h-6 animate-spin text-emerald-600 dark:text-emerald-400" />
           <p className="text-xs font-medium">Đang nạp và phân tích dữ liệu ván đấu, biểu đồ sẽ xuất hiện ngay...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error Card if loading profile failed
+  if (profileError && effectivePlayerId && !cachedProfiles[effectivePlayerId]) {
+    return (
+      <div className="w-full flex flex-col items-center justify-center min-h-[55vh] py-16 px-4 text-center animate-fade-in">
+        <div className="p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 mb-4 shadow-2xs">
+          <AlertCircle className="w-12 h-12" />
+        </div>
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">
+          Không tìm thấy hồ sơ kỳ thủ
+        </h2>
+        <p className="text-sm text-muted-foreground max-w-lg mb-6 leading-relaxed">
+          {profileError || "Hồ sơ kỳ thủ này không tồn tại hoặc phiên dùng thử đã kết thúc. Bạn có thể thử tải lại hoặc nạp lại ván đấu từ Lichess."}
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => retryLoadProfile(effectivePlayerId)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>Thử tải lại</span>
+          </button>
+          <Link
+            href="/import"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs font-bold transition shadow-2xs"
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>Nạp lại ván đấu</span>
+          </Link>
+          <button
+            type="button"
+            onClick={openHub}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border/80 text-muted-foreground hover:text-foreground text-xs font-bold transition shadow-2xs cursor-pointer"
+          >
+            <FolderOpen className="w-4 h-4" />
+            <span>Thư viện kỳ thủ</span>
+          </button>
         </div>
       </div>
     );

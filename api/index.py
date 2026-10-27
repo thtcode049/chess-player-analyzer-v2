@@ -65,6 +65,19 @@ app.include_router(games_router)
 app.include_router(analyses_router)
 app.include_router(ai_router)
 
+from api.services.db_service import DBService
+
+@app.get("/api/cron/cleanup-guests")
+@app.post("/api/cron/cleanup-guests")
+async def cron_cleanup_guests():
+    """Vercel Cron endpoint to purge guest records older than 24h."""
+    deleted = DBService.cleanup_expired_guest_data(max_age_hours=24)
+    return {
+        "success": True,
+        "deleted_count": deleted,
+        "message": f"Purged {deleted} expired guest records older than 24h."
+    }
+
 @app.get("/api")
 @app.get("/api/health")
 async def health_check():

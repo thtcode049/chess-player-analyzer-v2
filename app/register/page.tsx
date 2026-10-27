@@ -56,6 +56,19 @@ export default function RegisterPage() {
 
       setSuccessEmail(cleanEmail);
 
+      // Check and claim any guest session data into newly registered account
+      try {
+        const guestId = sessionStorage.getItem("chess_guest_session_id");
+        if (guestId && data.user?.id) {
+          const { apiClient } = await import("@/lib/api/client");
+          await apiClient.claimGuestData(guestId);
+          sessionStorage.removeItem("chess_guest_session_id");
+          sessionStorage.removeItem("chess_guest_created_at");
+        }
+      } catch (e) {
+        console.warn("Could not claim guest session on register:", e);
+      }
+
       if (data.session) {
         // Trường hợp Supabase tắt Confirm Email: đăng nhập và chuyển hướng ngay
         setImmediateLogin(true);

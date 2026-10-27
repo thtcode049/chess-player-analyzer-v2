@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import ChessLookLogo from "@/components/ChessLookLogo";
 import { useProfileWorkspaceStore, ColorRole } from "@/lib/stores/profileWorkspaceStore";
 
@@ -81,6 +82,7 @@ export default function Navbar() {
     isHubOpen,
     openHub,
     closeHub,
+    refreshPlayersList,
   } = useProfileWorkspaceStore();
 
   useEffect(() => {
@@ -99,19 +101,42 @@ export default function Navbar() {
 
     setMobileMenuOpen(false);
 
+    const checkAndClaimGuest = async (userId: string) => {
+      if (typeof window === "undefined") return;
+      const guestId = sessionStorage.getItem("chess_guest_session_id");
+      if (guestId) {
+        try {
+          const res = await apiClient.claimGuestData(guestId);
+          if (res && res.claimed > 0) {
+            sessionStorage.removeItem("chess_guest_session_id");
+            sessionStorage.removeItem("chess_guest_created_at");
+            await refreshPlayersList();
+          }
+        } catch (e) {
+          console.warn("Could not claim guest session data:", e);
+        }
+      }
+    };
+
     // Check user auth state
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user || null);
+      if (data.user?.id) {
+        checkAndClaimGuest(data.user.id);
+      }
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null);
+      if (session?.user?.id) {
+        checkAndClaimGuest(session.user.id);
+      }
     });
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [pathname]);
+  }, [pathname, refreshPlayersList]);
 
   // Close dropdown on outside click
   useEffect(() => {

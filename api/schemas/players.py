@@ -35,3 +35,5 @@ class PlayerResponse(PlayerBase):
     updated_at: datetime
     datasets: Optional[List[DatasetResponse]] = []
     total_games: int = 0
+    is_guest: Optional[bool] = False
+    expires_at: Optional[datetime] = None

@@ -21,6 +21,8 @@ export interface Player {
   updated_at: string;
   total_games?: number;
   datasets?: Dataset[];
+  is_guest?: boolean;
+  expires_at?: string | null;
 }
 
 export interface Dataset {
@@ -237,6 +239,7 @@ export interface LichessGameDetail {
   moves_san: string;
   event?: string;
   date?: string;
+  year?: number | string;
   site?: string;
   eco?: string;
   opening?: string;

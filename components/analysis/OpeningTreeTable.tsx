@@ -230,34 +230,10 @@ export default function OpeningTreeTable({
     fetchMasterData(currentFen);
   }, [currentFen]);
 
-  // Handle clicking on a Master Game row (directly loads game onto the board)
-  const handleLoadMasterGame = async (gameId: string) => {
+  // Handle clicking on a Master Game row (opens in a new analysis tab like Lichess)
+  const handleLoadMasterGame = (gameId: string) => {
     if (!gameId) return;
-    try {
-      setLoadingGameId(gameId);
-      const auth = getLichessAuth();
-      const fullGame = await apiClient.getLichessGame(gameId, auth.token);
-      if (onLoadGame && fullGame.moves && fullGame.moves.length > 0) {
-        onLoadGame({
-          id: fullGame.id,
-          white: fullGame.white,
-          white_elo: fullGame.white_elo,
-          black: fullGame.black,
-          black_elo: fullGame.black_elo,
-          result: fullGame.result,
-          moves: fullGame.moves,
-          moves_san: fullGame.moves_san,
-          eco: fullGame.eco,
-          opening: fullGame.opening,
-          event: fullGame.event,
-          link: fullGame.site,
-        });
-      }
-    } catch (err: any) {
-      console.warn("Failed to load master game:", err);
-    } finally {
-      setLoadingGameId(null);
-    }
+    window.open(`/analyze?lichessId=${gameId}`, "_blank");
   };
 
   // Trigger 1-Click Lichess OAuth PKCE
@@ -580,11 +556,18 @@ export default function OpeningTreeTable({
                             onClick={(e) => e.stopPropagation()}
                           >
                             <button
-                              onClick={() => onLoadGame && onLoadGame(sg)}
+                              onClick={() => {
+                                try {
+                                  sessionStorage.setItem("inspect_game", JSON.stringify(sg));
+                                  window.open("/analyze?inspectGame=1", "_blank");
+                                } catch {
+                                  if (onLoadGame) onLoadGame(sg);
+                                }
+                              }}
                               className="inline-flex items-center gap-1 text-[11px] text-slate-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 font-medium truncate max-w-full cursor-pointer"
-                              title="Nạp toàn bộ ván đấu này lên bàn cờ"
+                              title="Mở ván đấu này trong tab phân tích mới"
                             >
-                              <Eye className="w-3 h-3 text-slate-400 shrink-0" />
+                              <Eye className="w-3.5 h-3.5 text-slate-400 hover:text-emerald-500 shrink-0" />
                               <span className="truncate">
                                 {sg.white} {sg.result} {sg.black}
                               </span>
@@ -900,7 +883,7 @@ export default function OpeningTreeTable({
                           key={g.id || idx}
                           onClick={() => handleLoadMasterGame(g.id)}
                           className="flex items-center justify-between px-3.5 py-2 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 transition cursor-pointer select-none group"
-                          title="Bấm để nạp ván đấu này lên bàn cờ"
+                          title="Mở ván đấu này trong tab phân tích mới"
                         >
                           {/* Players & Ratings (2 Lines like Lichess) */}
                           <div className="flex flex-col gap-0.5 min-w-0 pr-3">

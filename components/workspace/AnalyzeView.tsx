@@ -19,10 +19,6 @@ import {
   Lightbulb,
   ShieldAlert,
   Swords,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   RotateCcw,
   RotateCw
 } from "lucide-react";
@@ -42,6 +38,16 @@ import {
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
 import { getCanonicalOpeningByName, getCanonicalOpeningByMoves } from "@/lib/chess/canonicalOpenings";
 import { useProfileWorkspaceStore } from "@/lib/stores/profileWorkspaceStore";
+import {
+  MoveTreeState,
+  createMoveTreeFromMoves,
+  addMoveToTree,
+  promoteVariationToMainLine,
+  deleteMoveFromHere,
+  getActivePath,
+  findNodeById,
+} from "@/lib/chess/moveTree";
+import { getLichessAuth } from "@/lib/auth/lichess";
 
 function parseSanMoves(movesSan?: string | null): string[] {
   if (!movesSan) return [];
@@ -313,6 +319,8 @@ export function AnalyzeContent() {
   const workspaceStore = useProfileWorkspaceStore();
 
   const queryGameId = searchParams.get("gameId");
+  const queryLichessId = searchParams.get("lichessId");
+  const queryInspectGame = searchParams.get("inspectGame");
   const queryPlayerId = searchParams.get("playerId");
   const queryRunId = searchParams.get("runId");
   const queryMove = searchParams.get("move");
@@ -331,6 +339,7 @@ export function AnalyzeContent() {
   const [moves, setMoves] = useState<string[]>([]);
   const [currentPly, setCurrentPly] = useState(0);
   const [currentFen, setCurrentFen] = useState("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+  const [moveTree, setMoveTree] = useState<MoveTreeState>(() => createMoveTreeFromMoves([]));
   const [gameInfo, setGameInfo] = useState<Game | null>(null);
   const [evaluation, setEvaluation] = useState<EngineEvaluation | null>(null);
   const [isThinking, setIsThinking] = useState(false);
@@ -354,6 +363,7 @@ export function AnalyzeContent() {
         setMoves(parsedMoves);
         setCurrentPly(0);
         setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        setMoveTree(createMoveTreeFromMoves(parsedMoves));
       }
       workspaceStore.clearActiveGameForAnalysis();
     }
@@ -453,6 +463,7 @@ export function AnalyzeContent() {
             setMoves(parsedMoves);
             setCurrentPly(0);
             setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+            setMoveTree(createMoveTreeFromMoves(parsedMoves));
           }
 
           // Automatically match and select player from the game if queryPlayerId is not provided
@@ -470,6 +481,76 @@ export function AnalyzeContent() {
       }).catch((err) => console.warn("Failed to load game:", err));
     }
   }, [queryGameId, queryPlayerId, players]);
+
+  // 2b. Load master game from queryLichessId if opened in a new tab
+  useEffect(() => {
+    if (queryLichessId) {
+      const auth = getLichessAuth();
+      apiClient
+        .getLichessGame(queryLichessId, auth.token)
+        .then((fullGame) => {
+          if (fullGame && fullGame.moves && fullGame.moves.length > 0) {
+            setMoves(fullGame.moves);
+            setCurrentPly(0);
+            setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+            setMoveTree(createMoveTreeFromMoves(fullGame.moves));
+            setGameInfo({
+              id: fullGame.id,
+              dataset_id: "",
+              white_player: fullGame.white || "Trắng",
+              black_player: fullGame.black || "Đen",
+              white_elo: fullGame.white_elo,
+              black_elo: fullGame.black_elo,
+              result: fullGame.result || "*",
+              played_at: fullGame.date || "",
+              moves_san: fullGame.moves_san || fullGame.moves.join(" "),
+              opening_name: fullGame.opening || fullGame.eco || "",
+              eco: fullGame.eco || "",
+              site_url: fullGame.site || `https://lichess.org/${queryLichessId}`,
+            });
+          }
+        })
+        .catch((err) => console.warn("Failed to load Lichess master game:", err));
+    }
+  }, [queryLichessId]);
+
+  // 2c. Load single game from queryInspectGame if opened in a new tab
+  useEffect(() => {
+    if (queryInspectGame) {
+      try {
+        const raw = sessionStorage.getItem("inspect_game");
+        if (raw) {
+          const sg = JSON.parse(raw);
+          let gMoves: string[] = [];
+          if (Array.isArray(sg.moves) && sg.moves.length > 0) {
+            gMoves = sg.moves;
+          } else if (sg.moves_san) {
+            gMoves = parseSanMoves(sg.moves_san);
+          }
+          setMoves(gMoves);
+          setCurrentPly(0);
+          setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+          setMoveTree(createMoveTreeFromMoves(gMoves));
+          setGameInfo({
+            id: sg.id || `inspect-${Date.now()}`,
+            dataset_id: "",
+            white_player: sg.white || sg.white_player || "Trắng",
+            black_player: sg.black || sg.black_player || "Đen",
+            white_elo: sg.white_elo,
+            black_elo: sg.black_elo,
+            result: sg.result || "*",
+            played_at: sg.date || "",
+            moves_san: sg.moves_san || gMoves.join(" "),
+            opening_name: sg.opening || sg.opening_name || "",
+            eco: sg.eco || "",
+            site_url: sg.link || sg.site || "",
+          });
+        }
+      } catch (err) {
+        console.warn("Failed to load inspect game from sessionStorage:", err);
+      }
+    }
+  }, [queryInspectGame]);
 
   // 2b. Synchronize player matching if players list loaded after gameInfo
   useEffect(() => {
@@ -596,6 +677,7 @@ export function AnalyzeContent() {
           .filter((t) => t && !["1-0", "0-1", "1/2-1/2", "*"].includes(t));
 
         setMoves(parsedMoves);
+        setMoveTree(createMoveTreeFromMoves(parsedMoves));
 
         // Jump to the formation move of the structure
         const chess = new Chess();
@@ -698,6 +780,7 @@ export function AnalyzeContent() {
     setMoves(line);
     setCurrentPly(line.length);
     setCurrentFen(chess.fen());
+    setMoveTree(createMoveTreeFromMoves(line));
     setGameInfo(null);
 
     // Async fallback to Lichess Openings API (3,865 ECO entries) if local line was empty
@@ -718,6 +801,7 @@ export function AnalyzeContent() {
             setMoves(apiLine);
             setCurrentPly(apiLine.length);
             setCurrentFen(apiChess.fen());
+            setMoveTree(createMoveTreeFromMoves(apiLine));
           }
         })
         .catch(() => {});
@@ -991,66 +1075,147 @@ export function AnalyzeContent() {
     checkOpeningTransition(moves.slice(0, ply));
   };
 
-  // Move list change from ChessBoard component (e.g. piece dropped)
+  // Move made on ChessBoard (supports automatic variation branching!)
+  const handleMakeMove = useCallback((san: string, newFen: string) => {
+    setMoveTree((prevTree) => {
+      const { tree: newTree, newNode } = addMoveToTree(prevTree, san, newFen);
+      const activeP = getActivePath(newTree);
+      const activeIdx = activeP.findIndex((n) => n.id === newNode.id);
+      const nextPly = activeIdx !== -1 ? activeIdx + 1 : newNode.ply;
+      const newMoves = activeP.map((n) => n.san);
+
+      setMoves(newMoves);
+      setCurrentPly(nextPly);
+      setCurrentFen(newFen);
+      checkOpeningTransition(newMoves.slice(0, nextPly));
+
+      return newTree;
+    });
+  }, [checkOpeningTransition]);
+
+  // Fallback for legacy onMovesChange
   const handleMovesChange = (newMoves: string[], ply: number, fen: string) => {
     setMoves(newMoves);
     setCurrentPly(ply);
     setCurrentFen(fen);
+    setMoveTree(createMoveTreeFromMoves(newMoves));
     checkOpeningTransition(newMoves.slice(0, ply));
   };
 
-  // Navigate through moves (e.g. for iPad / touch screen buttons)
-  const handleNavigatePly = (targetPly: number) => {
-    const clamped = Math.max(0, Math.min(moves.length, targetPly));
-    setCurrentPly(clamped);
-    checkOpeningTransition(moves.slice(0, clamped));
-  };
+  // Select node in MoveTree (main line or variation)
+  const handleSelectTreeNode = useCallback((nodeId: string) => {
+    setMoveTree((prevTree) => {
+      const targetNode = findNodeById(prevTree.rootNodes, nodeId);
+      if (!targetNode) return prevTree;
+
+      const updatedTree = { ...prevTree, activeNodeId: nodeId };
+      const activeP = getActivePath(updatedTree);
+      const activeIdx = activeP.findIndex((n) => n.id === nodeId);
+      const nextPly = activeIdx !== -1 ? activeIdx + 1 : targetNode.ply;
+      const newMoves = activeP.map((n) => n.san);
+
+      setMoves(newMoves);
+      setCurrentPly(nextPly);
+      setCurrentFen(targetNode.fen);
+      checkOpeningTransition(newMoves.slice(0, nextPly));
+
+      return updatedTree;
+    });
+  }, [checkOpeningTransition]);
+
+  // Promote a variation to become the main line (Trở thành biến chính)
+  const handlePromoteVariation = useCallback((nodeId: string) => {
+    setMoveTree((prevTree) => {
+      const updatedTree = promoteVariationToMainLine(prevTree, nodeId);
+      const activeP = getActivePath(updatedTree);
+      const activeIdx = activeP.findIndex((n) => n.id === nodeId);
+      const targetNode = findNodeById(updatedTree.rootNodes, nodeId);
+      const nextPly = activeIdx !== -1 ? activeIdx + 1 : (targetNode ? targetNode.ply : 0);
+      const newMoves = activeP.map((n) => n.san);
+
+      setMoves(newMoves);
+      setCurrentPly(nextPly);
+      if (targetNode) setCurrentFen(targetNode.fen);
+      checkOpeningTransition(newMoves.slice(0, nextPly));
+
+      return updatedTree;
+    });
+  }, [checkOpeningTransition]);
+
+  // Delete move and subsequent moves in its branch (Xoá từ đây)
+  const handleDeleteFromHere = useCallback((nodeId: string) => {
+    setMoveTree((prevTree) => {
+      const updatedTree = deleteMoveFromHere(prevTree, nodeId);
+      const activeP = getActivePath(updatedTree);
+      const activeNode = updatedTree.activeNodeId
+        ? findNodeById(updatedTree.rootNodes, updatedTree.activeNodeId)
+        : null;
+
+      const nextPly = activeNode
+        ? (activeP.findIndex((n) => n.id === activeNode.id) + 1)
+        : 0;
+      const newMoves = activeP.map((n) => n.san);
+      const newFen = activeNode ? activeNode.fen : "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+      setMoves(newMoves);
+      setCurrentPly(nextPly);
+      setCurrentFen(newFen);
+      checkOpeningTransition(newMoves.slice(0, nextPly));
+
+      return updatedTree;
+    });
+  }, [checkOpeningTransition]);
+
+  // Select ply (jump by ply count or to starting position)
+  const handleSelectPly = useCallback((ply: number) => {
+    if (ply === 0) {
+      setMoveTree((prev) => ({ ...prev, activeNodeId: null }));
+      setCurrentPly(0);
+      setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+      checkOpeningTransition([]);
+      return;
+    }
+    const activeP = getActivePath(moveTree);
+    if (ply > 0 && ply <= activeP.length) {
+      const targetNode = activeP[ply - 1];
+      handleSelectTreeNode(targetNode.id);
+    } else {
+      const clamped = Math.max(0, Math.min(moves.length, ply));
+      setCurrentPly(clamped);
+      checkOpeningTransition(moves.slice(0, clamped));
+    }
+  }, [moveTree, handleSelectTreeNode, moves, checkOpeningTransition]);
 
   // Select move from Opening Tree
   const handleSelectMove = (san: string) => {
     try {
       const chess = new Chess(currentFen);
-      chess.move(san);
-      const newFen = chess.fen();
-      const updatedMoves = [...moves.slice(0, currentPly), san];
-      setMoves(updatedMoves);
-      setCurrentPly(updatedMoves.length);
-      setCurrentFen(newFen);
-      checkOpeningTransition(updatedMoves);
+      const res = chess.move(san);
+      if (res) {
+        handleMakeMove(res.san, chess.fen());
+      }
     } catch (e) {
       console.warn("Invalid move selected:", san, e);
     }
   };
 
-
-  // Load a single game branch onto the board (e.g. from Master DB)
+  // Open single game in a new tab without affecting the current analysis session
   const handleLoadSingleGame = (sg: any) => {
     if (!sg) return;
-    let gMoves: string[] = [];
-    if (Array.isArray(sg.moves) && sg.moves.length > 0) {
-      gMoves = sg.moves;
-    } else if (sg.moves_san) {
-      gMoves = parseSanMoves(sg.moves_san);
+    if (sg.lichessId) {
+      window.open(`/analyze?lichessId=${sg.lichessId}`, "_blank");
+      return;
     }
-    setMoves(gMoves);
-    setCurrentPly(0);
-    setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-
-    const targetGame: Game = {
-      id: sg.id || `master-${Date.now()}`,
-      dataset_id: "",
-      white_player: typeof sg.white === "string" ? sg.white : sg.white?.name || sg.white_player || "Trắng",
-      black_player: typeof sg.black === "string" ? sg.black : sg.black?.name || sg.black_player || "Đen",
-      white_elo: typeof sg.white_elo === "number" ? sg.white_elo : sg.white?.rating,
-      black_elo: typeof sg.black_elo === "number" ? sg.black_elo : sg.black?.rating,
-      result: sg.result || "*",
-      played_at: sg.date || sg.month || sg.year || "",
-      moves_san: sg.moves_san || gMoves.join(" "),
-      opening_name: sg.opening || sg.opening_name || sg.event || "",
-      eco: sg.eco || "",
-      site_url: sg.site || sg.link || "",
-    };
-    setGameInfo(targetGame);
+    if (sg.id && typeof sg.id === "string" && sg.id.includes("-")) {
+      window.open(`/analyze?gameId=${sg.id}`, "_blank");
+      return;
+    }
+    try {
+      sessionStorage.setItem("inspect_game", JSON.stringify(sg));
+      window.open("/analyze?inspectGame=1", "_blank");
+    } catch {
+      console.warn("Failed to open game in new tab");
+    }
   };
 
   // Auto-load game if queryGameIdx is in URL
@@ -1468,6 +1633,7 @@ export function AnalyzeContent() {
             currentPly={currentPly}
             orientation={boardOrientation}
             onPositionChange={handlePositionChange}
+            onMakeMove={handleMakeMove}
             onMovesChange={handleMovesChange}
             onEvaluationChange={(ev, thinking) => {
               setEvaluation(ev);
@@ -1479,86 +1645,38 @@ export function AnalyzeContent() {
             onBoardWidthChange={(size) => setBoardSize(size)}
           />
 
-          {/* Move Navigation Control Bar (Keypad / Buttons for iPad & Touch) */}
+          {/* Board Tools: Flip & Reset */}
           <div
             style={{ width: `${boardSize + 22}px`, maxWidth: "100%" }}
-            className="mt-2 bg-card/90 dark:bg-slate-900/90 border border-border/70 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 flex items-center justify-between shadow-xs select-none"
+            className="mt-2 bg-card/90 dark:bg-slate-900/90 border border-border/70 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 flex items-center justify-end gap-1.5 sm:gap-2 shadow-xs select-none"
           >
-            {/* Navigation buttons */}
-            <div className="flex items-center gap-1 sm:gap-1.5">
-              <button
-                type="button"
-                onClick={() => handleNavigatePly(0)}
-                disabled={currentPly === 0 || moves.length === 0}
-                title="Về thế cờ ban đầu (Home)"
-                className="h-8.5 w-8.5 sm:h-9 sm:w-10 rounded-lg flex items-center justify-center bg-secondary/60 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
-              >
-                <ChevronsLeft className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleNavigatePly(currentPly - 1)}
-                disabled={currentPly === 0 || moves.length === 0}
-                title="Lùi 1 nước (Phím < hoặc phím mũi tên Trái)"
-                className="h-8.5 w-9 sm:h-9 sm:w-12 rounded-lg flex items-center justify-center bg-secondary/80 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
-              >
-                <ChevronLeft className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
-              </button>
-
-              <div className="px-2 py-1 sm:px-2.5 sm:py-1.5 min-w-[70px] sm:min-w-[90px] text-center font-mono text-[11px] sm:text-xs font-bold text-foreground bg-background rounded-lg border border-border/80 shadow-2xs">
-                {moves.length === 0 ? "Ban đầu" : currentPly === 0 ? "Bắt đầu" : `Nước ${currentPly}/${moves.length}`}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleNavigatePly(currentPly + 1)}
-                disabled={currentPly >= moves.length || moves.length === 0}
-                title="Tiến 1 nước (Phím > hoặc phím mũi tên Phải)"
-                className="h-8.5 w-9 sm:h-9 sm:w-12 rounded-lg flex items-center justify-center bg-secondary/80 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
-              >
-                <ChevronRight className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleNavigatePly(moves.length)}
-                disabled={currentPly >= moves.length || moves.length === 0}
-                title="Đến nước cuối cùng (End)"
-                className="h-8.5 w-8.5 sm:h-9 sm:w-10 rounded-lg flex items-center justify-center bg-secondary/60 hover:bg-secondary dark:hover:bg-slate-800 text-foreground disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer active:scale-95"
-              >
-                <ChevronsRight className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-              </button>
-            </div>
-
             {/* Side Tools: Flip & Reset */}
-            <div className="flex items-center gap-1 sm:gap-1.5">
-              <button
-                type="button"
-                onClick={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
-                title={`Xoay bàn cờ (Đang xem: ${boardOrientation === "white" ? "Trắng" : "Đen"})`}
-                className="h-8.5 sm:h-9 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 bg-secondary/50 hover:bg-secondary dark:hover:bg-slate-800 text-muted-foreground hover:text-foreground text-xs font-semibold transition cursor-pointer active:scale-95"
-              >
-                <RotateCw className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Xoay</span>
-              </button>
+            <button
+              type="button"
+              onClick={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
+              title={`Xoay bàn cờ (Đang xem: ${boardOrientation === "white" ? "Trắng" : "Đen"})`}
+              className="h-8.5 sm:h-9 px-2.5 sm:px-3 rounded-lg flex items-center gap-1.5 bg-secondary/50 hover:bg-secondary dark:hover:bg-slate-800 text-muted-foreground hover:text-foreground text-xs font-semibold transition cursor-pointer active:scale-95"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+              <span>Xoay</span>
+            </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setMoves([]);
-                  setCurrentPly(0);
-                  setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-                  setSelectedOpening(null);
-                }}
-                disabled={moves.length === 0 && currentFen === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}
-                title="Xóa ván cờ về bàn cờ ban đầu"
-                className="h-8.5 sm:h-9 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 bg-secondary/50 hover:bg-destructive/10 hover:text-destructive text-muted-foreground disabled:opacity-30 disabled:pointer-events-none text-xs font-semibold transition cursor-pointer active:scale-95"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Xóa bàn</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setMoves([]);
+                setCurrentPly(0);
+                setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                setMoveTree(createMoveTreeFromMoves([]));
+                setSelectedOpening(null);
+              }}
+              disabled={moves.length === 0 && currentFen === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}
+              title="Xóa ván cờ về bàn cờ ban đầu"
+              className="h-8.5 sm:h-9 px-2.5 sm:px-3 rounded-lg flex items-center gap-1.5 bg-secondary/50 hover:bg-destructive/10 hover:text-destructive text-muted-foreground disabled:opacity-30 disabled:pointer-events-none text-xs font-semibold transition cursor-pointer active:scale-95"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Xóa bàn</span>
+            </button>
           </div>
         </div>
 
@@ -1573,10 +1691,7 @@ export function AnalyzeContent() {
               <MoveHistory
                 moves={moves}
                 currentPly={currentPly}
-                onSelectPly={(ply) => {
-                  setCurrentPly(ply);
-                  checkOpeningTransition(moves.slice(0, ply));
-                }}
+                onSelectPly={handleSelectPly}
                 currentFen={currentFen}
                 evaluation={evaluation}
                 isThinking={isThinking}
@@ -1585,6 +1700,10 @@ export function AnalyzeContent() {
                 multiPv={multiPv}
                 onMultiPvChange={(count) => setMultiPv(count)}
                 embedded={true}
+                moveTree={moveTree}
+                onSelectNode={handleSelectTreeNode}
+                onPromoteVariation={handlePromoteVariation}
+                onDeleteFromHere={handleDeleteFromHere}
               />
             </div>
 
@@ -1727,10 +1846,7 @@ export function AnalyzeContent() {
                 <MoveHistory
                   moves={moves}
                   currentPly={currentPly}
-                  onSelectPly={(ply) => {
-                    setCurrentPly(ply);
-                    checkOpeningTransition(moves.slice(0, ply));
-                  }}
+                  onSelectPly={handleSelectPly}
                   currentFen={currentFen}
                   evaluation={evaluation}
                   isThinking={isThinking}
@@ -1739,6 +1855,10 @@ export function AnalyzeContent() {
                   multiPv={multiPv}
                   onMultiPvChange={(count) => setMultiPv(count)}
                   embedded={true}
+                  moveTree={moveTree}
+                  onSelectNode={handleSelectTreeNode}
+                  onPromoteVariation={handlePromoteVariation}
+                  onDeleteFromHere={handleDeleteFromHere}
                 />
               </div>
             )}

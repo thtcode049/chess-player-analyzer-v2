@@ -33,6 +33,7 @@ interface ChessBoardProps {
   orientation?: "white" | "black";
   onPositionChange?: (fen: string, ply: number) => void;
   onMovesChange?: (moves: string[], currentPly: number, fen: string) => void;
+  onMakeMove?: (san: string, newFen: string) => void;
   onEvaluationChange?: (evaluation: EngineEvaluation | null, isThinking: boolean) => void;
   isEngineEnabled?: boolean;
   multiPv?: number;
@@ -48,6 +49,7 @@ export default function ChessBoard({
   orientation = "white",
   onPositionChange,
   onMovesChange,
+  onMakeMove,
   onEvaluationChange,
   isEngineEnabled = true,
   height = 680,
@@ -353,7 +355,9 @@ export default function ChessBoard({
           }
 
           // Update move list and notify parent
-          if (onMovesChange) {
+          if (onMakeMove) {
+            onMakeMove(result.san, newFen);
+          } else if (onMovesChange) {
             onMovesChange(updatedMoves, nextPly, newFen);
           }
           if (onPositionChange) {
@@ -366,7 +370,7 @@ export default function ChessBoard({
       }
       return false;
     },
-    [isPlayable, currentPositionFen, currentPly, historyFens, moves, initialFen, isEngineEnabled, evaluateFen, onPositionChange, onMovesChange]
+    [isPlayable, currentPositionFen, currentPly, historyFens, moves, initialFen, isEngineEnabled, evaluateFen, onPositionChange, onMovesChange, onMakeMove]
   );
 
   // Calculate legal move visual styles (dots for moves, rings for captures)

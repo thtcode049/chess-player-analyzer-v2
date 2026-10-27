@@ -100,8 +100,13 @@ function createDraftSession(playerIds: string[] = [], playersList: Player[] = []
     initialGreeting = `Xin chào! Tôi là Trợ lí AI phân tích cờ vua. Tôi đã nạp toàn bộ biên bản ván đấu PGN của **${name}** và kết nối trực tiếp với bàn cờ.\n\nBạn có thể hỏi tôi bất kỳ điều gì về các ván đấu, khai cuộc, phong cách thi đấu, hoặc đi thử một nước cờ trên bàn cờ rồi hỏi tôi nhận xét!`;
   }
 
+  const draftId =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `chat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
   return {
-    id: `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    id: draftId,
     playerIds,
     title,
     pinned: false,
@@ -127,6 +132,14 @@ export default function AiCoachView() {
   const [draftSession, setDraftSession] = useState<ChatSession | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string>("");
   const [isLoaded, setIsLoaded] = useState(false);
+
+  // Synchronized refs to avoid stale closures in streaming callbacks
+  const activeSessionIdRef = useRef(activeSessionId);
+  activeSessionIdRef.current = activeSessionId;
+  const draftSessionRef = useRef(draftSession);
+  draftSessionRef.current = draftSession;
+  const sessionsRef = useRef(sessions);
+  sessionsRef.current = sessions;
 
   // Search and editing state
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -326,70 +339,69 @@ export default function AiCoachView() {
   // Handler: Update active session messages & lazy creation on first prompt
   const handleUpdateActiveMessages = useCallback(
     (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
+      const currentActiveId = activeSessionIdRef.current;
+      const currentDraft = draftSessionRef.current;
+
       // 1. If currently in a draft session
-      if (draftSession && activeSessionId === draftSession.id) {
-        setDraftSession((prevDraft) => {
-          if (!prevDraft) return null;
-          const currentMsgs = prevDraft.messages;
-          const nextMsgs = typeof updater === "function" ? updater(currentMsgs) : updater;
-          const firstUser = nextMsgs.find((m) => m.role === "user");
+      if (currentDraft && currentActiveId === currentDraft.id) {
+        const targetId = currentDraft.id;
+        const currentMsgs = currentDraft.messages;
+        const nextMsgs = typeof updater === "function" ? updater(currentMsgs) : updater;
+        const firstUser = nextMsgs.find((m) => m.role === "user");
 
-          // Still no user message? Keep as draft
-          if (!firstUser) {
-            return { ...prevDraft, messages: nextMsgs };
-          }
+        // Still no user message? Keep as draft
+        if (!firstUser) {
+          setDraftSession({ ...currentDraft, messages: nextMsgs });
+          return;
+        }
 
-          // Compute title from first user prompt
-          let title = prevDraft.title;
-          if (
-            title === "Đoạn chat mới" ||
-            title === "Trò chuyện tự do cùng AI" ||
-            title.startsWith("Phân tích:") ||
-            title.startsWith("So sánh:")
-          ) {
-            title = firstUser.content.slice(0, 36) + (firstUser.content.length > 36 ? "..." : "");
-          }
+        // Compute title from first user prompt
+        let title = currentDraft.title;
+        if (
+          title === "Đoạn chat mới" ||
+          title === "Trò chuyện tự do cùng AI" ||
+          title.startsWith("Phân tích:") ||
+          title.startsWith("So sánh:")
+        ) {
+          title = firstUser.content.slice(0, 36) + (firstUser.content.length > 36 ? "..." : "");
+        }
 
-          const realId =
-            typeof crypto !== "undefined" && crypto.randomUUID
-              ? crypto.randomUUID()
-              : `chat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const concreteSession: ChatSession = {
+          id: targetId, // PRESERVE EXACT ID to prevent component unmounting!
+          playerIds: currentDraft.playerIds,
+          title,
+          pinned: currentDraft.pinned,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          messages: nextMsgs,
+          isDraft: false,
+        };
 
-          const concreteSession: ChatSession = {
-            id: realId,
-            playerIds: prevDraft.playerIds,
-            title,
-            pinned: prevDraft.pinned,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
+        // Clear draft in ref and state immediately
+        draftSessionRef.current = null;
+        setDraftSession(null);
+
+        // Promote immediately to concrete sessions
+        setSessions((prevSessions) => [concreteSession, ...prevSessions.filter((s) => s.id !== targetId)]);
+
+        apiClient
+          .createAiChatSession({
+            id: targetId,
+            player_ids: concreteSession.playerIds,
+            title: concreteSession.title,
+            pinned: concreteSession.pinned,
             messages: nextMsgs,
-            isDraft: false,
-          };
+          })
+          .catch((err) => {
+            console.warn("Failed to persist session to Supabase:", err);
+          });
 
-          // Promote immediately to concrete sessions
-          setSessions((prevSessions) => [concreteSession, ...prevSessions.filter((s) => s.id !== realId)]);
-          setActiveSessionId(realId);
-
-          apiClient
-            .createAiChatSession({
-              id: realId,
-              player_ids: concreteSession.playerIds,
-              title: concreteSession.title,
-              pinned: concreteSession.pinned,
-              messages: nextMsgs,
-            })
-            .catch((err) => {
-              console.warn("Failed to persist session to Supabase:", err);
-            });
-
-          return null; // clear draft!
-        });
         return;
       }
 
-      // 2. Concrete session update (use functional state updater on prevSessions)
+      // 2. Concrete session update (in-memory state update for streaming tokens)
       setSessions((prevSessions) => {
-        const idx = prevSessions.findIndex((s) => s.id === activeSessionId);
+        const idx = prevSessions.findIndex((s) => s.id === currentActiveId);
         if (idx === -1) return prevSessions;
 
         const currentMsgs = prevSessions[idx].messages;
@@ -417,27 +429,37 @@ export default function AiCoachView() {
 
         const nextList = [...prevSessions];
         nextList[idx] = updatedSession;
-
-        apiClient
-          .updateAiChatSession(updatedSession.id, {
-            title: updatedSession.title,
-            player_ids: updatedSession.playerIds,
-            messages: nextMsgs,
-          })
-          .catch(() => {});
-
         return nextList;
       });
     },
-    [activeSessionId, draftSession]
+    []
   );
+
+  // Handler: Persist session to Supabase once streaming completes (avoids 100+ PUT spam)
+  const handlePersistActiveSession = useCallback(() => {
+    const currentActiveId = activeSessionIdRef.current;
+    const session = sessionsRef.current.find((s) => s.id === currentActiveId);
+    if (!session || session.isDraft) return;
+
+    apiClient
+      .updateAiChatSession(session.id, {
+        title: session.title,
+        player_ids: session.playerIds,
+        messages: session.messages,
+      })
+      .catch((err) => {
+        console.warn("Failed to persist session to Supabase:", err);
+      });
+  }, []);
 
   // Handler: Create a new chat session (enters in-memory draft state - LAZY CREATION)
   const handleCreateNewChat = (specificPlayerIds?: string[]) => {
-    // If current session is already an empty draft, just switch or keep it
+    // If current session is already an empty draft, just switch its player IDs
     if (activeSession.isDraft && !activeSession.messages.some((m) => m.role === "user")) {
       if (specificPlayerIds) {
-        setDraftSession(createDraftSession(specificPlayerIds, players));
+        const updated = createDraftSession(specificPlayerIds, players);
+        setDraftSession(updated);
+        setActiveSessionId(updated.id);
       }
       return;
     }
@@ -447,6 +469,40 @@ export default function AiCoachView() {
     setDraftSession(newDraft);
     setActiveSessionId(newDraft.id);
   };
+
+  // Synchronize when active player changes in workspaceStore (e.g. from Navbar profile switcher)
+  useEffect(() => {
+    if (!isLoaded) return;
+    const navPid = workspaceStore.activePlayerId;
+    if (!navPid || workspaceStore.activeMode !== "single") return;
+
+    // Check if the current active session already belongs to this player
+    if (activeSession.playerIds.length === 1 && activeSession.playerIds[0] === navPid) {
+      return;
+    }
+
+    // If current session is a fresh draft (no user messages yet), safely switch its player
+    const hasUserMsg = activeSession.messages.some((m) => m.role === "user");
+    if (!hasUserMsg) {
+      const updatedDraft = createDraftSession([navPid], players);
+      setDraftSession(updatedDraft);
+      setActiveSessionId(updatedDraft.id);
+      return;
+    }
+
+    // Current session is an existing conversation (e.g. nganbanghe):
+    // DO NOT MUTATE THE EXISTING CONVERSATION!
+    // Instead, look for an existing session with this player, or create a new draft for the selected player
+    const existingSessionForPlayer = sessions.find(
+      (s) => s.playerIds.length === 1 && s.playerIds[0] === navPid
+    );
+
+    if (existingSessionForPlayer) {
+      setActiveSessionId(existingSessionForPlayer.id);
+    } else {
+      handleCreateNewChat([navPid]);
+    }
+  }, [workspaceStore.activePlayerId, workspaceStore.activeMode, isLoaded]);
 
   // Handler: Pin / Unpin session
   const handleTogglePin = (e: React.MouseEvent, sessionId: string) => {
@@ -501,8 +557,24 @@ export default function AiCoachView() {
     });
   };
 
-  // Handler: Add or Remove player from active session context
+  // Handler: Switch to analyzing another player (safe against mutating historical chats)
   const handleAddPlayerToContext = (playerId: string) => {
+    setIsAddingPlayerOpen(false);
+
+    // If current session already has messages from a user, NEVER mutate its history!
+    // Start a new chat for the newly selected player instead.
+    const hasUserMsg = activeSession.messages.some((m) => m.role === "user");
+    if (hasUserMsg) {
+      handleCreateNewChat([playerId]);
+      return;
+    }
+
+    // If in empty draft, switch draft player directly
+    setDraftSession(createDraftSession([playerId], players));
+  };
+
+  // Handler: Add player to multi-profile comparison
+  const handleAddPlayerForCompare = (playerId: string) => {
     setIsAddingPlayerOpen(false);
     if (activeSession.playerIds.includes(playerId)) return;
     const nextPids = [...activeSession.playerIds, playerId];
@@ -522,7 +594,8 @@ export default function AiCoachView() {
 
     if (activeSession.isDraft) {
       setDraftSession(createDraftSession(nextPids, players));
-    } else {
+    } else if (activeSession.playerIds.length > 1) {
+      // Only allow removing if there are at least 2 players in compare mode
       setSessions((prev) =>
         prev.map((s) => (s.id === activeSession.id ? { ...s, playerIds: nextPids } : s))
       );
@@ -840,20 +913,23 @@ export default function AiCoachView() {
                 {activeSession.playerIds.map((pid) => {
                   const p = players.find((pl) => pl.id === pid);
                   const name = p?.canonical_name || "Kỳ thủ";
+                  const canRemove = activeSession.isDraft || activeSession.playerIds.length > 1;
                   return (
                     <div
                       key={pid}
                       className="flex items-center gap-1 bg-emerald-600 text-white rounded-lg pl-2 pr-1.5 py-1 text-xs font-bold shadow-2xs animate-fade-in"
                     >
                       <span className="truncate max-w-[120px] sm:max-w-[160px]">{name}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePlayerFromContext(pid)}
-                        title={`Bỏ ${name} khỏi cuộc trò chuyện`}
-                        className="p-0.5 hover:bg-white/20 rounded-md transition cursor-pointer"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
+                      {canRemove && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePlayerFromContext(pid)}
+                          title={`Bỏ ${name} khỏi cuộc trò chuyện`}
+                          className="p-0.5 hover:bg-white/20 rounded-md transition cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -888,9 +964,14 @@ export default function AiCoachView() {
                       type="button"
                       onClick={() => {
                         setIsAddingPlayerOpen(false);
-                        handleCreateNewChat([]);
+                        const hasUserMsg = activeSession.messages.some((m) => m.role === "user");
+                        if (hasUserMsg) {
+                          handleCreateNewChat([]);
+                        } else {
+                          setDraftSession(createDraftSession([], players));
+                        }
                       }}
-                      className="w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-muted font-medium flex items-center gap-2"
+                      className="w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-muted font-medium flex items-center gap-2 cursor-pointer"
                     >
                       <Bot className="w-3.5 h-3.5 text-muted-foreground" />
                       <span>Chuyển về Trò chuyện tự do</span>
@@ -899,19 +980,34 @@ export default function AiCoachView() {
                   {players
                     .filter((p) => !activeSession.playerIds.includes(p.id))
                     .map((p) => (
-                      <button
+                      <div
                         key={p.id}
-                        type="button"
-                        onClick={() => handleAddPlayerToContext(p.id)}
-                        className="w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-emerald-500/10 hover:text-emerald-800 dark:hover:text-emerald-200 font-medium flex items-center justify-between"
+                        className="px-2.5 py-1 hover:bg-muted/80 rounded-lg flex items-center justify-between gap-1 transition"
                       >
-                        <span className="truncate">{p.canonical_name}</span>
-                        {p.title && (
-                          <span className="text-[10px] px-1 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold ml-1">
-                            {p.title}
-                          </span>
+                        <button
+                          type="button"
+                          onClick={() => handleAddPlayerToContext(p.id)}
+                          className="flex-1 min-w-0 text-left py-1 text-xs text-foreground font-semibold flex items-center gap-1.5 truncate cursor-pointer hover:text-emerald-600"
+                          title={`Phân tích kỳ thủ ${p.canonical_name}`}
+                        >
+                          <span className="truncate">{p.canonical_name}</span>
+                          {p.title && (
+                            <span className="text-[10px] px-1 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold shrink-0">
+                              {p.title}
+                            </span>
+                          )}
+                        </button>
+                        {activeSession.playerIds.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddPlayerForCompare(p.id)}
+                            className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold transition shrink-0 cursor-pointer"
+                            title={`Thêm ${p.canonical_name} vào so sánh đối đầu`}
+                          >
+                            + So sánh
+                          </button>
                         )}
-                      </button>
+                      </div>
                     ))}
                   {players.filter((p) => !activeSession.playerIds.includes(p.id)).length === 0 && (
                     <div className="px-3 py-2 text-xs text-muted-foreground text-center italic">
@@ -1377,6 +1473,7 @@ export default function AiCoachView() {
               pendingPrompt={pendingPrompt}
               onClearPendingPrompt={() => setPendingPrompt(null)}
               onNewChat={() => handleCreateNewChat()}
+              onStreamComplete={handlePersistActiveSession}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center bg-card border border-border/60 rounded-xl">

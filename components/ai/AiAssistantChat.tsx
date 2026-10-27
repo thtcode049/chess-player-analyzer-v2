@@ -46,6 +46,7 @@ interface AiAssistantChatProps {
   pendingPrompt?: string | null;
   onClearPendingPrompt?: () => void;
   onNewChat?: () => void;
+  onStreamComplete?: () => void;
   suggestedQuestions?: string[];
   heightClass?: string;
 }
@@ -240,6 +241,7 @@ export default function AiAssistantChat({
   pendingPrompt,
   onClearPendingPrompt,
   onNewChat,
+  onStreamComplete,
   suggestedQuestions,
   heightClass,
 }: AiAssistantChatProps) {
@@ -385,7 +387,10 @@ export default function AiAssistantChat({
             return updated;
           });
         },
-        onDone: () => setIsStreaming(false),
+        onDone: () => {
+          setIsStreaming(false);
+          onStreamComplete?.();
+        },
         onError: (err) => {
           setIsStreaming(false);
           setMessages((prev) => {
@@ -398,6 +403,7 @@ export default function AiAssistantChat({
             };
             return updated;
           });
+          onStreamComplete?.();
         },
       }
     );

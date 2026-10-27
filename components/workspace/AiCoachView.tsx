@@ -79,6 +79,17 @@ function formatRelativeTime(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString("vi-VN", { month: "numeric", day: "numeric" });
 }
 
+function generateUUID(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 function createDraftSession(playerIds: string[] = [], playersList: Player[] = []): ChatSession {
   const isGeneral = playerIds.length === 0;
   const isMulti = playerIds.length > 1;
@@ -100,10 +111,7 @@ function createDraftSession(playerIds: string[] = [], playersList: Player[] = []
     initialGreeting = `Xin chào! Tôi là Trợ lí AI phân tích cờ vua. Tôi đã nạp toàn bộ biên bản ván đấu PGN của **${name}** và kết nối trực tiếp với bàn cờ.\n\nBạn có thể hỏi tôi bất kỳ điều gì về các ván đấu, khai cuộc, phong cách thi đấu, hoặc đi thử một nước cờ trên bàn cờ rồi hỏi tôi nhận xét!`;
   }
 
-  const draftId =
-    typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `chat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const draftId = generateUUID();
 
   return {
     id: draftId,
@@ -127,17 +135,14 @@ export default function AiCoachView() {
   const workspaceStore = useProfileWorkspaceStore();
   const [players, setPlayers] = useState<Player[]>([]);
 
-  // Chat sessions state
+  // Chat sessions state (single source of truth for all chat sessions)
   const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [draftSession, setDraftSession] = useState<ChatSession | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string>("");
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Synchronized refs to avoid stale closures in streaming callbacks
   const activeSessionIdRef = useRef(activeSessionId);
   activeSessionIdRef.current = activeSessionId;
-  const draftSessionRef = useRef(draftSession);
-  draftSessionRef.current = draftSession;
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
 
@@ -260,7 +265,7 @@ export default function AiCoachView() {
           initialPids = workspaceStore.multiProfiles.map((m) => m.player.id);
         }
         const initialDraft = createDraftSession(initialPids, players);
-        setDraftSession(initialDraft);
+        setSessions([initialDraft]);
         setActiveSessionId(initialDraft.id);
       }
 
@@ -285,17 +290,13 @@ export default function AiCoachView() {
     }
   }, [sessions, isLoaded]);
 
-  // Current active session (either from concrete sessions or the active draft)
+  // Current active session from sessions list
   const activeSession: ChatSession = useMemo(() => {
-    if (draftSession && draftSession.id === activeSessionId) {
-      return draftSession;
-    }
     const found = sessions.find((s) => s.id === activeSessionId);
     if (found) return found;
-    if (draftSession) return draftSession;
     if (sessions.length > 0) return sessions[0];
     return createDraftSession([], players);
-  }, [activeSessionId, sessions, draftSession, players]);
+  }, [activeSessionId, sessions, players]);
 
   // Player display names in active session
   const activePlayerNames = useMemo(() => {
@@ -340,95 +341,60 @@ export default function AiCoachView() {
   const handleUpdateActiveMessages = useCallback(
     (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
       const currentActiveId = activeSessionIdRef.current;
-      const currentDraft = draftSessionRef.current;
 
-      // 1. If currently in a draft session
-      if (currentDraft && currentActiveId === currentDraft.id) {
-        const targetId = currentDraft.id;
-        const currentMsgs = currentDraft.messages;
-        const nextMsgs = typeof updater === "function" ? updater(currentMsgs) : updater;
-        const firstUser = nextMsgs.find((m) => m.role === "user");
+      setSessions((prevSessions) => {
+        let targetIdx = prevSessions.findIndex((s) => s.id === currentActiveId);
 
-        // Still no user message? Keep as draft
-        if (!firstUser) {
-          setDraftSession({ ...currentDraft, messages: nextMsgs });
-          return;
+        // Fallback: If not found by active ID, fallback to top session
+        if (targetIdx === -1) {
+          if (prevSessions.length > 0) targetIdx = 0;
+          else return prevSessions;
         }
 
-        // Compute title from first user prompt
-        let title = currentDraft.title;
+        const targetSession = prevSessions[targetIdx];
+        const currentMsgs = targetSession.messages;
+        const nextMsgs = typeof updater === "function" ? updater(currentMsgs) : updater;
+
+        const firstUser = nextMsgs.find((m) => m.role === "user");
+        let title = targetSession.title;
         if (
-          title === "Đoạn chat mới" ||
-          title === "Trò chuyện tự do cùng AI" ||
-          title.startsWith("Phân tích:") ||
-          title.startsWith("So sánh:")
+          firstUser &&
+          firstUser.content &&
+          (title === "Đoạn chat mới" ||
+            title === "Trò chuyện tự do cùng AI" ||
+            title.startsWith("Phân tích:") ||
+            title.startsWith("So sánh:"))
         ) {
           title = firstUser.content.slice(0, 36) + (firstUser.content.length > 36 ? "..." : "");
         }
 
-        const concreteSession: ChatSession = {
-          id: targetId, // PRESERVE EXACT ID to prevent component unmounting!
-          playerIds: currentDraft.playerIds,
-          title,
-          pinned: currentDraft.pinned,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          messages: nextMsgs,
-          isDraft: false,
-        };
-
-        // Clear draft in ref and state immediately
-        draftSessionRef.current = null;
-        setDraftSession(null);
-
-        // Promote immediately to concrete sessions
-        setSessions((prevSessions) => [concreteSession, ...prevSessions.filter((s) => s.id !== targetId)]);
-
-        apiClient
-          .createAiChatSession({
-            id: targetId,
-            player_ids: concreteSession.playerIds,
-            title: concreteSession.title,
-            pinned: concreteSession.pinned,
-            messages: nextMsgs,
-          })
-          .catch((err) => {
-            console.warn("Failed to persist session to Supabase:", err);
-          });
-
-        return;
-      }
-
-      // 2. Concrete session update (in-memory state update for streaming tokens)
-      setSessions((prevSessions) => {
-        const idx = prevSessions.findIndex((s) => s.id === currentActiveId);
-        if (idx === -1) return prevSessions;
-
-        const currentMsgs = prevSessions[idx].messages;
-        const nextMsgs = typeof updater === "function" ? updater(currentMsgs) : updater;
-
-        let title = prevSessions[idx].title;
-        if (
-          title === "Đoạn chat mới" ||
-          title === "Trò chuyện tự do cùng AI" ||
-          title.startsWith("Phân tích:") ||
-          title.startsWith("So sánh:")
-        ) {
-          const firstUser = nextMsgs.find((m) => m.role === "user");
-          if (firstUser && firstUser.content) {
-            title = firstUser.content.slice(0, 36) + (firstUser.content.length > 36 ? "..." : "");
-          }
-        }
-
+        const isFirstPrompt = Boolean(targetSession.isDraft && firstUser);
         const updatedSession: ChatSession = {
-          ...prevSessions[idx],
+          ...targetSession,
           title,
           updatedAt: Date.now(),
           messages: nextMsgs,
+          isDraft: isFirstPrompt ? false : targetSession.isDraft,
         };
 
         const nextList = [...prevSessions];
-        nextList[idx] = updatedSession;
+        nextList[targetIdx] = updatedSession;
+
+        // If this is the first prompt in a draft session, persist to Supabase
+        if (isFirstPrompt) {
+          apiClient
+            .createAiChatSession({
+              id: updatedSession.id,
+              player_ids: updatedSession.playerIds,
+              title: updatedSession.title,
+              pinned: updatedSession.pinned,
+              messages: nextMsgs,
+            })
+            .catch((err) => {
+              console.warn("Failed to persist new session to Supabase:", err);
+            });
+        }
+
         return nextList;
       });
     },
@@ -454,19 +420,28 @@ export default function AiCoachView() {
 
   // Handler: Create a new chat session (enters in-memory draft state - LAZY CREATION)
   const handleCreateNewChat = (specificPlayerIds?: string[]) => {
-    // If current session is already an empty draft, just switch its player IDs
-    if (activeSession.isDraft && !activeSession.messages.some((m) => m.role === "user")) {
-      if (specificPlayerIds) {
-        const updated = createDraftSession(specificPlayerIds, players);
-        setDraftSession(updated);
-        setActiveSessionId(updated.id);
-      }
+    const targetPids = specificPlayerIds !== undefined ? specificPlayerIds : activeSession.playerIds;
+
+    // Check if the current session is an un-messaged draft: simply switch its player
+    const current = sessionsRef.current.find((s) => s.id === activeSessionIdRef.current);
+    if (current && !current.messages.some((m) => m.role === "user")) {
+      const updatedDraft = createDraftSession(targetPids, players);
+      activeSessionIdRef.current = updatedDraft.id;
+      setSessions((prev) => [
+        updatedDraft,
+        ...prev.filter((s) => s.id !== current.id && s.messages.some((m) => m.role === "user")),
+      ]);
+      setActiveSessionId(updatedDraft.id);
       return;
     }
 
-    const targetPids = specificPlayerIds !== undefined ? specificPlayerIds : activeSession.playerIds;
     const newDraft = createDraftSession(targetPids, players);
-    setDraftSession(newDraft);
+    activeSessionIdRef.current = newDraft.id;
+    // Put newDraft at the top of sessions, cleaning up any empty drafts without user messages
+    setSessions((prev) => [
+      newDraft,
+      ...prev.filter((s) => s.messages && s.messages.some((m) => m.role === "user")),
+    ]);
     setActiveSessionId(newDraft.id);
   };
 
@@ -477,15 +452,19 @@ export default function AiCoachView() {
     if (!navPid || workspaceStore.activeMode !== "single") return;
 
     // Check if the current active session already belongs to this player
-    if (activeSession.playerIds.length === 1 && activeSession.playerIds[0] === navPid) {
+    const current = sessions.find((s) => s.id === activeSessionIdRef.current);
+    if (current && current.playerIds.length === 1 && current.playerIds[0] === navPid) {
       return;
     }
 
     // If current session is a fresh draft (no user messages yet), safely switch its player
-    const hasUserMsg = activeSession.messages.some((m) => m.role === "user");
-    if (!hasUserMsg) {
+    if (current && !current.messages.some((m) => m.role === "user")) {
       const updatedDraft = createDraftSession([navPid], players);
-      setDraftSession(updatedDraft);
+      activeSessionIdRef.current = updatedDraft.id;
+      setSessions((prev) => [
+        updatedDraft,
+        ...prev.filter((s) => s.id !== current.id && s.messages.some((m) => m.role === "user")),
+      ]);
       setActiveSessionId(updatedDraft.id);
       return;
     }
@@ -549,8 +528,8 @@ export default function AiCoachView() {
           setActiveSessionId(remaining[0].id);
         } else {
           const fresh = createDraftSession([], players);
-          setDraftSession(fresh);
           setActiveSessionId(fresh.id);
+          return [fresh];
         }
       }
       return remaining;
@@ -560,17 +539,20 @@ export default function AiCoachView() {
   // Handler: Switch to analyzing another player (safe against mutating historical chats)
   const handleAddPlayerToContext = (playerId: string) => {
     setIsAddingPlayerOpen(false);
-
-    // If current session already has messages from a user, NEVER mutate its history!
-    // Start a new chat for the newly selected player instead.
     const hasUserMsg = activeSession.messages.some((m) => m.role === "user");
     if (hasUserMsg) {
       handleCreateNewChat([playerId]);
       return;
     }
 
-    // If in empty draft, switch draft player directly
-    setDraftSession(createDraftSession([playerId], players));
+    // If current session is an un-messaged draft, update it in sessions
+    const updatedDraft = createDraftSession([playerId], players);
+    activeSessionIdRef.current = updatedDraft.id;
+    setSessions((prev) => [
+      updatedDraft,
+      ...prev.filter((s) => s.id !== activeSession.id && s.messages.some((m) => m.role === "user")),
+    ]);
+    setActiveSessionId(updatedDraft.id);
   };
 
   // Handler: Add player to multi-profile comparison
@@ -579,8 +561,9 @@ export default function AiCoachView() {
     if (activeSession.playerIds.includes(playerId)) return;
     const nextPids = [...activeSession.playerIds, playerId];
 
-    if (activeSession.isDraft) {
-      setDraftSession(createDraftSession(nextPids, players));
+    if (activeSession.isDraft || !activeSession.messages.some((m) => m.role === "user")) {
+      const updatedDraft = createDraftSession(nextPids, players);
+      setSessions((prev) => prev.map((s) => (s.id === activeSession.id ? updatedDraft : s)));
     } else {
       setSessions((prev) =>
         prev.map((s) => (s.id === activeSession.id ? { ...s, playerIds: nextPids } : s))
@@ -592,8 +575,9 @@ export default function AiCoachView() {
   const handleRemovePlayerFromContext = (playerId: string) => {
     const nextPids = activeSession.playerIds.filter((id) => id !== playerId);
 
-    if (activeSession.isDraft) {
-      setDraftSession(createDraftSession(nextPids, players));
+    if (activeSession.isDraft || !activeSession.messages.some((m) => m.role === "user")) {
+      const updatedDraft = createDraftSession(nextPids, players);
+      setSessions((prev) => prev.map((s) => (s.id === activeSession.id ? updatedDraft : s)));
     } else if (activeSession.playerIds.length > 1) {
       // Only allow removing if there are at least 2 players in compare mode
       setSessions((prev) =>
@@ -727,7 +711,7 @@ export default function AiCoachView() {
     const older: ChatSession[] = [];
 
     for (const s of filteredSessions) {
-      if (s.isDraft) continue;
+      if (s.isDraft || !s.messages.some((m) => m.role === "user")) continue;
       if (s.pinned) {
         pinned.push(s);
         continue;
@@ -746,6 +730,10 @@ export default function AiCoachView() {
 
     return { pinned, today, yesterday, last7Days, older };
   }, [filteredSessions]);
+
+  const savedSessionsCount = useMemo(() => {
+    return sessions.filter((s) => !s.isDraft && s.messages.some((m) => m.role === "user")).length;
+  }, [sessions]);
 
   // Render a session item row
   const renderSessionItem = (session: ChatSession) => {
@@ -968,7 +956,12 @@ export default function AiCoachView() {
                         if (hasUserMsg) {
                           handleCreateNewChat([]);
                         } else {
-                          setDraftSession(createDraftSession([], players));
+                          const updatedDraft = createDraftSession([], players);
+                          setSessions((prev) => [
+                            updatedDraft,
+                            ...prev.filter((s) => s.id !== activeSession.id && s.messages.some((m) => m.role === "user")),
+                          ]);
+                          setActiveSessionId(updatedDraft.id);
                         }
                       }}
                       className="w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-muted font-medium flex items-center gap-2 cursor-pointer"
@@ -1067,7 +1060,7 @@ export default function AiCoachView() {
                       Lịch sử trò chuyện
                     </span>
                     <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950/60 font-mono text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300/40">
-                      {sessions.length}
+                      {savedSessionsCount}
                     </span>
                   </div>
                 </div>
@@ -1174,7 +1167,7 @@ export default function AiCoachView() {
                 )}
 
                 {/* Empty State */}
-                {sessions.length === 0 && !searchQuery && (
+                {savedSessionsCount === 0 && !searchQuery && (
                   <div className="py-12 px-4 text-center space-y-2">
                     <div className="w-10 h-10 mx-auto rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600">
                       <Bot className="w-5 h-5" />

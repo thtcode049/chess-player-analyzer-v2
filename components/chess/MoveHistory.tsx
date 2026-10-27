@@ -616,39 +616,16 @@ export default function MoveHistory({
                 {/* White Variations (Biến phụ của nước Trắng) */}
                 {pair.whiteVariations &&
                   pair.whiteVariations.map((varBranch: MoveNode[], vIdx: number) => {
-                    const startNode = varBranch[0];
-                    const isStartActive = moveTree?.activeNodeId === startNode.id;
-
                     return (
                       <div
                         key={`w-var-${vIdx}`}
-                        className="ml-6 pl-2.5 py-1 border-l-2 border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/10 rounded-r-lg flex flex-wrap items-center gap-1.5 text-xs"
+                        className="ml-5 pl-2.5 py-1 my-0.5 border-l-2 border-slate-300 dark:border-slate-700 bg-slate-100/40 dark:bg-slate-800/30 rounded-r flex flex-wrap items-center gap-1 text-xs"
                       >
-                        {/* Orange Badge for Variation Start (matching Lichess Image 2) */}
-                        <button
-                          ref={isStartActive ? activeRef : undefined}
-                          type="button"
-                          onClick={() => onSelectNode && onSelectNode(startNode.id)}
-                          onContextMenu={(e) => handleContextMenu(e, startNode)}
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[12px] shadow-xs cursor-pointer transition ${
-                            isStartActive
-                              ? "bg-sky-600 text-white"
-                              : "bg-amber-600 hover:bg-amber-700 text-white"
-                          }`}
-                          title="Bấm chuột phải để tuỳ chọn biến (Đưa thành biến chính, sao chép, xoá)"
-                        >
-                          <span>{startNode.moveNumber}.</span>
-                          <FigurineMove san={startNode.san} />
-                          {isStartActive && isEngineOn && evalText !== "—" && (
-                            <span className="text-[10px] font-mono opacity-90 pl-0.5">
-                              {evalText}
-                            </span>
-                          )}
-                        </button>
-
-                        {/* Subsequent moves in this variation */}
-                        {varBranch.slice(1).map((mNode: MoveNode) => {
+                        <span className="text-slate-400 font-bold select-none mr-0.5">—</span>
+                        {varBranch.map((mNode: MoveNode, mIdx: number) => {
                           const isActive = moveTree?.activeNodeId === mNode.id;
+                          const isStart = mIdx === 0;
+
                           return (
                             <button
                               key={mNode.id}
@@ -656,20 +633,27 @@ export default function MoveHistory({
                               type="button"
                               onClick={() => onSelectNode && onSelectNode(mNode.id)}
                               onContextMenu={(e) => handleContextMenu(e, mNode)}
-                              className={`px-1.5 py-0.5 rounded text-[13px] font-normal transition cursor-pointer flex items-center gap-1 ${
+                              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded transition cursor-pointer text-[13px] ${
                                 isActive
-                                  ? "bg-sky-600 text-white font-semibold"
-                                  : "text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                                  ? "bg-sky-600 text-white font-medium shadow-xs"
+                                  : "text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700/80 font-normal"
                               }`}
+                              title="Bấm chuột phải để tuỳ chọn biến (Trở thành biến chính, sao chép, xoá)"
                             >
-                              {mNode.isWhite && (
-                                <span className="text-[11px] text-slate-400 font-semibold">
+                              {isStart ? (
+                                <span className={isActive ? "text-white/80 font-semibold mr-0.5" : "text-slate-400 font-semibold mr-0.5"}>
                                   {mNode.moveNumber}.
                                 </span>
+                              ) : (
+                                mNode.isWhite && (
+                                  <span className={isActive ? "text-white/80 font-semibold mr-0.5" : "text-slate-400 font-semibold mr-0.5"}>
+                                    {mNode.moveNumber}.
+                                  </span>
+                                )
                               )}
                               <FigurineMove san={mNode.san} />
                               {isActive && isEngineOn && evalText !== "—" && (
-                                <span className="text-[10px] font-mono opacity-90 pl-0.5">
+                                <span className="text-[10px] font-mono opacity-90 pl-1 font-bold">
                                   {evalText}
                                 </span>
                               )}
@@ -680,42 +664,19 @@ export default function MoveHistory({
                     );
                   })}
 
-                {/* Black Variations (Biến phụ của nước Đen - matching Image 2 e.g. 2... b6) */}
+                {/* Black Variations (Biến phụ của nước Đen - matching Lichess Image 2 e.g. — 1...b6 2.g4) */}
                 {pair.blackVariations &&
                   pair.blackVariations.map((varBranch: MoveNode[], vIdx: number) => {
-                    const startNode = varBranch[0];
-                    const isStartActive = moveTree?.activeNodeId === startNode.id;
-
                     return (
                       <div
                         key={`b-var-${vIdx}`}
-                        className="ml-6 pl-2.5 py-1 border-l-2 border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/10 rounded-r-lg flex flex-wrap items-center gap-1.5 text-xs"
+                        className="ml-5 pl-2.5 py-1 my-0.5 border-l-2 border-slate-300 dark:border-slate-700 bg-slate-100/40 dark:bg-slate-800/30 rounded-r flex flex-wrap items-center gap-1 text-xs"
                       >
-                        {/* Orange Badge for Variation Start: e.g. 2... b6 */}
-                        <button
-                          ref={isStartActive ? activeRef : undefined}
-                          type="button"
-                          onClick={() => onSelectNode && onSelectNode(startNode.id)}
-                          onContextMenu={(e) => handleContextMenu(e, startNode)}
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[12px] shadow-xs cursor-pointer transition ${
-                            isStartActive
-                              ? "bg-sky-600 text-white"
-                              : "bg-amber-600 hover:bg-amber-700 text-white"
-                          }`}
-                          title="Bấm chuột phải để tuỳ chọn biến (Đưa thành biến chính, sao chép, xoá)"
-                        >
-                          <span>{startNode.moveNumber}...</span>
-                          <FigurineMove san={startNode.san} />
-                          {isStartActive && isEngineOn && evalText !== "—" && (
-                            <span className="text-[10px] font-mono opacity-90 pl-0.5">
-                              {evalText}
-                            </span>
-                          )}
-                        </button>
-
-                        {/* Subsequent moves in this variation */}
-                        {varBranch.slice(1).map((mNode: MoveNode) => {
+                        <span className="text-slate-400 font-bold select-none mr-0.5">—</span>
+                        {varBranch.map((mNode: MoveNode, mIdx: number) => {
                           const isActive = moveTree?.activeNodeId === mNode.id;
+                          const isStart = mIdx === 0;
+
                           return (
                             <button
                               key={mNode.id}
@@ -723,20 +684,27 @@ export default function MoveHistory({
                               type="button"
                               onClick={() => onSelectNode && onSelectNode(mNode.id)}
                               onContextMenu={(e) => handleContextMenu(e, mNode)}
-                              className={`px-1.5 py-0.5 rounded text-[13px] font-normal transition cursor-pointer flex items-center gap-1 ${
+                              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded transition cursor-pointer text-[13px] ${
                                 isActive
-                                  ? "bg-sky-600 text-white font-semibold"
-                                  : "text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                                  ? "bg-sky-600 text-white font-medium shadow-xs"
+                                  : "text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700/80 font-normal"
                               }`}
+                              title="Bấm chuột phải để tuỳ chọn biến (Trở thành biến chính, sao chép, xoá)"
                             >
-                              {mNode.isWhite && (
-                                <span className="text-[11px] text-slate-400 font-semibold">
-                                  {mNode.moveNumber}.
+                              {isStart ? (
+                                <span className={isActive ? "text-white/80 font-semibold mr-0.5" : "text-slate-400 font-semibold mr-0.5"}>
+                                  {mNode.moveNumber}...
                                 </span>
+                              ) : (
+                                mNode.isWhite && (
+                                  <span className={isActive ? "text-white/80 font-semibold mr-0.5" : "text-slate-400 font-semibold mr-0.5"}>
+                                    {mNode.moveNumber}.
+                                  </span>
+                                )
                               )}
                               <FigurineMove san={mNode.san} />
                               {isActive && isEngineOn && evalText !== "—" && (
-                                <span className="text-[10px] font-mono opacity-90 pl-0.5">
+                                <span className="text-[10px] font-mono opacity-90 pl-1 font-bold">
                                   {evalText}
                                 </span>
                               )}

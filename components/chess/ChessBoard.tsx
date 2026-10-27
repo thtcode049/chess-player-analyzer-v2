@@ -357,11 +357,13 @@ export default function ChessBoard({
           // Update move list and notify parent
           if (onMakeMove) {
             onMakeMove(result.san, newFen);
-          } else if (onMovesChange) {
-            onMovesChange(updatedMoves, nextPly, newFen);
-          }
-          if (onPositionChange) {
-            onPositionChange(newFen, nextPly);
+          } else {
+            if (onMovesChange) {
+              onMovesChange(updatedMoves, nextPly, newFen);
+            }
+            if (onPositionChange) {
+              onPositionChange(newFen, nextPly);
+            }
           }
           return true;
         }

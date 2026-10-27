@@ -968,6 +968,7 @@ export function AnalyzeContent() {
     setMoves([]);
     setCurrentPly(0);
     setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    setMoveTree(createMoveTreeFromMoves([]));
     setGameInfo(null);
     setSelectedStructure(null);
     setActiveStructureGameIdx(null);
@@ -1068,12 +1069,22 @@ export function AnalyzeContent() {
     }
   }, [selectedOpening, playerGames, availableOpenings, router]);
 
-  // Position change from ChessBoard component
-  const handlePositionChange = (fen: string, ply: number) => {
+  // Position change from ChessBoard component (e.g. keyboard navigation or board buttons)
+  const handlePositionChange = useCallback((fen: string, ply: number) => {
     setCurrentFen(fen);
     setCurrentPly(ply);
+    setMoveTree((prevTree) => {
+      if (ply === 0) {
+        return { ...prevTree, activeNodeId: null };
+      }
+      const activeP = getActivePath(prevTree);
+      if (ply > 0 && ply <= activeP.length) {
+        return { ...prevTree, activeNodeId: activeP[ply - 1].id };
+      }
+      return prevTree;
+    });
     checkOpeningTransition(moves.slice(0, ply));
-  };
+  }, [moves, checkOpeningTransition]);
 
   // Move made on ChessBoard (supports automatic variation branching!)
   const handleMakeMove = useCallback((san: string, newFen: string) => {

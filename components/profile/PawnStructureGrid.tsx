@@ -376,11 +376,7 @@ export default function PawnStructureGrid({
               {playerId && (
                 <button
                   type="button"
-                  onClick={() => {
-                    const struct = activeModalStructure;
-                    setActiveModalStructure(null);
-                    exploreStructure(struct, playerId);
-                  }}
+                  onClick={() => exploreStructure(activeModalStructure, playerId)}
                   className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
                   <Play className="w-3 h-3" />
@@ -470,11 +466,9 @@ export default function PawnStructureGrid({
                           <td className="px-3 py-2.5 text-right">
                             <button
                               type="button"
-                              onClick={() => {
-                                const struct = activeModalStructure;
-                                setActiveModalStructure(null);
-                                exploreStructure(struct, playerId, g.game_index ?? gIdx, g);
-                              }}
+                              onClick={() =>
+                                exploreStructure(activeModalStructure, playerId, g.game_index ?? gIdx, g)
+                              }
                               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-secondary hover:bg-primary hover:text-primary-foreground font-medium text-[11px] text-foreground transition cursor-pointer"
                             >
                               Phân tích

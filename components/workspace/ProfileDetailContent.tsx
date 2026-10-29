@@ -1207,7 +1207,12 @@ export default function ProfileDetailContent({
                 </span>
                 <button
                   type="button"
-                  onClick={() => setActiveTab("board")}
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    if (player?.id) params.set("playerId", player.id);
+                    const q = params.toString();
+                    window.open(q ? `/analyze?${q}` : "/analyze", "_blank");
+                  }}
                   className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
                   <Sword className="w-3.5 h-3.5" />

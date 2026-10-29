@@ -397,38 +397,34 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
     setActiveGameForAnalysis(null);
   }, []);
 
-  // 8b. Explore Opening Action (0ms jump from repertoire table to board)
+  // 8b. Explore Opening Action (open in new tab so current profile view is unaffected)
   const exploreOpening = useCallback((openingName: string, playerId?: string) => {
-    setActiveOpeningForAnalysis({ openingName, playerId });
-    if (playerId && playerId !== activePlayerId) {
-      setActivePlayerId(playerId);
-      setSelectedSubProfileId(playerId);
-    }
-    setIsHubOpen(false);
-    setActiveTabState("board");
+    const targetId = playerId || activePlayerId;
+    const params = new URLSearchParams();
+    if (targetId) params.set("playerId", targetId);
+    params.set("opening", openingName);
+    window.open(`/analyze?${params.toString()}`, "_blank");
   }, [activePlayerId]);
 
   const clearActiveOpeningForAnalysis = useCallback(() => {
     setActiveOpeningForAnalysis(null);
   }, []);
 
-  // 8c. Explore Pawn Structure Action (0ms jump from structure grid/modal to board)
+  // 8c. Explore Pawn Structure Action (open in new tab so current profile view is unaffected)
   const exploreStructure = useCallback(
     (
       structure: PawnStructureItem | string,
       playerId?: string,
       gameIdx?: number,
-      game?: Game | PawnStructureGame
+      _game?: Game | PawnStructureGame
     ) => {
       const structureName = typeof structure === "string" ? structure : structure.name;
-      const structObj = typeof structure === "string" ? undefined : structure;
-      setActiveStructureForAnalysis({ structureName, structObj, gameIdx, game, playerId });
-      if (playerId && playerId !== activePlayerId) {
-        setActivePlayerId(playerId);
-        setSelectedSubProfileId(playerId);
-      }
-      setIsHubOpen(false);
-      setActiveTabState("board");
+      const targetId = playerId || activePlayerId;
+      const params = new URLSearchParams();
+      if (targetId) params.set("playerId", targetId);
+      params.set("structure", structureName);
+      if (gameIdx !== undefined) params.set("gameIdx", String(gameIdx));
+      window.open(`/analyze?${params.toString()}`, "_blank");
     },
     [activePlayerId]
   );

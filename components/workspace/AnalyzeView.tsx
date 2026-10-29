@@ -649,7 +649,6 @@ export function AnalyzeContent() {
     if (loadedStructureGameKeyRef.current === gameKey && moves.length > 0) {
       return;
     }
-    loadedStructureGameKeyRef.current = gameKey;
 
     // Find the full Game object
     let fullGame: Game | undefined;
@@ -669,6 +668,7 @@ export function AnalyzeContent() {
     }
 
     const applyGameMoves = (targetGame: Game) => {
+      loadedStructureGameKeyRef.current = gameKey;
       setGameInfo(targetGame);
       if (targetGame.moves_san) {
         const rawTokens = targetGame.moves_san.split(" ");
@@ -697,6 +697,13 @@ export function AnalyzeContent() {
         setCurrentPly(targetPly);
         setCurrentFen(chess.fen());
       }
+
+      if (structGame.player_color === "black" || structGame.player_color === "white") {
+        setBoardOrientation(structGame.player_color);
+      } else if (currentPlayerObj?.canonical_name) {
+        const isPlayerBlack = isPlayerNameMatch(currentPlayerObj.canonical_name, targetGame.black_player);
+        setBoardOrientation(isPlayerBlack ? "black" : "white");
+      }
     };
 
     if (fullGame) {
@@ -706,10 +713,11 @@ export function AnalyzeContent() {
         if (g) applyGameMoves(g);
       }).catch((err) => console.warn("Could not fetch full structure game:", err));
     }
-  }, [playerGames, workspaceStore.activePlayerGames]);
+  }, [playerGames, workspaceStore.activePlayerGames, moves.length, currentPlayerObj?.canonical_name]);
 
   // Switch Structure in Explorer Mode
   const handleSelectStructure = useCallback((struct: PawnStructureItem, targetGameIdx?: number, targetGame?: any) => {
+    loadedStructureGameKeyRef.current = null;
     setSelectedStructure(struct);
     setSelectedOpening(null);
     setActiveOpeningGameId(null);
@@ -753,9 +761,9 @@ export function AnalyzeContent() {
     setSelectedStructure(null);
     setActiveStructureGameIdx(null);
     setActiveOpeningGameId(null);
-    loadedOpeningRef.current = opName;
-
     const pool = playerGames.length > 0 ? playerGames : (workspaceStore.activePlayerGames || []);
+    const activePlayerNameForKey = currentPlayerObj?.canonical_name || workspaceStore.activePlayer?.canonical_name;
+    loadedOpeningRef.current = `${opName}::${pool.length > 0 ? 1 : 0}::${activePlayerNameForKey ? 1 : 0}`;
     const matchingGames = pool.filter((g) => isOpeningMatch(g, opName));
 
     // 1. Ưu tiên hàng đầu: Nạp trực tiếp thế cờ chuẩn (Canonical Moves & FEN) từ Lichess Openings
@@ -888,7 +896,18 @@ export function AnalyzeContent() {
         if (run?.id) {
           setActiveRunId(run.id);
         }
-        if (workspaceStore.activeMode !== "multi" && run?.opening_tree_snapshot?.continuations && run.opening_tree_snapshot.continuations.length > 0 && moves.length === 0 && colorFilter === "all") {
+        if (
+          workspaceStore.activeMode !== "multi" &&
+          !queryOpening &&
+          !queryStructure &&
+          !queryGameId &&
+          !queryLichessId &&
+          !queryInspectGame &&
+          run?.opening_tree_snapshot?.continuations &&
+          run.opening_tree_snapshot.continuations.length > 0 &&
+          moves.length === 0 &&
+          colorFilter === "all"
+        ) {
           setContinuations(run.opening_tree_snapshot.continuations);
         }
         const structs: PawnStructureItem[] = (run?.pawn_structures_summary?.structures || []).filter(
@@ -1229,17 +1248,25 @@ export function AnalyzeContent() {
     }
   };
 
-  // Auto-load game if queryGameIdx is in URL
+  // Auto-load initial structure game once games pool arrives (supports both ?gameIdx=N and default first game in new tab)
+  const allStructureGamesPool = playerGames.length > 0 ? playerGames : workspaceStore.activePlayerGames;
   useEffect(() => {
-    if (queryGameIdx && selectedStructure?.games && selectedStructure.games.length > 0 && playerGames.length > 0) {
-      const idxNum = parseInt(queryGameIdx, 10);
-      const targetG = selectedStructure.games.find((g) => g.game_index === idxNum) || selectedStructure.games[idxNum];
-      const gKey = targetG ? `${targetG.id || targetG.game_index || idxNum}` : null;
-      if (targetG && loadedStructureGameKeyRef.current !== gKey) {
-        handleLoadStructureGame(targetG, targetG.game_index ?? idxNum);
+    if (
+      loadedStructureGameKeyRef.current === null &&
+      selectedStructure?.games &&
+      selectedStructure.games.length > 0 &&
+      allStructureGamesPool.length > 0
+    ) {
+      const idxNum = queryGameIdx ? parseInt(queryGameIdx, 10) : undefined;
+      const targetG =
+        idxNum !== undefined && !Number.isNaN(idxNum)
+          ? selectedStructure.games.find((g) => g.game_index === idxNum) || selectedStructure.games[idxNum]
+          : selectedStructure.games[0];
+      if (targetG) {
+        handleLoadStructureGame(targetG, targetG.game_index ?? idxNum ?? 0);
       }
     }
-  }, [queryGameIdx, selectedStructure, playerGames, handleLoadStructureGame]);
+  }, [queryGameIdx, selectedStructure, allStructureGamesPool, handleLoadStructureGame]);
 
   // Handle Custom PGN Input
   const handleLoadCustomPgn = () => {
@@ -1279,24 +1306,25 @@ export function AnalyzeContent() {
     });
   }, [selectedStructure, structureFilter, structureSearch]);
 
-  // Synchronize Opening Explorer with queryOpening or newly arrived playerGames
+  // Synchronize Opening Explorer with queryOpening or newly arrived playerGames / player identity
+  const activeOpeningGamesPoolCount = playerGames.length || workspaceStore.activePlayerGames.length;
+  const hasOpeningPlayerName = Boolean(currentPlayerObj?.canonical_name || workspaceStore.activePlayer?.canonical_name);
   useEffect(() => {
     if (!queryOpening) return;
 
     // Bypass resetting board moves when transition was triggered by user playing moves
     if (isAutoTransitionRef.current) {
       isAutoTransitionRef.current = false;
-      loadedOpeningRef.current = queryOpening;
+      loadedOpeningRef.current = `${queryOpening}::${activeOpeningGamesPoolCount > 0 ? 1 : 0}::${hasOpeningPlayerName ? 1 : 0}`;
       return;
     }
 
-    const gamesJustArrived = playerGames.length > 0 && lastGamesCountRef.current === 0;
-    lastGamesCountRef.current = playerGames.length;
-
-    if (loadedOpeningRef.current !== queryOpening || gamesJustArrived) {
+    const readyKey = `${queryOpening}::${activeOpeningGamesPoolCount > 0 ? 1 : 0}::${hasOpeningPlayerName ? 1 : 0}`;
+    if (loadedOpeningRef.current !== readyKey) {
       handleSelectOpening(queryOpening);
+      loadedOpeningRef.current = readyKey;
     }
-  }, [queryOpening, playerGames, handleSelectOpening]);
+  }, [queryOpening, activeOpeningGamesPoolCount, hasOpeningPlayerName, handleSelectOpening]);
 
   // Load a single game from the opening games list onto the board
   const handleLoadOpeningGame = (targetGame: Game) => {

@@ -193,7 +193,44 @@ class LichessMastersService:
             or ""
         ).strip()
 
-        # Try JSON export first
+        def _parse_elo(val: Any) -> Optional[int]:
+            try:
+                n = int(str(val).strip())
+                return n if n > 0 else None
+            except (TypeError, ValueError):
+                return None
+
+        def _parse_pgn_response(pgn_text: str) -> Optional[Dict[str, Any]]:
+            if not pgn_text or pgn_text.strip().startswith("{"):
+                return None
+            pgn_game = chess.pgn.read_game(io.StringIO(pgn_text))
+            if not pgn_game:
+                return None
+            headers_map = pgn_game.headers
+            moves_list = [node.san() for node in pgn_game.mainline()]
+            white_name = headers_map.get("White", "Trắng")
+            if white_name == "?":
+                white_name = "Trắng"
+            black_name = headers_map.get("Black", "Đen")
+            if black_name == "?":
+                black_name = "Đen"
+            return {
+                "id": clean_id,
+                "white": white_name,
+                "white_elo": _parse_elo(headers_map.get("WhiteElo")),
+                "black": black_name,
+                "black_elo": _parse_elo(headers_map.get("BlackElo")),
+                "result": headers_map.get("Result", "*"),
+                "moves": moves_list,
+                "moves_san": " ".join(moves_list),
+                "event": headers_map.get("Event", "Lichess Master Game"),
+                "date": headers_map.get("Date", ""),
+                "site": headers_map.get("Site", f"https://lichess.org/{clean_id}"),
+                "eco": headers_map.get("ECO", ""),
+                "opening": headers_map.get("Opening", ""),
+            }
+
+        # 1. Try Lichess JSON export first
         headers = {
             "User-Agent": "ChessPlayerAnalyzer/2.0 (contact: admin@localhost)",
             "Accept": "application/json"
@@ -224,8 +261,8 @@ class LichessMastersService:
                             if isinstance(b_player.get("user"), dict)
                             else b_player.get("name") or "Đen"
                         )
-                        w_elo = w_player.get("rating")
-                        b_elo = b_player.get("rating")
+                        w_elo = _parse_elo(w_player.get("rating"))
+                        b_elo = _parse_elo(b_player.get("rating"))
 
                         winner = data.get("winner")
                         result = (
@@ -256,61 +293,39 @@ class LichessMastersService:
                             "opening": opening_info.get("name", ""),
                         }
                     else:
-                        # Attempt PGN parse if response was PGN text
-                        pgn_game = chess.pgn.read_game(io.StringIO(raw_content))
-                        if pgn_game:
-                            headers_map = pgn_game.headers
-                            moves_list = [m.san() for m in pgn_game.mainline_moves()]
-                            return {
-                                "id": clean_id,
-                                "white": headers_map.get("White", "Trắng"),
-                                "white_elo": int(headers_map.get("WhiteElo", 0)) or None,
-                                "black": headers_map.get("Black", "Đen"),
-                                "black_elo": int(headers_map.get("BlackElo", 0)) or None,
-                                "result": headers_map.get("Result", "*"),
-                                "moves": moves_list,
-                                "moves_san": " ".join(moves_list),
-                                "event": headers_map.get("Event", "Lichess Master Game"),
-                                "date": headers_map.get("Date", ""),
-                                "site": headers_map.get("Site", f"https://lichess.org/{clean_id}"),
-                                "eco": headers_map.get("ECO", ""),
-                                "opening": headers_map.get("Opening", ""),
-                            }
+                        parsed = _parse_pgn_response(raw_content)
+                        if parsed:
+                            return parsed
         except Exception as e_json:
-            logger.info(f"JSON export for {clean_id} failed ({e_json}), trying PGN endpoint...")
+            logger.info(f"JSON export for {clean_id} failed ({e_json}), trying PGN endpoints...")
 
-        # Fallback to PGN endpoint
+        # 2. Try Masters PGN endpoint (official OTB master games from explorer.lichess.ovh/masters)
         pgn_headers = {
             "User-Agent": "ChessPlayerAnalyzer/2.0 (contact: admin@localhost)",
-            "Accept": "application/x-chess-pgn"
+            "Accept": "application/x-chess-pgn",
         }
         if token and len(token) >= 10:
             pgn_headers["Authorization"] = f"Bearer {token}"
 
         try:
+            masters_pgn_url = f"https://explorer.lichess.ovh/masters/pgn/{clean_id}"
+            masters_req = urllib.request.Request(masters_pgn_url, headers=pgn_headers)
+            with urllib.request.urlopen(masters_req, timeout=8) as resp:
+                if resp.status == 200:
+                    parsed = _parse_pgn_response(resp.read().decode("utf-8"))
+                    if parsed and parsed.get("moves"):
+                        return parsed
+        except Exception as e_masters:
+            logger.debug(f"Masters PGN export for {clean_id} skipped ({e_masters}), trying lichess.org export...")
+
+        try:
             pgn_url = f"https://lichess.org/game/export/{clean_id}"
             pgn_req = urllib.request.Request(pgn_url, headers=pgn_headers)
             with urllib.request.urlopen(pgn_req, timeout=10) as resp:
-                pgn_text = resp.read().decode("utf-8")
-                pgn_game = chess.pgn.read_game(io.StringIO(pgn_text))
-                if pgn_game:
-                    headers_map = pgn_game.headers
-                    moves_list = [m.san() for m in pgn_game.mainline_moves()]
-                    return {
-                        "id": clean_id,
-                        "white": headers_map.get("White", "Trắng"),
-                        "white_elo": int(headers_map.get("WhiteElo", 0)) or None,
-                        "black": headers_map.get("Black", "Đen"),
-                        "black_elo": int(headers_map.get("BlackElo", 0)) or None,
-                        "result": headers_map.get("Result", "*"),
-                        "moves": moves_list,
-                        "moves_san": " ".join(moves_list),
-                        "event": headers_map.get("Event", "Lichess Master Game"),
-                        "date": headers_map.get("Date", ""),
-                        "site": headers_map.get("Site", f"https://lichess.org/{clean_id}"),
-                        "eco": headers_map.get("ECO", ""),
-                        "opening": headers_map.get("Opening", ""),
-                    }
+                parsed = _parse_pgn_response(resp.read().decode("utf-8"))
+                if parsed:
+                    return parsed
         except Exception as e:
             logger.warning(f"[Lichess Master Game Export] Lỗi khi tải ván đấu {clean_id}: {e}")
             raise ValueError(f"Không thể tải chi tiết ván đấu từ Lichess: {e}")
+        raise ValueError(f"Không tìm thấy dữ liệu ván đấu {clean_id}.")

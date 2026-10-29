@@ -233,9 +233,23 @@ export default function OpeningTreeTable({
   }, [currentFen]);
 
   // Handle clicking on a Master Game row (opens in a new analysis tab like Lichess)
-  const handleLoadMasterGame = (gameId: string) => {
-    if (!gameId) return;
-    window.open(`/analyze?lichessId=${gameId}`, "_blank");
+  const handleLoadMasterGame = (game: LichessMasterTopGame) => {
+    if (!game?.id) return;
+    try {
+      sessionStorage.setItem(
+        `lichess_game_meta_${game.id}`,
+        JSON.stringify({
+          id: game.id,
+          white: game.white?.name || "Trắng",
+          white_elo: game.white?.rating || undefined,
+          black: game.black?.name || "Đen",
+          black_elo: game.black?.rating || undefined,
+          result: game.result || "*",
+          date: game.month || (game.year ? String(game.year) : ""),
+        })
+      );
+    } catch {}
+    window.open(`/analyze?lichessId=${game.id}`, "_blank");
   };
 
   // Trigger 1-Click Lichess OAuth PKCE
@@ -509,7 +523,7 @@ export default function OpeningTreeTable({
       {activeTab === "player" && (
         <div className="flex-1 min-h-0 overflow-y-auto w-full">
           <table className="w-full text-left text-xs table-fixed">
-            <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-xs text-slate-400 font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800 text-[10px] sm:text-[11px]">
+            <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-900 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800 text-[10px] sm:text-[11px]">
               <tr>
                 <th className="px-3 py-2 w-[20%]">Nước đi</th>
                 <th className="px-2.5 py-2 w-[15%]">Số ván</th>
@@ -578,12 +592,16 @@ export default function OpeningTreeTable({
                           >
                             <button
                               onClick={() => {
+                                if (onLoadGame) {
+                                  onLoadGame(sg);
+                                  return;
+                                }
                                 try {
                                   sessionStorage.setItem("inspect_game", JSON.stringify(sg));
-                                  window.open("/analyze?inspectGame=1", "_blank");
-                                } catch {
-                                  if (onLoadGame) onLoadGame(sg);
-                                }
+                                  const params = new URLSearchParams({ inspectGame: "1" });
+                                  if (selectedPlayerId) params.set("playerId", selectedPlayerId);
+                                  window.open(`/analyze?${params.toString()}`, "_blank");
+                                } catch {}
                               }}
                               className="inline-flex items-center gap-1 text-[11px] text-slate-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 font-medium truncate max-w-full cursor-pointer"
                               title="Mở ván đấu này trong tab phân tích mới"
@@ -660,7 +678,7 @@ export default function OpeningTreeTable({
       {/* TAB 2: CÂY CỦA MASTER DB (LICHESS MASTERS DATABASE) */}
       {/* ============================================================ */}
       {activeTab === "master" && (
-        <div className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col">
+        <div className="flex-1 min-h-0 overflow-hidden w-full flex flex-col">
           {!isAuthorized ? (
             /* Prompt to Authorize */
             <div className="p-8 text-center space-y-3 bg-blue-50/20 dark:bg-blue-950/10 my-auto">
@@ -734,15 +752,15 @@ export default function OpeningTreeTable({
               </p>
             </div>
           ) : (
-            <div className="space-y-0 relative flex-1 flex flex-col">
+            <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
               {/* Subtle top progress bar when updating in background */}
               {masterLoading && (
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-400 to-blue-500 animate-pulse z-30 pointer-events-none" />
               )}
 
-              {/* Lichess Opening Name Banner (like Lichess) */}
+              {/* Lichess Opening Name Banner (fixed above scroll container — never overlaps rows) */}
               {masterOpening && (masterOpening.name || masterOpening.eco) && (
-                <div className="px-3 py-1 bg-emerald-500/10 dark:bg-emerald-950/40 border-b border-emerald-500/20 text-[11px] font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 shrink-0 sticky top-0 z-20 backdrop-blur-xs">
+                <div className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950 border-b border-emerald-200/80 dark:border-emerald-800/80 text-[11px] font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 shrink-0 z-20">
                   <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span className="truncate">
                     {masterOpening.eco ? `${masterOpening.eco}: ` : ""}{masterOpening.name}
@@ -750,10 +768,11 @@ export default function OpeningTreeTable({
                 </div>
               )}
 
-              {/* Master Moves Table */}
-              {masterMoves.length > 0 && (
-                <table className="w-full text-left text-xs table-fixed">
-                  <thead className={`bg-blue-50/95 dark:bg-slate-900/95 backdrop-blur-xs text-slate-400 font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800 text-[10px] sm:text-[11px] sticky z-10 ${masterOpening && (masterOpening.name || masterOpening.eco) ? "top-[27px]" : "top-0"}`}>
+              <div className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col">
+                {/* Master Moves Table */}
+                {masterMoves.length > 0 && (
+                  <table className="w-full text-left text-xs table-fixed">
+                    <thead className="bg-blue-50 dark:bg-slate-900 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800 text-[10px] sm:text-[11px] sticky top-0 z-10">
                     <tr>
                       <th className="px-3 py-2 w-[18%]">Nước đi</th>
                       <th className="px-2.5 py-2 w-[16%]">Số ván</th>
@@ -867,7 +886,7 @@ export default function OpeningTreeTable({
 
               {/* SECTION: CÁC VÁN ĐẤU HÀNG ĐẦU (TOP MASTER GAMES LIKE LICHESS) */}
               <div className="border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/60 shrink-0">
-                <div className="sticky top-0 z-10 px-3.5 py-1.5 border-b border-slate-200/80 dark:border-slate-800 bg-emerald-50/90 dark:bg-emerald-950/80 backdrop-blur-xs flex items-center justify-between">
+                <div className="sticky top-0 z-10 px-3.5 py-1.5 border-b border-slate-200/80 dark:border-slate-800 bg-emerald-50 dark:bg-slate-900 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Trophy className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                     <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
@@ -902,7 +921,7 @@ export default function OpeningTreeTable({
                       return (
                         <div
                           key={g.id || idx}
-                          onClick={() => handleLoadMasterGame(g.id)}
+                          onClick={() => handleLoadMasterGame(g)}
                           className="flex items-center justify-between px-3.5 py-2 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 transition cursor-pointer select-none group"
                           title="Mở ván đấu này trong tab phân tích mới"
                         >
@@ -968,6 +987,7 @@ export default function OpeningTreeTable({
                     })}
                   </div>
                 )}
+              </div>
               </div>
             </div>
           )}

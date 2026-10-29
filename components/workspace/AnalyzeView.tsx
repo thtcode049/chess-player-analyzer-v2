@@ -23,7 +23,7 @@ import {
   RotateCw
 } from "lucide-react";
 import Link from "next/link";
-import ChessBoard from "@/components/chess/ChessBoard";
+import ChessBoard, { BOARD_PLAYERS_BAR_HEIGHT, BoardPlayersInfo } from "@/components/chess/ChessBoard";
 import MoveHistory from "@/components/chess/MoveHistory";
 import OpeningTreeTable from "@/components/analysis/OpeningTreeTable";
 import { apiClient } from "@/lib/api/client";
@@ -55,6 +55,21 @@ function parseSanMoves(movesSan?: string | null): string[] {
     .split(/\s+/)
     .map((t) => t.replace(/^\d+\.+/, "").trim())
     .filter((t) => t && !["1-0", "0-1", "1/2-1/2", "*"].includes(t));
+}
+
+function parseOptionalElo(val: unknown): number | undefined {
+  const n = Number(val);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : undefined;
+}
+
+function readTabSessionItem(key: string): string | null {
+  try {
+    const local = sessionStorage.getItem(key);
+    if (local) return local;
+    return (window.opener as Window | null)?.sessionStorage?.getItem(key) || null;
+  } catch {
+    return null;
+  }
 }
 
 function normalizePlayerName(name: string): string {
@@ -362,6 +377,20 @@ export function AnalyzeContent() {
   const [isEngineEnabled, setIsEngineEnabled] = useState(true);
   const [multiPv, setMultiPv] = useState(3);
 
+  const boardPlayersInfo = useMemo<BoardPlayersInfo | null>(() => {
+    if (!gameInfo) return null;
+    const wName = (gameInfo.white_player || "").trim();
+    const bName = (gameInfo.black_player || "").trim();
+    if (!wName && !bName) return null;
+    return {
+      whiteName: wName || "Trắng",
+      whiteElo: parseOptionalElo(gameInfo.white_elo) ?? null,
+      blackName: bName || "Đen",
+      blackElo: parseOptionalElo(gameInfo.black_elo) ?? null,
+      result: gameInfo.result || null,
+    };
+  }, [gameInfo]);
+
   // Auto-load game if activeGameForAnalysis was triggered from Profile games list
   useEffect(() => {
     if (workspaceStore.activeGameForAnalysis) {
@@ -372,18 +401,22 @@ export function AnalyzeContent() {
       setActiveStructureGameIdx(null);
       setActiveOpeningGameId(null);
       if (g.moves_san) {
-        const rawTokens = g.moves_san.split(" ");
-        const parsedMoves = rawTokens
-          .map((t) => t.replace(/^\d+\.+/, "").trim())
-          .filter((t) => t && !["1-0", "0-1", "1/2-1/2", "*"].includes(t));
+        const parsedMoves = parseSanMoves(g.moves_san);
         setMoves(parsedMoves);
         setCurrentPly(0);
         setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         setMoveTree(createMoveTreeFromMoves(parsedMoves));
       }
+      const activeName = workspaceStore.activePlayer?.canonical_name;
+      if (activeName) {
+        const isBlack =
+          isPlayerNameMatch(activeName, g.black_player) &&
+          !isPlayerNameMatch(activeName, g.white_player);
+        setBoardOrientation(isBlack ? "black" : "white");
+      }
       workspaceStore.clearActiveGameForAnalysis();
     }
-  }, [workspaceStore.activeGameForAnalysis, workspaceStore.clearActiveGameForAnalysis]);
+  }, [workspaceStore.activeGameForAnalysis, workspaceStore.activePlayer?.canonical_name, workspaceStore.clearActiveGameForAnalysis]);
 
   // Synchronize activePlayerId from store or URL
   useIsomorphicLayoutEffect(() => {
@@ -493,34 +526,173 @@ export function AnalyzeContent() {
     }
   }, [players, queryPlayerId, queryRunId, selectedPlayerId, workspaceStore.activeMode]);
 
+  const hydratedQueryKeyRef = useRef<string | null>(null);
+
+  // 2a-sync. Instant 0ms hydration for new-tab game opens (gameId, lichessId, inspectGame)
+  useIsomorphicLayoutEffect(() => {
+    if (queryGameId && hydratedQueryKeyRef.current !== `gid:${queryGameId}`) {
+      const cachedG = playerGames.find((pg) => pg.id === queryGameId);
+      if (cachedG) {
+        hydratedQueryKeyRef.current = `gid:${queryGameId}`;
+        setGameInfo(cachedG);
+        if (cachedG.moves_san) {
+          const parsedMoves = parseSanMoves(cachedG.moves_san);
+          setMoves(parsedMoves);
+          setCurrentPly(0);
+          setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+          setMoveTree(createMoveTreeFromMoves(parsedMoves));
+        }
+        const refName =
+          players.find((p) => p.id === (queryPlayerId || selectedPlayerId))?.canonical_name ||
+          workspaceStore.activePlayer?.canonical_name;
+        if (refName) {
+          const isBlack =
+            isPlayerNameMatch(refName, cachedG.black_player) &&
+            !isPlayerNameMatch(refName, cachedG.white_player);
+          setBoardOrientation(isBlack ? "black" : "white");
+        }
+        return;
+      }
+
+      const rawInspect = readTabSessionItem("inspect_game");
+      if (rawInspect) {
+        try {
+          const sg = JSON.parse(rawInspect);
+          if (sg && sg.id === queryGameId) {
+            hydratedQueryKeyRef.current = `gid:${queryGameId}`;
+            const gMoves = Array.isArray(sg.moves) && sg.moves.length > 0 ? sg.moves : parseSanMoves(sg.moves_san);
+            if (gMoves.length > 0) {
+              setMoves(gMoves);
+              setCurrentPly(0);
+              setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+              setMoveTree(createMoveTreeFromMoves(gMoves));
+            }
+            setGameInfo({
+              id: sg.id,
+              dataset_id: "",
+              white_player: sg.white || sg.white_player || "Trắng",
+              black_player: sg.black || sg.black_player || "Đen",
+              white_elo: parseOptionalElo(sg.white_elo),
+              black_elo: parseOptionalElo(sg.black_elo),
+              result: sg.result || "*",
+              played_at: sg.date || "",
+              moves_san: sg.moves_san || gMoves.join(" "),
+              opening_name: sg.opening || sg.opening_name || "",
+              eco: sg.eco || "",
+              site_url: sg.link || sg.site || "",
+            });
+            if (sg.player_color === "black" || sg.player_color === "white") {
+              setBoardOrientation(sg.player_color);
+            }
+          }
+        } catch {}
+      }
+    }
+
+    if (queryLichessId && hydratedQueryKeyRef.current !== `lid:${queryLichessId}`) {
+      const rawMeta = readTabSessionItem(`lichess_game_meta_${queryLichessId}`);
+      if (rawMeta) {
+        try {
+          const meta = JSON.parse(rawMeta);
+          hydratedQueryKeyRef.current = `lid:${queryLichessId}`;
+          setGameInfo({
+            id: meta.id || queryLichessId,
+            dataset_id: "",
+            white_player: meta.white || "Trắng",
+            black_player: meta.black || "Đen",
+            white_elo: parseOptionalElo(meta.white_elo),
+            black_elo: parseOptionalElo(meta.black_elo),
+            result: meta.result || "*",
+            played_at: meta.date || "",
+            moves_san: "",
+            site_url: `https://lichess.org/${queryLichessId}`,
+          });
+        } catch {}
+      }
+    }
+
+    if (queryInspectGame && hydratedQueryKeyRef.current !== "inspect") {
+      const raw = readTabSessionItem("inspect_game");
+      if (raw) {
+        try {
+          const sg = JSON.parse(raw);
+          hydratedQueryKeyRef.current = "inspect";
+          const gMoves =
+            Array.isArray(sg.moves) && sg.moves.length > 0 ? sg.moves : parseSanMoves(sg.moves_san);
+          setMoves(gMoves);
+          setCurrentPly(0);
+          setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+          setMoveTree(createMoveTreeFromMoves(gMoves));
+          const wName = sg.white || sg.white_player || "Trắng";
+          const bName = sg.black || sg.black_player || "Đen";
+          setGameInfo({
+            id: sg.id || `inspect-${Date.now()}`,
+            dataset_id: "",
+            white_player: wName,
+            black_player: bName,
+            white_elo: parseOptionalElo(sg.white_elo),
+            black_elo: parseOptionalElo(sg.black_elo),
+            result: sg.result || "*",
+            played_at: sg.date || "",
+            moves_san: sg.moves_san || gMoves.join(" "),
+            opening_name: sg.opening || sg.opening_name || "",
+            eco: sg.eco || "",
+            site_url: sg.link || sg.site || "",
+          });
+          if (sg.player_color === "black" || sg.player_color === "white") {
+            setBoardOrientation(sg.player_color);
+          } else {
+            const refName =
+              players.find((p) => p.id === (queryPlayerId || selectedPlayerId))?.canonical_name ||
+              workspaceStore.activePlayer?.canonical_name;
+            if (refName) {
+              const isBlack = isPlayerNameMatch(refName, bName) && !isPlayerNameMatch(refName, wName);
+              setBoardOrientation(isBlack ? "black" : "white");
+            }
+          }
+        } catch (err) {
+          console.warn("Failed to load inspect game from sessionStorage:", err);
+        }
+      }
+    }
+  }, [queryGameId, queryLichessId, queryInspectGame, playerGames, players, queryPlayerId, selectedPlayerId, workspaceStore.activePlayer?.canonical_name]);
+
   // 2. Load single game from gameId if passed
   useEffect(() => {
     if (queryGameId) {
+      if (playerGames.some((pg) => pg.id === queryGameId) && moves.length > 0) {
+        return;
+      }
       apiClient.getGame(queryGameId).then((g) => {
         if (g) {
           setGameInfo(g);
           if (g.moves_san) {
-            // Clean move tokens
-            const rawTokens = g.moves_san.split(" ");
-            const parsedMoves = rawTokens
-              .map((t) => t.replace(/^\d+\.+/, "").trim())
-              .filter((t) => t && !["1-0", "0-1", "1/2-1/2", "*"].includes(t));
+            const parsedMoves = parseSanMoves(g.moves_san);
             setMoves(parsedMoves);
             setCurrentPly(0);
             setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
             setMoveTree(createMoveTreeFromMoves(parsedMoves));
           }
 
-          // Automatically match and select player from the game if queryPlayerId is not provided
+          let targetPlayerObj = players.find((p) => p.id === (queryPlayerId || selectedPlayerId));
           if (!queryPlayerId && players.length > 0) {
             const matchedPlayer = players.find((p) =>
               isPlayerNameMatch(p.canonical_name, g.white_player) ||
               isPlayerNameMatch(p.canonical_name, g.black_player)
             );
             if (matchedPlayer) {
+              targetPlayerObj = matchedPlayer;
               setSelectedPlayerId(matchedPlayer.id);
               setActiveRunId(matchedPlayer.id);
             }
+          }
+
+          const refName = targetPlayerObj?.canonical_name || workspaceStore.activePlayer?.canonical_name;
+          if (refName) {
+            const isBlack =
+              isPlayerNameMatch(refName, g.black_player) &&
+              !isPlayerNameMatch(refName, g.white_player);
+            setBoardOrientation(isBlack ? "black" : "white");
           }
         }
       }).catch((err) => console.warn("Failed to load game:", err));
@@ -539,63 +711,25 @@ export function AnalyzeContent() {
             setCurrentPly(0);
             setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
             setMoveTree(createMoveTreeFromMoves(fullGame.moves));
-            setGameInfo({
+            setGameInfo((prev) => ({
               id: fullGame.id,
               dataset_id: "",
-              white_player: fullGame.white || "Trắng",
-              black_player: fullGame.black || "Đen",
-              white_elo: fullGame.white_elo,
-              black_elo: fullGame.black_elo,
-              result: fullGame.result || "*",
-              played_at: fullGame.date || "",
+              white_player: fullGame.white || prev?.white_player || "Trắng",
+              black_player: fullGame.black || prev?.black_player || "Đen",
+              white_elo: parseOptionalElo(fullGame.white_elo) ?? prev?.white_elo,
+              black_elo: parseOptionalElo(fullGame.black_elo) ?? prev?.black_elo,
+              result: fullGame.result && fullGame.result !== "*" ? fullGame.result : prev?.result || "*",
+              played_at: fullGame.date || prev?.played_at || "",
               moves_san: fullGame.moves_san || fullGame.moves.join(" "),
               opening_name: fullGame.opening || fullGame.eco || "",
               eco: fullGame.eco || "",
               site_url: fullGame.site || `https://lichess.org/${queryLichessId}`,
-            });
+            }));
           }
         })
         .catch((err) => console.warn("Failed to load Lichess master game:", err));
     }
   }, [queryLichessId]);
-
-  // 2c. Load single game from queryInspectGame if opened in a new tab
-  useEffect(() => {
-    if (queryInspectGame) {
-      try {
-        const raw = sessionStorage.getItem("inspect_game");
-        if (raw) {
-          const sg = JSON.parse(raw);
-          let gMoves: string[] = [];
-          if (Array.isArray(sg.moves) && sg.moves.length > 0) {
-            gMoves = sg.moves;
-          } else if (sg.moves_san) {
-            gMoves = parseSanMoves(sg.moves_san);
-          }
-          setMoves(gMoves);
-          setCurrentPly(0);
-          setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-          setMoveTree(createMoveTreeFromMoves(gMoves));
-          setGameInfo({
-            id: sg.id || `inspect-${Date.now()}`,
-            dataset_id: "",
-            white_player: sg.white || sg.white_player || "Trắng",
-            black_player: sg.black || sg.black_player || "Đen",
-            white_elo: sg.white_elo,
-            black_elo: sg.black_elo,
-            result: sg.result || "*",
-            played_at: sg.date || "",
-            moves_san: sg.moves_san || gMoves.join(" "),
-            opening_name: sg.opening || sg.opening_name || "",
-            eco: sg.eco || "",
-            site_url: sg.link || sg.site || "",
-          });
-        }
-      } catch (err) {
-        console.warn("Failed to load inspect game from sessionStorage:", err);
-      }
-    }
-  }, [queryInspectGame]);
 
   // 2b. Synchronize player matching if players list loaded after gameInfo
   useEffect(() => {
@@ -761,10 +895,28 @@ export function AnalyzeContent() {
 
     if (fullGame) {
       applyGameMoves(fullGame);
-    } else if (structGame.id) {
-      apiClient.getGame(structGame.id).then((g) => {
-        if (g) applyGameMoves(g);
-      }).catch((err) => console.warn("Could not fetch full structure game:", err));
+    } else {
+      setGameInfo({
+        id: structGame.id || `struct-${indexInStruct}`,
+        dataset_id: "",
+        white_player: structGame.white || "Trắng",
+        black_player: structGame.black || "Đen",
+        white_elo: parseOptionalElo(structGame.white_elo),
+        black_elo: parseOptionalElo(structGame.black_elo),
+        result: structGame.result || "*",
+        played_at: structGame.date || "",
+        moves_san: "",
+        opening_name: structGame.opening || "",
+        site_url: structGame.link || "",
+      });
+      if (structGame.player_color === "black" || structGame.player_color === "white") {
+        setBoardOrientation(structGame.player_color);
+      }
+      if (structGame.id) {
+        apiClient.getGame(structGame.id).then((g) => {
+          if (g) applyGameMoves(g);
+        }).catch((err) => console.warn("Could not fetch full structure game:", err));
+      }
     }
   }, [playerGames, workspaceStore.activePlayerGames, moves.length, currentPlayerObj?.canonical_name]);
 
@@ -1225,16 +1377,18 @@ export function AnalyzeContent() {
       window.open(`/analyze?lichessId=${sg.lichessId}`, "_blank");
       return;
     }
-    if (sg.id && typeof sg.id === "string" && sg.id.includes("-")) {
-      window.open(`/analyze?gameId=${sg.id}`, "_blank");
-      return;
-    }
+    const params = new URLSearchParams();
+    if (effectivePlayerId) params.set("playerId", effectivePlayerId);
     try {
       sessionStorage.setItem("inspect_game", JSON.stringify(sg));
-      window.open("/analyze?inspectGame=1", "_blank");
-    } catch {
-      console.warn("Failed to open game in new tab");
+    } catch {}
+    if (sg.id && typeof sg.id === "string" && sg.id.includes("-")) {
+      params.set("gameId", sg.id);
+      window.open(`/analyze?${params.toString()}`, "_blank");
+      return;
     }
+    params.set("inspectGame", "1");
+    window.open(`/analyze?${params.toString()}`, "_blank");
   };
 
   // Auto-load initial structure game once games pool arrives (supports both ?gameIdx=N and default first game in new tab)
@@ -1264,9 +1418,29 @@ export function AnalyzeContent() {
       const chess = new Chess();
       chess.loadPgn(inputPgn);
       const history = chess.history();
+      const hdr = chess.header();
       setMoves(history);
       setCurrentPly(0);
       setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+      setMoveTree(createMoveTreeFromMoves(history));
+      if (hdr.White || hdr.Black) {
+        setGameInfo({
+          id: `pgn-${Date.now()}`,
+          dataset_id: "",
+          white_player: hdr.White || "Trắng",
+          black_player: hdr.Black || "Đen",
+          white_elo: parseOptionalElo(hdr.WhiteElo),
+          black_elo: parseOptionalElo(hdr.BlackElo),
+          result: hdr.Result || "*",
+          played_at: hdr.Date || "",
+          moves_san: history.join(" "),
+          opening_name: hdr.Opening || "",
+          eco: hdr.ECO || "",
+          site_url: hdr.Site || "",
+        });
+      } else {
+        setGameInfo(null);
+      }
       setShowPgnInput(false);
       setInputPgn("");
     } catch (err) {
@@ -1685,6 +1859,8 @@ export function AnalyzeContent() {
               moves={moves}
               currentPly={currentPly}
               orientation={boardOrientation}
+              onOrientationChange={setBoardOrientation}
+              playersInfo={boardPlayersInfo}
               onPositionChange={handlePositionChange}
               onMakeMove={handleMakeMove}
               onMovesChange={handleMovesChange}
@@ -1731,8 +1907,13 @@ export function AnalyzeContent() {
                 setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
                 setMoveTree(createMoveTreeFromMoves([]));
                 setSelectedOpening(null);
+                setGameInfo(null);
               }}
-              disabled={moves.length === 0 && currentFen === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}
+              disabled={
+                !gameInfo &&
+                moves.length === 0 &&
+                currentFen === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+              }
               title="Xóa ván cờ về bàn cờ ban đầu"
               className="h-8.5 sm:h-9 px-2.5 sm:px-3 rounded-lg flex items-center gap-1.5 bg-secondary/50 hover:bg-destructive/10 hover:text-destructive text-muted-foreground disabled:opacity-30 disabled:pointer-events-none text-xs font-semibold transition cursor-pointer active:scale-95"
             >
@@ -1745,7 +1926,7 @@ export function AnalyzeContent() {
         {/* Right Column (Desktop >= 1024px): Unified Move History & Opening Variations Panel */}
         {isLgScreen ? (
           <div
-            style={{ height: `${boardSize}px` }}
+            style={{ height: `${boardSize + (boardPlayersInfo ? BOARD_PLAYERS_BAR_HEIGHT : 0)}px` }}
             className="lg:col-span-5 flex flex-col bg-card border border-border/50 rounded-xl shadow-2xs overflow-hidden"
           >
             {/* Top: Move History (Notation + Stockfish Eval) - 50% equal height */}

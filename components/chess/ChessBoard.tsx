@@ -26,11 +26,115 @@ function checkPlayable(fen: string): boolean {
   }
 }
 
+export const BOARD_PLAYERS_BAR_HEIGHT = 68;
+
+export interface BoardPlayersInfo {
+  whiteName: string;
+  whiteElo?: number | null;
+  blackName: string;
+  blackElo?: number | null;
+  result?: string | null;
+}
+
+function getSideScoreLabel(result: string | null | undefined, side: "white" | "black"): string | null {
+  if (!result) return null;
+  const r = result.trim();
+  if (r === "1-0") return side === "white" ? "1" : "0";
+  if (r === "0-1") return side === "black" ? "1" : "0";
+  if (r === "1/2-1/2" || r === "½-½") return "½";
+  return null;
+}
+
+function BoardPlayerStrip({
+  side,
+  name,
+  elo,
+  scoreLabel,
+  boardWidth,
+  offsetLeft,
+  position,
+}: {
+  side: "white" | "black";
+  name: string;
+  elo?: number | null;
+  scoreLabel: string | null;
+  boardWidth: number;
+  offsetLeft: number;
+  position: "top" | "bottom";
+}) {
+  const validElo = elo && Number(elo) > 0 ? Math.round(Number(elo)) : null;
+  const isWinner = scoreLabel === "1";
+
+  return (
+    <div
+      style={{
+        width: `${boardWidth + offsetLeft}px`,
+        paddingLeft: `${offsetLeft}px`,
+      }}
+      className={`h-7 flex items-center justify-between gap-2 select-none shrink-0 ${
+        position === "top" ? "mb-1.5" : "mt-1.5"
+      }`}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        {/* Piece-color avatar badge (Chess.com style) */}
+        <div
+          className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 border shadow-2xs ${
+            side === "white"
+              ? "bg-slate-100 dark:bg-slate-200 border-slate-300 dark:border-slate-400"
+              : "bg-slate-200/90 dark:bg-slate-800 border-slate-300 dark:border-slate-700"
+          }`}
+          title={side === "white" ? "Quân Trắng" : "Quân Đen"}
+        >
+          <svg viewBox="0 0 24 24" className="w-4 h-4" aria-hidden="true">
+            <path
+              d="M12 3.5a3.2 3.2 0 0 0-2.1 5.62c-.83.52-1.35 1.38-1.35 2.33h.95c-.38 2.15-1.45 3.92-2.75 5.05-.47.41-.75.99-.75 1.62V19.5c0 .55.45 1 1 1h10c.55 0 1-.45 1-1v-1.38c0-.63-.28-1.21-.75-1.62-1.3-1.13-2.37-2.9-2.75-5.05h.95c0-.95-.52-1.81-1.35-2.33A3.2 3.2 0 0 0 12 3.5Z"
+              fill={side === "white" ? "#ffffff" : "#1e293b"}
+              stroke={side === "white" ? "#334155" : "#0f172a"}
+              strokeWidth="1.6"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          <span
+            className="font-bold text-[13px] sm:text-sm text-slate-900 dark:text-slate-100 truncate"
+            title={name}
+          >
+            {name}
+          </span>
+          {validElo !== null && (
+            <span className="text-xs sm:text-[13px] font-medium text-slate-500 dark:text-slate-400 shrink-0">
+              ({validElo})
+            </span>
+          )}
+        </div>
+      </div>
+
+      {scoreLabel !== null && (
+        <span
+          className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold shrink-0 ${
+            isWinner
+              ? side === "white"
+                ? "bg-white text-slate-900 border border-slate-300 shadow-2xs"
+                : "bg-slate-900 text-white border border-slate-700 dark:border-slate-600 shadow-2xs"
+              : "bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700"
+          }`}
+        >
+          {scoreLabel}
+        </span>
+      )}
+    </div>
+  );
+}
+
 interface ChessBoardProps {
   initialFen?: string;
   moves?: string[]; // Array of SAN moves
   currentPly?: number; // Controlled ply from parent
   orientation?: "white" | "black";
+  onOrientationChange?: (orientation: "white" | "black") => void;
+  playersInfo?: BoardPlayersInfo | null;
   onPositionChange?: (fen: string, ply: number) => void;
   onMovesChange?: (moves: string[], currentPly: number, fen: string) => void;
   onMakeMove?: (san: string, newFen: string) => void;
@@ -47,6 +151,8 @@ export default function ChessBoard({
   moves = [],
   currentPly: externalPly,
   orientation = "white",
+  onOrientationChange,
+  playersInfo = null,
   onPositionChange,
   onMovesChange,
   onMakeMove,
@@ -67,14 +173,20 @@ export default function ChessBoard({
   const lastProcessedMoves = useRef<string>("");
   const rootRef = useRef<HTMLDivElement>(null);
   const boardContainerRef = useRef<HTMLDivElement>(null);
+  const hasPlayersBar = Boolean(playersInfo);
   const [boardWidth, setBoardWidth] = useState<number>(() => {
     if (typeof window !== "undefined") {
+      const extraBars = playersInfo ? BOARD_PLAYERS_BAR_HEIGHT : 0;
       const estCol = Math.min(window.innerWidth - 80, 720);
-      const estHeight = window.innerHeight - 140;
+      const estHeight = window.innerHeight - 140 - extraBars;
       return Math.min(height, Math.max(280, estCol - 24), Math.max(280, estHeight));
     }
     return height;
   });
+
+  useEffect(() => {
+    setBoardOrientation(orientation);
+  }, [orientation]);
 
   // Click-to-move and legal move highlighting state
   const [moveFrom, setMoveFrom] = useState<string | null>(null);
@@ -95,6 +207,7 @@ export default function ChessBoard({
   useEffect(() => {
     let lastWidth = 0;
     let lastHeight = 0;
+    let lastReported = 0;
 
     const updateSize = () => {
       if (!rootRef.current) return;
@@ -104,29 +217,30 @@ export default function ChessBoard({
 
       if (parentWidth <= 0) return;
 
-      // 14px eval bar + 8px gap + 2px buffer = 24px
+      // 14px eval bar + 10px gap = 24px
       const availableWidth = Math.max(220, parentWidth - 24);
+      const extraBars = hasPlayersBar ? BOARD_PLAYERS_BAR_HEIGHT : 0;
 
       let optimal: number;
       if (fitParentHeight) {
         // Only fit parent height if explicitly requested (e.g. in bounded flex containers like ai-coach)
-        const availableHeight = parentHeight > 80 ? Math.max(200, parentHeight - 8) : height;
+        const availableHeight = parentHeight > 80 ? Math.max(200, parentHeight - 8 - extraBars) : height;
         optimal = Math.floor(Math.min(height, availableWidth, availableHeight));
       } else {
         // In standard pages (analyze, games), board size matches column width, capped by height and viewport
-        const viewportMax = typeof window !== "undefined" ? Math.max(320, window.innerHeight - 170) : height;
+        const viewportMax =
+          typeof window !== "undefined" ? Math.max(320, window.innerHeight - 170 - extraBars) : height;
         optimal = Math.floor(Math.min(height, availableWidth, viewportMax));
       }
 
       const newSize = Math.max(220, optimal);
 
-      setBoardWidth((prev) => {
-        if (Math.abs(prev - newSize) >= 3) {
-          onBoardWidthChange?.(newSize);
-          return newSize;
-        }
-        return prev;
-      });
+      if (Math.abs(lastReported - newSize) >= 2) {
+        lastReported = newSize;
+        onBoardWidthChange?.(newSize);
+      }
+
+      setBoardWidth((prev) => (Math.abs(prev - newSize) >= 2 ? newSize : prev));
     };
 
     updateSize();
@@ -159,7 +273,7 @@ export default function ChessBoard({
       observer?.disconnect();
       window.removeEventListener("resize", handleWindowResize);
     };
-  }, [height, fitParentHeight, onBoardWidthChange]);
+  }, [height, fitParentHeight, hasPlayersBar, onBoardWidthChange]);
 
   // Stockfish WASM client hook
   const { evaluation, isThinking, evaluateFen, stop } = useStockfish();
@@ -292,7 +406,13 @@ export default function ChessBoard({
     [jumpToPly, currentPly, historyFens.length]
   );
   const handleLast = useCallback(() => jumpToPly(historyFens.length - 1), [jumpToPly, historyFens.length]);
-  const handleFlip = useCallback(() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white")), []);
+  const handleFlip = useCallback(() => {
+    setBoardOrientation((prev) => {
+      const next = prev === "white" ? "black" : "white";
+      onOrientationChange?.(next);
+      return next;
+    });
+  }, [onOrientationChange]);
 
   // Keyboard navigation (< and > / Left and Right arrows / Home and End / F to flip)
   useEffect(() => {
@@ -529,8 +649,24 @@ export default function ChessBoard({
     }
   }
 
+  const topSide: "white" | "black" = boardOrientation === "white" ? "black" : "white";
+  const bottomSide: "white" | "black" = boardOrientation === "white" ? "white" : "black";
+  const evalBarOffset = isPlayable ? 24 : 0;
+
   return (
     <div ref={rootRef} className="flex flex-col items-center justify-center w-full h-full py-1">
+      {playersInfo ? (
+        <BoardPlayerStrip
+          position="top"
+          side={topSide}
+          name={topSide === "white" ? playersInfo.whiteName : playersInfo.blackName}
+          elo={topSide === "white" ? playersInfo.whiteElo : playersInfo.blackElo}
+          scoreLabel={getSideScoreLabel(playersInfo.result, topSide)}
+          boardWidth={boardWidth}
+          offsetLeft={evalBarOffset}
+        />
+      ) : null}
+
       {/* Board with Left Evaluation Bar */}
       <div
         className="flex items-stretch gap-2.5 justify-center"
@@ -538,9 +674,15 @@ export default function ChessBoard({
       >
         {/* Eval Bar (Only displayed for playable positions) */}
         {isPlayable ? (
-          <div className="w-3.5 bg-slate-900 rounded-md overflow-hidden flex flex-col-reverse shrink-0 border border-slate-500/80 dark:border-slate-500/80 shadow-xs ring-1 ring-black/10 dark:ring-white/10">
+          <div
+            className={`w-3.5 bg-slate-900 rounded-md overflow-hidden flex ${
+              boardOrientation === "white" ? "flex-col-reverse" : "flex-col"
+            } shrink-0 border border-slate-500/80 dark:border-slate-500/80 shadow-xs ring-1 ring-black/10 dark:ring-white/10`}
+          >
             <div
-              className="w-full bg-white transition-all duration-300 border-t border-slate-400/80 dark:border-slate-600"
+              className={`w-full bg-white transition-all duration-300 ${
+                boardOrientation === "white" ? "border-t" : "border-b"
+              } border-slate-400/80 dark:border-slate-600`}
               style={{ height: `${whiteWinningPct}%` }}
             />
           </div>
@@ -587,6 +729,18 @@ export default function ChessBoard({
           />
         </div>
       </div>
+
+      {playersInfo ? (
+        <BoardPlayerStrip
+          position="bottom"
+          side={bottomSide}
+          name={bottomSide === "white" ? playersInfo.whiteName : playersInfo.blackName}
+          elo={bottomSide === "white" ? playersInfo.whiteElo : playersInfo.blackElo}
+          scoreLabel={getSideScoreLabel(playersInfo.result, bottomSide)}
+          boardWidth={boardWidth}
+          offsetLeft={evalBarOffset}
+        />
+      ) : null}
     </div>
   );
 }

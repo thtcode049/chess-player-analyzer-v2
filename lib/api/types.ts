@@ -62,6 +62,7 @@ export interface OpeningContinuation {
   loss_pct: number;
   score_pct: number;
   single_game_info?: {
+    id?: string;
     white?: string;
     white_elo?: number;
     black?: string;
@@ -73,6 +74,7 @@ export interface OpeningContinuation {
     date?: string;
     round?: string;
     moves?: string[];
+    moves_san?: string;
     opening?: string;
     player_color?: string;
   };
@@ -147,11 +149,14 @@ export interface PawnStructureGame {
   formation_fen?: string;
   evidence?: string;
   white: string;
+  white_elo?: number | null;
   black: string;
+  black_elo?: number | null;
   result: string;
   opening?: string;
   date?: string;
   site?: string;
+  link?: string;
   player_color?: string;
   is_win: boolean;
   is_draw: boolean;

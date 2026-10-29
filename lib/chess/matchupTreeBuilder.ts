@@ -215,14 +215,17 @@ export class MatchupOpeningTreeIndex {
         const sample = acc.sampleGame;
         const singleGameInfo = sample
           ? {
+              id: sample.id,
               white: sample.white_player,
               white_elo: sample.white_elo || undefined,
               black: sample.black_player,
               black_elo: sample.black_elo || undefined,
               result: sample.result,
               site: sample.site_url || undefined,
+              link: sample.site_url || undefined,
               date: sample.played_at || undefined,
               opening: sample.opening_name || undefined,
+              moves_san: sample.moves_san || undefined,
             }
           : undefined;
 
@@ -429,7 +432,7 @@ export function querySinglePlayerTreePosition(
     const sample = acc.sampleGame;
     const singleGameInfo =
       gCount === 1 && sample
-        ? ({
+        ? {
             id: sample.id,
             white: sample.white_player,
             white_elo: sample.white_elo || undefined,
@@ -441,7 +444,12 @@ export function querySinglePlayerTreePosition(
             date: sample.played_at || undefined,
             opening: sample.opening_name || undefined,
             moves_san: sample.moves_san || undefined,
-          } as any)
+            player_color:
+              isPlayerSideMatch(playerCanonicalName, sample.black_player) &&
+              !isPlayerSideMatch(playerCanonicalName, sample.white_player)
+                ? "black"
+                : "white",
+          }
         : undefined;
 
     continuations.push({

@@ -12,7 +12,6 @@ from datetime import datetime
 
 from src.pgn_parser import parse_pgn, detect_primary_player, extract_players, filter_games_by_player
 from src.game_fetcher import fetch_lichess_games, fetch_chesscom_games
-from src.engine.evaluator import get_comprehensive_move_evaluations
 
 class ImportService:
     @staticmethod

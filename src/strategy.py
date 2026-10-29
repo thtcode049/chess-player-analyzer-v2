@@ -285,16 +285,12 @@ def generate_actionable_match_preparation(
 ) -> Dict[str, Any]:
     """
     Chuyển đổi các phát hiện từ Deep Opponent Profile thành Kế hoạch Thi đấu Ngắn gọn & Có thể Hành động (Decision Support Match Prep).
-    Kết hợp đa chiều: Repertoire, Structures, Phases, Dynamics, Simplification, và Playing Style Profile.
+    Kết hợp đa chiều: Repertoire, Pawn Structures và Playing Style Profile.
     Áp dụng Bayesian Ranking để chọn đúng vũ khí chủ lực và điểm yếu xác thực của đối thủ.
     """
     repertoire = deep_profile.get("repertoire", {})
     structures = deep_profile.get("structures", {})
-    phases = deep_profile.get("phases", {})
-    dynamics = deep_profile.get("dynamics", {})
-    simplification = deep_profile.get("simplification", {})
     style_profile = deep_profile.get("style_profile", {})
-    critical_positions = deep_profile.get("critical_positions", [])
 
     # A. Khai cuộc Mạnh nhất & Yếu nhất của đối thủ (Xếp hạng Bayesian)
     all_openings = repertoire.get("all_openings", [])
@@ -310,12 +306,7 @@ def generate_actionable_match_preparation(
     # B. Target Structure
     target_struct = structures.get("target_structure")
 
-    # C. Vulnerability Phase
-    weakest_phase = phases.get("weakest_phase")
-
-    # D. Game Dynamics & Style Profile
-    throw_rate = dynamics.get("throw_rate", 0.0)
-    resilience_rate = dynamics.get("resilience_rate", 0.0)
+    # C. Style Profile
     primary_style_key = style_profile.get("primary_key", "")
     scores = style_profile.get("scores", {})
     tactical_score = scores.get("tactical", 50.0)
@@ -323,24 +314,15 @@ def generate_actionable_match_preparation(
     solid_score = scores.get("solid", 50.0)
     universal_score = scores.get("universal", 50.0)
 
-    # E. Final Game Plan (PLAY, TARGET, AVOID)
+    # D. Final Game Plan (PLAY, TARGET, AVOID)
     play_recs = []
     target_recs = []
     avoid_recs = []
 
     # --- 1. PLAY Recommendations ---
-    if weakest_phase and weakest_phase.get("phase") == "endgame":
-        play_recs.append(
-            "Đưa trận đấu về Cờ tàn (Endgame) khi vị trí thuận lợi vì đối thủ sụt giảm độ chính xác rõ rệt."
-        )
-    elif weakest_phase and weakest_phase.get("phase") == "middlegame":
-        play_recs.append(
-            "Duy trì sức ép phức tạp trong Trung cuộc để khai thác điểm yếu xử lý trung cuộc của đối thủ."
-        )
-    else:
-        play_recs.append(
-            "Thi đấu chắc chắn, phát triển quân hài hòa và tuân thủ nguyên tắc vị trí."
-        )
+    play_recs.append(
+        "Thi đấu chắc chắn, phát triển quân hài hòa và tuân thủ nguyên tắc vị trí."
+    )
 
     # Đề xuất bổ trợ từ Style Profile
     if primary_style_key == "tactical" and tactical_score >= 65.0:
@@ -354,11 +336,6 @@ def generate_actionable_match_preparation(
     elif primary_style_key == "solid" and solid_score >= 65.0:
         play_recs.append(
             "Duy trì sức ép kiên nhẫn, không vội vàng dồn toàn lực công phá mạo hiểm dễ dính bẫy phản công."
-        )
-
-    if throw_rate >= 25.0:
-        play_recs.append(
-            f"Duy trì kiên trì khi bị lép vế vì đối thủ có tỷ lệ quăng lợi thế cao ({throw_rate}% throw rate)."
         )
 
     # --- 2. TARGET Recommendations ---
@@ -387,14 +364,14 @@ def generate_actionable_match_preparation(
         "strongest_opening": strongest_op,
         "weakest_opening": weakest_op,
         "target_structure": target_struct,
-        "vulnerability_phase": weakest_phase,
-        "throw_rate": throw_rate,
-        "resilience_rate": resilience_rate,
+        "vulnerability_phase": None,
+        "throw_rate": 0.0,
+        "resilience_rate": 0.0,
         "style_profile": style_profile,
         "play_plan": play_recs,
         "target_plan": target_recs,
         "avoid_plan": avoid_recs,
-        "training_positions": critical_positions[:3]
+        "training_positions": []
     }
 
 

@@ -69,7 +69,7 @@ export default function LandingPage() {
         {/* Subtitle */}
         <p className="mt-4 sm:mt-6 text-sm sm:text-base lg:text-lg text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed px-3 sm:px-0">
           Chuyển hóa dữ liệu ván đấu thô từ Lichess và Chess.com thành cây khai cuộc trực quan, 
-          phân tích cấu trúc Tốt, đo lường sai số từng giai đoạn và tương tác trực quan cùng Trợ lí AI.
+          phân tích cấu trúc Tốt, đánh giá động cơ Stockfish 19 và tương tác trực quan cùng Trợ lí AI.
         </p>
 
         {/* Dual Primary CTA Buttons */}
@@ -153,16 +153,16 @@ export default function LandingPage() {
           </p>
         </div>
 
-        {/* Pillar 2: Blunders & ACPL */}
+        {/* Pillar 2: Engine & Masters Database */}
         <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 p-6 rounded-xl shadow-sm hover:border-sky-500/40 hover:shadow-md transition-all duration-300 group">
           <div className="p-3 w-fit rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 mb-4 group-hover:scale-110 transition-transform">
             <Target className="w-6 h-6" />
           </div>
           <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">
-            Đo Lường Điểm Mù & ACPL
+            Động Cơ Stockfish 19 & Masters DB
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            Tính toán chi tiết sai số trung bình (ACPL) qua từng giai đoạn Khai cuộc, Trung cuộc và Tàn cuộc để xác định chính xác thời điểm bạn đánh mất lợi thế.
+            Đánh giá thế cờ trực tiếp thời gian thực với Stockfish 19 Web Worker và đối chiếu các nước đi đỉnh cao từ cơ sở dữ liệu Đại kiện tướng Lichess Masters.
           </p>
         </div>
 

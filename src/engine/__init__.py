@@ -1,3 +1,0 @@
-"""
-Stockfish Engine Module Package
-"""

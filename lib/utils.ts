@@ -10,28 +10,6 @@ export function formatPercent(val?: number | null, decimals = 1): string {
   return `${val.toFixed(decimals)}%`;
 }
 
-export function formatACPL(val?: number | null): string {
-  if (val === undefined || val === null || isNaN(val)) return "N/A";
-  return `${val.toFixed(1)} cp`;
-}
-
-/**
- * Chuyển đổi ACPL (Average Centipawn Loss) sang Tỷ lệ Chính xác (%)
- * Công thức chuẩn FIDE/Lichess: Accuracy % = 100 * exp(-0.005 * ACPL)
- */
-export function acplToAccuracy(acpl?: number | null): number | null {
-  if (acpl === undefined || acpl === null || isNaN(acpl)) return null;
-  if (acpl <= 0) return 100.0;
-  const acc = 100.0 * Math.exp(-0.005 * acpl);
-  return Math.round(Math.max(0, Math.min(100, acc)) * 10) / 10;
-}
-
-export function formatAccuracy(acpl?: number | null, decimals = 1): string {
-  const acc = acplToAccuracy(acpl);
-  if (acc === null) return "N/A";
-  return `${acc.toFixed(decimals)}%`;
-}
-
 export function getEngineBadge(status: string) {
   switch (status) {
     case "embedded_eval":

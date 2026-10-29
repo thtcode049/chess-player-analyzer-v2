@@ -1,7 +1,7 @@
 """
 AI Strategic Briefing Module
 ----------------------------
-Tự động tổng hợp dữ liệu thực nghiệm (Profile, Repertoire, Structures, Phases, Dynamics)
+Tự động tổng hợp dữ liệu thực nghiệm (Profile, Repertoire, Structures, Style Profile)
 thành Bản Tóm tắt Suy luận Chiến lược Mở đầu (Executive Strategic Briefing)
 theo 2 góc nhìn: Bản thân / Học viên (Self / Coaching) hoặc Đối thủ (Opponent Scouting).
 """
@@ -49,25 +49,9 @@ def generate_initial_strategic_briefing(
     top_struct = strong_structs[0] if strong_structs else (structs[0] if structs else None)
     worst_struct = weak_structs[0] if weak_structs else None
 
-    # Phases & Accuracy
-    phases = deep_profile.get("phases", {}).get("phases", {})
-    weakest_phase_info = deep_profile.get("phases", {}).get("weakest_phase")
-
-    phase_vn = {"opening": "Khai cuộc", "middlegame": "Trung cuộc", "endgame": "Tàn cuộc"}
-    best_phase = None
-    worst_phase = None
-    if phases:
-        sorted_p = sorted(phases.items(), key=lambda x: x[1].get("accuracy", 0), reverse=True)
-        best_phase = sorted_p[0]
-        worst_phase = sorted_p[-1]
-
     # Style Profile & Dynamics
     style_prof = deep_profile.get("style_profile", {})
     style_name = style_prof.get("primary_style", "Toàn diện (Universal)")
-    dynamics = deep_profile.get("dynamics", {})
-    blunder_rate = dynamics.get("blunder_rate", 0.0)
-    throw_rate = dynamics.get("throw_rate", 0.0)
-    resilience_rate = dynamics.get("resilience_rate", 0.0)
 
     lines = []
 
@@ -115,32 +99,10 @@ def generate_initial_strategic_briefing(
             lines.append("- Chưa phát hiện cấu trúc Tốt nào có độ lệch tiêu cực đáng kể.")
         lines.append("")
 
-        # 3. Giai đoạn (chỉ hiển thị nếu có dữ liệu đánh giá)
-        if best_phase and worst_phase and best_phase[1].get('accuracy') is not None:
-            lines.append("#### 3. 🎯 Độ chính xác từng Giai đoạn & Giáo trình Đề xuất")
-            lines.append(
-                f"- 🏆 **Giai đoạn vững vàng nhất:** **{phase_vn.get(best_phase[0], best_phase[0])}** "
-                f"(Độ chính xác: **{best_phase[1].get('accuracy', 0)}%**).\n"
-                f"- 📉 **Giai đoạn giảm sút độ chính xác:** **{phase_vn.get(worst_phase[0], worst_phase[0])}** "
-                f"(Độ chính xác: **{worst_phase[1].get('accuracy', 0)}%**)."
-            )
-            if worst_phase[0] == "endgame":
-                lines.append("  - 📚 **Giáo án trọng tâm:** Tăng cường giải bài tập cờ tàn kỹ thuật (Endgame Studies), kỹ năng kích hoạt Vua và phối hợp Tốt thông.")
-            elif worst_phase[0] == "middlegame":
-                lines.append("  - 📚 **Giáo án trọng tâm:** Rèn luyện đòn phối hợp chiến thuật (Tactical Puzzles) và kỹ năng duy trì kế hoạch trung cuộc khi thế trận phức tạp.")
-            else:
-                lines.append("  - 📚 **Giáo án trọng tâm:** Ôn tập các nguyên tắc phát triển quân khai cuộc và kiểm soát trung tâm từ sớm.")
-            lines.append("")
-
-        # 4. Phong cách (chỉ hiển thị nếu có chỉ số cụ thể)
-        if dynamics and (blunder_rate > 0 or throw_rate > 0 or resilience_rate > 0):
-            lines.append("#### 4. ⚡ Phong cách Thi đấu & Tâm lý Ván đấu")
-            lines.append(
-                f"- **Phong cách chủ đạo:** **{style_name}**.\n"
-                f"- **Chỉ số động lực:** Tỷ lệ Sai lầm lớn (Blunder): `{blunder_rate}%` | "
-                f"Tỷ lệ Đánh mất ưu thế (Throw): `{throw_rate}%` | "
-                f"Khả năng Lội ngược dòng (Resilience): `{resilience_rate}%`."
-            )
+        # 3. Phong cách
+        if style_prof:
+            lines.append("#### 3. ⚡ Phong cách Thi đấu")
+            lines.append(f"- **Phong cách chủ đạo:** **{style_name}**.")
 
     else:
         # =====================================================================
@@ -183,30 +145,10 @@ def generate_initial_strategic_briefing(
             lines.append(f"- ⚠️ **Cấu trúc sở trường của đối thủ:** **{top_struct['name']}** (Nên tránh tạo điều kiện cho đối thủ xây dựng cấu trúc này).")
         lines.append("")
 
-        # 3. Giai đoạn (chỉ hiển thị nếu có dữ liệu đánh giá)
-        if worst_phase and worst_phase[1].get('accuracy') is not None:
-            phase_name = phase_vn.get(worst_phase[0], worst_phase[0])
-            lines.append("#### 3. 📉 Giai đoạn Đối thủ Dễ Mắc Sai lầm")
-            lines.append(
-                f"- 🎯 **Giai đoạn đối thủ sụt giảm độ chính xác:** **{phase_name}** "
-                f"(Chỉ đạt **{worst_phase[1].get('accuracy', 0)}%** độ chính xác)."
-            )
-            if worst_phase[0] == "endgame":
-                lines.append("  - 💡 *Kế hoạch tác chiến:* Kiên nhẫn đưa ván cờ về Tàn cuộc, đối thủ thường xử lý thiếu chính xác khi quân số tinh giản.")
-            elif worst_phase[0] == "middlegame":
-                lines.append("  - 💡 *Kế hoạch tác chiến:* Làm phức tạp hóa thế trận trung cuộc, tạo nhiều đòn phối hợp chiến thuật để ép đối thủ rơi vào khủng hoảng thời gian.")
-            else:
-                lines.append("  - 💡 *Kế hoạch tác chiến:* Tạo áp lực ngay từ giai đoạn khai cuộc để bắt đối thủ tiêu hao nhiều thời gian suy nghĩ.")
-            lines.append("")
-
-        # 4. Phong cách
-        if dynamics and (throw_rate > 0 or blunder_rate > 0):
-            lines.append("#### 4. 🎭 Phong cách & Điểm Nhạy cảm Tâm lý")
-            lines.append(
-                f"- **Phong cách đối thủ:** **{style_name}**.\n"
-                f"- **Tỷ lệ Throw (Mất ưu thế):** `{throw_rate}%` | "
-                f"**Tỷ lệ Blunder:** `{blunder_rate}%`."
-            )
+        # 3. Phong cách
+        if style_prof:
+            lines.append("#### 3. 🎭 Phong cách Thi đấu")
+            lines.append(f"- **Phong cách đối thủ:** **{style_name}**.")
 
     lines.append("\n---")
     lines.append("💡 *Hãy đặt câu hỏi bên dưới hoặc chọn một trong các gợi ý đào sâu nhanh để tiếp tục!*")
@@ -219,13 +161,13 @@ def get_followup_prompts(mode: str = "self") -> List[str]:
         return [
             "🛠️ Làm sao để vá lỗ hổng ở khai cuộc yếu nhất?",
             "📚 Lập giáo án rèn luyện 2 tuần để khắc phục điểm yếu",
-            "♟️ Phân tích các thế cờ sai lầm then chốt (Blunders) của tôi",
             "🧬 Hướng dẫn cách xử lý cấu trúc Tốt kém nhất",
+            "🛡️ Khuyến nghị chiến lược mở rộng Repertoire khai cuộc",
         ]
     else:
         return [
             "⚔️ Gợi ý các nước đi khắc chế đòn mạnh nhất của đối thủ",
             "🎯 Kế hoạch chi tiết để ép đối thủ vào tử huyệt khai cuộc",
-            "♟️ Các thế cờ đối thủ thường mắc Blunder lớn nhất là gì?",
+            "🧬 Cách tạo sức ép và hướng đối thủ vào cấu trúc Tốt bất lợi",
             "🛡️ Nên chọn khai cuộc gì khi tôi cầm Trắng / cầm Đen đấu với họ?",
         ]

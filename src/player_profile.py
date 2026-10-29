@@ -268,38 +268,16 @@ def generate_deep_opponent_profile(
     Tích hợp tất cả các module phân tích chuyên sâu: Repertoire, Structures, Phases, Dynamics, Simplification, Habits, và Critical Positions.
     """
     from src.analysis.pawn_structure import analyze_structural_performance
-    from src.analysis.phase_analysis import analyze_phase_performance
-    from src.analysis.game_dynamics import analyze_game_dynamics
-    from src.analysis.simplification import analyze_simplification_performance
-    from src.analysis.critical_positions import find_critical_positions
 
     baseline = stats.get("score_percentage", 50.0) if stats else 50.0
     repertoire_data = analyze_opening_repertoire(filtered_games, baseline_score=baseline)
-    structures_data = analyze_structural_performance(filtered_games, move_evaluations=move_evaluations, baseline_score=baseline)
-    phases_data = analyze_phase_performance(filtered_games, move_evaluations=move_evaluations)
-    dynamics_data = analyze_game_dynamics(filtered_games, move_evaluations=move_evaluations)
-    simplification_data = analyze_simplification_performance(filtered_games, move_evaluations=move_evaluations)
-    
-    critical_positions = find_critical_positions(move_evaluations, max_positions=5)
+    structures_data = analyze_structural_performance(filtered_games, baseline_score=baseline)
     rule_insights = generate_player_insights(filtered_games, stats, repertoire_data, {})
-
-    # ACPL tổng thể từ các nước đi có Stockfish evaluation của player
-    all_cpls = [e["cpl"] for e in (move_evaluations or []) if "cpl" in e]
-    overall_acpl = round(sum(all_cpls) / len(all_cpls), 1) if all_cpls else None
-    overall_analyzed_moves = len(all_cpls)
 
     return {
         "repertoire": repertoire_data,
         "structures": structures_data,
-        "phases": phases_data,
-        "dynamics": dynamics_data,
-        "simplification": simplification_data,
-        "style_profile": {},
-        "critical_positions": critical_positions,
         "rule_insights": rule_insights,
-        "has_engine_data": bool(move_evaluations),
-        "overall_acpl": overall_acpl,
-        "overall_analyzed_moves": overall_analyzed_moves
     }
 
 

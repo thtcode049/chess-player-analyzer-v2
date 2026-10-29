@@ -55,19 +55,11 @@ def test_build_opponent_ai_context_valid():
                 "volatility_score": 65.0,
                 "sacrifice_rate": 20.0,
                 "total_sacrifices": 2,
-                "simplification_rate": 40.0,
                 "resilience_rate": 60.0,
                 "closed_preference": 45.0,
                 "open_preference": 55.0
             },
             "evidence": ["Độ biến động chiến thuật cao", "Xác nhận đặc trưng Simplifier"]
-        },
-        "phases": {
-            "phases": {
-                "opening": {"accuracy": 91.2, "games_count": 20, "analyzed_moves": 160},
-                "middlegame": {"accuracy": 82.4, "games_count": 20, "analyzed_moves": 240},
-                "endgame": {"accuracy": 76.0, "games_count": 12, "analyzed_moves": 120}
-            }
         },
         "structures": {
             "structures": [
@@ -145,15 +137,7 @@ def test_initial_strategic_briefing():
                 {"name": "Carlsbad", "games_count": 5, "score_pct": 20.0, "delta_vs_baseline": -30.0}
             ]
         },
-        "phases": {
-            "phases": {
-                "opening": {"accuracy": 92.0},
-                "middlegame": {"accuracy": 80.0},
-                "endgame": {"accuracy": 65.0}
-            }
-        },
-        "style_profile": {"primary_style": "Chiến thuật (Tactical)"},
-        "dynamics": {"blunder_rate": 8.0, "throw_rate": 15.0, "resilience_rate": 60.0}
+        "style_profile": {"primary_style": "Chiến thuật (Tactical)"}
     }
 
     # Test mode 'self'
@@ -183,9 +167,7 @@ def test_local_expert_response():
     deep_profile = {
         "repertoire": {"white_repertoire": [{"name": "Sicilian Defense", "games_count": 8, "score_pct": 75.0, "wins": 5, "draws": 2, "losses": 1}]},
         "structures": {"structures": [{"name": "Carlsbad", "games_count": 5, "score_pct": 30.0, "adjusted_score_pct": 36.0, "delta_vs_baseline": -24.0, "wins": 1, "draws": 1, "losses": 3, "assessment_badge": "Điểm yếu", "typical_move": "12"}]},
-        "style_profile": {"primary_style": "Tactical", "raw_metrics": {}},
-        "phases": {"phases": {}},
-        "simplification": {}
+        "style_profile": {"primary_style": "Tactical", "raw_metrics": {}}
     }
     resp = generate_local_expert_response("Khai cuộc của đối thủ thế nào?", deep_profile, stats, selected_player="Magnus")
     assert "Khai cuộc" in resp or "Repertoire" in resp
@@ -204,9 +186,7 @@ def test_call_gemini_api_fallback_when_no_key():
     deep_profile = {
         "repertoire": {"white_repertoire": [], "black_repertoire": []},
         "style_profile": {"primary_style": "Solid / Universal"},
-        "phases": {"phases": {}},
-        "structures": {"structures": []},
-        "simplification": {}
+        "structures": {"structures": []}
     }
     resp = call_gemini_api(
         prompt="Khai cuộc của đối thủ thế nào?",
@@ -225,9 +205,7 @@ def test_stream_gemini_response_fallback():
     deep_profile = {
         "repertoire": {"white_repertoire": []},
         "structures": {"structures": []},
-        "style_profile": {"primary_style": "Tactical", "raw_metrics": {}},
-        "phases": {"phases": {}},
-        "simplification": {}
+        "style_profile": {"primary_style": "Tactical", "raw_metrics": {}}
     }
     chunks = list(stream_gemini_response(
         prompt="Tóm tắt đối thủ",

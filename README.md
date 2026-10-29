@@ -53,9 +53,8 @@
   └── FastAPI Application (/api/*)
         ├── api.routes (imports, players, games, analyses, ai, cron)
         ├── src.opening_tree (EPD Tree, Bayesian Shrinkage K=6.0)
-        ├── src.analysis (Pawn Structures, Game Dynamics, ACPL Calculation)
+        ├── src.analysis (5 Classic Pawn Structures, Bayesian Confidence Scoring)
         ├── src.pgn_parser (Trie 3.865 ECO Variants, In-Memory PGN Parsing)
-        ├── src.engine (Embedded Eval Regex Extractor <10ms)
         └── src.ai_assistant (Gemini Flash + Local Heuristic Fallback)
            │
            │ HTTPS / PostgreSQL Connection Pooling / JWT Auth
@@ -115,8 +114,7 @@ chess-player-analyzer-v2/
 │   └── stockfish/stockfish.js       # Tệp thực thi động cơ Stockfish Client
 ├── src/                             # Lõi thuật toán cờ vua độc lập (Python)
 │   ├── ai_assistant/                # Gemini client, context builder & local expert
-│   ├── analysis/                    # Bayesian confidence, pawn structure, dynamics
-│   ├── engine/                      # Stockfish engine config & evaluator
+│   ├── analysis/                    # Bayesian confidence, 5 pawn structures
 │   ├── opening_tree.py              # EPD tree builder
 │   ├── pgn_parser.py                # Bộ phân tích PGN & ECO trie matcher
 │   ├── player_profile.py            # Tổng hợp hồ sơ phong cách & cấu trúc Tốt

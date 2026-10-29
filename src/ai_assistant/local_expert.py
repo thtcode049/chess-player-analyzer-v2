@@ -1,13 +1,12 @@
 """
-Local Chess Expert Engine Module
---------------------------------
-Chức năng: Động cơ suy luận chuyên gia cờ vua cục bộ (Zero-Config / 100% Offline).
-Tự động phân tích câu hỏi của người dùng và sinh câu trả lời phân tích chuyên sâu,
-chính xác 100% dựa trên dữ liệu Profile & Opening Tree mà KHÔNG CẦN nhập bất kỳ API Key nào.
+AI Local Expert Module
+-----------------------
+Chức năng: Cung cấp bộ máy suy luận chiến thuật ngoại tuyến (Offline Rule-Based Expert Engine)
+trả lời câu hỏi người dùng dựa trên dữ liệu thống kê khách quan từ Profile và Cây Khai cuộc
+khi không có API Key của Gemini hoặc khi mạng Internet gián đoạn.
 """
 
 from typing import Dict, Any, List, Optional
-import re
 
 
 def generate_local_expert_response(
@@ -17,15 +16,17 @@ def generate_local_expert_response(
     fen_map_white: Optional[Dict[str, Any]] = None,
     fen_map_black: Optional[Dict[str, Any]] = None,
     selected_player: str = "Kỳ thủ",
-    mode: str = "self"
+    mode: str = "self",
+    **kwargs: Any
 ) -> str:
     """
-    Phân tích câu hỏi của người dùng và sinh câu trả lời chuyên sâu, có cấu trúc Markdown,
-    số liệu chính xác, bảng biểu và lời khuyên chiến thuật từ dữ liệu Profile & Cây Khai cuộc.
-    mode: 'self' (Bản thân / Học viên) hoặc 'opponent' (Đối thủ sắp gặp).
+    Sinh câu trả lời thông minh dựa trên luật (Rule-Based Expert System) từ dữ liệu thực nghiệm.
     """
     if not deep_profile or not stats:
-        return f"⚠️ Hiện chưa có đủ dữ liệu phân tích của kỳ thủ **{selected_player}**. Vui lòng nạp ván đấu từ trang **Nạp Ván đấu** để bắt đầu."
+        return (
+            f"Hiện tại chưa có đủ dữ liệu phân tích ván đấu của **{selected_player}**. "
+            f"Vui lòng nạp ván đấu tại trang **Nạp Ván đấu** để hệ thống có thể phân tích."
+        )
 
     p = prompt.strip().lower()
 
@@ -40,10 +41,8 @@ def generate_local_expert_response(
     b_rep = rep.get("black_repertoire", [])
     
     structs = deep_profile.get("structures", {}).get("structures", [])
-    phases = deep_profile.get("phases", {}).get("phases", {})
     style_prof = deep_profile.get("style_profile", {})
     raw_m = style_prof.get("raw_metrics", {})
-    simp = deep_profile.get("simplification", {})
 
     # =========================================================================
     # 1. TRẢ LỜI VỀ CẤU TRÚC TỐT (PAWN STRUCTURES)
@@ -116,67 +115,14 @@ def generate_local_expert_response(
         return "\n".join(lines)
 
     # =========================================================================
-    # 2. TRẢ LỜI VỀ GIAI ĐOẠN (PHASE ACCURACY)
+    # 2. TRẢ LỜI VỀ GIAI ĐOẠN (PHASES)
     # =========================================================================
     if any(k in p for k in ["giai đoạn", "phase", "chính xác", "accuracy", "trung cuộc", "tàn cuộc", "khai cuộc và trung cuộc"]):
-        lines = [f"### ⏱ Phân tích Độ chính xác theo Giai đoạn của **{selected_player}**\n"]
-        
-        op_data = phases.get("opening", {})
-        mid_data = phases.get("middlegame", {})
-        end_data = phases.get("endgame", {})
-
-        op_acc = op_data.get("accuracy") or op_data.get("accuracy_pct")
-        mid_acc = mid_data.get("accuracy") or mid_data.get("accuracy_pct")
-        end_acc = end_data.get("accuracy") or end_data.get("accuracy_pct")
-
-        lines.append("| Giai đoạn | Độ chính xác (Accuracy) | Số ván | Số nước đã phân tích | Đánh giá phong độ |")
-        lines.append("| :--- | :---: | :---: | :---: | :--- |")
-        
-        def _get_eval_str(acc):
-            if acc is None:
-                return "Chờ phân tích"
-            if acc >= 88.0:
-                return "🟢 Xuất sắc"
-            if acc >= 75.0:
-                return "🟢 Ổn định"
-            if acc >= 60.0:
-                return "🟡 Trung bình"
-            return "🔴 Cần cải thiện (Điểm yếu)"
-
-        lines.append(f"| **♟ Khai cuộc (Opening)** | **{op_acc if op_acc is not None else 'N/A'}%** | {op_data.get('games_count', 0)} | {op_data.get('analyzed_moves', 0)} | {_get_eval_str(op_acc)} |")
-        lines.append(f"| **⚔️ Trung cuộc (Middlegame)** | **{mid_acc if mid_acc is not None else 'N/A'}%** | {mid_data.get('games_count', 0)} | {mid_data.get('analyzed_moves', 0)} | {_get_eval_str(mid_acc)} |")
-        lines.append(f"| **🏆 Tàn cuộc (Endgame)** | **{end_acc if end_acc is not None else 'N/A'}%** | {end_data.get('games_count', 0)} | {end_data.get('analyzed_moves', 0)} | {_get_eval_str(end_acc)} |")
-
-        # Nhận định so sánh
-        acc_dict = {"Khai cuộc": op_acc, "Trung cuộc": mid_acc, "Tàn cuộc": end_acc}
-        valid_accs = {k: v for k, v in acc_dict.items() if v is not None}
-        
-        if valid_accs:
-            best_phase = max(valid_accs.items(), key=lambda x: x[1])
-            worst_phase = min(valid_accs.items(), key=lambda x: x[1])
-            lines.append(f"\n💡 **Nhận định Chuyên sâu**:")
-            if mode == "self":
-                lines.append(f"- Bạn/học viên thi đấu chính xác và vững vàng nhất ở giai đoạn **{best_phase[0]}** ({best_phase[1]}%).")
-                if worst_phase[0] != best_phase[0]:
-                    lines.append(f"- Giai đoạn bạn/học viên dễ mắc sai sót và giảm sút độ chính xác nhiều nhất là **{worst_phase[0]}** ({worst_phase[1]}%).")
-                    if worst_phase[0] == "Tàn cuộc":
-                        lines.append("- 👉 **Giáo án đề xuất**: Hãy kiên trì rèn luyện tàn cuộc kỹ thuật (Endgame Studies), kỹ năng kích hoạt Vua và phối hợp Tốt thông.")
-                    elif worst_phase[0] == "Trung cuộc":
-                        lines.append("- 👉 **Giáo án đề xuất**: Rèn luyện bài tập chiến thuật hỗn loạn (Tactics Puzzles) và rèn luyện kỹ năng quản lý thời gian khi thế trận căng thẳng.")
-                    elif worst_phase[0] == "Khai cuộc":
-                        lines.append("- 👉 **Giáo án đề xuất**: Ôn tập lại lý thuyết khai cuộc và các nước đi nguyên tắc kiểm soát trung tâm.")
-            else:
-                lines.append(f"- Đối thủ thi đấu chính xác và vững vàng nhất ở giai đoạn **{best_phase[0]}** ({best_phase[1]}%).")
-                if worst_phase[0] != best_phase[0]:
-                    lines.append(f"- Giai đoạn đối thủ dễ mắc sai sót và giảm sút độ chính xác nhiều nhất là **{worst_phase[0]}** ({worst_phase[1]}%).")
-                    if worst_phase[0] == "Tàn cuộc":
-                        lines.append("- 👉 **Chiến thuật đề xuất**: Hãy kiên trì đưa trận đấu vào tàn cuộc kỹ thuật, đối thủ thường xử lý thiếu chính xác khi lực lượng tinh giản.")
-                    elif worst_phase[0] == "Trung cuộc":
-                        lines.append("- 👉 **Chiến thuật đề xuất**: Hãy làm phức tạp hóa thế trận trung cuộc với nhiều biến chiến thuật, đối thủ có xu hướng lúng túng khi thế trận hỗn loạn.")
-                    elif worst_phase[0] == "Khai cuộc":
-                        lines.append("- 👉 **Chiến thuật đề xuất**: Hãy chuẩn bị các nhánh khai cuộc sắc bén và tạo áp lực ngay từ các nước đầu tiên.")
-
-        return "\n".join(lines)
+        return (
+            f"### ⏱ Đánh giá Giai đoạn & Động cơ đối với **{selected_player}**\n\n"
+            f"Hệ thống phân tích tập trung vào **Danh mục Khai cuộc (Repertoire)** và **Cấu trúc Tốt (Pawn Structures)**.\n"
+            f"Để phân tích chi tiết từng nước đi hoặc đánh giá độ sâu bàn cờ bằng Stockfish, bạn hãy mở bàn cờ tương tác và kích hoạt **Stockfish 19 Web Worker** trực tiếp trên trình duyệt."
+        )
 
     # =========================================================================
     # 3. TRẢ LỜI VỀ PHONG CÁCH THI ĐẤU (PLAYING STYLE PROFILE)
@@ -188,7 +134,6 @@ def generate_local_expert_response(
         dim_labels = [
             ("Độ biến động chiến thuật (Volatility)", raw_m.get("volatility_score", 50.0)),
             ("Tỉ lệ ván có nước Thí quân (Sacrifice Rate)", raw_m.get("sacrifice_rate", 0.0)),
-            ("Chuyển tàn cuộc sớm (Simplification Rate)", raw_m.get("simplification_rate", 0.0)),
             ("Khả năng kiên cường lội ngược dòng (Resilience)", raw_m.get("resilience_rate", 50.0)),
             (f"Thế trận thường dùng ({raw_m.get('dominant_structure', 'Cờ kín')})", raw_m.get("dominant_structure_pct", 33.4)),
         ]
@@ -205,28 +150,7 @@ def generate_local_expert_response(
         return "\n".join(lines)
 
     # =========================================================================
-    # 4. TRẢ LỜI VỀ THÓI QUEN CHUYỂN TÀN CUỘC SỚM (ENDGAME SIMPLIFICATION)
-    # =========================================================================
-    if any(k in p for k in ["chuyển tàn", "tàn cuộc sớm", "simplifier", "đơn giản hóa", "tàn cuộc"]):
-        lines = [f"### ♟️ Thói quen Chuyển Tàn cuộc của **{selected_player}**\n"]
-        lines.append(f"- **Tỷ lệ chuyển tàn cuộc sớm (Simplification Rate)**: **{raw_m.get('simplification_rate', 0.0)}%**")
-        lines.append(f"- **Thời điểm vào tàn cuộc trung bình**: **Nước {raw_m.get('avg_endgame_move', 0.0)}**")
-
-        if raw_m.get("simplification_rate", 0.0) >= 30.0:
-            if mode == "self":
-                lines.append("\n💡 **Nhận định**: Bạn/học viên có xu hướng chủ động đổi quân đưa về tàn cuộc tương đối sớm. Hãy tiếp tục phát huy nhưng cần cẩn trọng tránh đơn giản hóa vội vàng khi chưa đủ ưu thế.")
-            else:
-                lines.append("\n💡 **Khuyến nghị chiến thuật**: Đối thủ có xu hướng chủ động đổi quân sớm đưa về tàn cuộc cân bằng. Nếu muốn tạo áp lực, bạn nên tránh các biến đổi quân sớm và duy trì thế trận phức tạp ở trung cuộc.")
-        else:
-            if mode == "self":
-                lines.append("\n💡 **Nhận định**: Bạn/học viên có xu hướng giải quyết ván đấu ở trung cuộc và ít khi chủ động chuyển tàn sớm.")
-            else:
-                lines.append("\n💡 **Khuyến nghị chiến thuật**: Đối thủ ít khi chủ động chuyển tàn sớm mà có xu hướng duy trì quân lực để giải quyết ván đấu ở trung cuộc.")
-
-        return "\n".join(lines)
-
-    # =========================================================================
-    # 5. TRẢ LỜI VỀ KHAI CUỘC & PHẢN ỨNG NƯỚC ĐI (REPERTOIRE & OPENING TREE)
+    # 4. TRẢ LỜI VỀ KHAI CUỘC & PHẢN ỨNG NƯỚC ĐI (REPERTOIRE & OPENING TREE)
     # =========================================================================
     if any(k in p for k in ["khai cuộc", "opening", "repertoire", "1.e4", "1.d4", "1.c4", "1.nf3", "cầm trắng", "cầm đen", "sở trường", "vũ khí"]):
         lines = [f"### 📚 Phân tích Danh mục Khai cuộc (Repertoire) của **{selected_player}**\n"]
@@ -237,7 +161,7 @@ def generate_local_expert_response(
             top_w = w_rep[0]
             lines.append(f"- **Khai cuộc chơi nhiều nhất**: **{top_w['name']}** ({top_w['games_count']} ván, Score: **{top_w.get('score_pct', 0)}%**, Độ tin cậy: **{top_w.get('adjusted_score_pct', 0)}%**)")
             lines.append(f"- **Đánh giá**: `{top_w.get('assessment_badge', 'N/A')}` (Delta: `{top_w.get('delta_vs_baseline', 0):+}%`)")
-            
+
             lines.append("\n| Khai cuộc (Trắng) | Số ván | W/D/L | Score % | Độ tin cậy | Đánh giá |")
             lines.append("| :--- | :---: | :---: | :---: | :---: | :--- |")
             for item in w_rep[:5]:
@@ -262,7 +186,7 @@ def generate_local_expert_response(
         return "\n".join(lines)
 
     # =========================================================================
-    # 6. TRẢ LỜI VỀ ĐIỂM YẾU (WEAKNESSES)
+    # 5. TRẢ LỜI VỀ ĐIỂM YẾU (WEAKNESSES)
     # =========================================================================
     if any(k in p for k in ["điểm yếu", "yếu nhất", "lỗ hổng", "sơ hở", "khai thác", "weakness"]):
         lines = [f"### 🎯 Phân tích Các Điểm Yếu Lớn Nhất của **{selected_player}**\n"]
@@ -293,21 +217,10 @@ def generate_local_expert_response(
             worst_op = sorted(weak_openings, key=lambda x: x.get("adjusted_score_pct", 50))[0]
             lines.append(f"3. 📚 **Khai cuộc dễ tổn thương nhất**: **{worst_op['name']}** (Score: **{worst_op.get('score_pct', 0)}%**, Độ tin cậy: **{worst_op.get('adjusted_score_pct', 0)}%**, Thua: {worst_op.get('losses', 0)}/{worst_op.get('games_count', 0)} ván).")
 
-        # 4. Điểm yếu giai đoạn
-        phases_acc = {}
-        for pk in ["opening", "middlegame", "endgame"]:
-            ac = phases.get(pk, {}).get("accuracy")
-            if ac is not None:
-                phases_acc[pk] = ac
-        if phases_acc:
-            worst_p = min(phases_acc.items(), key=lambda x: x[1])
-            p_map = {"opening": "Khai cuộc", "middlegame": "Trung cuộc", "endgame": "Tàn cuộc"}
-            lines.append(f"4. ⏱ **Giai đoạn độ chính xác thấp nhất**: **{p_map.get(worst_p[0], worst_p[0])}** ({worst_p[1]}% accuracy).")
-
         return "\n".join(lines)
 
     # =========================================================================
-    # 7. TRẢ LỜI MẶC ĐỊNH / TỔNG HỢP TOÀN DIỆN (GENERAL SUMMARY & INSIGHTS)
+    # 6. TRẢ LỜI MẶC ĐỊNH / TỔNG HỢP TOÀN DIỆN (GENERAL SUMMARY & INSIGHTS)
     # =========================================================================
     lines = [f"### ♟️ Báo cáo Tổng hợp Phân tích Toàn diện: **{selected_player}**\n"]
     lines.append(f"- **Tổng số ván đấu đã phân tích**: **{total_games}** ván • **Score tổng thể**: **{score_pct}%** ({stats.get('wins', 0)}T / {stats.get('draws', 0)}H / {stats.get('losses', 0)}B)")
@@ -322,6 +235,6 @@ def generate_local_expert_response(
     if structs:
         lines.append(f"- **Cấu trúc Tốt nổi bật**: **{structs[0]['name']}** (Score: {structs[0].get('score_pct', 0)}%, Bayes: {structs[0].get('adjusted_score_pct', 0)}%)")
 
-    lines.append("\n💡 **Gợi ý**: Bạn có thể bấm vào các câu hỏi nhanh phía trên hoặc hỏi chi tiết về *khai cuộc, cấu trúc tốt, độ chính xác các giai đoạn, thói quen đổi Hậu* để nhận phân tích sâu hơn!")
+    lines.append("\n💡 **Gợi ý**: Bạn có thể bấm vào các câu hỏi nhanh phía trên hoặc hỏi chi tiết về *khai cuộc, cấu trúc tốt, điểm mạnh/yếu chiến lược* để nhận phân tích sâu hơn!")
     
     return "\n".join(lines)

@@ -10,10 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 import pytest
 import chess
 
-from src.analysis.phase_analysis import classify_phase, analyze_phase_performance
 from src.analysis.pawn_structure import detect_pawn_structure, detect_all_pawn_structures, analyze_structural_performance
-from src.analysis.game_dynamics import analyze_game_dynamics
-from src.analysis.simplification import analyze_simplification_performance
 from src.analysis.confidence import get_confidence_level
 from src.strategy import generate_actionable_match_preparation
 
@@ -22,22 +19,6 @@ def test_confidence_level():
     assert get_confidence_level(12) == "HIGH"
     assert get_confidence_level(7) == "MEDIUM"
     assert get_confidence_level(3) == "LOW"
-
-
-def test_classify_phase():
-    board = chess.Board()
-    # Move 5 with undeveloped pieces is Opening
-    assert classify_phase(board, 5) == "opening"
-    # Move 18 with starting pieces (move > 15) is Middlegame
-    assert classify_phase(board, 18) == "middlegame"
-
-    # Endgame board (low material) is Endgame
-    endgame_board = chess.Board("4k3/ppp2ppp/5n2/8/8/8/PPP2PPP/4K2R w K - 0 35")
-    assert classify_phase(endgame_board, 35) == "endgame"
-
-    # Empty board material except kings is Endgame
-    empty_board = chess.Board("8/8/8/4k3/4K3/8/8/8 w - - 0 1")
-    assert classify_phase(empty_board, 15) == "endgame"
 
 
 def test_detect_pawn_structure():
@@ -179,25 +160,6 @@ def test_negative_boundary_cases():
     assert not any(s["structure"] == "Boleslavsky_Hole" for s in res_kid), "King's Indian không được gán nhãn Boleslavsky_Hole"
 
 
-def test_analyze_game_dynamics():
-    games = [
-        {"player_color": "white", "result": "1/2-1/2"},
-        {"player_color": "white", "result": "0-1"},
-    ]
-    # Game 0 reached opp_eval = +2.5 but ended in Draw (Throw)
-    # Game 1 reached opp_eval = -2.5 but ended in Loss (Not resilient)
-    evals = [
-        {"game_index": 0, "eval_after": 2.5, "delta_eval": 0.5},
-        {"game_index": 1, "eval_after": -2.5, "delta_eval": -0.8},
-    ]
-
-    dyn = analyze_game_dynamics(games, move_evaluations=evals)
-    assert dyn["available"]
-    assert dyn["eligible_advantage_games"] == 1
-    assert dyn["throw_games"] == 1
-    assert dyn["throw_rate"] == 100.0
-
-
 def test_actionable_match_preparation():
     deep_profile = {
         "repertoire": {
@@ -206,15 +168,7 @@ def test_actionable_match_preparation():
         },
         "structures": {
             "target_structure": {"name": "IQP", "score_pct": 30.0, "games_count": 8, "confidence": {"label": "Medium"}}
-        },
-        "phases": {
-            "weakest_phase": {"phase": "endgame", "avg_acpl": 55.0}
-        },
-        "dynamics": {
-            "throw_rate": 40.0,
-            "resilience_rate": 10.0
-        },
-        "critical_positions": []
+        }
     }
 
     action_prep = generate_actionable_match_preparation(deep_profile, user_color="white")

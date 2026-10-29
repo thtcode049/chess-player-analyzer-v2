@@ -208,11 +208,7 @@ def test_match_prep_excludes_unreliable_rare_sample_as_main_weapon():
             "white_repertoire": [],
         },
         "structures": {"target_structure": None},
-        "phases": {},
-        "dynamics": {},
-        "simplification": {},
         "style_profile": {"scores": {}},
-        "critical_positions": [],
     }
 
     prep = generate_actionable_match_preparation(fake_deep_profile, user_color="white")

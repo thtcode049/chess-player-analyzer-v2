@@ -15,12 +15,20 @@ logger = logging.getLogger(__name__)
 # System Guest Account UUID in Supabase auth.users for persistent serverless guest sessions
 GUEST_SYSTEM_USER_ID = os.environ.get("GUEST_SYSTEM_USER_ID", "e789d895-173d-4c11-a828-43944a3b677b")
 
+_supabase_client: Optional[Client] = None
+_supabase_client_key: tuple[str, str] = ("", "")
+
+
 def get_supabase() -> Client:
+    global _supabase_client, _supabase_client_key
     url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
     if not url or not key:
         raise RuntimeError("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars")
-    return create_client(url, key)
+    if _supabase_client is None or _supabase_client_key != (url, key):
+        _supabase_client = create_client(url, key)
+        _supabase_client_key = (url, key)
+    return _supabase_client
 
 
 def normalize_name_words(text: str) -> set:

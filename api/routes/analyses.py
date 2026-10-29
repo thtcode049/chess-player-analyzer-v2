@@ -3,6 +3,7 @@ Analysis Route Handlers (Snapshots, Bayesian Profile, Opening Tree)
 """
 from fastapi import APIRouter, HTTPException, Query, Body, Header
 from typing import Optional, Dict, Any, List
+import threading
 import uuid
 import logging
 
@@ -25,6 +26,15 @@ router = APIRouter(prefix="/api/analysis", tags=["Analysis"])
 
 # In-memory session cache for fast interactive opening tree drill-down during active sessions
 RUN_SNAPSHOTS_CACHE: Dict[str, Dict[str, Any]] = {}
+_TREE_BUILD_LOCKS: Dict[str, threading.Lock] = {}
+_TREE_LOCKS_GUARD = threading.Lock()
+
+
+def _get_tree_lock(key: str) -> threading.Lock:
+    with _TREE_LOCKS_GUARD:
+        if key not in _TREE_BUILD_LOCKS:
+            _TREE_BUILD_LOCKS[key] = threading.Lock()
+        return _TREE_BUILD_LOCKS[key]
 
 
 def _resolve_games_for_player(
@@ -95,7 +105,7 @@ def _resolve_games_for_player(
 
 
 @router.post("/runs", response_model=BaseResponse[AnalysisRunResponse])
-async def create_analysis_run(
+def create_analysis_run(
     req: AnalysisRunCreate,
     x_user_id: Optional[str] = Header(None),
     x_guest_session_id: Optional[str] = Header(None)
@@ -186,7 +196,7 @@ async def create_analysis_run(
 
 
 @router.get("/runs/{run_id}", response_model=BaseResponse[AnalysisRunResponse])
-async def get_analysis_run(
+def get_analysis_run(
     run_id: str,
     x_user_id: Optional[str] = Header(None),
     x_guest_session_id: Optional[str] = Header(None)
@@ -329,7 +339,7 @@ async def get_analysis_run(
 
 
 @router.get("/runs/{run_id}/tree", response_model=BaseResponse[OpeningTreeNodeResponse])
-async def query_opening_tree_branch(
+def query_opening_tree_branch(
     run_id: str,
     fen: str = Query("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -", description="FEN position to query"),
     color: str = Query("all", description="Color filter: all, white, black"),
@@ -414,22 +424,25 @@ async def query_opening_tree_branch(
     # If fen_map_all is missing (e.g. loaded from DB without full tree map) and deep or color branch is requested,
     # build the complete opening tree maps and populate cache!
     if not cached or "fen_map_all" not in cached or not cached.get("fen_map_all"):
-        games, player_name = _resolve_games_for_player(target_player_id, x_user_id=x_user_id, x_guest_session_id=x_guest_session_id)
-        if games:
-            _, fm_all = build_opening_tree(games, color="all")
-            _, fm_w = build_opening_tree(games, color="white")
-            _, fm_b = build_opening_tree(games, color="black")
-            if not cached:
-                cached = {"player_id": target_player_id, "run_id": run_id}
-            cached["fen_map_all"] = fm_all
-            cached["fen_map_white"] = fm_w
-            cached["fen_map_black"] = fm_b
-            cached["player_name"] = player_name
-            RUN_SNAPSHOTS_CACHE[run_id] = cached
-            if target_player_id:
-                RUN_SNAPSHOTS_CACHE[target_player_id] = cached
-        elif not cached:
-            raise HTTPException(status_code=404, detail="Analysis run or games not found")
+        with _get_tree_lock(str(target_player_id or run_id)):
+            cached = RUN_SNAPSHOTS_CACHE.get(run_id) or (RUN_SNAPSHOTS_CACHE.get(target_player_id) if target_player_id else None) or cached
+            if not cached or "fen_map_all" not in cached or not cached.get("fen_map_all"):
+                games, player_name = _resolve_games_for_player(target_player_id, x_user_id=x_user_id, x_guest_session_id=x_guest_session_id)
+                if games:
+                    _, fm_all = build_opening_tree(games, color="all")
+                    _, fm_w = build_opening_tree(games, color="white")
+                    _, fm_b = build_opening_tree(games, color="black")
+                    if not cached:
+                        cached = {"player_id": target_player_id, "run_id": run_id}
+                    cached["fen_map_all"] = fm_all
+                    cached["fen_map_white"] = fm_w
+                    cached["fen_map_black"] = fm_b
+                    cached["player_name"] = player_name
+                    RUN_SNAPSHOTS_CACHE[run_id] = cached
+                    if target_player_id:
+                        RUN_SNAPSHOTS_CACHE[target_player_id] = cached
+                elif not cached:
+                    raise HTTPException(status_code=404, detail="Analysis run or games not found")
 
     # Select color-specific fen_map
     if c_lower == "white":
@@ -476,7 +489,7 @@ async def query_opening_tree_branch(
 
 
 @router.get("/lichess-masters", response_model=BaseResponse[Dict[str, Any]])
-async def get_lichess_masters_stats(
+def get_lichess_masters_stats(
     fen: str = Query("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", description="FEN position to query"),
     token: Optional[str] = Query(None, description="Optional Lichess API Token"),
     x_lichess_token: Optional[str] = Header(None, description="Optional Lichess Token Header")
@@ -492,7 +505,7 @@ async def get_lichess_masters_stats(
 
 
 @router.get("/lichess-game/{game_id}", response_model=BaseResponse[Dict[str, Any]])
-async def get_lichess_master_game_detail(
+def get_lichess_master_game_detail(
     game_id: str,
     token: Optional[str] = Query(None, description="Optional Lichess Token"),
     x_lichess_token: Optional[str] = Header(None, description="Optional Lichess Token Header")

@@ -80,7 +80,7 @@ def get_guest_session(guest_session_id: Optional[str]) -> Dict[str, Any]:
 
 
 @router.get("", response_model=BaseResponse[List[PlayerResponse]])
-async def list_players(
+def list_players(
     x_user_id: Optional[str] = Header(None),
     x_guest_session_id: Optional[str] = Header(None)
 ):
@@ -181,7 +181,7 @@ async def list_players(
 
 
 @router.post("", response_model=BaseResponse[PlayerResponse])
-async def create_player(
+def create_player(
     req: PlayerCreate,
     x_user_id: Optional[str] = Header(None),
     x_guest_session_id: Optional[str] = Header(None)
@@ -252,7 +252,7 @@ async def create_player(
 
 
 @router.get("/{player_id}", response_model=BaseResponse[PlayerResponse])
-async def get_player(
+def get_player(
     player_id: str,
     x_user_id: Optional[str] = Header(None),
     x_guest_session_id: Optional[str] = Header(None)
@@ -431,7 +431,7 @@ def _parse_game_datetime(g: Dict[str, Any]) -> Optional[datetime]:
 
 
 @router.get("/{player_id}/games", response_model=BaseResponse[PaginatedResponse[GameResponse]])
-async def list_player_games(
+def list_player_games(
     player_id: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=50000),
@@ -440,6 +440,7 @@ async def list_player_games(
     result: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     all_games: bool = Query(False),
+    refresh: bool = Query(False),
     x_user_id: Optional[str] = Header(None),
     x_guest_session_id: Optional[str] = Header(None)
 ):
@@ -465,16 +466,20 @@ async def list_player_games(
             games = GAMES_STORE[player_id]
     else:
         # Logged-in mode
-        try:
-            db_games = DBService.get_player_games(player_id, limit=None)
-            if db_games:
-                GAMES_STORE[player_id] = db_games
-                games = db_games
-        except Exception as e:
-            logger.warning(f"Error fetching player games from DB: {e}")
-
-        if not games and player_id in GAMES_STORE:
+        # shortcut: in-process GAMES_STORE assumes writes go through this instance; pass refresh=true or add shared cache when multi-instance
+        if not refresh and player_id in GAMES_STORE and GAMES_STORE[player_id]:
             games = GAMES_STORE[player_id]
+        else:
+            try:
+                db_games = DBService.get_player_games(player_id, limit=None)
+                if db_games:
+                    GAMES_STORE[player_id] = db_games
+                    games = db_games
+            except Exception as e:
+                logger.warning(f"Error fetching player games from DB: {e}")
+
+            if not games and player_id in GAMES_STORE:
+                games = GAMES_STORE[player_id]
 
     # Filter by Color
     filtered = games
@@ -572,7 +577,7 @@ async def list_player_games(
 
 
 @router.put("/{player_id}", response_model=BaseResponse[PlayerResponse])
-async def update_player(
+def update_player(
     player_id: str,
     req: PlayerUpdate,
     x_user_id: Optional[str] = Header(None),
@@ -672,7 +677,7 @@ async def update_player(
 
 
 @router.delete("/{player_id}", response_model=BaseResponse[Dict[str, Any]])
-async def delete_player(
+def delete_player(
     player_id: str,
     x_user_id: Optional[str] = Header(None),
     x_guest_session_id: Optional[str] = Header(None)
@@ -729,7 +734,7 @@ async def delete_player(
 
 
 @router.post("/claim-guest-data", response_model=BaseResponse[Dict[str, Any]])
-async def claim_guest_data_endpoint(
+def claim_guest_data_endpoint(
     req: Optional[Dict[str, Any]] = None,
     x_user_id: Optional[str] = Header(None),
     x_guest_session_id: Optional[str] = Header(None)
@@ -758,7 +763,7 @@ async def claim_guest_data_endpoint(
 
 @router.get("/cleanup-expired-guests")
 @router.post("/cleanup-expired-guests")
-async def cleanup_expired_guests(
+def cleanup_expired_guests(
     max_age_hours: int = 24
 ):
     """

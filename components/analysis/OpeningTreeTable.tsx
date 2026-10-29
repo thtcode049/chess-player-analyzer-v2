@@ -47,6 +47,7 @@ interface OpeningTreeTableProps {
   isSandboxMode?: boolean;
   isMultiMode?: boolean;
   multiTitle?: string;
+  isLoading?: boolean;
 }
 
 function formatCompactNumber(num: number): string {
@@ -93,6 +94,7 @@ export default function OpeningTreeTable({
   isSandboxMode = false,
   isMultiMode = false,
   multiTitle,
+  isLoading = false,
 }: OpeningTreeTableProps) {
   const [activeTab, setActiveTab] = useState<"player" | "master">("player");
   const [masterMoves, setMasterMoves] = useState<LichessMasterMove[]>([]);
@@ -322,21 +324,27 @@ export default function OpeningTreeTable({
                 className="cursor-pointer truncate max-w-[130px] sm:max-w-[180px] py-1 font-bold text-xs"
                 title="Kỳ thủ đang phân tích"
               >
-                {players?.find((p) => p.id === selectedPlayerId)?.canonical_name || playerName || "Kỳ thủ"}
+                {players?.find((p) => p.id === selectedPlayerId)?.canonical_name ||
+                  playerName ||
+                  (isLoading ? "Đang tải kỳ thủ..." : "Kỳ thủ")}
               </span>
             )}
 
             <button
               type="button"
               onClick={() => setActiveTab("player")}
-              className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold transition cursor-pointer ml-0.5 ${
+              className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold transition cursor-pointer ml-0.5 flex items-center justify-center min-w-[18px] ${
                 activeTab === "player"
                   ? "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300"
                   : "bg-slate-300/60 dark:bg-slate-700/60 text-slate-500"
               }`}
-              title={`${continuations.length} nước đi tiếp theo`}
+              title={isLoading && continuations.length === 0 ? "Đang tải nước đi..." : `${continuations.length} nước đi tiếp theo`}
             >
-              {continuations.length}
+              {isLoading && continuations.length === 0 ? (
+                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+              ) : (
+                continuations.length
+              )}
             </button>
           </div>
 
@@ -512,14 +520,27 @@ export default function OpeningTreeTable({
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
               {continuations.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-10 text-slate-400 text-xs">
-                    <div className="flex flex-col items-center justify-center gap-1.5">
-                      <GitBranch className="w-5 h-5 text-slate-300 dark:text-slate-600" />
-                      <span>Không có nước đi tiếp theo nào của kì thủ trong cơ sở dữ liệu.</span>
-                    </div>
-                  </td>
-                </tr>
+                isLoading ? (
+                  <tr>
+                    <td colSpan={5} className="py-10 text-center text-slate-400 text-xs">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
+                        <span className="font-medium text-slate-500 dark:text-slate-400">
+                          Đang tải cây khai cuộc của kỳ thủ...
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="text-center py-10 text-slate-400 text-xs">
+                      <div className="flex flex-col items-center justify-center gap-1.5">
+                        <GitBranch className="w-5 h-5 text-slate-300 dark:text-slate-600" />
+                        <span>Không có nước đi tiếp theo nào của kì thủ trong cơ sở dữ liệu.</span>
+                      </div>
+                    </td>
+                  </tr>
+                )
               ) : (
                 continuations.map((c, idx) => {
                   const sg = c.single_game_info;

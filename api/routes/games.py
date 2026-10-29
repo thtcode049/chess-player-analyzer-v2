@@ -12,7 +12,7 @@ from api.services.db_service import DBService
 router = APIRouter(prefix="/api/games", tags=["Games"])
 
 @router.get("/{game_id}", response_model=BaseResponse[GameDetailResponse])
-async def get_game_detail(game_id: str):
+def get_game_detail(game_id: str):
     """
     Returns single game detail with moves and metadata.
     """

@@ -135,7 +135,7 @@ def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], 
 
     # 4. Final default empty state if no player or games exist
     stats = {"total_games": 0, "score_percentage": 50.0, "win_rate": 50.0}
-    deep_profile = {"style_profile": {"archetype": {"primary": "Toàn diện (Universal)"}}}
+    deep_profile = {"repertoire": {}, "structures": {}}
     return stats, deep_profile, "Player", []
 
 

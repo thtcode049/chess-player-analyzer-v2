@@ -207,8 +207,7 @@ def test_match_prep_excludes_unreliable_rare_sample_as_main_weapon():
             "black_repertoire": [op_confirmed_strong, op_fluke_1g, op_confirmed_weak],
             "white_repertoire": [],
         },
-        "structures": {"target_structure": None},
-        "style_profile": {"scores": {}},
+        "structures": {"target_structure": None}
     }
 
     prep = generate_actionable_match_preparation(fake_deep_profile, user_color="white")

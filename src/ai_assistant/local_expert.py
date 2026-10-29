@@ -41,8 +41,6 @@ def generate_local_expert_response(
     b_rep = rep.get("black_repertoire", [])
     
     structs = deep_profile.get("structures", {}).get("structures", [])
-    style_prof = deep_profile.get("style_profile", {})
-    raw_m = style_prof.get("raw_metrics", {})
 
     # =========================================================================
     # 1. TRẢ LỜI VỀ CẤU TRÚC TỐT (PAWN STRUCTURES)
@@ -125,28 +123,18 @@ def generate_local_expert_response(
         )
 
     # =========================================================================
-    # 3. TRẢ LỜI VỀ PHONG CÁCH THI ĐẤU (PLAYING STYLE PROFILE)
+    # 3. TRẢ LỜI VỀ PHONG CÁCH / LỐI CHƠI (PLAYING STYLE & PATTERNS)
     # =========================================================================
-    if any(k in p for k in ["phong cách", "style", "chiến thuật", "biến động", "volatility", "thí quân", "sacrifice", "lối chơi"]):
-        lines = [f"### 🎭 Đặc trưng Phong cách Thi đấu của **{selected_player}**\n"]
-
-        lines.append("#### 📊 Các Chỉ số Đo lường Thực nghiệm từ Ván đấu:")
-        dim_labels = [
-            ("Độ biến động chiến thuật (Volatility)", raw_m.get("volatility_score", 50.0)),
-            ("Tỉ lệ ván có nước Thí quân (Sacrifice Rate)", raw_m.get("sacrifice_rate", 0.0)),
-            ("Khả năng kiên cường lội ngược dòng (Resilience)", raw_m.get("resilience_rate", 50.0)),
-            (f"Thế trận thường dùng ({raw_m.get('dominant_structure', 'Cờ kín')})", raw_m.get("dominant_structure_pct", 33.4)),
-        ]
-        for name, val in dim_labels:
-            bar = "█" * int(min(100.0, max(0.0, float(val))) / 10) + "░" * (10 - int(min(100.0, max(0.0, float(val))) / 10))
-            lines.append(f"- **{name}**: `{bar}` **{val}%**")
-
-        evidence = style_prof.get("evidence", [])
-        if evidence:
-            lines.append("\n#### 🔍 Bằng chứng Thực nghiệm từ Dữ liệu Ván đấu:")
-            for ev in evidence:
-                lines.append(f"- {ev}")
-
+    if any(k in p for k in ["phong cách", "style", "lối chơi"]):
+        lines = [f"### ♟️ Phân tích Xu hướng & Phong cách Thi đấu của **{selected_player}**\n"]
+        lines.append(f"- **Tổng số ván đấu đã phân tích**: **{total_games}** ván (Hiệu suất tổng thể: **{score_pct}%**)")
+        lines.append(f"- **Hiệu suất theo màu quân**: ⚪ Trắng: **{w_score}%** | ⚫ Đen: **{b_score}%**")
+        if w_rep:
+            lines.append(f"- **Vũ khí sở trường khi cầm Trắng**: **{w_rep[0]['name']}** ({w_rep[0]['games_count']} ván, Score: **{w_rep[0].get('score_pct', 0)}%**)")
+        if b_rep:
+            lines.append(f"- **Hệ thống phòng thủ chính khi cầm Đen**: **{b_rep[0]['name']}** ({b_rep[0]['games_count']} ván, Score: **{b_rep[0].get('score_pct', 0)}%**)")
+        if structs:
+            lines.append(f"- **Cấu trúc Tốt thi đấu tốt nhất**: **{structs[0]['name']}** ({structs[0]['games_count']} ván, Score: **{structs[0].get('score_pct', 0)}%**)")
         return "\n".join(lines)
 
     # =========================================================================
@@ -225,7 +213,6 @@ def generate_local_expert_response(
     lines = [f"### ♟️ Báo cáo Tổng hợp Phân tích Toàn diện: **{selected_player}**\n"]
     lines.append(f"- **Tổng số ván đấu đã phân tích**: **{total_games}** ván • **Score tổng thể**: **{score_pct}%** ({stats.get('wins', 0)}T / {stats.get('draws', 0)}H / {stats.get('losses', 0)}B)")
     lines.append(f"- **Hiệu suất theo màu quân**: Cầm Trắng đạt **{w_score}%** • Cầm Đen đạt **{b_score}%**")
-    lines.append(f"- **Phong cách thi đấu**: {style_prof.get('primary_icon', '♟️')} **{style_prof.get('primary_style', 'Chưa rõ')}** ({style_prof.get('archetype', '')})")
     
     if w_rep:
         lines.append(f"- **Khai cuộc chính khi cầm Trắng**: **{w_rep[0]['name']}** ({w_rep[0]['games_count']} ván, {w_rep[0].get('score_pct', 0)}% score)")

@@ -285,12 +285,11 @@ def generate_actionable_match_preparation(
 ) -> Dict[str, Any]:
     """
     Chuyển đổi các phát hiện từ Deep Opponent Profile thành Kế hoạch Thi đấu Ngắn gọn & Có thể Hành động (Decision Support Match Prep).
-    Kết hợp đa chiều: Repertoire, Pawn Structures và Playing Style Profile.
+    Kết hợp đa chiều: Repertoire và Pawn Structures.
     Áp dụng Bayesian Ranking để chọn đúng vũ khí chủ lực và điểm yếu xác thực của đối thủ.
     """
     repertoire = deep_profile.get("repertoire", {})
     structures = deep_profile.get("structures", {})
-    style_profile = deep_profile.get("style_profile", {})
 
     # A. Khai cuộc Mạnh nhất & Yếu nhất của đối thủ (Xếp hạng Bayesian)
     all_openings = repertoire.get("all_openings", [])
@@ -306,15 +305,7 @@ def generate_actionable_match_preparation(
     # B. Target Structure
     target_struct = structures.get("target_structure")
 
-    # C. Style Profile
-    primary_style_key = style_profile.get("primary_key", "")
-    scores = style_profile.get("scores", {})
-    tactical_score = scores.get("tactical", 50.0)
-    positional_score = scores.get("positional", 50.0)
-    solid_score = scores.get("solid", 50.0)
-    universal_score = scores.get("universal", 50.0)
-
-    # D. Final Game Plan (PLAY, TARGET, AVOID)
+    # C. Final Game Plan (PLAY, TARGET, AVOID)
     play_recs = []
     target_recs = []
     avoid_recs = []
@@ -323,20 +314,6 @@ def generate_actionable_match_preparation(
     play_recs.append(
         "Thi đấu chắc chắn, phát triển quân hài hòa và tuân thủ nguyên tắc vị trí."
     )
-
-    # Đề xuất bổ trợ từ Style Profile
-    if primary_style_key == "tactical" and tactical_score >= 65.0:
-        play_recs.append(
-            "Ưu tiên các phương án làm giảm độ biến động thế cờ (Low Volatility), tránh để đối thủ mở toang trung lộ."
-        )
-    elif primary_style_key == "positional" and positional_score >= 65.0:
-        play_recs.append(
-            "Chủ động phá vỡ cấu trúc Tốt và mở cột giao tranh, không đánh thụ động để tránh bị đối thủ bóp nghẹt không gian."
-        )
-    elif primary_style_key == "solid" and solid_score >= 65.0:
-        play_recs.append(
-            "Duy trì sức ép kiên nhẫn, không vội vàng dồn toàn lực công phá mạo hiểm dễ dính bẫy phản công."
-        )
 
     # --- 2. TARGET Recommendations ---
     if target_struct:
@@ -364,14 +341,9 @@ def generate_actionable_match_preparation(
         "strongest_opening": strongest_op,
         "weakest_opening": weakest_op,
         "target_structure": target_struct,
-        "vulnerability_phase": None,
-        "throw_rate": 0.0,
-        "resilience_rate": 0.0,
-        "style_profile": style_profile,
         "play_plan": play_recs,
         "target_plan": target_recs,
         "avoid_plan": avoid_recs,
-        "training_positions": []
     }
 
 

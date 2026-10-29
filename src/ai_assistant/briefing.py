@@ -1,7 +1,7 @@
 """
 AI Strategic Briefing Module
 ----------------------------
-Tự động tổng hợp dữ liệu thực nghiệm (Profile, Repertoire, Structures, Style Profile)
+Tự động tổng hợp dữ liệu thực nghiệm (Profile, Repertoire, Structures)
 thành Bản Tóm tắt Suy luận Chiến lược Mở đầu (Executive Strategic Briefing)
 theo 2 góc nhìn: Bản thân / Học viên (Self / Coaching) hoặc Đối thủ (Opponent Scouting).
 """
@@ -49,10 +49,6 @@ def generate_initial_strategic_briefing(
     top_struct = strong_structs[0] if strong_structs else (structs[0] if structs else None)
     worst_struct = weak_structs[0] if weak_structs else None
 
-    # Style Profile & Dynamics
-    style_prof = deep_profile.get("style_profile", {})
-    style_name = style_prof.get("primary_style", "Toàn diện (Universal)")
-
     lines = []
 
     if mode == "self":
@@ -97,12 +93,6 @@ def generate_initial_strategic_briefing(
             )
         else:
             lines.append("- Chưa phát hiện cấu trúc Tốt nào có độ lệch tiêu cực đáng kể.")
-        lines.append("")
-
-        # 3. Phong cách
-        if style_prof:
-            lines.append("#### 3. ⚡ Phong cách Thi đấu")
-            lines.append(f"- **Phong cách chủ đạo:** **{style_name}**.")
 
     else:
         # =====================================================================
@@ -143,12 +133,6 @@ def generate_initial_strategic_briefing(
             )
         if top_struct:
             lines.append(f"- ⚠️ **Cấu trúc sở trường của đối thủ:** **{top_struct['name']}** (Nên tránh tạo điều kiện cho đối thủ xây dựng cấu trúc này).")
-        lines.append("")
-
-        # 3. Phong cách
-        if style_prof:
-            lines.append("#### 3. 🎭 Phong cách Thi đấu")
-            lines.append(f"- **Phong cách đối thủ:** **{style_name}**.")
 
     lines.append("\n---")
     lines.append("💡 *Hãy đặt câu hỏi bên dưới hoặc chọn một trong các gợi ý đào sâu nhanh để tiếp tục!*")

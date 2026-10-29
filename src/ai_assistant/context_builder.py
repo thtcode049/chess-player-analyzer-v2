@@ -2,7 +2,7 @@
 AI Assistant Context Builder Module
 ------------------------------------
 Chức năng: Trích xuất và cấu trúc hóa toàn bộ dữ liệu phân tích khách quan từ
-Profile (Repertoire, Pawn Structures, Style Profile)
+Profile (Repertoire, Pawn Structures)
 và Opening Tree (các nhánh thế cờ đã dựng ở bàn cờ phân tích) thành văn bản ngữ cảnh
 chuẩn xác (Ground Truth) phục vụ cho LLM.
 """

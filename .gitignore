@@ -88,5 +88,11 @@ data/processed/*
 .agents/
 .gemini/
 
-# 11. Documentation & UML reports
+# 11. Documentation & UML reports (only keep README.md)
 docs/
+*.md
+!README.md
+!readme.md
+
+# 12. Unused legacy assets
+assets/

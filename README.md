@@ -98,18 +98,33 @@ Truy cập ứng dụng tại: `http://localhost:3000`.
 
 ## 📦 Triển Khai Lên Vercel & Supabase (Free Tier)
 
-Chi tiết từng bước cấu hình tài khoản miễn phí, chạy migration schema và khai báo biến môi trường xem tại:  
-👉 [**Tài Liệu Triển Khai Vercel & Supabase (docs/DEPLOYMENT.md)**](docs/DEPLOYMENT.md)
+Hệ thống được thiết kế tối ưu hóa để vận hành 100% trên các gói miễn phí vĩnh viễn (Free Tier) của Vercel và Supabase:
 
----
+### 1. Thiết lập Supabase (Database & Storage)
+1. Đăng nhập [supabase.com](https://supabase.com) và tạo một **Project** mới.
+2. Mở tab **SQL Editor**, chạy tuần tự các tệp migration trong thư mục `supabase/migrations/`:
+   - `20260916000001_initial_schema.sql`
+   - `20261026000002_cleanup_unused_schema.sql`
+   - `20261027000001_create_ai_chat_sessions.sql`
+   *(Tùy chọn: chạy `supabase/seed.sql` nếu muốn nạp dữ liệu mẫu ban đầu)*.
+3. Mở mục **Storage** > **New Bucket**: tạo bucket tên `pgn-vault`.
+4. Mở **Project Settings** > **API**: sao chép **Project URL**, **Anon Key** (public), và **Service Role Key** (secret).
 
-## 📚 Bộ Tài Liệu Kỹ Thuật Dự Án (Documentation Suite)
+### 2. Triển khai Vercel (Frontend & Serverless Python API)
+1. Import kho mã nguồn này vào [vercel.com](https://vercel.com).
+2. Tại mục **Environment Variables**, khai báo các biến môi trường sau:
+   - `NEXT_PUBLIC_SUPABASE_URL`: URL dự án Supabase.
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Public anon key của Supabase.
+   - `SUPABASE_SERVICE_ROLE_KEY`: Service role secret key của Supabase.
+   - `GEMINI_API_KEY`: API key Google Gemini (tùy chọn, hệ thống tự kích hoạt Local Expert nếu bỏ trống).
+3. Nhấn **Deploy**. Vercel sẽ tự động:
+   - Biên dịch ứng dụng Next.js 14 App Router.
+   - Đóng gói backend FastAPI (`api/index.py` & `src/`) thành Python Serverless Functions tại `/api/*`.
 
-- [**MIGRATION_AUDIT.md**](docs/MIGRATION_AUDIT.md): Phân tích phân rã mã nguồn cũ và đánh giá phụ thuộc.
-- [**ARCHITECTURE.md**](docs/ARCHITECTURE.md): Đặc tả kiến trúc phân tầng 4 lớp và luồng dữ liệu.
-- [**DATABASE.md**](docs/DATABASE.md): Chi tiết 8 bảng CSDL, quan hệ ERD, chỉ mục và chính sách RLS.
-- [**API.md**](docs/API.md): Tài liệu đặc tả toàn bộ REST API endpoints và SSE streaming.
-- [**MIGRATION_FINAL_REPORT.md**](docs/MIGRATION_FINAL_REPORT.md): Báo cáo nghiệm thu hoàn tất di chuyển dự án.
+### 3. Kiểm tra Hoạt Động Sau Khi Triển Khai
+- Endpoint kiểm tra sức khỏe backend: `https://<your-project>.vercel.app/api/health`
+- Trang phân tích ván đấu (Stockfish WASM Client): `https://<your-project>.vercel.app/analyze`
+- Bộ kiểm thử tự động: chạy `pytest` cho backend và `npm test` cho frontend.
 
 ---
 

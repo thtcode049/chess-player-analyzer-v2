@@ -195,6 +195,8 @@ export default function Navbar() {
     }
   };
 
+  const isSingleProfileLoading = Boolean(activeMode === "single" && activePlayerId && !activePlayer);
+
   // Compute Active Profile Switcher Label
   const profileLabel = useMemo(() => {
     if (activeMode === "multi") {
@@ -209,8 +211,11 @@ export default function Navbar() {
       const gCount = activePlayerGames.length || activePlayer.total_games || 0;
       return `${activePlayer.canonical_name} (${gCount} ván)`;
     }
+    if (activePlayerId) {
+      return "Đang tải hồ sơ...";
+    }
     return "Chọn hồ sơ kỳ thủ";
-  }, [activeMode, activePlayer, activePlayerGames, multiProfiles]);
+  }, [activeMode, activePlayer, activePlayerId, activePlayerGames, multiProfiles]);
 
   // Filtered players inside dropdown
   const filteredDropdownPlayers = useMemo(() => {
@@ -317,6 +322,8 @@ export default function Navbar() {
               <div className="flex items-center gap-1.5 truncate max-w-[140px] sm:max-w-[210px] md:max-w-[250px]">
                 {activeMode === "multi" ? (
                   <Swords className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                ) : isSingleProfileLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 text-emerald-500 animate-spin shrink-0" />
                 ) : (
                   <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                 )}

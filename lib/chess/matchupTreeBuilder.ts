@@ -289,3 +289,186 @@ export function buildMatchupTreeIndex(
 
   return index;
 }
+
+const ROOT_EPD = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -";
+
+function normalizeNameForMatch(name?: string | null): string {
+  if (!name) return "";
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isPlayerSideMatch(canonicalName: string, sideName?: string | null): boolean {
+  const a = normalizeNameForMatch(canonicalName);
+  const b = normalizeNameForMatch(sideName);
+  if (!a || !b) return false;
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  const tokensA = a.split(" ").filter((t) => t.length >= 2);
+  const tokensB = b.split(" ").filter((t) => t.length >= 2);
+  const matches = tokensA.filter((t) => tokensB.includes(t));
+  return matches.length >= 2 || (tokensA.length === 1 && matches.length === 1);
+}
+
+/**
+ * Computes single-player opening continuations at a specific FEN position directly in memory.
+ * Preserves full White/Black/All game filtering (including opponent replies) and player-perspective W/D/L.
+ */
+export function querySinglePlayerTreePosition(
+  games: Game[],
+  playerCanonicalName: string,
+  rawFen: string,
+  color: "all" | "white" | "black" = "all"
+): OpeningTreeNode {
+  const normTarget = MatchupOpeningTreeIndex.normalizeFen(rawFen);
+  const isRoot = normTarget === ROOT_EPD;
+  const parts = rawFen.trim().split(/\s+/);
+  const turn = parts[1] || "w";
+  const fullmove = Math.max(1, parseInt(parts[5] || "1", 10) || 1);
+  const targetPly = Math.max(0, (fullmove - 1) * 2 + (turn === "b" ? 1 : 0));
+  const maxPly = targetPly + 2;
+
+  let posTotal = 0;
+  let posWins = 0;
+  let posDraws = 0;
+  let posLosses = 0;
+  const moveMap = new Map<string, ContinuationAccumulator>();
+
+  const recordContinuation = (san: string, game: Game, isWin: boolean, isDraw: boolean, isLoss: boolean) => {
+    const acc = moveMap.get(san) || {
+      san,
+      games_count: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      sampleGame: game,
+    };
+    acc.games_count++;
+    if (isWin) acc.wins++;
+    else if (isDraw) acc.draws++;
+    else if (isLoss) acc.losses++;
+    moveMap.set(san, acc);
+  };
+
+  for (const game of games) {
+    const isW = isPlayerSideMatch(playerCanonicalName, game.white_player);
+    const isB = isPlayerSideMatch(playerCanonicalName, game.black_player);
+    const playerColor: "white" | "black" = isB && !isW ? "black" : "white";
+
+    if (color === "white" && playerColor !== "white") continue;
+    if (color === "black" && playerColor !== "black") continue;
+
+    const res = (game.result || "").trim();
+    const isDraw = res === "1/2-1/2" || res === "0.5-0.5";
+    const isWin = (res === "1-0" && playerColor === "white") || (res === "0-1" && playerColor === "black");
+    const isLoss = (res === "0-1" && playerColor === "white") || (res === "1-0" && playerColor === "black");
+
+    const tokens = MatchupOpeningTreeIndex.parseSanTokens(game.moves_san);
+
+    if (isRoot) {
+      posTotal++;
+      if (isWin) posWins++;
+      else if (isDraw) posDraws++;
+      else if (isLoss) posLosses++;
+      if (tokens.length > 0) {
+        recordContinuation(tokens[0], game, isWin, isDraw, isLoss);
+      }
+      continue;
+    }
+
+    if (tokens.length < Math.max(0, targetPly - 2)) continue;
+
+    const chess = new Chess();
+    const limit = Math.min(tokens.length, maxPly);
+    for (let ply = 0; ply <= limit; ply++) {
+      if (MatchupOpeningTreeIndex.normalizeFen(chess.fen()) === normTarget) {
+        posTotal++;
+        if (isWin) posWins++;
+        else if (isDraw) posDraws++;
+        else if (isLoss) posLosses++;
+
+        if (ply < tokens.length) {
+          try {
+            const mv = chess.move(tokens[ply]);
+            if (mv) {
+              recordContinuation(mv.san, game, isWin, isDraw, isLoss);
+            }
+          } catch {
+            // Ignore malformed SAN
+          }
+        }
+        break;
+      }
+
+      if (ply >= tokens.length || ply === limit) break;
+      try {
+        if (!chess.move(tokens[ply])) break;
+      } catch {
+        break;
+      }
+    }
+  }
+
+  const continuations: OpeningContinuation[] = [];
+  for (const acc of Array.from(moveMap.values())) {
+    const gCount = acc.games_count;
+    const w = acc.wins;
+    const d = acc.draws;
+    const l = acc.losses;
+    const usagePct = posTotal > 0 ? Number(((gCount / posTotal) * 100).toFixed(1)) : 0;
+    const winPct = gCount > 0 ? Number(((w / gCount) * 100).toFixed(1)) : 0;
+    const drawPct = gCount > 0 ? Number(((d / gCount) * 100).toFixed(1)) : 0;
+    const lossPct = gCount > 0 ? Number(((l / gCount) * 100).toFixed(1)) : 0;
+    const moveScorePct = gCount > 0 ? Number((((w + 0.5 * d) / gCount) * 100).toFixed(1)) : 0;
+
+    const sample = acc.sampleGame;
+    const singleGameInfo =
+      gCount === 1 && sample
+        ? ({
+            id: sample.id,
+            white: sample.white_player,
+            white_elo: sample.white_elo || undefined,
+            black: sample.black_player,
+            black_elo: sample.black_elo || undefined,
+            result: sample.result,
+            site: sample.site_url || undefined,
+            link: sample.site_url || undefined,
+            date: sample.played_at || undefined,
+            opening: sample.opening_name || undefined,
+            moves_san: sample.moves_san || undefined,
+          } as any)
+        : undefined;
+
+    continuations.push({
+      san: acc.san,
+      games_count: gCount,
+      usage_pct: usagePct,
+      win_pct: winPct,
+      draw_pct: drawPct,
+      loss_pct: lossPct,
+      score_pct: moveScorePct,
+      single_game_info: singleGameInfo,
+    });
+  }
+
+  continuations.sort((a, b) => b.games_count - a.games_count || b.score_pct - a.score_pct);
+
+  const scorePct = posTotal > 0 ? Number((((posWins + 0.5 * posDraws) / posTotal) * 100).toFixed(1)) : 0.0;
+
+  return {
+    fen: rawFen,
+    games_count: posTotal,
+    in_pgn: posTotal > 0,
+    total_games: posTotal,
+    wins: posWins,
+    draws: posDraws,
+    losses: posLosses,
+    score_pct: scorePct,
+    continuations,
+  };
+}

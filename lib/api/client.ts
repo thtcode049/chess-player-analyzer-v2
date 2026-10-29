@@ -76,7 +76,10 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return json as T;
 }
 
-async function getAuthHeaders(): Promise<Record<string, string>> {
+let cachedAuthHeaders: { headers: Record<string, string>; expiresAt: number } | null = null;
+let inFlightAuthHeaders: Promise<Record<string, string>> | null = null;
+
+async function resolveAuthHeadersUncached(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {};
   if (typeof window !== "undefined") {
     try {
@@ -105,6 +108,26 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
     }
   }
   return headers;
+}
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  if (typeof window === "undefined") return {};
+  const now = Date.now();
+  if (cachedAuthHeaders && cachedAuthHeaders.expiresAt > now) {
+    return { ...cachedAuthHeaders.headers };
+  }
+  if (!inFlightAuthHeaders) {
+    inFlightAuthHeaders = resolveAuthHeadersUncached()
+      .then((headers) => {
+        cachedAuthHeaders = { headers, expiresAt: Date.now() + 3000 };
+        return headers;
+      })
+      .finally(() => {
+        inFlightAuthHeaders = null;
+      });
+  }
+  const resolved = await inFlightAuthHeaders;
+  return { ...resolved };
 }
 
 async function getUserId(): Promise<string | undefined> {
@@ -192,7 +215,7 @@ export const apiClient = {
 
   async getPlayerGames(
     playerId: string,
-    params: { page?: number; pageSize?: number; color?: string; eco?: string; search?: string; allGames?: boolean } = {}
+    params: { page?: number; pageSize?: number; color?: string; eco?: string; search?: string; allGames?: boolean; refresh?: boolean } = {}
   ): Promise<PaginatedResult<Game>> {
     const authHeaders = await getAuthHeaders();
     const query = new URLSearchParams();
@@ -202,6 +225,7 @@ export const apiClient = {
     if (params.eco) query.set("eco", params.eco);
     if (params.search) query.set("search", params.search);
     if (params.allGames) query.set("all_games", "true");
+    if (params.refresh) query.set("refresh", "true");
 
     const res = await fetch(`${API_BASE}/api/players/${playerId}/games?${query.toString()}`, {
       headers: authHeaders,

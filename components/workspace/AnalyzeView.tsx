@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Chess } from "chess.js";
 import {
@@ -313,6 +313,8 @@ function getGamePlayerOutcome(
   return { isWin: false, isDraw: false, isLoss: false, playerColor };
 }
 
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 export function AnalyzeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -328,12 +330,26 @@ export function AnalyzeContent() {
   const queryGameIdx = searchParams.get("gameIdx");
   const queryOpening = searchParams.get("opening");
 
-  // Player & Run state
-  const [players, setPlayers] = useState<Player[]>([]);
+  // Player & Run state (unified with ProfileWorkspaceProvider — zero duplicate fetches)
+  const players = workspaceStore.players;
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>(queryPlayerId || workspaceStore.activePlayerId || "");
   const [activeRunId, setActiveRunId] = useState<string>(queryRunId || queryPlayerId || workspaceStore.activePlayerId || "");
   const [colorFilter, setColorFilter] = useState<"all" | "white" | "black">("all");
   const [boardOrientation, setBoardOrientation] = useState<"white" | "black">("white");
+
+  const effectivePlayerId =
+    selectedPlayerId ||
+    queryPlayerId ||
+    (workspaceStore.activeMode === "single" ? workspaceStore.activePlayerId || "" : "");
+
+  const cachedProfile = effectivePlayerId ? workspaceStore.cachedProfiles[effectivePlayerId] || null : null;
+  const isProfileDataLoading = Boolean(
+    (effectivePlayerId && !cachedProfile && !workspaceStore.failedProfileIds[effectivePlayerId]) ||
+    (!effectivePlayerId &&
+      workspaceStore.activeMode !== "sandbox" &&
+      workspaceStore.activeMode !== "multi" &&
+      workspaceStore.loadingPlayers)
+  );
 
   // Chess board state
   const [moves, setMoves] = useState<string[]>([]);
@@ -369,8 +385,8 @@ export function AnalyzeContent() {
     }
   }, [workspaceStore.activeGameForAnalysis, workspaceStore.clearActiveGameForAnalysis]);
 
-  // Synchronize activePlayerId from store
-  useEffect(() => {
+  // Synchronize activePlayerId from store or URL
+  useIsomorphicLayoutEffect(() => {
     if (workspaceStore.activeMode === "multi") {
       if (selectedPlayerId) {
         setSelectedPlayerId("");
@@ -378,17 +394,18 @@ export function AnalyzeContent() {
       }
       return;
     }
-    if (workspaceStore.activePlayerId && workspaceStore.activePlayerId !== selectedPlayerId) {
-      setSelectedPlayerId(workspaceStore.activePlayerId);
-      setActiveRunId(workspaceStore.activePlayerId);
+    const targetPid = queryPlayerId || workspaceStore.activePlayerId;
+    if (targetPid && targetPid !== selectedPlayerId) {
+      setSelectedPlayerId(targetPid);
+      setActiveRunId(queryRunId || targetPid);
     }
-  }, [workspaceStore.activeMode, workspaceStore.activePlayerId, selectedPlayerId]);
+  }, [workspaceStore.activeMode, workspaceStore.activePlayerId, queryPlayerId, queryRunId, selectedPlayerId]);
 
   // Dynamically synchronized board and panel size measured directly from ChessBoard DOM container
   const [boardSize, setBoardSize] = useState<number>(640);
   const [isLgScreen, setIsLgScreen] = useState(false);
 
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const handleResize = () => {
       setIsLgScreen(window.innerWidth >= 1024);
     };
@@ -404,17 +421,44 @@ export function AnalyzeContent() {
   const [continuations, setContinuations] = useState<OpeningContinuation[]>([]);
   const [treeLoading, setTreeLoading] = useState(false);
 
+  // Unified games, pawn structures, and openings derived directly from workspaceStore cache
+  const playerGames = useMemo<Game[]>(
+    () => cachedProfile?.games || workspaceStore.activePlayerGames || [],
+    [cachedProfile?.games, workspaceStore.activePlayerGames]
+  );
+
+  const activeRunObj = cachedProfile?.run || workspaceStore.activePlayerRun || null;
+
+  const availableStructures = useMemo<PawnStructureItem[]>(() => {
+    const raw = activeRunObj?.pawn_structures_summary?.structures || [];
+    return raw.filter(
+      (s: PawnStructureItem) =>
+        !s.name?.toLowerCase().includes("benoni") && !(s.structure_key || "").toLowerCase().includes("benoni")
+    );
+  }, [activeRunObj]);
+
+  const availableOpenings = useMemo<OpeningRepertoireItem[]>(() => {
+    const rep = activeRunObj?.repertoire_summary?.all_openings;
+    if (rep && rep.length > 0) return rep;
+    if (playerGames.length === 0) return [];
+    const opMap: Record<string, number> = {};
+    playerGames.forEach((g) => {
+      const name = g.opening_name || g.raw_headers?.Opening;
+      if (name) opMap[name] = (opMap[name] || 0) + 1;
+    });
+    return Object.entries(opMap)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, games_count: count }));
+  }, [activeRunObj, playerGames]);
+
   // Structure Explorer Mode State
-  const [availableStructures, setAvailableStructures] = useState<PawnStructureItem[]>([]);
   const [selectedStructure, setSelectedStructure] = useState<PawnStructureItem | null>(null);
   const [structureFilter, setStructureFilter] = useState<"all" | "wins" | "draws" | "losses">("all");
   const [structureSearch, setStructureSearch] = useState<string>("");
-  const [playerGames, setPlayerGames] = useState<Game[]>([]);
   const [activeStructureGameIdx, setActiveStructureGameIdx] = useState<number | null>(null);
   const loadedStructureGameKeyRef = useRef<string | null>(null);
 
   // Opening Explorer Mode State
-  const [availableOpenings, setAvailableOpenings] = useState<OpeningRepertoireItem[]>([]);
   const [selectedOpening, setSelectedOpening] = useState<string | null>(queryOpening || null);
   const [openingFilter, setOpeningFilter] = useState<"all" | "wins" | "draws" | "losses">("all");
   const [openingSearch, setOpeningSearch] = useState<string>("");
@@ -424,29 +468,30 @@ export function AnalyzeContent() {
   const lastGamesCountRef = React.useRef<number>(0);
   const isAutoTransitionRef = React.useRef<boolean>(false);
 
-
   // Custom PGN modal
   const [showPgnInput, setShowPgnInput] = useState(false);
   const [inputPgn, setInputPgn] = useState("");
 
-  // 1. Fetch available players
+  // 1. Ensure active profile data is loaded once via shared workspaceStore (deduplicated)
   useEffect(() => {
-    apiClient.getPlayers().then((list) => {
-      setPlayers(list);
-      if (list.length > 0) {
-        if (queryPlayerId && list.some((p) => p.id === queryPlayerId)) {
-          setSelectedPlayerId(queryPlayerId);
-          setActiveRunId(queryRunId || queryPlayerId);
-        } else if (!selectedPlayerId && workspaceStore.activeMode !== "multi" && workspaceStore.activeMode !== "sandbox") {
-          const defaultP = list[0];
-          setSelectedPlayerId(defaultP.id);
-          setActiveRunId(queryRunId || defaultP.id);
-        }
-      }
-    }).catch((err) => {
-      console.warn("Failed to load players:", err);
-    });
-  }, [queryRunId, queryPlayerId]);
+    if (effectivePlayerId && !cachedProfile && !workspaceStore.failedProfileIds[effectivePlayerId]) {
+      workspaceStore.loadProfileData(effectivePlayerId);
+    }
+  }, [effectivePlayerId, cachedProfile, workspaceStore.failedProfileIds, workspaceStore.loadProfileData]);
+
+  // Fallback default player selection when not in sandbox/multi mode
+  useEffect(() => {
+    if (
+      !queryPlayerId &&
+      !selectedPlayerId &&
+      workspaceStore.activeMode !== "multi" &&
+      workspaceStore.activeMode !== "sandbox" &&
+      players.length > 0
+    ) {
+      setSelectedPlayerId(players[0].id);
+      setActiveRunId(queryRunId || players[0].id);
+    }
+  }, [players, queryPlayerId, queryRunId, selectedPlayerId, workspaceStore.activeMode]);
 
   // 2. Load single game from gameId if passed
   useEffect(() => {
@@ -591,55 +636,63 @@ export function AnalyzeContent() {
     }
   }, [queryMove, moves.length]);
 
-  // 3. Fetch real Opening Tree Continuations whenever FEN, activeRunId, or colorFilter changes
-  const fetchTreeContinuations = useCallback((runId: string, fen: string, color: string, playerId?: string) => {
-    if (!runId && !playerId && workspaceStore.activeMode !== "multi") return;
+  // 3. Resolve Opening Tree Continuations (0ms sync from cached games, deduplicated async fallback on cold load)
+  const treeRequestSeqRef = useRef(0);
+  useIsomorphicLayoutEffect(() => {
+    const isMulti = workspaceStore.activeMode === "multi";
+    if (!isMulti && !effectivePlayerId) {
+      setContinuations([]);
+      setTreeLoading(false);
+      return;
+    }
+
+    const syncNode = workspaceStore.getOpeningTreeBranchSync(
+      currentFen,
+      colorFilter,
+      isMulti ? undefined : effectivePlayerId
+    );
+    if (syncNode) {
+      setContinuations(syncNode.continuations || []);
+      setTreeLoading(false);
+      return;
+    }
+
+    const reqId = ++treeRequestSeqRef.current;
     setTreeLoading(true);
-    workspaceStore.getOpeningTreeBranch(fen, color as any)
+    workspaceStore
+      .getOpeningTreeBranch(currentFen, colorFilter, isMulti ? undefined : effectivePlayerId)
       .then((treeNode) => {
-        if (treeNode && treeNode.continuations) {
-          setContinuations(treeNode.continuations);
-        } else {
-          setContinuations([]);
-        }
+        if (reqId !== treeRequestSeqRef.current) return;
+        setContinuations(treeNode?.continuations || []);
       })
       .catch((err) => {
+        if (reqId !== treeRequestSeqRef.current) return;
         console.warn("Failed to fetch tree branch:", err);
         setContinuations([]);
       })
-      .finally(() => setTreeLoading(false));
-  }, [workspaceStore]);
-
-  useEffect(() => {
-    if (workspaceStore.activeMode === "multi") {
-      fetchTreeContinuations("", currentFen, colorFilter);
-      return;
-    }
-    const targetRun = activeRunId || selectedPlayerId;
-    const targetPlayer = selectedPlayerId || queryPlayerId || undefined;
-    if (targetRun || targetPlayer) {
-      fetchTreeContinuations(targetRun, currentFen, colorFilter, targetPlayer);
-    }
-  }, [workspaceStore.activeMode, activeRunId, selectedPlayerId, queryPlayerId, currentFen, colorFilter, fetchTreeContinuations]);
+      .finally(() => {
+        if (reqId === treeRequestSeqRef.current) {
+          setTreeLoading(false);
+        }
+      });
+  }, [
+    workspaceStore.activeMode,
+    effectivePlayerId,
+    currentFen,
+    colorFilter,
+    playerGames.length,
+    Boolean(activeRunObj),
+    workspaceStore.getOpeningTreeBranchSync,
+    workspaceStore.getOpeningTreeBranch,
+  ]);
 
   const currentPlayerObj = useMemo(() => {
-    return players.find((p) => p.id === selectedPlayerId) || workspaceStore.activePlayer;
-  }, [players, selectedPlayerId, workspaceStore.activePlayer]);
-
-  // Synchronize availableStructures & availableOpenings from activePlayerRun if available in store
-  useEffect(() => {
-    if (workspaceStore.activePlayerRun) {
-      if (workspaceStore.activePlayerRun.pawn_structures_summary?.structures && availableStructures.length === 0) {
-        const structs: PawnStructureItem[] = (workspaceStore.activePlayerRun.pawn_structures_summary.structures || []).filter(
-          (s: PawnStructureItem) => !s.name?.toLowerCase().includes("benoni") && !(s.structure_key || "").toLowerCase().includes("benoni")
-        );
-        setAvailableStructures(structs);
-      }
-      if (workspaceStore.activePlayerRun.repertoire_summary?.all_openings && availableOpenings.length === 0) {
-        setAvailableOpenings(workspaceStore.activePlayerRun.repertoire_summary.all_openings);
-      }
-    }
-  }, [workspaceStore.activePlayerRun, availableStructures.length, availableOpenings.length]);
+    return (
+      cachedProfile?.player ||
+      players.find((p) => p.id === effectivePlayerId) ||
+      workspaceStore.activePlayer
+    );
+  }, [cachedProfile?.player, players, effectivePlayerId, workspaceStore.activePlayer]);
 
   // Load a structure game onto the board and jump to formation move
   const handleLoadStructureGame = useCallback((structGame: PawnStructureGame, indexInStruct: number) => {
@@ -752,8 +805,10 @@ export function AnalyzeContent() {
     params.delete("structure");
     params.delete("gameIdx");
     const newQuery = params.toString();
-    window.history.replaceState(null, "", newQuery ? `/analyze?${newQuery}` : `/analyze`);
-  }, []);
+    const nextUrl = newQuery ? `/analyze?${newQuery}` : `/analyze`;
+    window.history.replaceState(null, "", nextUrl);
+    router.replace(nextUrl, { scroll: false });
+  }, [router]);
 
   // Switch Opening in Explorer Mode
   const handleSelectOpening = useCallback((opName: string) => {
@@ -855,8 +910,10 @@ export function AnalyzeContent() {
     const params = new URLSearchParams(window.location.search);
     params.delete("opening");
     const newQuery = params.toString();
-    window.history.replaceState(null, "", newQuery ? `/analyze?${newQuery}` : `/analyze`);
-  }, []);
+    const nextUrl = newQuery ? `/analyze?${newQuery}` : `/analyze`;
+    window.history.replaceState(null, "", nextUrl);
+    router.replace(nextUrl, { scroll: false });
+  }, [router]);
 
   // Auto-load structure if activeStructureForAnalysis was triggered from Profile PawnStructureGrid
   useEffect(() => {
@@ -885,76 +942,8 @@ export function AnalyzeContent() {
     }
   }, [workspaceStore.activeOpeningForAnalysis, handleSelectOpening, workspaceStore.clearActiveOpeningForAnalysis]);
 
-  // 4. Fetch Analysis Run (Pawn Structures) and Player Games when selectedPlayerId changes
-  useEffect(() => {
-    const targetPlayer = queryPlayerId || selectedPlayerId;
-    if (!targetPlayer) return;
-
-    // Fetch analysis run for pawn structures and instant opening continuations
-    apiClient.getAnalysisRun(targetPlayer)
-      .then((run) => {
-        if (run?.id) {
-          setActiveRunId(run.id);
-        }
-        if (
-          workspaceStore.activeMode !== "multi" &&
-          !queryOpening &&
-          !queryStructure &&
-          !queryGameId &&
-          !queryLichessId &&
-          !queryInspectGame &&
-          run?.opening_tree_snapshot?.continuations &&
-          run.opening_tree_snapshot.continuations.length > 0 &&
-          moves.length === 0 &&
-          colorFilter === "all"
-        ) {
-          setContinuations(run.opening_tree_snapshot.continuations);
-        }
-        const structs: PawnStructureItem[] = (run?.pawn_structures_summary?.structures || []).filter(
-          (s: PawnStructureItem) => !s.name?.toLowerCase().includes("benoni") && !(s.structure_key || "").toLowerCase().includes("benoni")
-        );
-        setAvailableStructures(structs);
-
-        const repOpenings: OpeningRepertoireItem[] = run?.repertoire_summary?.all_openings || [];
-        setAvailableOpenings(repOpenings);
-
-        if (queryStructure && (!selectedStructure || selectedStructure.name.toLowerCase() !== queryStructure.toLowerCase())) {
-          const matched = structs.find((s) =>
-            s.name.toLowerCase().trim() === queryStructure.toLowerCase().trim() ||
-            (s.structure_key && s.structure_key.toLowerCase() === queryStructure.toLowerCase().trim())
-          );
-          if (matched) {
-            handleSelectStructure(matched, queryGameIdx ? parseInt(queryGameIdx, 10) : undefined);
-          }
-        }
-      })
-      .catch((err) => console.warn("Failed to load run structures:", err));
-
-    // Fetch player's games list for full moves_san (unlimited)
-    apiClient.getPlayerGames(targetPlayer, { allGames: true, pageSize: 10000 })
-      .then((res) => {
-        if (res && res.items) {
-          setPlayerGames(res.items);
-
-          // Populate availableOpenings if run had empty repertoire
-          setAvailableOpenings((prev) => {
-            if (prev && prev.length > 0) return prev;
-            const opMap: Record<string, number> = {};
-            res.items.forEach((g) => {
-              const name = g.opening_name || g.raw_headers?.Opening;
-              if (name) opMap[name] = (opMap[name] || 0) + 1;
-            });
-            return Object.entries(opMap)
-              .sort((a, b) => b[1] - a[1])
-              .map(([name, count]) => ({ name, games_count: count }));
-          });
-        }
-      })
-      .catch((err) => console.warn("Failed to load player games:", err));
-  }, [selectedPlayerId, queryPlayerId]);
-
-  // 4b. Sync selectedStructure if queryStructure changes in URL
-  useEffect(() => {
+  // 4. Sync selectedStructure before first paint if queryStructure is in URL
+  useIsomorphicLayoutEffect(() => {
     if (queryStructure && availableStructures.length > 0) {
       const matched = availableStructures.find((s) =>
         s.name.toLowerCase().trim() === queryStructure.toLowerCase().trim() ||
@@ -1250,7 +1239,7 @@ export function AnalyzeContent() {
 
   // Auto-load initial structure game once games pool arrives (supports both ?gameIdx=N and default first game in new tab)
   const allStructureGamesPool = playerGames.length > 0 ? playerGames : workspaceStore.activePlayerGames;
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (
       loadedStructureGameKeyRef.current === null &&
       selectedStructure?.games &&
@@ -1309,7 +1298,7 @@ export function AnalyzeContent() {
   // Synchronize Opening Explorer with queryOpening or newly arrived playerGames / player identity
   const activeOpeningGamesPoolCount = playerGames.length || workspaceStore.activePlayerGames.length;
   const hasOpeningPlayerName = Boolean(currentPlayerObj?.canonical_name || workspaceStore.activePlayer?.canonical_name);
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (!queryOpening) return;
 
     // Bypass resetting board moves when transition was triggered by user playing moves
@@ -1498,15 +1487,22 @@ export function AnalyzeContent() {
               <h2 className="text-base font-bold text-foreground">
                 {selectedOpening}
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Đang xem <b>{matchingOpeningGames.length}</b> ván thực tế •{" "}
-                {currentOpeningItem?.adjusted_score_pct !== undefined && (
-                  <>Điểm Bayes: <b>{currentOpeningItem.adjusted_score_pct.toFixed(1)}%</b> • </>
-                )}
-                Thắng: <b className="text-emerald-500">{openingStats.wins}</b> •{" "}
-                Hòa: <b className="text-amber-500">{openingStats.draws}</b> •{" "}
-                Thua: <b className="text-rose-500">{openingStats.losses}</b>
-              </p>
+              {isProfileDataLoading && playerGames.length === 0 ? (
+                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
+                  <span>Đang tải danh sách ván đấu thực tế & thống kê khai cuộc của kỳ thủ...</span>
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Đang xem <b>{matchingOpeningGames.length}</b> ván thực tế •{" "}
+                  {currentOpeningItem?.adjusted_score_pct !== undefined && (
+                    <>Điểm Bayes: <b>{currentOpeningItem.adjusted_score_pct.toFixed(1)}%</b> • </>
+                  )}
+                  Thắng: <b className="text-emerald-500">{openingStats.wins}</b> •{" "}
+                  Hòa: <b className="text-amber-500">{openingStats.draws}</b> •{" "}
+                  Thua: <b className="text-rose-500">{openingStats.losses}</b>
+                </p>
+              )}
             </div>
           </div>
 
@@ -1540,7 +1536,7 @@ export function AnalyzeContent() {
       )}
 
       {/* MODE B: STRUCTURE EXPLORER HEADER BANNER */}
-      {selectedStructure && (
+      {(selectedStructure || (queryStructure && !selectedOpening)) && (
         <div className="bg-card/70 border border-border/50 rounded-xl px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs animate-fade-in">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
@@ -1551,28 +1547,45 @@ export function AnalyzeContent() {
                 <span className="text-[11px] font-bold text-primary uppercase tracking-wide">
                   Khám phá Cấu trúc Tốt
                 </span>
-                <span
-                  className="px-2 py-0.5 rounded-md text-[10px] font-semibold border"
-                  style={{
-                    backgroundColor: `${selectedStructure.assessment_color ?? "#94A3B8"}15`,
-                    color: selectedStructure.assessment_color ?? "#94A3B8",
-                    borderColor: `${selectedStructure.assessment_color ?? "#94A3B8"}30`
-                  }}
-                >
-                  {selectedStructure.assessment_badge || "Cấu trúc Tốt"}
-                </span>
+                {selectedStructure ? (
+                  <span
+                    className="px-2 py-0.5 rounded-md text-[10px] font-semibold border"
+                    style={{
+                      backgroundColor: `${selectedStructure.assessment_color ?? "#94A3B8"}15`,
+                      color: selectedStructure.assessment_color ?? "#94A3B8",
+                      borderColor: `${selectedStructure.assessment_color ?? "#94A3B8"}30`
+                    }}
+                  >
+                    {selectedStructure.assessment_badge || "Cấu trúc Tốt"}
+                  </span>
+                ) : isProfileDataLoading ? (
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold border border-primary/30 bg-primary/10 text-primary">
+                    Đang tải dữ liệu...
+                  </span>
+                ) : null}
               </div>
               <h2 className="text-base font-bold text-foreground">
-                {selectedStructure.name}
+                {selectedStructure?.name || queryStructure}
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Đang xem <b>{selectedStructure.games?.length || selectedStructure.games_count}</b> ván thực tế • Nước hình thành ~{selectedStructure.typical_formation_move || 12} • Điểm Bayes: <b>{(selectedStructure.adjusted_score_pct ?? selectedStructure.score_pct).toFixed(1)}%</b>
-              </p>
+              {selectedStructure ? (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Đang xem <b>{selectedStructure.games?.length || selectedStructure.games_count}</b> ván thực tế • Nước hình thành ~{selectedStructure.typical_formation_move || 12} • Điểm Bayes: <b>{(selectedStructure.adjusted_score_pct ?? selectedStructure.score_pct).toFixed(1)}%</b>
+                </p>
+              ) : isProfileDataLoading ? (
+                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
+                  <span>Đang nạp hồ sơ phân tích cấu trúc tốt & ván đấu thực tế...</span>
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Không tìm thấy dữ liệu cấu trúc tốt tương ứng trong hồ sơ hiện tại.
+                </p>
+              )}
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {availableStructures.length > 1 && (
+            {selectedStructure && availableStructures.length > 1 && (
               <div className="flex items-center gap-1.5 bg-card border border-border/50 rounded-lg px-2.5 py-1 text-xs">
                 <span className="text-[11px] text-muted-foreground">Cấu trúc:</span>
                 <select
@@ -1666,23 +1679,33 @@ export function AnalyzeContent() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 items-start">
         {/* Left Column: Interactive ChessBoard (7 Cols) - Sticky on mobile / iPad */}
         <div className="lg:col-span-7 flex flex-col items-center w-full sticky top-14 z-20 bg-background pt-1 pb-2 border-b border-border/40 lg:static lg:bg-transparent lg:p-0 lg:border-none">
-          <ChessBoard
-            initialFen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-            moves={moves}
-            currentPly={currentPly}
-            orientation={boardOrientation}
-            onPositionChange={handlePositionChange}
-            onMakeMove={handleMakeMove}
-            onMovesChange={handleMovesChange}
-            onEvaluationChange={(ev, thinking) => {
-              setEvaluation(ev);
-              setIsThinking(thinking);
-            }}
-            isEngineEnabled={isEngineEnabled}
-            multiPv={multiPv}
-            height={isLgScreen ? 720 : 420}
-            onBoardWidthChange={(size) => setBoardSize(size)}
-          />
+          <div className="relative flex justify-center w-full">
+            <ChessBoard
+              initialFen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+              moves={moves}
+              currentPly={currentPly}
+              orientation={boardOrientation}
+              onPositionChange={handlePositionChange}
+              onMakeMove={handleMakeMove}
+              onMovesChange={handleMovesChange}
+              onEvaluationChange={(ev, thinking) => {
+                setEvaluation(ev);
+                setIsThinking(thinking);
+              }}
+              isEngineEnabled={isEngineEnabled}
+              multiPv={multiPv}
+              height={isLgScreen ? 720 : 420}
+              onBoardWidthChange={(size) => setBoardSize(size)}
+            />
+            {queryStructure && !selectedOpening && moves.length === 0 && isProfileDataLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/55 backdrop-blur-[2px] rounded-xl pointer-events-none">
+                <div className="bg-card/95 border border-border/70 rounded-xl px-4 py-2.5 shadow-lg flex items-center gap-2.5 text-xs font-semibold text-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+                  <span>Đang nạp thế cờ hình thành cấu trúc {queryStructure}...</span>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Board Tools: Flip & Reset */}
           <div
@@ -1801,6 +1824,7 @@ export function AnalyzeContent() {
                 selectedPlayerId={selectedPlayerId || undefined}
                 onSelectPlayer={handlePlayerChange}
                 embedded={true}
+                isLoading={treeLoading || isProfileDataLoading}
                 isSandboxMode={workspaceStore.activeMode === "sandbox"}
                 isMultiMode={workspaceStore.activeMode === "multi"}
                 multiTitle={
@@ -1952,6 +1976,7 @@ export function AnalyzeContent() {
                     selectedPlayerId={selectedPlayerId || undefined}
                     onSelectPlayer={handlePlayerChange}
                     embedded={true}
+                    isLoading={treeLoading || isProfileDataLoading}
                     isSandboxMode={workspaceStore.activeMode === "sandbox"}
                     isMultiMode={workspaceStore.activeMode === "multi"}
                   />
@@ -1989,6 +2014,11 @@ export function AnalyzeContent() {
                       </div>
                     )}
                   </div>
+                ) : isProfileDataLoading ? (
+                  <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    <p>Đang tải phân tích cấu trúc Tốt của kỳ thủ...</p>
+                  </div>
                 ) : (
                   <div className="py-8 text-center text-xs text-muted-foreground space-y-2">
                     <Compass className="w-8 h-8 text-primary/60 mx-auto" />
@@ -2008,33 +2038,40 @@ export function AnalyzeContent() {
                         Khai cuộc: <span className="text-primary">{selectedOpening}</span>
                       </div>
                       <span className="text-[11px] text-muted-foreground font-mono shrink-0">
-                        {matchingOpeningGames.length} ván
+                        {isProfileDataLoading && playerGames.length === 0 ? "Đang tải..." : `${matchingOpeningGames.length} ván`}
                       </span>
                     </div>
-                    <div className="max-h-[360px] overflow-y-auto space-y-1.5">
-                      {matchingOpeningGames.slice(0, 40).map((g, idx) => (
-                        <div
-                          key={g.id || idx}
-                          className="flex items-center justify-between p-2 rounded-lg bg-secondary/40 hover:bg-secondary/70 border border-border/40 text-xs"
-                        >
-                          <div className="truncate min-w-0 pr-2">
-                            <div className="font-semibold text-foreground truncate">
-                              {g.white_player} vs {g.black_player}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground font-mono">
-                              Kết quả: {g.result || "*"} • ECO: {g.eco || "N/A"}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleLoadOpeningGame(g)}
-                            className="px-2.5 py-1 rounded bg-primary text-primary-foreground font-bold text-[11px] shrink-0 active:scale-95 transition cursor-pointer"
+                    {isProfileDataLoading && playerGames.length === 0 ? (
+                      <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
+                        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                        <p>Đang tải danh sách ván đấu khai cuộc...</p>
+                      </div>
+                    ) : (
+                      <div className="max-h-[360px] overflow-y-auto space-y-1.5">
+                        {matchingOpeningGames.slice(0, 40).map((g, idx) => (
+                          <div
+                            key={g.id || idx}
+                            className="flex items-center justify-between p-2 rounded-lg bg-secondary/40 hover:bg-secondary/70 border border-border/40 text-xs"
                           >
-                            Xem ván
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                            <div className="truncate min-w-0 pr-2">
+                              <div className="font-semibold text-foreground truncate">
+                                {g.white_player} vs {g.black_player}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground font-mono">
+                                Kết quả: {g.result || "*"} • ECO: {g.eco || "N/A"}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleLoadOpeningGame(g)}
+                              className="px-2.5 py-1 rounded bg-primary text-primary-foreground font-bold text-[11px] shrink-0 active:scale-95 transition cursor-pointer"
+                            >
+                              Xem ván
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="py-8 text-center text-xs text-muted-foreground space-y-2">
@@ -2173,7 +2210,14 @@ export function AnalyzeContent() {
                 {filteredOpeningGames.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-6 text-center text-muted-foreground">
-                      Không có ván đấu nào khớp với bộ lọc.
+                      {isProfileDataLoading && playerGames.length === 0 ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                          <span>Đang tải danh sách ván đấu khai cuộc của kỳ thủ...</span>
+                        </span>
+                      ) : (
+                        "Không có ván đấu nào khớp với bộ lọc."
+                      )}
                     </td>
                   </tr>
                 ) : (
@@ -2472,6 +2516,13 @@ export function AnalyzeContent() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {!selectedStructure && queryStructure && !selectedOpening && isProfileDataLoading && (
+        <div className="hidden lg:flex bg-card border border-border/50 rounded-xl p-6 shadow-2xs items-center justify-center gap-2.5 text-xs text-muted-foreground animate-fade-in">
+          <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+          <span>Đang tải danh sách các ván đấu thực tế có cấu trúc <b className="text-foreground">{queryStructure}</b>...</span>
         </div>
       )}
 

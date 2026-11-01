@@ -44,9 +44,9 @@ import { Player, Game } from "@/lib/api/types";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
 import { isFenString, normalizeFen, isPawnSkeletonFen } from "@/lib/chess/notation";
 import { useProfileWorkspaceStore } from "@/lib/stores/profileWorkspaceStore";
+import { createClient } from "@/lib/supabase/client";
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-const STORAGE_KEY = "chess_ai_conversations_v4";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -134,6 +134,8 @@ export default function AiCoachView() {
   const queryPlayerId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("playerId") : null;
   const workspaceStore = useProfileWorkspaceStore();
   const [players, setPlayers] = useState<Player[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const supabase = createClient();
 
   // Chat sessions state (single source of truth for all chat sessions)
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -193,59 +195,100 @@ export default function AiCoachView() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 1. Fetch Players list on mount
+  // 1. Fetch Players list and check auth state on mount
   useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUser(data.user || null);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user || null);
+    });
+
     apiClient
       .getPlayers()
       .then((data) => {
         setPlayers(data || []);
       })
       .catch(() => {});
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
-  // 2. Load Chat Sessions on mount (from Supabase DB first, fallback to localStorage)
+  // 2. Load Chat Sessions on mount with strict guest vs authenticated tenancy
   useEffect(() => {
     let isSubscribed = true;
 
     async function loadSessions() {
       let loaded: ChatSession[] = [];
+      let authenticatedUser: any = null;
 
       try {
-        const dbSessions = await apiClient.getAiChatSessions();
-        if (isSubscribed && Array.isArray(dbSessions) && dbSessions.length > 0) {
-          loaded = dbSessions.map((ds) => ({
-            id: ds.id,
-            user_id: ds.user_id,
-            playerIds: Array.isArray(ds.player_ids) ? ds.player_ids : [],
-            title: ds.title || "Cuộc trò chuyện",
-            perspectiveMode: ds.perspective_mode,
-            pinned: Boolean(ds.pinned),
-            createdAt: ds.created_at ? new Date(ds.created_at).getTime() : Date.now(),
-            updatedAt: ds.updated_at ? new Date(ds.updated_at).getTime() : Date.now(),
-            messages: (ds.messages || []).map((m: any) => ({
-              role: m.role || "user",
-              content: m.content || "",
-              fen: m.fen,
-            })),
-            isDraft: false,
-          }));
-        }
-      } catch (err) {
-        console.warn("Could not load sessions from DB, falling back to local storage:", err);
+        const { data } = await supabase.auth.getUser();
+        authenticatedUser = data?.user || null;
+        setCurrentUser(authenticatedUser);
+      } catch {
+        authenticatedUser = null;
       }
 
-      // If DB returned nothing or error, check localStorage
-      if (loaded.length === 0 && typeof window !== "undefined") {
+      if (authenticatedUser?.id) {
+        // Authenticated user: Load from Supabase DB, fallback to user-scoped localStorage
         try {
-          const raw = localStorage.getItem(STORAGE_KEY);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              loaded = parsed.filter((s) => s && s.messages && s.messages.some((m: any) => m.role === "user"));
-            }
+          const dbSessions = await apiClient.getAiChatSessions();
+          if (isSubscribed && Array.isArray(dbSessions) && dbSessions.length > 0) {
+            loaded = dbSessions.map((ds) => ({
+              id: ds.id,
+              user_id: ds.user_id,
+              playerIds: Array.isArray(ds.player_ids) ? ds.player_ids : [],
+              title: ds.title || "Cuộc trò chuyện",
+              perspectiveMode: ds.perspective_mode,
+              pinned: Boolean(ds.pinned),
+              createdAt: ds.created_at ? new Date(ds.created_at).getTime() : Date.now(),
+              updatedAt: ds.updated_at ? new Date(ds.updated_at).getTime() : Date.now(),
+              messages: (ds.messages || []).map((m: any) => ({
+                role: m.role || "user",
+                content: m.content || "",
+                fen: m.fen,
+              })),
+              isDraft: false,
+            }));
           }
-        } catch (e) {
-          console.warn("Failed to parse local storage sessions:", e);
+        } catch (err) {
+          console.warn("Could not load sessions from DB, falling back to local storage:", err);
+        }
+
+        if (loaded.length === 0 && typeof window !== "undefined") {
+          try {
+            const userKey = `chess_ai_conversations_user_${authenticatedUser.id}`;
+            const raw = localStorage.getItem(userKey);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                loaded = parsed.filter((s) => s && s.messages && s.messages.some((m: any) => m.role === "user"));
+              }
+            }
+          } catch (e) {
+            console.warn("Failed to parse user local storage sessions:", e);
+          }
+        }
+      } else {
+        // Guest mode: WIPE legacy global storage to eliminate data leak
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.removeItem("chess_ai_conversations_v4");
+            const guestId = sessionStorage.getItem("chess_guest_session_id") || "guest";
+            const raw = sessionStorage.getItem(`chess_guest_ai_conversations_${guestId}`);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                loaded = parsed.filter((s) => s && s.messages && s.messages.some((m: any) => m.role === "user"));
+              }
+            }
+          } catch (e) {
+            console.warn("Failed to parse guest session storage:", e);
+          }
         }
       }
 
@@ -257,12 +300,15 @@ export default function AiCoachView() {
       } else {
         // No saved sessions: Initialize initial draft session (LAZY CREATION: not persisted!)
         let initialPids: string[] = [];
-        if (queryPlayerId) {
+        const availablePlayerIds = new Set(players.map((p) => p.id));
+        if (queryPlayerId && availablePlayerIds.has(queryPlayerId)) {
           initialPids = [queryPlayerId];
-        } else if (workspaceStore.activeMode === "single" && workspaceStore.activePlayerId) {
+        } else if (workspaceStore.activeMode === "single" && workspaceStore.activePlayerId && availablePlayerIds.has(workspaceStore.activePlayerId)) {
           initialPids = [workspaceStore.activePlayerId];
         } else if (workspaceStore.activeMode === "multi" && workspaceStore.multiProfiles.length > 0) {
-          initialPids = workspaceStore.multiProfiles.map((m) => m.player.id);
+          initialPids = workspaceStore.multiProfiles
+            .map((m) => m.player.id)
+            .filter((id) => availablePlayerIds.has(id));
         }
         const initialDraft = createDraftSession(initialPids, players);
         setSessions([initialDraft]);
@@ -277,18 +323,24 @@ export default function AiCoachView() {
     return () => {
       isSubscribed = false;
     };
-  }, []);
+  }, [players]);
 
-  // 3. Save concrete sessions to localStorage as offline/guest backup
+  // 3. Save concrete sessions strictly isolated by tenancy
   useEffect(() => {
     if (!isLoaded || typeof window === "undefined") return;
     try {
       const concreteToSave = sessions.filter((s) => !s.isDraft && s.messages.some((m) => m.role === "user"));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(concreteToSave));
+      if (currentUser?.id) {
+        localStorage.setItem(`chess_ai_conversations_user_${currentUser.id}`, JSON.stringify(concreteToSave));
+      } else {
+        const guestId = sessionStorage.getItem("chess_guest_session_id") || "guest";
+        sessionStorage.setItem(`chess_guest_ai_conversations_${guestId}`, JSON.stringify(concreteToSave));
+        localStorage.removeItem("chess_ai_conversations_v4");
+      }
     } catch (e) {
-      console.warn("Failed to save local storage backup:", e);
+      console.warn("Failed to save isolated chat backup:", e);
     }
-  }, [sessions, isLoaded]);
+  }, [sessions, isLoaded, currentUser]);
 
   // Current active session from sessions list
   const activeSession: ChatSession = useMemo(() => {
@@ -752,9 +804,9 @@ export default function AiCoachView() {
           if (isEditing) return;
           setActiveSessionId(session.id);
         }}
-        className={`group relative flex flex-col px-2.5 py-2 rounded-xl text-xs cursor-pointer transition select-none ${
+        className={`group relative flex flex-col px-2.5 py-2 rounded-md text-xs cursor-pointer transition select-none ${
           isActive
-            ? "bg-emerald-500/10 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 font-bold border-l-3 border-l-emerald-600 border border-emerald-500/30 shadow-2xs"
+            ? "bg-emerald-50 text-emerald-950 font-bold border border-emerald-300"
             : "text-muted-foreground hover:bg-muted/60 hover:text-foreground font-medium border border-transparent"
         }`}
       >
@@ -830,7 +882,7 @@ export default function AiCoachView() {
                   type="button"
                   onClick={(e) => handleDeleteSession(e, session.id)}
                   title="Xóa đoạn chat này"
-                  className="p-1 rounded-md hover:bg-red-100 dark:hover:bg-red-950 text-muted-foreground hover:text-red-600 transition"
+                  className="p-1 rounded-md hover:bg-rose-50 text-muted-foreground hover:text-rose-600 transition"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
@@ -843,16 +895,16 @@ export default function AiCoachView() {
                 {sessionPlayerNames.length === 0 ? (
                   <span className="px-1.5 py-0.2 rounded bg-muted text-[9px] font-semibold">Tự do</span>
                 ) : sessionPlayerNames.length === 1 ? (
-                  <span className="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold truncate text-[9px]">
+                  <span className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-800 font-bold truncate text-[9px]">
                     {sessionPlayerNames[0]}
                   </span>
                 ) : (
-                  <span className="px-1.5 py-0.2 rounded bg-teal-500/15 text-teal-800 dark:text-teal-300 font-bold truncate text-[9px]">
+                  <span className="px-1.5 py-0.2 rounded bg-teal-50 text-teal-800 font-bold truncate text-[9px]">
                     {sessionPlayerNames[0]} + {sessionPlayerNames.length - 1}
                   </span>
                 )}
               </div>
-              <span className="font-mono">{formatRelativeTime(session.updatedAt)}</span>
+              <span className="font-mono tabular-nums">{formatRelativeTime(session.updatedAt)}</span>
             </div>
           </>
         )}
@@ -861,184 +913,7 @@ export default function AiCoachView() {
   };
 
   return (
-    <div className="w-full h-[calc(100dvh-8rem)] md:h-[calc(100dvh-5.5rem)] -mt-2 sm:-mt-4 mb-0 flex flex-col overflow-hidden select-none">
-      {/* Sleek Top Compact Toolbar */}
-      <div className="shrink-0 h-12 px-3 bg-card/85 backdrop-blur-md border border-border/70 rounded-xl flex items-center justify-between gap-2.5 shadow-2xs mb-2 relative z-30">
-        {/* Left: Sidebar toggle & Multi-Profile Matchup Selector */}
-        <div className="flex items-center gap-2 min-w-0">
-          <button
-            type="button"
-            onClick={() => setIsSidebarOpen((prev) => !prev)}
-            title={isSidebarOpen ? "Ẩn danh sách lịch sử" : "Hiện danh sách lịch sử"}
-            className="p-1.5 rounded-lg border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer shrink-0"
-          >
-            {isSidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
-          </button>
-
-          {/* Profile Matchup Pills Bar */}
-          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-            {activeSession.playerIds.length === 0 ? (
-              <div className="flex items-center gap-1.5 bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/30 rounded-lg px-2.5 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-300 shrink-0">
-                <Bot className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>Trợ lí AI Tự do</span>
-              </div>
-            ) : (
-              <>
-                <div className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black uppercase text-muted-foreground bg-muted/50 border border-border/60">
-                  {activeSession.playerIds.length > 1 ? (
-                    <>
-                      <Swords className="w-3 h-3 text-emerald-600" />
-                      <span>So sánh:</span>
-                    </>
-                  ) : (
-                    <>
-                      <User className="w-3 h-3 text-emerald-600" />
-                      <span>Hồ sơ:</span>
-                    </>
-                  )}
-                </div>
-
-                {activeSession.playerIds.map((pid) => {
-                  const p = players.find((pl) => pl.id === pid);
-                  const name = p?.canonical_name || "Kỳ thủ";
-                  const canRemove = activeSession.isDraft || activeSession.playerIds.length > 1;
-                  return (
-                    <div
-                      key={pid}
-                      className="flex items-center gap-1 bg-emerald-600 text-white rounded-lg pl-2 pr-1.5 py-1 text-xs font-bold shadow-2xs animate-fade-in"
-                    >
-                      <span className="truncate max-w-[120px] sm:max-w-[160px]">{name}</span>
-                      {canRemove && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemovePlayerFromContext(pid)}
-                          title={`Bỏ ${name} khỏi cuộc trò chuyện`}
-                          className="p-0.5 hover:bg-white/20 rounded-md transition cursor-pointer"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </>
-            )}
-
-            {/* Add / Compare Player Dropdown Button */}
-            <div className="relative z-40" ref={addPlayerRef}>
-              <button
-                type="button"
-                onClick={() => setIsAddingPlayerOpen((prev) => !prev)}
-                className="px-2 py-1 rounded-lg border border-dashed border-emerald-500/50 hover:border-emerald-500 bg-emerald-500/5 hover:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                title="Chọn thêm hồ sơ kỳ thủ để so sánh đánh giá"
-              >
-                <Plus className="w-3 h-3" />
-                <span>
-                  {activeSession.playerIds.length === 0
-                    ? "Chọn hồ sơ..."
-                    : activeSession.playerIds.length === 1
-                    ? "+ So sánh với..."
-                    : "+ Thêm kỳ thủ"}
-                </span>
-              </button>
-
-              {isAddingPlayerOpen && (
-                <div className="absolute left-0 mt-1.5 w-64 max-h-80 overflow-y-auto bg-card/95 backdrop-blur-md border border-border/80 rounded-xl shadow-2xl z-50 py-1.5 animate-in fade-in-50 zoom-in-95 ring-1 ring-black/10 dark:ring-white/10">
-                  <div className="px-3 py-1 text-[11px] font-bold text-muted-foreground uppercase border-b border-border/40 mb-1 sticky top-0 bg-card/95 backdrop-blur-xs">
-                    Chọn kỳ thủ phân tích
-                  </div>
-                  {activeSession.playerIds.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsAddingPlayerOpen(false);
-                        const hasUserMsg = activeSession.messages.some((m) => m.role === "user");
-                        if (hasUserMsg) {
-                          handleCreateNewChat([]);
-                        } else {
-                          const updatedDraft = createDraftSession([], players);
-                          setSessions((prev) => [
-                            updatedDraft,
-                            ...prev.filter((s) => s.id !== activeSession.id && s.messages.some((m) => m.role === "user")),
-                          ]);
-                          setActiveSessionId(updatedDraft.id);
-                        }
-                      }}
-                      className="w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-muted font-medium flex items-center gap-2 cursor-pointer"
-                    >
-                      <Bot className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span>Chuyển về Trò chuyện tự do</span>
-                    </button>
-                  )}
-                  {players
-                    .filter((p) => !activeSession.playerIds.includes(p.id))
-                    .map((p) => (
-                      <div
-                        key={p.id}
-                        className="px-2.5 py-1 hover:bg-muted/80 rounded-lg flex items-center justify-between gap-1 transition"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => handleAddPlayerToContext(p.id)}
-                          className="flex-1 min-w-0 text-left py-1 text-xs text-foreground font-semibold flex items-center gap-1.5 truncate cursor-pointer hover:text-emerald-600"
-                          title={`Phân tích kỳ thủ ${p.canonical_name}`}
-                        >
-                          <span className="truncate">{p.canonical_name}</span>
-                          {p.title && (
-                            <span className="text-[10px] px-1 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold shrink-0">
-                              {p.title}
-                            </span>
-                          )}
-                        </button>
-                        {activeSession.playerIds.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => handleAddPlayerForCompare(p.id)}
-                            className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold transition shrink-0 cursor-pointer"
-                            title={`Thêm ${p.canonical_name} vào so sánh đối đầu`}
-                          >
-                            + So sánh
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  {players.filter((p) => !activeSession.playerIds.includes(p.id)).length === 0 && (
-                    <div className="px-3 py-2 text-xs text-muted-foreground text-center italic">
-                      Đã chọn tất cả kỳ thủ
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* PGN Games Count Badge */}
-            {playerGames.length > 0 && (
-              <div className="hidden md:inline-flex items-center gap-1 px-2 py-0.8 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold shrink-0">
-                <Database className="w-3 h-3 text-emerald-600" />
-                <span>{playerGames.length} ván</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right: Board Toggle Button */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsBoardOpen((prev) => !prev)}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs ${
-              isBoardOpen
-                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
-                : "bg-muted text-muted-foreground hover:text-foreground border border-border/70"
-            }`}
-          >
-            {isBoardOpen ? <Eye className="w-3.5 h-3.5 text-emerald-600" /> : <EyeOff className="w-3.5 h-3.5" />}
-            <span>Bàn cờ:</span>
-            <span className="uppercase">{isBoardOpen ? "Bật" : "Tắt"}</span>
-          </button>
-        </div>
-      </div>
-
+    <div className="w-full h-[calc(100dvh-7.5rem)] md:h-[calc(100dvh-6.5rem)] flex flex-col overflow-hidden select-none">
       {/* Main Workspace: Sidebar + (Board) + Chat */}
       <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-2 sm:gap-2.5 overflow-hidden relative">
         {/* Left: Chat History Sidebar (Chronological & Professional Grouping) */}
@@ -1048,73 +923,213 @@ export default function AiCoachView() {
               className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 md:hidden animate-fade-in"
               onClick={() => setIsSidebarOpen(false)}
             />
-            <aside className="fixed inset-y-0 left-0 z-50 w-[280px] sm:w-[320px] md:static md:z-auto md:w-[280px] lg:w-[300px] shrink-0 h-full flex flex-col bg-card border-r md:border border-border/70 md:rounded-xl overflow-hidden shadow-2xl md:shadow-2xs">
-              {/* Sidebar Top: Title & New Chat */}
-              <div className="p-3 border-b border-border/60 flex items-center justify-between gap-2 shrink-0 bg-card/60 backdrop-blur-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-emerald-500/10 dark:bg-emerald-950/60 border border-emerald-500/20 flex items-center justify-center text-emerald-600">
-                    <MessageSquare className="w-3.5 h-3.5" />
+            <aside className="fixed inset-y-0 left-0 z-50 w-[280px] sm:w-[320px] md:static md:z-auto md:w-[280px] lg:w-[310px] shrink-0 h-full flex flex-col bg-card border-r md:border border-border/70 md:rounded-md overflow-hidden shadow-xl md:shadow-none">
+              {/* TOP 1/3: PROFILE / PROJECT SELECTOR */}
+              <div className="p-3 border-b border-border/60 bg-muted/20 shrink-0 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <User className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Hồ sơ phân tích</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-wider text-foreground">
-                      Lịch sử trò chuyện
+                  {playerGames.length > 0 && (
+                    <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      {playerGames.length} ván
                     </span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950/60 font-mono text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300/40">
-                      {savedSessionsCount}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleCreateNewChat()}
-                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shadow-2xs hover:shadow-xs transition cursor-pointer"
-                    title="Tạo đoạn chat mới (Lazy: chỉ lưu khi gửi tin nhắn đầu tiên)"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Mới</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsSidebarOpen(false)}
-                    className="md:hidden p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
-                    title="Đóng danh sách lịch sử"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Search Filter Input */}
-              <div className="px-2.5 py-2 border-b border-border/40 shrink-0">
-                <div className="relative flex items-center">
-                  <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Tìm kiếm cuộc trò chuyện..."
-                    className="w-full bg-muted/60 focus:bg-background border border-border/60 rounded-xl pl-8 pr-7 py-1 text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition"
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery("")}
-                      className="absolute right-2 text-muted-foreground hover:text-foreground p-0.5"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
                   )}
                 </div>
+
+                {/* Active Profiles Pills */}
+                <div className="space-y-1.5">
+                  {activeSession.playerIds.length === 0 ? (
+                    <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                      <Bot className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>Trợ lí AI Tự do</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {activeSession.playerIds.map((pid) => {
+                        const p = players.find((pl) => pl.id === pid);
+                        const name = p?.canonical_name || "Kỳ thủ";
+                        const canRemove = activeSession.isDraft || activeSession.playerIds.length > 1;
+                        return (
+                          <div
+                            key={pid}
+                            className="flex items-center gap-1 bg-emerald-600 text-white rounded pl-2 pr-1.5 py-0.5 text-xs font-semibold"
+                          >
+                            <span className="truncate max-w-[140px]">{name}</span>
+                            {canRemove && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePlayerFromContext(pid)}
+                                title={`Bỏ ${name} khỏi cuộc trò chuyện`}
+                                className="p-0.5 hover:bg-white/20 rounded transition cursor-pointer"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Switch / Add / Compare Player Dropdown Button */}
+                  <div className="relative z-40" ref={addPlayerRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingPlayerOpen((prev) => !prev)}
+                      className="w-full py-1.5 px-2.5 rounded border border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/80 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold transition flex items-center justify-between cursor-pointer"
+                      title="Chọn hoặc đổi hồ sơ kỳ thủ phân tích"
+                    >
+                      <span className="flex items-center gap-1.5 truncate">
+                        <Plus className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">
+                          {activeSession.playerIds.length === 0
+                            ? "Chọn hồ sơ..."
+                            : activeSession.playerIds.length === 1
+                            ? "+ So sánh với..."
+                            : "+ Thêm kỳ thủ"}
+                        </span>
+                      </span>
+                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                    </button>
+
+                    {isAddingPlayerOpen && (
+                      <div className="absolute left-0 right-0 mt-1 max-h-64 overflow-y-auto bg-card border border-border/80 rounded-md shadow-xl z-50 py-1.5 animate-in fade-in-50 zoom-in-95">
+                        <div className="px-3 py-1 text-[11px] font-bold text-muted-foreground uppercase border-b border-border/40 mb-1 sticky top-0 bg-card">
+                          Chọn kỳ thủ phân tích
+                        </div>
+                        {activeSession.playerIds.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAddingPlayerOpen(false);
+                              const hasUserMsg = activeSession.messages.some((m) => m.role === "user");
+                              if (hasUserMsg) {
+                                handleCreateNewChat([]);
+                              } else {
+                                const updatedDraft = createDraftSession([], players);
+                                setSessions((prev) => [
+                                  updatedDraft,
+                                  ...prev.filter((s) => s.id !== activeSession.id && s.messages.some((m) => m.role === "user")),
+                                ]);
+                                setActiveSessionId(updatedDraft.id);
+                              }
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-muted font-medium flex items-center gap-2 cursor-pointer"
+                          >
+                            <Bot className="w-3.5 h-3.5 text-muted-foreground" />
+                            <span>Chuyển về Trò chuyện tự do</span>
+                          </button>
+                        )}
+                        {players
+                          .filter((p) => !activeSession.playerIds.includes(p.id))
+                          .map((p) => (
+                            <div
+                              key={p.id}
+                              className="px-2.5 py-1 hover:bg-muted/80 rounded flex items-center justify-between gap-1 transition"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => handleAddPlayerToContext(p.id)}
+                                className="flex-1 min-w-0 text-left py-1 text-xs text-foreground font-semibold flex items-center gap-1.5 truncate cursor-pointer hover:text-emerald-600"
+                                title={`Phân tích kỳ thủ ${p.canonical_name}`}
+                              >
+                                <span className="truncate">{p.canonical_name}</span>
+                                {p.title && (
+                                  <span className="text-[10px] px-1 py-0.2 rounded bg-amber-50 text-amber-800 font-bold shrink-0">
+                                    {p.title}
+                                  </span>
+                                )}
+                              </button>
+                              {activeSession.playerIds.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddPlayerForCompare(p.id)}
+                                  className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold transition shrink-0 cursor-pointer"
+                                  title={`Thêm ${p.canonical_name} vào so sánh đối đầu`}
+                                >
+                                  + So sánh
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        {players.filter((p) => !activeSession.playerIds.includes(p.id)).length === 0 && (
+                          <div className="px-3 py-2 text-xs text-muted-foreground text-center italic">
+                            Đã chọn tất cả kỳ thủ
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Sidebar Body: Chronologically Grouped Sessions */}
-              <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-3">
+              {/* BOTTOM 2/3: CONVERSATION HISTORY */}
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                {/* Sidebar Top: Title & New Chat */}
+                <div className="p-3 border-b border-border/60 flex items-center justify-between gap-2 shrink-0 bg-card">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-foreground">
+                        Lịch sử trò chuyện
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleCreateNewChat()}
+                      className="px-2.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1 transition cursor-pointer"
+                      title="Tạo đoạn chat mới (Lazy: chỉ lưu khi gửi tin nhắn đầu tiên)"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Mới</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsSidebarOpen(false)}
+                      className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition cursor-pointer"
+                      title="Thu gọn danh sách lịch sử"
+                    >
+                      <PanelLeftClose className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Search Filter Input */}
+                <div className="px-2.5 py-2 border-b border-border/40 shrink-0">
+                  <div className="relative flex items-center">
+                    <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Tìm kiếm cuộc trò chuyện..."
+                      className="w-full bg-muted/60 focus:bg-background border border-border/60 rounded pl-8 pr-7 py-1 text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-2 text-muted-foreground hover:text-foreground p-0.5"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Sidebar Body: Chronologically Grouped Sessions */}
+                <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-3">
                 {/* 1. PINNED SESSIONS */}
                 {chronologicalGroups.pinned.length > 0 && (
                   <div className="space-y-1">
-                    <div className="px-2 py-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                    <div className="px-2 py-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
                       <Pin className="w-3 h-3 fill-amber-500" />
                       <span>Đã ghim ({chronologicalGroups.pinned.length})</span>
                     </div>
@@ -1200,13 +1215,14 @@ export default function AiCoachView() {
                   </div>
                 )}
               </div>
-            </aside>
+            </div>
+          </aside>
           </>
         )}
 
         {/* Center/Left: Interactive Chessboard Area (Toggleable) */}
         {isBoardOpen && (
-          <div className="w-full max-w-full h-[360px] sm:h-[420px] md:h-full md:w-[380px] lg:w-[440px] xl:w-[480px] shrink-0 flex flex-col items-center bg-card border border-border/70 rounded-xl p-2 sm:p-2.5 shadow-2xs overflow-hidden">
+          <div className="w-full max-w-full h-[360px] sm:h-[420px] md:h-full md:w-[380px] lg:w-[440px] xl:w-[480px] shrink-0 flex flex-col items-center bg-card border border-border/70 rounded-md p-2 sm:p-2.5 overflow-hidden">
             {/* Board Top Status Bar */}
             <div className="w-full h-9 flex items-center justify-between pb-1.5 mb-1.5 border-b border-border/60 gap-2 shrink-0">
               <div className="flex items-center gap-2 truncate">
@@ -1217,7 +1233,7 @@ export default function AiCoachView() {
 
                 <div className="h-5 flex items-center">
                   {isSkeleton ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300/60 dark:border-amber-700/60">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
                       <Layers className="w-3 h-3" />
                       Hình thái Tốt (Skeleton)
                     </span>
@@ -1225,8 +1241,8 @@ export default function AiCoachView() {
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
                         (currentEval.score || 0) >= 0
-                          ? "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300"
-                          : "bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-300"
+                          ? "bg-emerald-50 text-emerald-800 font-mono tabular-nums border border-emerald-200"
+                          : "bg-rose-50 text-rose-800 font-mono tabular-nums border border-rose-200"
                       }`}
                     >
                       <TrendingUp className="w-3 h-3" />
@@ -1241,7 +1257,7 @@ export default function AiCoachView() {
               {/* Turn indicator */}
               <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                 <span
-                  className={`w-2.5 h-2.5 rounded-full border border-border shadow-2xs ${
+                  className={`w-2.5 h-2.5 rounded-full border border-border ${
                     currentFen.split(" ")[1] === "w" ? "bg-white" : "bg-slate-900"
                   }`}
                 />
@@ -1274,15 +1290,15 @@ export default function AiCoachView() {
               />
             </div>
 
-            {/* Move Navigation Control Bar */}
-            <div className="w-full flex items-center justify-between px-2 py-1.5 mt-1 bg-muted/50 rounded-xl border border-border/60 shrink-0 text-xs select-none">
+            {/* Move Navigation Control Bar (Clean, Borderless) */}
+            <div className="w-full flex items-center justify-between px-1 py-1 mt-1 shrink-0 text-xs select-none">
               <div className="flex items-center gap-1 sm:gap-1.5">
                 <button
                   type="button"
                   onClick={() => setCurrentPly(0)}
                   disabled={currentPly === 0 || isSkeleton}
                   title="Nước đầu tiên (Phím Home)"
-                  className="h-8 w-8 sm:h-8.5 sm:w-8.5 rounded-lg flex items-center justify-center bg-card hover:bg-secondary text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none border border-border/60 transition cursor-pointer active:scale-95"
+                  className="h-8 w-8 sm:h-8.5 sm:w-8.5 rounded flex items-center justify-center border-0 bg-transparent hover:bg-slate-100 text-slate-700 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
                 >
                   <ChevronsLeft className="w-4 h-4" />
                 </button>
@@ -1291,7 +1307,7 @@ export default function AiCoachView() {
                   onClick={() => setCurrentPly(Math.max(0, currentPly - 1))}
                   disabled={currentPly === 0 || isSkeleton}
                   title="Lùi 1 nước (Phím mũi tên Trái / <)"
-                  className="h-8 w-9 sm:h-8.5 sm:w-10 rounded-lg flex items-center justify-center bg-card hover:bg-secondary text-foreground disabled:opacity-30 disabled:pointer-events-none border border-border/60 transition cursor-pointer active:scale-95"
+                  className="h-8 w-9 sm:h-8.5 sm:w-10 rounded flex items-center justify-center border-0 bg-transparent hover:bg-slate-100 text-slate-700 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -1302,7 +1318,7 @@ export default function AiCoachView() {
                       ? "Ban đầu"
                       : `Nước ${Math.ceil(currentPly / 2)}/${Math.ceil(activeMoves.length / 2)}`
                   }
-                  className="font-mono text-[11px] font-bold px-2 py-1 text-foreground bg-card rounded-md border border-border/70 shadow-2xs min-w-[70px] text-center"
+                  className="font-mono text-[11px] font-semibold px-2 py-1 text-slate-600 min-w-[65px] text-center"
                 >
                   {isSkeleton
                     ? "Hình thái Tốt"
@@ -1316,7 +1332,7 @@ export default function AiCoachView() {
                   onClick={() => setCurrentPly(Math.min(activeMoves.length, currentPly + 1))}
                   disabled={currentPly >= activeMoves.length || isSkeleton}
                   title="Tiến 1 nước (Phím mũi tên Phải / >)"
-                  className="h-8 w-9 sm:h-8.5 sm:w-10 rounded-lg flex items-center justify-center bg-card hover:bg-secondary text-foreground disabled:opacity-30 disabled:pointer-events-none border border-border/60 transition cursor-pointer active:scale-95"
+                  className="h-8 w-9 sm:h-8.5 sm:w-10 rounded-lg flex items-center justify-center border-0 bg-transparent hover:bg-slate-100 text-slate-700 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer active:scale-95"
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
@@ -1325,7 +1341,7 @@ export default function AiCoachView() {
                   onClick={() => setCurrentPly(activeMoves.length)}
                   disabled={currentPly >= activeMoves.length || isSkeleton}
                   title="Nước cuối cùng (Phím End)"
-                  className="h-8 w-8 sm:h-8.5 sm:w-8.5 rounded-lg flex items-center justify-center bg-card hover:bg-secondary text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none border border-border/60 transition cursor-pointer active:scale-95"
+                  className="h-8 w-8 sm:h-8.5 sm:w-8.5 rounded-lg flex items-center justify-center border-0 bg-transparent hover:bg-slate-100 text-slate-700 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer active:scale-95"
                 >
                   <ChevronsRight className="w-4 h-4" />
                 </button>
@@ -1336,7 +1352,7 @@ export default function AiCoachView() {
                   type="button"
                   onClick={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
                   title={`Xoay bàn cờ (Đang xem: ${boardOrientation === "white" ? "Trắng" : "Đen"})`}
-                  className="h-8 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 bg-card hover:bg-secondary text-muted-foreground hover:text-foreground text-[11px] font-semibold border border-border/60 transition cursor-pointer active:scale-95"
+                  className="h-8 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 border-0 bg-transparent hover:bg-slate-100 text-slate-700 text-[11px] font-medium transition cursor-pointer active:scale-95"
                 >
                   <RotateCw className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Xoay</span>
@@ -1352,7 +1368,7 @@ export default function AiCoachView() {
                   }}
                   disabled={activeMoves.length === 0 && currentFen === START_FEN}
                   title="Xóa ván cờ, đặt lại bàn cờ ban đầu"
-                  className="h-8 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 bg-card hover:bg-destructive/10 hover:text-destructive text-muted-foreground disabled:opacity-30 disabled:pointer-events-none text-[11px] font-semibold border border-border/60 transition cursor-pointer active:scale-95"
+                  className="h-8 px-2 sm:px-2.5 rounded-lg flex items-center gap-1 border-0 bg-transparent hover:bg-rose-100 hover:text-rose-700 text-slate-700 disabled:opacity-30 disabled:pointer-events-none text-[11px] font-medium transition cursor-pointer active:scale-95"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Xóa bàn</span>
@@ -1367,7 +1383,7 @@ export default function AiCoachView() {
                   <select
                     value={selectedGameId}
                     onChange={(e) => handleSelectGame(e.target.value)}
-                    className="w-full bg-background border border-border/70 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none cursor-pointer truncate"
+                    className="w-full bg-background border border-border/70 rounded px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none cursor-pointer truncate"
                   >
                     <option value="">-- Xếp ván đấu ({playerGames.length} ván PGN) --</option>
                     {playerGames.map((g, idx) => {
@@ -1392,7 +1408,7 @@ export default function AiCoachView() {
                     setTimeout(() => setCopiedFen(false), 2000);
                   }}
                   title="Sao chép FEN của thế cờ hiện tại"
-                  className="p-1.5 sm:p-2 rounded-xl border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer shrink-0"
+                  className="p-1.5 sm:p-2 rounded border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer shrink-0"
                 >
                   {copiedFen ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
@@ -1404,7 +1420,7 @@ export default function AiCoachView() {
                     type="button"
                     onClick={handleAskAboutEntireGame}
                     title="Yêu cầu AI phân tích toàn bộ diễn biến ván đấu này từ khai cuộc đến tàn cuộc"
-                    className="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 font-bold text-xs shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer truncate"
+                    className="flex-1 min-w-0 px-2.5 py-1.5 rounded bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer truncate"
                   >
                     <span className="truncate">Phân tích cả ván 📋</span>
                   </button>
@@ -1414,7 +1430,7 @@ export default function AiCoachView() {
                   type="button"
                   onClick={handleAskAboutBoard}
                   title="Gửi thế cờ này cho Trợ lí AI phân tích"
-                  className={`${selectedGame ? "flex-1 min-w-0" : "w-full"} px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer truncate`}
+                  className={`${selectedGame ? "flex-1 min-w-0" : "w-full"} px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer truncate`}
                 >
                   <Send className="w-3.5 h-3.5 shrink-0" />
                   <span className="truncate">

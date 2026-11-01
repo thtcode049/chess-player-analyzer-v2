@@ -301,6 +301,15 @@ def get_player(
         try:
             db_player = DBService.get_player(player_id)
             if db_player:
+                p_notes = db_player.get("notes") or ""
+                p_user_id = db_player.get("user_id")
+                # Strict check: never expose authenticated users' players to guests
+                if p_user_id != GUEST_SYSTEM_USER_ID:
+                    raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ kỳ thủ trong phiên khách này")
+
+                if x_guest_session_id and not p_notes.startswith(f"guest:{x_guest_session_id}"):
+                    raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ kỳ thủ trong phiên khách này")
+
                 p_created = _parse_created_at(db_player.get("created_at"))
                 if p_created + timedelta(hours=24) < now:
                     try:
@@ -316,7 +325,7 @@ def get_player(
                     data=_build_player_response(
                         p=db_player,
                         p_id=db_player["id"],
-                        user_id=db_player.get("user_id", "guest"),
+                        user_id="guest",
                         total_g=total_g,
                         datasets=datasets,
                         is_guest=True
@@ -327,9 +336,11 @@ def get_player(
         except Exception as e:
             logger.warning(f"Error fetching guest player from DB: {e}")
 
-        # Final memory fallback
+        # Final memory fallback: only allow if p explicitly belongs to guest
         if player_id in PLAYERS_STORE:
             p = PLAYERS_STORE[player_id]
+            if p.get("user_id") != "guest":
+                raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ kỳ thủ trong phiên khách này")
             p_created = _parse_created_at(p.get("created_at"))
             if p_created + timedelta(hours=24) < now:
                 PLAYERS_STORE.pop(player_id, None)
@@ -348,7 +359,7 @@ def get_player(
                 )
             )
 
-        raise HTTPException(status_code=404, detail="Player not found in guest session")
+        raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ kỳ thủ trong phiên khách này")
 
     # 2. Check in-memory store
     if player_id in PLAYERS_STORE:
@@ -764,11 +775,17 @@ def claim_guest_data_endpoint(
 @router.get("/cleanup-expired-guests")
 @router.post("/cleanup-expired-guests")
 def cleanup_expired_guests(
-    max_age_hours: int = 24
+    max_age_hours: int = 24,
+    authorization: Optional[str] = Header(None)
 ):
     """
     Automated or manual cron job to delete guest players, datasets, and games older than max_age_hours.
+    Secured by optional CRON_SECRET header in production environments.
     """
+    cron_secret = os.environ.get("CRON_SECRET", "").strip()
+    if cron_secret and authorization != f"Bearer {cron_secret}":
+        raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing cron secret")
+
     deleted = DBService.cleanup_expired_guest_data(max_age_hours=max_age_hours)
     return {
         "success": True,

@@ -254,9 +254,10 @@ async def import_pgn_file(
         PLAYERS_STORE[actual_player_id] = player_entry
         GAMES_STORE[actual_player_id] = all_combined_games
 
-        session = get_guest_session(x_guest_session_id)
-        session.setdefault("players", {})[actual_player_id] = player_entry
-        session.setdefault("games", {})[actual_player_id] = all_combined_games
+        if not effective_user_id:
+            session = get_guest_session(x_guest_session_id)
+            session.setdefault("players", {})[actual_player_id] = player_entry
+            session.setdefault("games", {})[actual_player_id] = all_combined_games
         if not db_games:
             db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
 
@@ -500,9 +501,10 @@ async def import_lichess(
         PLAYERS_STORE[target_player_id] = player_entry
         GAMES_STORE[target_player_id] = all_combined_games
 
-        session = get_guest_session(x_guest_session_id)
-        session.setdefault("players", {})[target_player_id] = player_entry
-        session.setdefault("games", {})[target_player_id] = all_combined_games
+        if not effective_user_id:
+            session = get_guest_session(x_guest_session_id)
+            session.setdefault("players", {})[target_player_id] = player_entry
+            session.setdefault("games", {})[target_player_id] = all_combined_games
         if not db_games:
             db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
 
@@ -742,9 +744,10 @@ async def import_chesscom(
         PLAYERS_STORE[target_player_id] = player_entry
         GAMES_STORE[target_player_id] = all_combined_games
 
-        session = get_guest_session(x_guest_session_id)
-        session.setdefault("players", {})[target_player_id] = player_entry
-        session.setdefault("games", {})[target_player_id] = all_combined_games
+        if not effective_user_id:
+            session = get_guest_session(x_guest_session_id)
+            session.setdefault("players", {})[target_player_id] = player_entry
+            session.setdefault("games", {})[target_player_id] = all_combined_games
         if not db_games:
             db_games = [ImportService.normalize_game_for_db(g, dataset_id=dataset_id) for g in new_unique_games]
 

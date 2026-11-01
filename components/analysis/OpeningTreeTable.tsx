@@ -282,18 +282,18 @@ export default function OpeningTreeTable({
       className={`w-full flex flex-col h-full overflow-hidden ${
         embedded
           ? "bg-transparent border-0 shadow-none rounded-none"
-          : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm"
+          : "bg-white border border-slate-200 rounded-table"
       }`}
     >
       {/* Table Header Controls & Tab Selector */}
-      <div className="px-3 py-1.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 flex items-center justify-between gap-2 shrink-0">
+      <div className="px-3 py-1.5 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between gap-2 shrink-0">
         {/* Tab Toggle: Cây kì thủ vs Cây Master DB */}
-        <div className="flex items-center gap-1 p-0.5 bg-slate-200/70 dark:bg-slate-800/90 rounded-xl">
+        <div className="flex items-center gap-1 p-0.5 bg-slate-200/70 rounded">
           <div
-            className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold transition-all ${
               activeTab === "player"
-                ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                ? "bg-white text-emerald-600 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <button
@@ -327,7 +327,7 @@ export default function OpeningTreeTable({
             ) : isMultiMode ? (
               <span
                 onClick={() => setActiveTab("player")}
-                className="cursor-pointer truncate max-w-[140px] sm:max-w-[200px] py-1 font-bold text-xs text-emerald-800 dark:text-emerald-300"
+                className="cursor-pointer truncate max-w-[140px] sm:max-w-[200px] py-1 font-bold text-xs text-emerald-800"
                 title={multiTitle || "Matchup Ghép đôi"}
               >
                 {multiTitle || "Matchup Ghép đôi"}
@@ -349,8 +349,8 @@ export default function OpeningTreeTable({
               onClick={() => setActiveTab("player")}
               className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold transition cursor-pointer ml-0.5 flex items-center justify-center min-w-[18px] ${
                 activeTab === "player"
-                  ? "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300"
-                  : "bg-slate-300/60 dark:bg-slate-700/60 text-slate-500"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-slate-300/60 text-slate-500"
               }`}
               title={isLoading && continuations.length === 0 ? "Đang tải nước đi..." : `${continuations.length} nước đi tiếp theo`}
             >
@@ -365,10 +365,10 @@ export default function OpeningTreeTable({
           <button
             type="button"
             onClick={() => setActiveTab("master")}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-control text-xs font-bold transition-all cursor-pointer ${
               activeTab === "master"
-                ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <Globe className="w-3.5 h-3.5 shrink-0" />
@@ -377,8 +377,8 @@ export default function OpeningTreeTable({
               <span
                 className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold transition ${
                   activeTab === "master"
-                    ? "bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300"
-                    : "bg-slate-300/60 dark:bg-slate-700/60 text-slate-500"
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-slate-300/60 text-slate-500"
                 }`}
               >
                 {formatCompactNumber(masterTotal)}
@@ -392,10 +392,10 @@ export default function OpeningTreeTable({
           <button
             type="button"
             onClick={() => setShowAuthModal(true)}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold cursor-pointer transition ${
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-control text-xs font-semibold cursor-pointer transition ${
               isAuthorized
-                ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                : "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/60"
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
             }`}
             title={
               isAuthorized
@@ -406,12 +406,12 @@ export default function OpeningTreeTable({
             <Globe className="w-3.5 h-3.5 text-blue-500 shrink-0" />
             <span className="font-semibold hidden sm:inline">Master DB:</span>
             {isAuthorized ? (
-              <span className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
+              <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-bold">
                 <Check className="w-3 h-3 text-emerald-500" />
                 {authUsername ? `@${authUsername}` : (masterTotal > 0 ? `${formatCompactNumber(masterTotal)} ván` : "Đã kết nối")}
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 font-bold">
+              <span className="flex items-center gap-1 text-[11px] text-blue-600 font-bold">
                 <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
                 Ủy quyền
               </span>
@@ -422,19 +422,19 @@ export default function OpeningTreeTable({
 
       {/* Lichess Authorization Modal */}
       {showAuthModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-surface max-w-md w-full p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                <ShieldCheck className="w-5 h-5 text-blue-600" />
+                <h3 className="font-bold text-sm text-slate-900">
                   Kết Nối Lichess Master Database
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAuthModal(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 text-lg leading-none cursor-pointer"
               >
                 &times;
               </button>
@@ -443,27 +443,27 @@ export default function OpeningTreeTable({
             {isAuthorized ? (
               /* If Already Authorized */
               <div className="space-y-4">
-                <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-start gap-2.5">
-                  <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <div className="p-3.5 rounded-md bg-emerald-50 border border-emerald-200 flex items-start gap-2.5">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div className="text-xs">
-                    <p className="font-bold text-emerald-900 dark:text-emerald-200">
+                    <p className="font-bold text-emerald-900">
                       Đã kết nối thành công!
                     </p>
-                    <p className="text-emerald-700 dark:text-emerald-400 mt-0.5">
+                    <p className="text-emerald-700 mt-0.5">
                       Tài khoản Lichess: <b>@{authUsername || "Liên kết cá nhân"}</b>
                     </p>
                   </div>
                 </div>
 
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                <p className="text-xs text-slate-500 leading-relaxed">
                   Cơ sở dữ liệu Kiện tướng Lichess Masters hiện đã được kích hoạt trực tiếp trên cây khai cuộc của bạn.
                 </p>
 
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={handleDisconnect}
-                    className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1.5 cursor-pointer"
+                    className="text-xs font-semibold text-rose-600 hover:underline flex items-center gap-1.5 cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     <span>Ngắt kết nối</span>
@@ -471,7 +471,7 @@ export default function OpeningTreeTable({
                   <button
                     type="button"
                     onClick={() => setShowAuthModal(false)}
-                    className="px-4 py-1.5 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold hover:opacity-90 transition cursor-pointer"
+                    className="px-3.5 py-1.5 rounded bg-slate-900 text-white text-xs font-semibold hover:opacity-90 transition cursor-pointer"
                   >
                     Xong
                   </button>
@@ -480,7 +480,7 @@ export default function OpeningTreeTable({
             ) : (
               /* If Not Yet Authorized */
               <div className="space-y-4">
-                <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-xs text-blue-800 dark:text-blue-300">
+                <div className="p-3 rounded-md bg-blue-50 border border-blue-200 text-xs text-blue-800">
                   <p className="leading-relaxed">
                     Chỉ cần bấm <b>Ủy quyền Lichess</b> 1 lần duy nhất. Hệ thống sẽ lưu lại và kích hoạt dữ liệu Kiện tướng cho tất cả các trang.
                   </p>
@@ -491,7 +491,7 @@ export default function OpeningTreeTable({
                   type="button"
                   onClick={handle1ClickAuthorize}
                   disabled={isAuthorizing}
-                  className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition disabled:opacity-60 cursor-pointer"
+                  className="w-full py-2.5 px-4 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition disabled:opacity-60 cursor-pointer"
                 >
                   {isAuthorizing ? (
                     <>
@@ -507,7 +507,7 @@ export default function OpeningTreeTable({
                 </button>
 
                 {authError && (
-                  <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-600 dark:text-rose-400 font-medium">
+                  <div className="p-2.5 rounded-md bg-rose-50 border border-rose-200 text-xs text-rose-600 font-medium">
                     <span>{authError}</span>
                   </div>
                 )}
@@ -522,8 +522,8 @@ export default function OpeningTreeTable({
       {/* ============================================================ */}
       {activeTab === "player" && (
         <div className="flex-1 min-h-0 overflow-y-auto w-full">
-          <table className="w-full text-left text-xs table-fixed">
-            <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-900 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800 text-[10px] sm:text-[11px]">
+          <table className="data-table w-full text-left text-xs table-fixed">
+            <thead className="sticky top-0 z-10 bg-slate-50 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-200 text-[10px] sm:text-[11px]">
               <tr>
                 <th className="px-3 py-2 w-[20%]">Nước đi</th>
                 <th className="px-2.5 py-2 w-[15%]">Số ván</th>
@@ -532,14 +532,14 @@ export default function OpeningTreeTable({
                 <th className="px-3 py-2 text-right w-[15%]">Điểm số</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+            <tbody className="divide-y divide-slate-100">
               {continuations.length === 0 ? (
                 isLoading ? (
                   <tr>
                     <td colSpan={5} className="py-10 text-center text-slate-400 text-xs">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
-                        <span className="font-medium text-slate-500 dark:text-slate-400">
+                        <span className="font-medium text-slate-500">
                           Đang tải cây khai cuộc của kỳ thủ...
                         </span>
                       </div>
@@ -549,7 +549,7 @@ export default function OpeningTreeTable({
                   <tr>
                     <td colSpan={5} className="text-center py-10 text-slate-400 text-xs">
                       <div className="flex flex-col items-center justify-center gap-1.5">
-                        <GitBranch className="w-5 h-5 text-slate-300 dark:text-slate-600" />
+                        <GitBranch className="w-5 h-5 text-slate-300" />
                         <span>Không có nước đi tiếp theo nào của kì thủ trong cơ sở dữ liệu.</span>
                       </div>
                     </td>
@@ -564,22 +564,22 @@ export default function OpeningTreeTable({
                     <tr
                       key={idx}
                       onClick={() => onSelectMove(c.san)}
-                      className="hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition cursor-pointer select-none group"
+                      className="hover:bg-emerald-50/50 transition cursor-pointer select-none group"
                     >
                       {/* Move SAN */}
-                      <td className="px-3 py-1.5 font-normal text-slate-900 dark:text-white">
-                        <span className="truncate text-[15px] font-normal group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition">
+                      <td className="px-3 py-1.5 font-normal text-slate-900">
+                        <span className="truncate text-[15px] font-normal group-hover:text-emerald-600 transition">
                           <FigurineMove san={c.san} />
                         </span>
                       </td>
 
                       {/* Games Count */}
-                      <td className="px-2.5 py-1.5 font-bold text-slate-700 dark:text-slate-300 text-xs">
+                      <td className="px-2.5 py-1.5 font-bold text-slate-700 text-xs">
                         {c.games_count}
                       </td>
 
                       {/* Frequency */}
-                      <td className="px-2 py-1.5 text-slate-500 dark:text-slate-400 text-xs">
+                      <td className="px-2 py-1.5 text-slate-500 text-xs">
                         {c.usage_pct.toFixed(1)}%
                       </td>
 
@@ -603,7 +603,7 @@ export default function OpeningTreeTable({
                                   window.open(`/analyze?${params.toString()}`, "_blank");
                                 } catch {}
                               }}
-                              className="inline-flex items-center gap-1 text-[11px] text-slate-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 font-medium truncate max-w-full cursor-pointer"
+                              className="inline-flex items-center gap-1 text-[11px] text-slate-700 hover:text-emerald-600 font-medium truncate max-w-full cursor-pointer"
                               title="Mở ván đấu này trong tab phân tích mới"
                             >
                               <Eye className="w-3.5 h-3.5 text-slate-400 hover:text-emerald-500 shrink-0" />
@@ -643,23 +643,23 @@ export default function OpeningTreeTable({
                               />
                             </div>
                             <div className="flex justify-between text-[9px] text-slate-400 font-mono leading-none">
-                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{c.win_pct.toFixed(0)}%</span>
+                              <span className="text-emerald-600 font-semibold">{c.win_pct.toFixed(0)}%</span>
                               <span>{c.draw_pct.toFixed(0)}%</span>
-                              <span className="text-rose-600 dark:text-rose-400 font-semibold">{c.loss_pct.toFixed(0)}%</span>
+                              <span className="text-rose-600 font-semibold">{c.loss_pct.toFixed(0)}%</span>
                             </div>
                           </div>
                         )}
                       </td>
 
                       {/* Score */}
-                      <td className="px-3 py-2.5 text-right font-bold text-slate-900 dark:text-white">
+                      <td className="px-3 py-2.5 text-right font-bold text-slate-900">
                         <span
-                          className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-bold ${
+                          className={`inline-block px-1.5 py-0.5 rounded-tag text-xs font-semibold border ${
                             c.score_pct >= 60
-                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                               : c.score_pct <= 40
-                              ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30"
-                              : "bg-slate-200/70 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300/60 dark:border-slate-700"
+                              ? "bg-rose-50 text-rose-800 border-rose-200"
+                              : "bg-slate-100 text-slate-700 border-slate-200"
                           }`}
                         >
                           {c.score_pct.toFixed(1)}%
@@ -681,15 +681,15 @@ export default function OpeningTreeTable({
         <div className="flex-1 min-h-0 overflow-hidden w-full flex flex-col">
           {!isAuthorized ? (
             /* Prompt to Authorize */
-            <div className="p-8 text-center space-y-3 bg-blue-50/20 dark:bg-blue-950/10 my-auto">
-              <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto shadow-sm">
+            <div className="p-8 text-center space-y-3 bg-blue-50/20 my-auto">
+              <div className="w-12 h-12 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center mx-auto">
                 <Globe className="w-6 h-6" />
               </div>
               <div className="max-w-md mx-auto space-y-1">
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                <h4 className="text-sm font-bold text-slate-900">
                   Cơ sở Dữ liệu Kiện tướng Thế giới (Master Database)
                 </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                <p className="text-xs text-slate-500 leading-relaxed">
                   Xem toàn bộ các nước đi chuẩn lý thuyết, tỷ lệ thắng/hòa/thua từ hàng triệu ván đấu chính thức của các Đại kiện tướng quốc tế (GM / IM).
                 </p>
               </div>
@@ -697,7 +697,7 @@ export default function OpeningTreeTable({
                 <button
                   type="button"
                   onClick={() => setShowAuthModal(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer"
                 >
                   <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
                   <span>Ủy quyền Lichess để mở khóa Master DB</span>
@@ -713,18 +713,18 @@ export default function OpeningTreeTable({
               </div>
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="h-8 bg-slate-100 dark:bg-slate-800 animate-pulse rounded-lg" />
+                  <div key={i} className="h-8 bg-slate-100 animate-pulse rounded" />
                 ))}
               </div>
             </div>
           ) : masterError ? (
             /* Rate limit or API error card with retry button */
             <div className="py-10 px-6 text-center space-y-3 my-auto">
-              <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto text-amber-600 dark:text-amber-400">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mx-auto text-amber-600">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="space-y-1">
-                <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                <p className="text-xs font-semibold text-slate-800">
                   {masterError}
                 </p>
                 <p className="text-[11px] text-slate-400">
@@ -734,7 +734,7 @@ export default function OpeningTreeTable({
               <button
                 type="button"
                 onClick={() => fetchMasterData(currentFen, true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition cursor-pointer shadow-xs"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Thử lại ngay</span>
@@ -743,8 +743,8 @@ export default function OpeningTreeTable({
           ) : masterMoves.length === 0 && masterTopGames.length === 0 ? (
             /* Out of Book / No Master Games */
             <div className="py-12 text-center text-slate-400 text-xs space-y-1.5 my-auto">
-              <BookOpen className="w-6 h-6 text-slate-300 dark:text-slate-600 mx-auto" />
-              <p className="font-semibold text-slate-600 dark:text-slate-300">
+              <BookOpen className="w-6 h-6 text-slate-300 mx-auto" />
+              <p className="font-semibold text-slate-600">
                 Thế cờ này không có ván đấu nào trong Cơ sở Dữ liệu Kiện tướng
               </p>
               <p className="text-[11px] text-slate-400">
@@ -755,13 +755,13 @@ export default function OpeningTreeTable({
             <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
               {/* Subtle top progress bar when updating in background */}
               {masterLoading && (
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-400 to-blue-500 animate-pulse z-30 pointer-events-none" />
+                <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500 animate-pulse z-30 pointer-events-none" />
               )}
 
               {/* Lichess Opening Name Banner (fixed above scroll container — never overlaps rows) */}
               {masterOpening && (masterOpening.name || masterOpening.eco) && (
-                <div className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950 border-b border-emerald-200/80 dark:border-emerald-800/80 text-[11px] font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 shrink-0 z-20">
-                  <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div className="px-3 py-1.5 bg-emerald-50 border-b border-emerald-200/80 text-[11px] font-bold text-emerald-800 flex items-center gap-1.5 shrink-0 z-20">
+                  <BookOpen className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span className="truncate">
                     {masterOpening.eco ? `${masterOpening.eco}: ` : ""}{masterOpening.name}
                   </span>
@@ -771,8 +771,8 @@ export default function OpeningTreeTable({
               <div className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col">
                 {/* Master Moves Table */}
                 {masterMoves.length > 0 && (
-                  <table className="w-full text-left text-xs table-fixed">
-                    <thead className="bg-blue-50 dark:bg-slate-900 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800 text-[10px] sm:text-[11px] sticky top-0 z-10">
+                  <table className="data-table w-full text-left text-xs table-fixed">
+                    <thead className="bg-blue-50 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-200 text-[10px] sm:text-[11px] sticky top-0 z-10">
                     <tr>
                       <th className="px-3 py-2 w-[18%]">Nước đi</th>
                       <th className="px-2.5 py-2 w-[16%]">Số ván</th>
@@ -782,7 +782,7 @@ export default function OpeningTreeTable({
                       <th className="px-2.5 py-2 text-right w-[11%]">Elo TB</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                  <tbody className="divide-y divide-slate-100">
                     {masterMoves.map((m, idx) => {
                       const usagePct = masterTotal > 0 ? (m.games_count / masterTotal) * 100 : 0;
 
@@ -790,17 +790,17 @@ export default function OpeningTreeTable({
                         <tr
                           key={idx}
                           onClick={() => onSelectMove(m.san)}
-                          className="hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition cursor-pointer select-none group"
+                          className="hover:bg-blue-50/50 transition cursor-pointer select-none group"
                         >
                           {/* Move SAN */}
-                          <td className="px-3 py-1.5 font-normal text-slate-900 dark:text-white">
-                            <span className="truncate text-[15px] font-normal group-hover:text-blue-600 dark:group-hover:text-blue-400 transition">
+                          <td className="px-3 py-1.5 font-normal text-slate-900">
+                            <span className="truncate text-[15px] font-normal group-hover:text-blue-600 transition">
                               <FigurineMove san={m.san} />
                             </span>
                           </td>
 
                           {/* Games Count */}
-                          <td className="px-2.5 py-1.5 font-bold text-slate-700 dark:text-slate-300 text-xs">
+                          <td className="px-2.5 py-1.5 font-bold text-slate-700 text-xs">
                             <span
                               title={`${formatFullNumber(m.games_count)} ván đấu`}
                               className="cursor-help"
@@ -810,7 +810,7 @@ export default function OpeningTreeTable({
                           </td>
 
                           {/* Frequency */}
-                          <td className="px-2 py-1.5 text-slate-500 dark:text-slate-400 text-xs">
+                          <td className="px-2 py-1.5 text-slate-500 text-xs">
                             {usagePct.toFixed(1)}%
                           </td>
 
@@ -838,9 +838,9 @@ export default function OpeningTreeTable({
                                 />
                               </div>
                               <div className="flex justify-between text-[9px] text-slate-400 font-mono leading-none">
-                                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{m.win_pct}%</span>
+                                <span className="text-emerald-600 font-semibold">{m.win_pct}%</span>
                                 <span>{m.draw_pct}%</span>
-                                <span className="text-rose-600 dark:text-rose-400 font-semibold">{m.loss_pct}%</span>
+                                <span className="text-rose-600 font-semibold">{m.loss_pct}%</span>
                               </div>
                             </div>
                           </td>
@@ -848,12 +848,12 @@ export default function OpeningTreeTable({
                           {/* Score % */}
                           <td className="px-2 py-2 text-right font-bold">
                             <span
-                              className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-bold ${
+                              className={`inline-block px-1.5 py-0.5 rounded-tag text-xs font-semibold border ${
                                 m.score_pct >= 55
-                                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                                   : m.score_pct <= 45
-                                  ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30"
-                                  : "bg-slate-200/70 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300/60 dark:border-slate-700"
+                                  ? "bg-rose-50 text-rose-800 border-rose-200"
+                                  : "bg-slate-100 text-slate-700 border-slate-200"
                               }`}
                             >
                               {m.score_pct.toFixed(1)}%
@@ -861,7 +861,7 @@ export default function OpeningTreeTable({
                           </td>
 
                           {/* Average Rating */}
-                          <td className="px-2.5 py-2 text-right text-slate-600 dark:text-slate-400 font-mono text-[11px]">
+                          <td className="px-2.5 py-2 text-right text-slate-600 font-mono text-[11px]">
                             {m.average_rating ? m.average_rating : "—"}
                           </td>
                         </tr>
@@ -873,7 +873,7 @@ export default function OpeningTreeTable({
 
               {/* Summary Row (Σ like Lichess) */}
               {masterMoves.length > 0 && masterTotal > 0 && (
-                <div className="px-3.5 py-1.5 bg-slate-100/70 dark:bg-slate-800/60 border-t border-b border-slate-200/70 dark:border-slate-800 text-xs flex items-center justify-between font-mono font-bold text-slate-600 dark:text-slate-300 shrink-0">
+                <div className="px-3.5 py-1.5 bg-slate-100/70 border-t border-b border-slate-200/70 text-xs flex items-center justify-between font-mono font-bold text-slate-600 shrink-0">
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-black text-slate-400">Σ</span>
                     <span className="text-[11px]">100% {formatCompactNumber(masterTotal)} ván</span>
@@ -885,20 +885,20 @@ export default function OpeningTreeTable({
               )}
 
               {/* SECTION: CÁC VÁN ĐẤU HÀNG ĐẦU (TOP MASTER GAMES LIKE LICHESS) */}
-              <div className="border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/60 shrink-0">
-                <div className="sticky top-0 z-10 px-3.5 py-1.5 border-b border-slate-200/80 dark:border-slate-800 bg-emerald-50 dark:bg-slate-900 flex items-center justify-between">
+              <div className="border-t border-slate-200 bg-slate-50/50 shrink-0">
+                <div className="sticky top-0 z-10 px-3.5 py-1.5 border-b border-slate-200/80 bg-emerald-50 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Trophy className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    <span className="text-xs font-bold text-slate-800">
                       Các ván đấu hàng đầu
                     </span>
                     {masterTopGames.length > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-700/60">
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300/60">
                         {masterTopGames.length}
                       </span>
                     )}
                   </div>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium hidden sm:inline">
+                  <span className="text-[10px] text-slate-500 font-medium hidden sm:inline">
                     Bấm vào ván để nạp lên bàn cờ
                   </span>
                 </div>
@@ -908,38 +908,38 @@ export default function OpeningTreeTable({
                     Không có ván đấu tiêu biểu nào được ghi nhận cho thế cờ này.
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                  <div className="divide-y divide-slate-100">
                     {masterTopGames.map((g, idx) => {
                       const isLoadingThis = loadingGameId === g.id;
                       const resBadgeClass =
                         g.result === "1-0"
-                          ? "bg-slate-100 text-slate-900 border border-slate-300 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-100 shadow-2xs"
+                          ? "bg-slate-100 text-slate-900 border border-slate-300 shadow-2xs"
                           : g.result === "0-1"
-                          ? "bg-slate-900 text-white border border-slate-700 dark:bg-slate-950 dark:text-white dark:border-slate-600 shadow-2xs"
-                          : "bg-slate-200/80 text-slate-700 border border-slate-300/60 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700";
+                          ? "bg-slate-900 text-white border border-slate-700 shadow-2xs"
+                          : "bg-slate-200/80 text-slate-700 border border-slate-300/60";
 
                       return (
                         <div
                           key={g.id || idx}
                           onClick={() => handleLoadMasterGame(g)}
-                          className="flex items-center justify-between px-3.5 py-2 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 transition cursor-pointer select-none group"
+                          className="flex items-center justify-between px-3.5 py-2 hover:bg-blue-50/50 transition cursor-pointer select-none group"
                           title="Mở ván đấu này trong tab phân tích mới"
                         >
                           {/* Players & Ratings (2 Lines like Lichess) */}
                           <div className="flex flex-col gap-0.5 min-w-0 pr-3">
-                            <div className="flex items-center gap-1.5 text-xs text-slate-900 dark:text-white truncate">
-                              <span className="font-mono text-slate-500 dark:text-slate-400 font-bold text-[11px] w-9 shrink-0">
+                            <div className="flex items-center gap-1.5 text-xs text-slate-900 truncate">
+                              <span className="font-mono text-slate-500 font-bold text-[11px] w-9 shrink-0">
                                 {g.white.rating || "—"}
                               </span>
-                              <span className="truncate font-semibold group-hover:text-blue-600 dark:group-hover:text-blue-400 transition">
+                              <span className="truncate font-semibold group-hover:text-blue-600 transition">
                                 {g.white.name}
                               </span>
                             </div>
-                            <div className="flex items-center gap-1.5 text-xs text-slate-900 dark:text-white truncate">
-                              <span className="font-mono text-slate-500 dark:text-slate-400 font-bold text-[11px] w-9 shrink-0">
+                            <div className="flex items-center gap-1.5 text-xs text-slate-900 truncate">
+                              <span className="font-mono text-slate-500 font-bold text-[11px] w-9 shrink-0">
                                 {g.black.rating || "—"}
                               </span>
-                              <span className="truncate font-semibold group-hover:text-blue-600 dark:group-hover:text-blue-400 transition">
+                              <span className="truncate font-semibold group-hover:text-blue-600 transition">
                                 {g.black.name}
                               </span>
                             </div>
@@ -949,13 +949,13 @@ export default function OpeningTreeTable({
                           <div className="flex items-center gap-3 shrink-0">
                             {/* Result Badge */}
                             <span
-                              className={`px-2.5 py-0.5 rounded-md text-[11px] font-mono font-bold ${resBadgeClass}`}
+                              className={`px-2.5 py-0.5 rounded-tag text-xs font-mono font-bold ${resBadgeClass}`}
                             >
                               {g.result}
                             </span>
 
                             {/* Date */}
-                            <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500 w-16 text-right hidden sm:inline">
+                            <span className="text-[11px] font-mono text-slate-400 w-16 text-right hidden sm:inline">
                               {g.month || g.year || "—"}
                             </span>
 
@@ -964,7 +964,7 @@ export default function OpeningTreeTable({
                               {isLoadingThis ? (
                                 <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
                               ) : (
-                                <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition hidden sm:inline">
+                                <span className="text-[11px] font-semibold text-blue-600 opacity-0 group-hover:opacity-100 transition hidden sm:inline">
                                   Nạp ván →
                                 </span>
                               )}
@@ -974,7 +974,7 @@ export default function OpeningTreeTable({
                                   target="_blank"
                                   rel="noreferrer"
                                   onClick={(e) => e.stopPropagation()}
-                                  className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-100/50 dark:hover:bg-blue-900/40 transition shrink-0"
+                                  className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-100/50 transition shrink-0"
                                   title="Mở ván đấu gốc trên Lichess"
                                 >
                                   <ExternalLink className="w-3.5 h-3.5" />

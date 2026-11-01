@@ -4,9 +4,10 @@ Chess Player Analyzer V2 - FastAPI Serverless Entrypoint
 Mounted by Vercel Serverless Python Runtime at /api/*
 Preserves 100% of mathematical and chess domain logic from src/
 """
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from typing import Optional
 import time
 
 # Load environment variables for local development
@@ -36,8 +37,8 @@ from api.routes.analyses import router as analyses_router
 from api.routes.ai import router as ai_router
 
 app = FastAPI(
-    title="Chess Player Analyzer V2 API",
-    description="High-Performance Chess Data Analytics, Transposition-Safe Opening Trees, Empirical Bayesian Shrinkage & AI Assistant.",
+    title="ChessLook API",
+    description="ChessLook - High-Performance Chess Data Analytics, Transposition-Safe Opening Trees, Prior-Based Score Shrinkage & Strategic AI Assistant.",
     version="2.0.0",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json"
@@ -69,8 +70,16 @@ from api.services.db_service import DBService
 
 @app.get("/api/cron/cleanup-guests")
 @app.post("/api/cron/cleanup-guests")
-async def cron_cleanup_guests():
-    """Vercel Cron endpoint to purge guest records older than 24h."""
+async def cron_cleanup_guests(authorization: Optional[str] = Header(None)):
+    """
+    Vercel Cron endpoint to purge guest records older than 24h.
+    Runs once daily (0 0 * * *) to strictly adhere to Vercel Hobby plan limits.
+    Secured by optional CRON_SECRET header.
+    """
+    cron_secret = os.environ.get("CRON_SECRET", "").strip()
+    if cron_secret and authorization != f"Bearer {cron_secret}":
+        raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing cron secret")
+
     deleted = DBService.cleanup_expired_guest_data(max_age_hours=24)
     return {
         "success": True,
@@ -84,7 +93,7 @@ async def health_check():
     """Health check endpoint for Vercel Serverless and monitoring."""
     return {
         "status": "healthy",
-        "app": "Chess Player Analyzer V2",
+        "app": "ChessLook",
         "version": "2.0.0",
         "timestamp": int(time.time()),
         "endpoints": [

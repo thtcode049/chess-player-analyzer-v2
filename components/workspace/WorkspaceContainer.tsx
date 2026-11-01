@@ -45,6 +45,18 @@ export default function WorkspaceContainer({
     setVisitedTabs((prev) => (prev[activeTab] ? prev : { ...prev, [activeTab]: true }));
   }, [activeTab]);
 
+  // Lock window scroll ONLY on AI Assistant tab; unlock immediately when switching to other tabs or unmounting
+  useEffect(() => {
+    if (activeTab === "ai") {
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = "";
+      };
+    } else {
+      document.body.style.overflow = "";
+    }
+  }, [activeTab]);
+
   // Handle URL route initialization
   useEffect(() => {
     if (!mountedRef.current) {
@@ -101,7 +113,7 @@ export default function WorkspaceContainer({
       {isHubOpen ? (
         <ProfileHub />
       ) : (
-        <div className="w-full relative pb-20 md:pb-2">
+        <div className={`w-full relative ${activeTab === "ai" ? "pb-0" : "pb-20 md:pb-2"}`}>
           {/* Tab 1: Hồ sơ & Ván đấu (Keep-Alive: mount hidden when not active) */}
           <div style={{ display: activeTab === "profile" ? "block" : "none" }}>
             {visitedTabs["profile"] && (

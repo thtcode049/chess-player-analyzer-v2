@@ -474,3 +474,55 @@ def test_ai_chat_sessions_endpoints():
     assert res_get.status_code == 401
 
 
+def test_logged_in_user_import_does_not_leak_to_guest():
+    """
+    Verifies that when an authenticated user imports a player and games,
+    a subsequent guest user (or any guest session):
+    1. Does NOT see the authenticated user's player in GET /api/players.
+    2. Receives 404 if trying to GET /api/players/{player_id} with guest headers.
+    """
+    user_id = f"test-user-{uuid.uuid4().hex[:8]}"
+    guest_session = f"guest-session-unauth-{uuid.uuid4().hex[:8]}"
+
+    pgn_content = (
+        '[Event "Auth User Tournament"]\n'
+        '[Site "https://lichess.org/testauth"]\n'
+        '[Date "2025.01.01"]\n'
+        '[White "AuthenticatedGrandmaster"]\n'
+        '[Black "Challenger"]\n'
+        '[Result "1-0"]\n\n'
+        '1. d4 d5 2. c4 e6 3. Nc3 Nf6 1-0\n'
+    )
+
+    # 1. Authenticated user imports player
+    file_bytes = io.BytesIO(pgn_content.encode("utf-8"))
+    res_auth = client.post(
+        "/api/import/pgn-file",
+        files={"file": ("auth_user.pgn", file_bytes, "application/x-chess-pgn")},
+        data={"max_games": 10},
+        headers={"x-user-id": user_id}
+    )
+    assert res_auth.status_code == 200
+    data_auth = res_auth.json()["data"]
+    player_id = data_auth["player_id"]
+
+    try:
+        # 2. Guest user lists players: must NOT see the authenticated player!
+        res_guest_list = client.get("/api/players", headers={"x-guest-session-id": guest_session})
+        assert res_guest_list.status_code == 200
+        guest_players = res_guest_list.json()["data"]
+        assert not any(p["id"] == player_id for p in guest_players)
+        assert not any(p["canonical_name"] == "AuthenticatedGrandmaster" for p in guest_players)
+
+        # 3. Guest tries to access the authenticated player directly: must receive 404!
+        res_guest_direct = client.get(f"/api/players/{player_id}", headers={"x-guest-session-id": guest_session})
+        assert res_guest_direct.status_code == 404
+    finally:
+        try:
+            from api.services.db_service import DBService
+            DBService.delete_player(player_id, user_id=user_id)
+        except Exception:
+            pass
+
+
+

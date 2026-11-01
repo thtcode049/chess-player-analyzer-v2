@@ -25,6 +25,7 @@ import {
 import Link from "next/link";
 import ChessBoard, { BOARD_PLAYERS_BAR_HEIGHT, BoardPlayersInfo } from "@/components/chess/ChessBoard";
 import MoveHistory from "@/components/chess/MoveHistory";
+import PawnStructureInfoBadge from "@/components/chess/PawnStructureInfoBadge";
 import OpeningTreeTable from "@/components/analysis/OpeningTreeTable";
 import { apiClient } from "@/lib/api/client";
 import {
@@ -435,7 +436,7 @@ export function AnalyzeContent() {
   }, [workspaceStore.activeMode, workspaceStore.activePlayerId, queryPlayerId, queryRunId, selectedPlayerId]);
 
   // Dynamically synchronized board and panel size measured directly from ChessBoard DOM container
-  const [boardSize, setBoardSize] = useState<number>(640);
+  const [boardSize, setBoardSize] = useState<number>(760);
   const [isLgScreen, setIsLgScreen] = useState(false);
 
   useIsomorphicLayoutEffect(() => {
@@ -504,6 +505,14 @@ export function AnalyzeContent() {
   // Custom PGN modal
   const [showPgnInput, setShowPgnInput] = useState(false);
   const [inputPgn, setInputPgn] = useState("");
+
+  // User explicitly dismissed explorer mode flags (prevents Next.js router delay from reviving explorer)
+  const [structureDismissed, setStructureDismissed] = useState<boolean>(false);
+  const [openingDismissed, setOpeningDismissed] = useState<boolean>(false);
+
+  const isStructureActive = !structureDismissed && Boolean(selectedStructure || queryStructure);
+  const isOpeningActive = !openingDismissed && Boolean(selectedOpening || queryOpening);
+  const isExplorerMode = Boolean(isStructureActive || isOpeningActive);
 
   // 1. Ensure active profile data is loaded once via shared workspaceStore (deduplicated)
   useEffect(() => {
@@ -922,6 +931,7 @@ export function AnalyzeContent() {
 
   // Switch Structure in Explorer Mode
   const handleSelectStructure = useCallback((struct: PawnStructureItem, targetGameIdx?: number, targetGame?: any) => {
+    setStructureDismissed(false);
     loadedStructureGameKeyRef.current = null;
     setSelectedStructure(struct);
     setSelectedOpening(null);
@@ -950,9 +960,15 @@ export function AnalyzeContent() {
 
   // Exit Structure Explorer Mode
   const handleExitStructureExplorer = useCallback(() => {
+    setStructureDismissed(true);
     setSelectedStructure(null);
     setActiveStructureGameIdx(null);
     loadedStructureGameKeyRef.current = null;
+    setMoves([]);
+    setCurrentPly(0);
+    setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    setMoveTree(createMoveTreeFromMoves([]));
+    setGameInfo(null);
     const params = new URLSearchParams(window.location.search);
     params.delete("structure");
     params.delete("gameIdx");
@@ -964,6 +980,7 @@ export function AnalyzeContent() {
 
   // Switch Opening in Explorer Mode
   const handleSelectOpening = useCallback((opName: string) => {
+    setOpeningDismissed(false);
     setSelectedOpening(opName);
     setSelectedStructure(null);
     setActiveStructureGameIdx(null);
@@ -1055,10 +1072,16 @@ export function AnalyzeContent() {
 
   // Exit Opening Explorer Mode
   const handleExitOpeningExplorer = useCallback(() => {
+    setOpeningDismissed(true);
     setSelectedOpening(null);
     setActiveOpeningGameId(null);
     setOpeningRepresentativeLine([]);
     loadedOpeningRef.current = null;
+    setMoves([]);
+    setCurrentPly(0);
+    setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    setMoveTree(createMoveTreeFromMoves([]));
+    setGameInfo(null);
     const params = new URLSearchParams(window.location.search);
     params.delete("opening");
     const newQuery = params.toString();
@@ -1070,6 +1093,7 @@ export function AnalyzeContent() {
   // Auto-load structure if activeStructureForAnalysis was triggered from Profile PawnStructureGrid
   useEffect(() => {
     if (workspaceStore.activeStructureForAnalysis) {
+      setStructureDismissed(false);
       const { structureName, structObj, gameIdx, game } = workspaceStore.activeStructureForAnalysis;
       const targetStruct =
         availableStructures.find(
@@ -1088,6 +1112,7 @@ export function AnalyzeContent() {
   // Auto-load opening if activeOpeningForAnalysis was triggered from Profile Repertoire Table
   useEffect(() => {
     if (workspaceStore.activeOpeningForAnalysis) {
+      setOpeningDismissed(false);
       const { openingName } = workspaceStore.activeOpeningForAnalysis;
       handleSelectOpening(openingName);
       workspaceStore.clearActiveOpeningForAnalysis();
@@ -1096,6 +1121,7 @@ export function AnalyzeContent() {
 
   // 4. Sync selectedStructure before first paint if queryStructure is in URL
   useIsomorphicLayoutEffect(() => {
+    if (structureDismissed) return;
     if (queryStructure && availableStructures.length > 0) {
       const matched = availableStructures.find((s) =>
         s.name.toLowerCase().trim() === queryStructure.toLowerCase().trim() ||
@@ -1105,7 +1131,7 @@ export function AnalyzeContent() {
         handleSelectStructure(matched, queryGameIdx ? parseInt(queryGameIdx, 10) : undefined);
       }
     }
-  }, [queryStructure, queryGameIdx, availableStructures, selectedStructure, handleSelectStructure]);
+  }, [queryStructure, queryGameIdx, availableStructures, selectedStructure, handleSelectStructure, structureDismissed]);
 
   // Handle Player Switch
   const handlePlayerChange = (newPlayerId: string) => {
@@ -1473,7 +1499,7 @@ export function AnalyzeContent() {
   const activeOpeningGamesPoolCount = playerGames.length || workspaceStore.activePlayerGames.length;
   const hasOpeningPlayerName = Boolean(currentPlayerObj?.canonical_name || workspaceStore.activePlayer?.canonical_name);
   useIsomorphicLayoutEffect(() => {
-    if (!queryOpening) return;
+    if (openingDismissed || !queryOpening) return;
 
     // Bypass resetting board moves when transition was triggered by user playing moves
     if (isAutoTransitionRef.current) {
@@ -1487,7 +1513,7 @@ export function AnalyzeContent() {
       handleSelectOpening(queryOpening);
       loadedOpeningRef.current = readyKey;
     }
-  }, [queryOpening, activeOpeningGamesPoolCount, hasOpeningPlayerName, handleSelectOpening]);
+  }, [queryOpening, activeOpeningGamesPoolCount, hasOpeningPlayerName, handleSelectOpening, openingDismissed]);
 
   // Load a single game from the opening games list onto the board
   const handleLoadOpeningGame = (targetGame: Game) => {
@@ -1572,122 +1598,100 @@ export function AnalyzeContent() {
     return availableOpenings.find((op) => op.name.toLowerCase() === selectedOpening.toLowerCase()) || null;
   }, [availableOpenings, selectedOpening]);
 
-  return (
-    <div className="w-full max-w-[1720px] mx-auto animate-fade-in pt-1 sm:pt-3 pb-6 space-y-5">
+  const renderExplorerPanel = (isMobileView = false) => {
+    if (!isExplorerMode) return null;
 
-      {/* MATCHUP MODE BANNER */}
-      {workspaceStore.activeMode === "multi" && workspaceStore.multiProfiles.length > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-gradient-to-r from-emerald-950/70 via-slate-900 to-slate-900 border border-emerald-500/40 text-white shadow-xs">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400">
-              <Swords className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                  Cây Khai Cuộc Matchup Ghép Đôi
-                </span>
+    if (isOpeningActive && !isStructureActive) {
+      return (
+        <div className={`bg-card border border-border/70 rounded-surface overflow-hidden animate-fade-in ${isMobileView ? "mb-3" : "h-full flex flex-col"}`}>
+          {/* Top Sticky Header with instant Exit button */}
+          <div className="p-3 border-b border-border/60 bg-muted/20 flex items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="p-1.5 rounded bg-emerald-50 text-emerald-700 shrink-0">
+                <BookOpen className="w-4 h-4" />
               </div>
-              <p className="text-xs text-slate-200 mt-1">
-                Tần suất nước đi & tỷ lệ thắng được tổng hợp theo đúng vai trò:{" "}
-                <b className="text-white">⚪ Trắng ({workspaceStore.multiProfiles.filter((m) => m.role === "white" || m.role === "both").map((m) => m.player.canonical_name).join(", ") || "Chưa chọn"})</b>{" "}
-                vs{" "}
-                <b className="text-white">⚫ Đen ({workspaceStore.multiProfiles.filter((m) => m.role === "black" || m.role === "both").map((m) => m.player.canonical_name).join(", ") || "Chưa chọn"})</b>
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => workspaceStore.openHub()}
-            className="px-3.5 py-1.5 rounded-lg border border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-300 text-xs font-bold transition self-start sm:self-auto shrink-0"
-          >
-            Chỉnh sửa tổ hợp
-          </button>
-        </div>
-      )}
-
-      {/* SANDBOX MODE PROFILE CONTEXT BAR */}
-      {workspaceStore.activeMode === "sandbox" && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:px-4 sm:py-2.5 rounded-xl bg-card border border-border/60 shadow-2xs text-xs animate-fade-in">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-            <span className="font-bold text-foreground">Bàn cờ Tự do (Master DB):</span>
-            <span className="text-muted-foreground hidden sm:inline">Phân tích nước đi tự do và có thể chọn đổi hồ sơ kỳ thủ bên dưới để đối chiếu</span>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-muted-foreground font-medium">Hồ sơ đối chiếu:</span>
-            <select
-              value={selectedPlayerId || ""}
-              onChange={(e) => handlePlayerChange(e.target.value)}
-              className="bg-secondary/70 border border-border/60 rounded-lg px-2.5 py-1 text-xs font-bold text-foreground focus:outline-none cursor-pointer"
-            >
-              <option value="">Không chọn (Tự do / Master DB)</option>
-              {players.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.canonical_name} ({p.total_games || 0} ván)
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
-
-      {/* MODE A: OPENING EXPLORER HEADER BANNER */}
-      {selectedOpening && !selectedStructure && (
-        <div className="bg-card/70 border border-border/50 rounded-xl px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs animate-fade-in">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-primary uppercase tracking-wide">
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
                   Khám phá Khai cuộc
-                </span>
-                {currentOpeningItem?.assessment_badge && (
-                  <span
-                    className="px-2 py-0.5 rounded-md text-[10px] font-semibold border"
-                    style={{
-                      backgroundColor: `${currentOpeningItem.assessment_color ?? "#94A3B8"}15`,
-                      color: currentOpeningItem.assessment_color ?? "#94A3B8",
-                      borderColor: `${currentOpeningItem.assessment_color ?? "#94A3B8"}30`
-                    }}
-                  >
-                    {currentOpeningItem.assessment_badge}
-                  </span>
-                )}
+                </div>
+                <h3 className="font-bold text-xs sm:text-sm text-foreground truncate" title={selectedOpening || queryOpening || ""}>
+                  {selectedOpening || queryOpening}
+                </h3>
               </div>
-              <h2 className="text-base font-bold text-foreground">
-                {selectedOpening}
-              </h2>
-              {isProfileDataLoading && playerGames.length === 0 ? (
-                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
-                  <span>Đang tải danh sách ván đấu thực tế & thống kê khai cuộc của kỳ thủ...</span>
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Đang xem <b>{matchingOpeningGames.length}</b> ván thực tế •{" "}
-                  {currentOpeningItem?.adjusted_score_pct !== undefined && (
-                    <>Điểm Bayes: <b>{currentOpeningItem.adjusted_score_pct.toFixed(1)}%</b> • </>
-                  )}
-                  Thắng: <b className="text-emerald-500">{openingStats.wins}</b> •{" "}
-                  Hòa: <b className="text-amber-500">{openingStats.draws}</b> •{" "}
-                  Thua: <b className="text-rose-500">{openingStats.losses}</b>
-                </p>
-              )}
             </div>
+            <button
+              type="button"
+              onClick={handleExitOpeningExplorer}
+              className="px-2.5 py-1 rounded border border-border/70 bg-card hover:bg-secondary text-foreground text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer shrink-0 shadow-2xs"
+              title="Thoát chế độ Khai cuộc"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Thoát</span>
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Scrollable Body */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3.5">
+            {currentOpeningItem?.assessment_badge && (
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-muted-foreground">Đánh giá hồ sơ:</span>
+                <span
+                  className="assessment-tag border"
+                  style={{
+                    backgroundColor: `${currentOpeningItem.assessment_color ?? "#94A3B8"}18`,
+                    color: `color-mix(in srgb, ${currentOpeningItem.assessment_color ?? "#64748b"} 45%, #0f172a)`,
+                    borderColor: `${currentOpeningItem.assessment_color ?? "#94A3B8"}55`,
+                  }}
+                >
+                  {currentOpeningItem.assessment_badge}
+                </span>
+              </div>
+            )}
+
+            {/* Stats */}
+            {isProfileDataLoading && playerGames.length === 0 ? (
+              <div className="text-xs text-muted-foreground flex items-center gap-2 py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
+                <span>Đang tải thống kê khai cuộc...</span>
+              </div>
+            ) : (
+              <div className="space-y-2 text-xs">
+                <div className="grid grid-cols-2 gap-2 p-2.5 bg-muted/40 rounded border border-border/40">
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Ván thực tế</span>
+                    <span className="font-bold text-sm text-foreground font-mono">{matchingOpeningGames.length}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Điểm Bayes</span>
+                    <span className="font-bold text-sm text-emerald-700 font-mono">
+                      {currentOpeningItem?.adjusted_score_pct !== undefined
+                        ? `${currentOpeningItem.adjusted_score_pct.toFixed(1)}%`
+                        : "--"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs px-2 py-1.5 bg-card border border-border/50 rounded">
+                  <span className="text-muted-foreground">Kết quả:</span>
+                  <div className="flex items-center gap-2 font-mono text-[11px] font-bold">
+                    <span className="text-emerald-600">+{openingStats.wins} T</span>
+                    <span className="text-amber-600">={openingStats.draws} H</span>
+                    <span className="text-rose-600">-{openingStats.losses} B</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Opening Switcher */}
             {availableOpenings.length > 1 && (
-              <div className="flex items-center gap-1.5 bg-card border border-border/50 rounded-lg px-2.5 py-1 text-xs">
-                <span className="text-[11px] text-muted-foreground">Khai cuộc:</span>
+              <div className="space-y-1 pt-1">
+                <label className="text-[11px] font-semibold text-muted-foreground block">
+                  Đổi khai cuộc khác:
+                </label>
                 <select
-                  value={selectedOpening}
+                  value={selectedOpening || ""}
                   onChange={(e) => handleSelectOpening(e.target.value)}
-                  className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
+                  className="w-full bg-secondary/50 border border-border/70 rounded px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
                 >
                   {availableOpenings.map((op) => (
                     <option key={op.name} value={op.name} className="bg-card text-foreground">
@@ -1698,77 +1702,138 @@ export function AnalyzeContent() {
               </div>
             )}
 
-            <button
-              onClick={handleExitOpeningExplorer}
-              className="px-3 py-1.5 rounded-lg border border-border/50 hover:bg-secondary text-foreground text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Thoát chế độ
-            </button>
+            {/* Bottom Exit Button */}
+            <div className="pt-2 border-t border-border/40">
+              <button
+                type="button"
+                onClick={handleExitOpeningExplorer}
+                className="w-full py-2 px-3 rounded border border-border/70 hover:bg-secondary text-foreground text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer bg-card shadow-2xs"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Thoát chế độ Khai cuộc</span>
+              </button>
+            </div>
           </div>
         </div>
-      )}
+      );
+    }
 
-      {/* MODE B: STRUCTURE EXPLORER HEADER BANNER */}
-      {(selectedStructure || (queryStructure && !selectedOpening)) && (
-        <div className="bg-card/70 border border-border/50 rounded-xl px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs animate-fade-in">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
-              <Layers className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-primary uppercase tracking-wide">
-                  Khám phá Cấu trúc Tốt
-                </span>
-                {selectedStructure ? (
-                  <span
-                    className="px-2 py-0.5 rounded-md text-[10px] font-semibold border"
-                    style={{
-                      backgroundColor: `${selectedStructure.assessment_color ?? "#94A3B8"}15`,
-                      color: selectedStructure.assessment_color ?? "#94A3B8",
-                      borderColor: `${selectedStructure.assessment_color ?? "#94A3B8"}30`
-                    }}
-                  >
-                    {selectedStructure.assessment_badge || "Cấu trúc Tốt"}
-                  </span>
-                ) : isProfileDataLoading ? (
-                  <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold border border-primary/30 bg-primary/10 text-primary">
-                    Đang tải dữ liệu...
-                  </span>
-                ) : null}
+    if (isStructureActive) {
+      return (
+        <div className={`bg-card border border-border/70 rounded-surface overflow-hidden animate-fade-in ${isMobileView ? "mb-3" : "h-full flex flex-col"}`}>
+          {/* Top Sticky Header with instant Exit button */}
+          <div className="p-3 border-b border-border/60 bg-muted/20 flex items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="p-1.5 rounded bg-emerald-50 text-emerald-700 shrink-0">
+                <Layers className="w-4 h-4" />
               </div>
-              <h2 className="text-base font-bold text-foreground">
-                {selectedStructure?.name || queryStructure}
-              </h2>
-              {selectedStructure ? (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Đang xem <b>{selectedStructure.games?.length || selectedStructure.games_count}</b> ván thực tế • Nước hình thành ~{selectedStructure.typical_formation_move || 12} • Điểm Bayes: <b>{(selectedStructure.adjusted_score_pct ?? selectedStructure.score_pct).toFixed(1)}%</b>
-                </p>
-              ) : isProfileDataLoading ? (
-                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
-                  <span>Đang nạp hồ sơ phân tích cấu trúc tốt & ván đấu thực tế...</span>
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Không tìm thấy dữ liệu cấu trúc tốt tương ứng trong hồ sơ hiện tại.
-                </p>
-              )}
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
+                  Khám phá Cấu trúc Tốt
+                </div>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <h3 className="font-bold text-xs sm:text-sm text-foreground truncate" title={selectedStructure?.name || queryStructure || ""}>
+                    {selectedStructure?.name || queryStructure}
+                  </h3>
+                  <PawnStructureInfoBadge structureName={selectedStructure?.name || queryStructure || ""} />
+                </div>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={handleExitStructureExplorer}
+              className="px-2.5 py-1 rounded border border-border/70 bg-card hover:bg-secondary text-foreground text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer shrink-0 shadow-2xs"
+              title="Thoát chế độ Cấu trúc"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Thoát</span>
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {selectedStructure && availableStructures.length > 1 && (
-              <div className="flex items-center gap-1.5 bg-card border border-border/50 rounded-lg px-2.5 py-1 text-xs">
-                <span className="text-[11px] text-muted-foreground">Cấu trúc:</span>
+          {/* Scrollable Body */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3.5">
+            {selectedStructure?.assessment_badge && (
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-muted-foreground">Đánh giá hồ sơ:</span>
+                <span
+                  className="assessment-tag border"
+                  style={{
+                    backgroundColor: `${selectedStructure.assessment_color ?? "#94A3B8"}18`,
+                    color: `color-mix(in srgb, ${selectedStructure.assessment_color ?? "#64748b"} 45%, #0f172a)`,
+                    borderColor: `${selectedStructure.assessment_color ?? "#94A3B8"}55`,
+                  }}
+                >
+                  {selectedStructure.assessment_badge}
+                </span>
+              </div>
+            )}
+
+            {/* Stats */}
+            {isProfileDataLoading ? (
+              <div className="text-xs text-muted-foreground flex items-center gap-2 py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
+                <span>Đang nạp hồ sơ cấu trúc tốt...</span>
+              </div>
+            ) : selectedStructure ? (
+              <div className="space-y-2 text-xs">
+                <div className="grid grid-cols-2 gap-2 p-2.5 bg-muted/40 rounded border border-border/40">
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Ván thực tế</span>
+                    <span className="font-bold text-sm text-foreground font-mono">
+                      {selectedStructure.games?.length || selectedStructure.games_count || 0}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block">Điểm Bayes</span>
+                    <span className="font-bold text-sm text-emerald-700 font-mono">
+                      {(selectedStructure.adjusted_score_pct ?? selectedStructure.score_pct ?? 0).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-muted-foreground px-2 py-1 bg-card border border-border/40 rounded">
+                  Nước hình thành: ~<b>{selectedStructure.typical_formation_move || 12}</b>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Không tìm thấy dữ liệu cấu trúc tương ứng trong hồ sơ.
+              </p>
+            )}
+
+            {/* Strategic Plan ideas & counter_ideas */}
+            {selectedStructure?.strategic_plan && (
+              <div className="p-3 rounded bg-muted/30 border border-border/40 space-y-2 text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-800 text-[11px] uppercase tracking-wide">
+                  <Compass className="w-3.5 h-3.5" />
+                  <span>Kế hoạch Chiến lược</span>
+                </div>
+                <div className="space-y-1.5 text-[11px] leading-relaxed">
+                  <div>
+                    <span className="font-semibold text-emerald-700">Kế hoạch: </span>
+                    <span className="text-muted-foreground">{selectedStructure.strategic_plan.ideas.join(" ")}</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-rose-700">Đối ứng: </span>
+                    <span className="text-muted-foreground">{selectedStructure.strategic_plan.counter_ideas.join(" ")}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Structure Switcher */}
+            {availableStructures.length > 1 && (
+              <div className="space-y-1 pt-1">
+                <label className="text-[11px] font-semibold text-muted-foreground block">
+                  Đổi cấu trúc khác:
+                </label>
                 <select
-                  value={selectedStructure.name}
+                  value={selectedStructure?.name || ""}
                   onChange={(e) => {
                     const target = availableStructures.find((s) => s.name === e.target.value);
                     if (target) handleSelectStructure(target);
                   }}
-                  className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
+                  className="w-full bg-secondary/50 border border-border/70 rounded px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
                 >
                   {(() => {
                     const validStructures = availableStructures.filter(
@@ -1794,7 +1859,7 @@ export function AnalyzeContent() {
                     return (
                       <>
                         {groupB.length > 0 && (
-                          <optgroup label="Nhóm B — Cấu trúc chiến lược kinh điển" className="bg-card text-foreground font-bold">
+                          <optgroup label="Cấu trúc chiến lược kinh điển" className="bg-card text-foreground font-bold">
                             {groupB.map((s) => (
                               <option key={s.name} value={s.name} className="bg-card text-foreground font-normal">
                                 {s.name} ({s.games_count} ván)
@@ -1803,7 +1868,7 @@ export function AnalyzeContent() {
                           </optgroup>
                         )}
                         {groupA.length > 0 && (
-                          <optgroup label="Nhóm A — Cấu trúc nền tảng & Trung tâm" className="bg-card text-foreground font-bold">
+                          <optgroup label="Cấu trúc nền tảng & Trung tâm" className="bg-card text-foreground font-bold">
                             {groupA.map((s) => (
                               <option key={s.name} value={s.name} className="bg-card text-foreground font-normal">
                                 {s.name} ({s.games_count} ván)
@@ -1818,225 +1883,298 @@ export function AnalyzeContent() {
               </div>
             )}
 
-            <button
-              onClick={handleExitStructureExplorer}
-              className="px-3 py-1.5 rounded-lg border border-border/50 hover:bg-secondary text-foreground text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Thoát chế độ
-            </button>
+            {/* Bottom Exit Button */}
+            <div className="pt-2 border-t border-border/40">
+              <button
+                type="button"
+                onClick={handleExitStructureExplorer}
+                className="w-full py-2 px-3 rounded border border-border/70 hover:bg-secondary text-foreground text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer bg-card shadow-2xs"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Thoát chế độ Cấu trúc</span>
+              </button>
+            </div>
           </div>
         </div>
-      )}
+      );
+    }
 
-      {/* Strategic Plan Guidance Banner when structure is selected */}
-      {selectedStructure && selectedStructure.strategic_plan && (
-        <div className="bg-card/60 border border-border/50 rounded-xl px-4 py-2.5 text-xs shadow-2xs space-y-1.5 animate-fade-in">
-          <div className="flex items-center gap-1.5 font-bold text-primary text-[11px] uppercase tracking-wide">
-            <Compass className="w-3.5 h-3.5" />
-            <span>Kế hoạch & Phương án Chiến lược Tham khảo ({selectedStructure.group === "B" ? "Nhóm B: Chiến lược" : "Nhóm A: Trung tâm"})</span>
+    return null;
+  };
+
+  const renderChessBoardSection = () => (
+    <>
+      <div className="relative flex justify-center w-full">
+        <ChessBoard
+          initialFen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+          moves={moves}
+          currentPly={currentPly}
+          orientation={boardOrientation}
+          onOrientationChange={setBoardOrientation}
+          playersInfo={boardPlayersInfo}
+          onPositionChange={handlePositionChange}
+          onMakeMove={handleMakeMove}
+          onMovesChange={handleMovesChange}
+          onEvaluationChange={(ev, thinking) => {
+            setEvaluation(ev);
+            setIsThinking(thinking);
+          }}
+          isEngineEnabled={isEngineEnabled}
+          multiPv={multiPv}
+          height={760}
+          onBoardWidthChange={(size) => setBoardSize(size)}
+        />
+        {queryStructure && !selectedOpening && moves.length === 0 && isProfileDataLoading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/55 backdrop-blur-[2px] rounded-md pointer-events-none">
+            <div className="bg-card/95 border border-border/70 rounded-md px-4 py-2.5 shadow-lg flex items-center gap-2.5 text-xs font-semibold text-foreground">
+              <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+              <span>Đang nạp thế cờ hình thành cấu trúc {queryStructure}...</span>
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] text-muted-foreground">
-            <div>
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">Kế hoạch: </span>
-              <span>{selectedStructure.strategic_plan.ideas.join(" ")}</span>
+        )}
+      </div>
+
+      {/* Current FEN Bar & Action Buttons (Directly attached to the board column) */}
+      <div
+        style={{ width: `${boardSize + 24}px`, maxWidth: "100%" }}
+        className="bg-card border border-border/60 rounded-md px-3 py-1.5 flex items-center justify-between gap-2 text-xs shrink-0 mt-2"
+      >
+        <div className="flex items-center gap-1.5 truncate min-w-0">
+          <span className="font-bold text-muted-foreground uppercase text-[10px] shrink-0">FEN:</span>
+          <span className="font-mono text-foreground truncate select-all text-[11px]" title={currentFen}>
+            {currentFen}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(currentFen);
+              alert("Đã sao chép FEN vào clipboard!");
+            }}
+            className="px-2 py-0.5 rounded bg-secondary hover:bg-muted font-semibold text-[11px] text-foreground transition cursor-pointer"
+            title="Sao chép FEN"
+          >
+            Sao chép
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowPgnInput(true)}
+            className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-semibold text-[11px] transition flex items-center gap-1 cursor-pointer border border-emerald-200"
+            title="Dán PGN hoặc FEN để nạp vào bàn cờ"
+          >
+            <Upload className="w-3 h-3" />
+            <span>Dán PGN / FEN</span>
+          </button>
+        </div>
+      </div>
+    </>
+  );
+
+  const renderRightPanelContent = () => (
+    <>
+      {/* Top: Move History (Notation + Stockfish Eval) - 50% equal height */}
+      <div className="flex-1 min-h-0 border-b border-border/50 flex flex-col overflow-hidden">
+        <MoveHistory
+          moves={moves}
+          currentPly={currentPly}
+          onSelectPly={handleSelectPly}
+          currentFen={currentFen}
+          evaluation={evaluation}
+          isThinking={isThinking}
+          isEngineEnabled={isEngineEnabled}
+          onToggleEngine={() => setIsEngineEnabled((prev) => !prev)}
+          multiPv={multiPv}
+          onMultiPvChange={(count) => setMultiPv(count)}
+          embedded={true}
+          moveTree={moveTree}
+          onSelectNode={handleSelectTreeNode}
+          onPromoteVariation={handlePromoteVariation}
+          onDeleteFromHere={handleDeleteFromHere}
+          onFlipBoard={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
+          boardOrientation={boardOrientation}
+          onResetBoard={() => {
+            setMoves([]);
+            setCurrentPly(0);
+            setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+            setMoveTree(createMoveTreeFromMoves([]));
+            setSelectedOpening(null);
+            setGameInfo(null);
+          }}
+          canResetBoard={
+            Boolean(gameInfo) ||
+            moves.length > 0 ||
+            currentFen !== "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+          }
+        />
+      </div>
+
+      {/* Middle: Compact Color Filter / Perspective Toolbar */}
+      <div className="px-3.5 py-1 bg-slate-50 border-b border-border/50 flex items-center justify-between shrink-0 text-xs">
+        <div className="flex items-center gap-1.5 text-muted-foreground font-semibold text-[11px]">
+          <Layers className="w-3.5 h-3.5 text-primary" />
+        </div>
+        <div className="flex items-center gap-1 p-0.5 bg-secondary/60 rounded">
+          <button
+            onClick={() => setColorFilter("all")}
+            className={`px-2.5 py-0.5 rounded text-[11px] font-bold transition ${colorFilter === "all" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+          >
+            Tất cả
+          </button>
+          <button
+            onClick={() => {
+              setColorFilter("white");
+              setBoardOrientation("white");
+            }}
+            className={`px-2.5 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${colorFilter === "white" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+          >
+            <span className="w-2 h-2 rounded-full bg-white border border-slate-300" />
+            <span>Trắng</span>
+          </button>
+          <button
+            onClick={() => {
+              setColorFilter("black");
+              setBoardOrientation("black");
+            }}
+            className={`px-2.5 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${colorFilter === "black" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+          >
+            <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-600" />
+            <span>Đen</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom: Opening Continuations & Master Database - 50% equal height */}
+      <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden">
+        {treeLoading && (
+          <div
+            className="absolute top-0 left-0 right-0 h-1 bg-emerald-500 animate-pulse z-30 pointer-events-none"
+            title="Đang cập nhật biến thể..."
+          />
+        )}
+        <OpeningTreeTable
+          continuations={continuations}
+          totalGames={continuations.reduce((acc, c) => acc + c.games_count, 0)}
+          currentFen={currentFen}
+          onSelectMove={handleSelectMove}
+          onLoadGame={handleLoadSingleGame}
+          playerName={currentPlayerObj?.canonical_name}
+          players={players}
+          selectedPlayerId={selectedPlayerId || undefined}
+          onSelectPlayer={handlePlayerChange}
+          embedded={true}
+          isLoading={treeLoading || isProfileDataLoading}
+          isSandboxMode={workspaceStore.activeMode === "sandbox"}
+          isMultiMode={workspaceStore.activeMode === "multi"}
+          multiTitle={
+            workspaceStore.activeMode === "multi"
+              ? `Matchup: ⚪ ${
+                  workspaceStore.multiProfiles
+                    .filter((m) => m.role === "white" || m.role === "both")
+                    .map((m) => m.player.canonical_name)
+                    .join(", ") || "Trắng"
+                } vs ⚫ ${
+                  workspaceStore.multiProfiles
+                    .filter((m) => m.role === "black" || m.role === "both")
+                    .map((m) => m.player.canonical_name)
+                    .join(", ") || "Đen"
+                }`
+              : undefined
+          }
+        />
+      </div>
+    </>
+  );
+
+  return (
+    <div className={`w-full max-w-[1720px] mx-auto animate-fade-in ${boardPlayersInfo ? "pt-7 sm:pt-8" : "pt-1 sm:pt-3"} pb-6 space-y-5`}>
+
+      {/* MATCHUP MODE BANNER */}
+      {workspaceStore.activeMode === "multi" && workspaceStore.multiProfiles.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:px-4 sm:py-3 rounded-md bg-muted/40 border border-border/70 text-foreground">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded bg-emerald-50 text-emerald-700">
+              <Swords className="w-5 h-5" />
             </div>
             <div>
-              <span className="font-semibold text-rose-600 dark:text-rose-400">Đối ứng: </span>
-              <span>{selectedStructure.strategic_plan.counter_ideas.join(" ")}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  Cây Khai Cuộc Matchup Ghép Đôi
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Tần suất nước đi & tỷ lệ thắng được tổng hợp theo đúng vai trò:{" "}
+                <b className="text-foreground">⚪ Trắng ({workspaceStore.multiProfiles.filter((m) => m.role === "white" || m.role === "both").map((m) => m.player.canonical_name).join(", ") || "Chưa chọn"})</b>{" "}
+                vs{" "}
+                <b className="text-foreground">⚫ Đen ({workspaceStore.multiProfiles.filter((m) => m.role === "black" || m.role === "both").map((m) => m.player.canonical_name).join(", ") || "Chưa chọn"})</b>
+              </p>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => workspaceStore.openHub()}
+            className="px-3 py-1.5 rounded border border-border/70 hover:bg-muted text-foreground text-xs font-medium transition self-start sm:self-auto shrink-0"
+          >
+            Chỉnh sửa tổ hợp
+          </button>
         </div>
       )}
 
       {/* Main Analysis Workspace */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 items-start">
-        {/* Left Column: Interactive ChessBoard (7 Cols) - Sticky on mobile / iPad */}
-        <div className="lg:col-span-7 flex flex-col items-center w-full sticky top-14 z-20 bg-background pt-1 pb-2 border-b border-border/40 lg:static lg:bg-transparent lg:p-0 lg:border-none">
-          <div className="relative flex justify-center w-full">
-            <ChessBoard
-              initialFen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-              moves={moves}
-              currentPly={currentPly}
-              orientation={boardOrientation}
-              onOrientationChange={setBoardOrientation}
-              playersInfo={boardPlayersInfo}
-              onPositionChange={handlePositionChange}
-              onMakeMove={handleMakeMove}
-              onMovesChange={handleMovesChange}
-              onEvaluationChange={(ev, thinking) => {
-                setEvaluation(ev);
-                setIsThinking(thinking);
-              }}
-              isEngineEnabled={isEngineEnabled}
-              multiPv={multiPv}
-              height={isLgScreen ? 720 : 420}
-              onBoardWidthChange={(size) => setBoardSize(size)}
-            />
-            {queryStructure && !selectedOpening && moves.length === 0 && isProfileDataLoading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/55 backdrop-blur-[2px] rounded-xl pointer-events-none">
-                <div className="bg-card/95 border border-border/70 rounded-xl px-4 py-2.5 shadow-lg flex items-center gap-2.5 text-xs font-semibold text-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
-                  <span>Đang nạp thế cờ hình thành cấu trúc {queryStructure}...</span>
-                </div>
-              </div>
-            )}
+      {isExplorerMode ? (
+        <div className="flex flex-col lg:flex-row gap-5 xl:gap-6 items-start w-full">
+          {/* Left Column (Only in Explorer Mode on Desktop): Info Panel (280-300px) */}
+          <div
+            style={{ height: `${boardSize}px` }}
+            className="hidden lg:block w-[280px] xl:w-[300px] shrink-0"
+          >
+            {renderExplorerPanel(false)}
           </div>
 
-          {/* Board Tools: Flip & Reset */}
+          {/* Center Column: ChessBoard Column */}
           <div
-            style={{ width: `${boardSize + 22}px`, maxWidth: "100%" }}
-            className="mt-2 bg-card/90 dark:bg-slate-900/90 border border-border/70 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 flex items-center justify-end gap-1.5 sm:gap-2 shadow-xs select-none"
+            style={{ width: `${boardSize + 24}px`, maxWidth: "100%" }}
+            className="shrink-0 flex flex-col items-center sticky top-14 z-20 bg-background pt-1 pb-2 border-b border-border/40 lg:static lg:bg-transparent lg:p-0 lg:border-none"
           >
-            {/* Side Tools: Flip & Reset */}
-            <button
-              type="button"
-              onClick={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
-              title={`Xoay bàn cờ (Đang xem: ${boardOrientation === "white" ? "Trắng" : "Đen"})`}
-              className="h-8.5 sm:h-9 px-2.5 sm:px-3 rounded-lg flex items-center gap-1.5 bg-secondary/50 hover:bg-secondary dark:hover:bg-slate-800 text-muted-foreground hover:text-foreground text-xs font-semibold transition cursor-pointer active:scale-95"
-            >
-              <RotateCw className="w-3.5 h-3.5" />
-              <span>Xoay</span>
-            </button>
+            <div className="block lg:hidden w-full mb-3">{renderExplorerPanel(true)}</div>
+            {renderChessBoardSection()}
+          </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setMoves([]);
-                setCurrentPly(0);
-                setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-                setMoveTree(createMoveTreeFromMoves([]));
-                setSelectedOpening(null);
-                setGameInfo(null);
-              }}
-              disabled={
-                !gameInfo &&
-                moves.length === 0 &&
-                currentFen === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-              }
-              title="Xóa ván cờ về bàn cờ ban đầu"
-              className="h-8.5 sm:h-9 px-2.5 sm:px-3 rounded-lg flex items-center gap-1.5 bg-secondary/50 hover:bg-destructive/10 hover:text-destructive text-muted-foreground disabled:opacity-30 disabled:pointer-events-none text-xs font-semibold transition cursor-pointer active:scale-95"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Xóa bàn</span>
-            </button>
+          {/* Right Column (Desktop >= 1024px): Move History & Variations - Expands to fill screen */}
+          <div
+            style={{ height: `${boardSize}px` }}
+            className="hidden lg:flex flex-1 min-w-[320px] flex-col bg-card border border-border/60 rounded-surface overflow-hidden"
+          >
+            {renderRightPanelContent()}
           </div>
         </div>
-
-        {/* Right Column (Desktop >= 1024px): Unified Move History & Opening Variations Panel */}
-        {isLgScreen ? (
-          <div
-            style={{ height: `${boardSize + (boardPlayersInfo ? BOARD_PLAYERS_BAR_HEIGHT : 0)}px` }}
-            className="lg:col-span-5 flex flex-col bg-card border border-border/50 rounded-xl shadow-2xs overflow-hidden"
-          >
-            {/* Top: Move History (Notation + Stockfish Eval) - 50% equal height */}
-            <div className="flex-1 min-h-0 border-b border-border/50 flex flex-col overflow-hidden">
-              <MoveHistory
-                moves={moves}
-                currentPly={currentPly}
-                onSelectPly={handleSelectPly}
-                currentFen={currentFen}
-                evaluation={evaluation}
-                isThinking={isThinking}
-                isEngineEnabled={isEngineEnabled}
-                onToggleEngine={() => setIsEngineEnabled((prev) => !prev)}
-                multiPv={multiPv}
-                onMultiPvChange={(count) => setMultiPv(count)}
-                embedded={true}
-                moveTree={moveTree}
-                onSelectNode={handleSelectTreeNode}
-                onPromoteVariation={handlePromoteVariation}
-                onDeleteFromHere={handleDeleteFromHere}
-              />
-            </div>
-
-            {/* Middle: Compact Color Filter / Perspective Toolbar */}
-            <div className="px-3.5 py-1 bg-slate-50/80 dark:bg-slate-800/40 border-b border-border/50 flex items-center justify-between shrink-0 text-xs">
-              <div className="flex items-center gap-1.5 text-muted-foreground font-semibold text-[11px]">
-                <Layers className="w-3.5 h-3.5 text-primary" />
-                <span>Góc nhìn:</span>
-              </div>
-              <div className="flex items-center gap-1 p-0.5 bg-secondary/60 rounded-lg">
-                <button
-                  onClick={() => setColorFilter("all")}
-                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition ${colorFilter === "all" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
-                >
-                  Tất cả
-                </button>
-                <button
-                  onClick={() => {
-                    setColorFilter("white");
-                    setBoardOrientation("white");
-                  }}
-                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${colorFilter === "white" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-white border border-slate-300 dark:border-slate-500 shadow-2xs" />
-                  <span>Trắng</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setColorFilter("black");
-                    setBoardOrientation("black");
-                  }}
-                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${colorFilter === "black" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-600 shadow-2xs" />
-                  <span>Đen</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Bottom: Opening Continuations & Master Database - 50% equal height */}
-            <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden">
-              {treeLoading && (
-                <div
-                  className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-primary to-blue-500 animate-pulse z-30 pointer-events-none"
-                  title="Đang cập nhật biến thể..."
-                />
-              )}
-              <OpeningTreeTable
-                continuations={continuations}
-                totalGames={continuations.reduce((acc, c) => acc + c.games_count, 0)}
-                currentFen={currentFen}
-                onSelectMove={handleSelectMove}
-                onLoadGame={handleLoadSingleGame}
-                playerName={currentPlayerObj?.canonical_name}
-                players={players}
-                selectedPlayerId={selectedPlayerId || undefined}
-                onSelectPlayer={handlePlayerChange}
-                embedded={true}
-                isLoading={treeLoading || isProfileDataLoading}
-                isSandboxMode={workspaceStore.activeMode === "sandbox"}
-                isMultiMode={workspaceStore.activeMode === "multi"}
-                multiTitle={
-                  workspaceStore.activeMode === "multi"
-                    ? `Matchup: ⚪ ${
-                        workspaceStore.multiProfiles
-                          .filter((m) => m.role === "white" || m.role === "both")
-                          .map((m) => m.player.canonical_name)
-                          .join(", ") || "Trắng"
-                      } vs ⚫ ${
-                        workspaceStore.multiProfiles
-                          .filter((m) => m.role === "black" || m.role === "both")
-                          .map((m) => m.player.canonical_name)
-                          .join(", ") || "Đen"
-                      }`
-                    : undefined
-                }
-              />
-            </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 items-start">
+          {/* Left Column: Interactive ChessBoard (7 Cols - Large, filling the screen like Image 2) */}
+          <div className="lg:col-span-7 flex flex-col items-center w-full sticky top-14 z-20 bg-background pt-1 pb-2 border-b border-border/40 lg:static lg:bg-transparent lg:p-0 lg:border-none space-y-2">
+            {renderChessBoardSection()}
           </div>
-        ) : (
-          /* Mobile & iPad (< 1024px) Streamlined Tabbed Layout (Learned from Chess.com & Lichess) */
-          <div className="w-full flex flex-col gap-3">
+
+          {/* Right Column: Unified Move History & Opening Variations Panel (5 Cols - Large as in Image 2) */}
+          <div
+            style={{ height: `${boardSize}px` }}
+            className="hidden lg:flex lg:col-span-5 flex-col bg-card border border-border/60 rounded-surface overflow-hidden"
+          >
+            {renderRightPanelContent()}
+          </div>
+        </div>
+      )}
+
+      {/* Mobile & iPad (< 1024px) Streamlined Tabbed Layout (Learned from Chess.com & Lichess) */}
+      <div className="block lg:hidden w-full flex flex-col gap-3">
             {/* Tab navigation pills */}
-            <div className="flex items-center gap-1 p-1 bg-card/90 dark:bg-slate-900/90 border border-border/70 rounded-xl overflow-x-auto no-scrollbar shadow-xs">
+            <div className="flex items-center gap-1 p-1 bg-card border border-border/70 rounded-control overflow-x-auto no-scrollbar">
               <button
                 type="button"
                 onClick={() => setMobileTab("moves")}
-                className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 min-w-[70px] py-1.5 px-2 rounded text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   mobileTab === "moves"
-                    ? "bg-primary text-primary-foreground shadow-xs"
+                    ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
                 }`}
               >
@@ -2047,9 +2185,9 @@ export function AnalyzeContent() {
               <button
                 type="button"
                 onClick={() => setMobileTab("tree")}
-                className={`flex-1 min-w-[75px] py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 min-w-[75px] py-1.5 px-2 rounded text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   mobileTab === "tree"
-                    ? "bg-primary text-primary-foreground shadow-xs"
+                    ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
                 }`}
               >
@@ -2060,9 +2198,9 @@ export function AnalyzeContent() {
               <button
                 type="button"
                 onClick={() => setMobileTab("structures")}
-                className={`flex-1 min-w-[80px] py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 min-w-[80px] py-1.5 px-2 rounded text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   mobileTab === "structures"
-                    ? "bg-primary text-primary-foreground shadow-xs"
+                    ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
                 }`}
               >
@@ -2073,9 +2211,9 @@ export function AnalyzeContent() {
               <button
                 type="button"
                 onClick={() => setMobileTab("games")}
-                className={`flex-1 min-w-[75px] py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 min-w-[75px] py-1.5 px-2 rounded text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   mobileTab === "games"
-                    ? "bg-primary text-primary-foreground shadow-xs"
+                    ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
                 }`}
               >
@@ -2086,7 +2224,7 @@ export function AnalyzeContent() {
 
             {/* Mobile Tab 1: Nước đi */}
             {mobileTab === "moves" && (
-              <div className="h-[380px] sm:h-[450px] flex flex-col bg-card border border-border/60 rounded-xl overflow-hidden shadow-2xs">
+              <div className="h-[380px] sm:h-[450px] flex flex-col bg-card border border-border/60 rounded-surface overflow-hidden">
                 <MoveHistory
                   moves={moves}
                   currentPly={currentPly}
@@ -2103,22 +2241,36 @@ export function AnalyzeContent() {
                   onSelectNode={handleSelectTreeNode}
                   onPromoteVariation={handlePromoteVariation}
                   onDeleteFromHere={handleDeleteFromHere}
+                  onFlipBoard={() => setBoardOrientation((prev) => (prev === "white" ? "black" : "white"))}
+                  boardOrientation={boardOrientation}
+                  onResetBoard={() => {
+                    setMoves([]);
+                    setCurrentPly(0);
+                    setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                    setMoveTree(createMoveTreeFromMoves([]));
+                    setSelectedOpening(null);
+                    setGameInfo(null);
+                  }}
+                  canResetBoard={
+                    Boolean(gameInfo) ||
+                    moves.length > 0 ||
+                    currentFen !== "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+                  }
                 />
               </div>
             )}
 
             {/* Mobile Tab 2: Khai cuộc (Opening Tree) */}
             {mobileTab === "tree" && (
-              <div className="h-[420px] sm:h-[480px] flex flex-col bg-card border border-border/60 rounded-xl overflow-hidden shadow-2xs">
-                <div className="px-3 py-1.5 bg-slate-50/80 dark:bg-slate-800/40 border-b border-border/50 flex items-center justify-between shrink-0 text-xs">
+              <div className="h-[420px] sm:h-[480px] flex flex-col bg-card border border-border/60 rounded-surface overflow-hidden">
+                <div className="px-3 py-1.5 bg-slate-50 border-b border-border/50 flex items-center justify-between shrink-0 text-xs">
                   <div className="flex items-center gap-1.5 text-muted-foreground font-semibold text-[11px]">
                     <Layers className="w-3.5 h-3.5 text-primary" />
-                    <span>Góc nhìn:</span>
                   </div>
-                  <div className="flex items-center gap-1 p-0.5 bg-secondary/60 rounded-lg">
+                  <div className="flex items-center gap-1 p-0.5 bg-secondary/60 rounded">
                     <button
                       onClick={() => setColorFilter("all")}
-                      className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition ${colorFilter === "all" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+                      className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${colorFilter === "all" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
                     >
                       Tất cả
                     </button>
@@ -2129,7 +2281,7 @@ export function AnalyzeContent() {
                       }}
                       className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 ${colorFilter === "white" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
                     >
-                      <span className="w-2 h-2 rounded-full bg-white border border-slate-300 dark:border-slate-500 shadow-2xs" />
+                      <span className="w-2 h-2 rounded-full bg-white border border-slate-300 shadow-2xs" />
                       <span>Trắng</span>
                     </button>
                     <button
@@ -2167,7 +2319,7 @@ export function AnalyzeContent() {
 
             {/* Mobile Tab 3: Thế trận Tốt */}
             {mobileTab === "structures" && (
-              <div className="bg-card border border-border/60 rounded-xl p-3 sm:p-4 shadow-2xs space-y-3">
+              <div className="bg-card border border-border/60 rounded-surface p-3 sm:p-4 space-y-3">
                 {selectedStructure ? (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between pb-2 border-b border-border/50">
@@ -2185,11 +2337,11 @@ export function AnalyzeContent() {
                     {selectedStructure.strategic_plan && (
                       <div className="space-y-1.5 text-xs text-muted-foreground">
                         <div>
-                          <b className="text-emerald-600 dark:text-emerald-400">Kế hoạch: </b>
+                          <b className="text-emerald-700">Kế hoạch: </b>
                           <span>{selectedStructure.strategic_plan.ideas.join(" ")}</span>
                         </div>
                         <div>
-                          <b className="text-rose-600 dark:text-rose-400">Đối ứng: </b>
+                          <b className="text-rose-700">Đối ứng: </b>
                           <span>{selectedStructure.strategic_plan.counter_ideas.join(" ")}</span>
                         </div>
                       </div>
@@ -2211,7 +2363,7 @@ export function AnalyzeContent() {
 
             {/* Mobile Tab 4: Ván đấu */}
             {mobileTab === "games" && (
-              <div className="bg-card border border-border/60 rounded-xl p-3 sm:p-4 shadow-2xs space-y-3">
+              <div className="bg-card border border-border/60 rounded-surface p-3 sm:p-4 space-y-3">
                 {selectedOpening ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between border-b border-border/40 pb-2">
@@ -2232,7 +2384,7 @@ export function AnalyzeContent() {
                         {matchingOpeningGames.slice(0, 40).map((g, idx) => (
                           <div
                             key={g.id || idx}
-                            className="flex items-center justify-between p-2 rounded-lg bg-secondary/40 hover:bg-secondary/70 border border-border/40 text-xs"
+                            className="flex items-center justify-between p-2 rounded-control bg-secondary/40 hover:bg-secondary/70 border border-border/40 text-xs"
                           >
                             <div className="truncate min-w-0 pr-2">
                               <div className="font-semibold text-foreground truncate">
@@ -2263,49 +2415,10 @@ export function AnalyzeContent() {
               </div>
             )}
           </div>
-        )}
-      </div>
-
-      {/* Current FEN Bar & Action Buttons (Centered directly under the chessboard) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 pt-1">
-        <div className="lg:col-span-7 flex flex-col items-center">
-          <div
-            style={{ width: `${boardSize + 22}px`, maxWidth: "100%" }}
-            className="bg-card/60 border border-border/40 rounded-xl p-2.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 text-xs shadow-xs"
-          >
-            <div className="flex items-center gap-2 truncate min-w-0">
-              <span className="font-bold text-muted-foreground uppercase text-[10px] shrink-0">FEN:</span>
-              <span className="font-mono text-foreground truncate select-all text-[11px]">
-                {currentFen}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(currentFen);
-                  alert("Đã sao chép FEN vào clipboard!");
-                }}
-                className="px-2.5 py-1 rounded-lg bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground font-semibold text-[11px] whitespace-nowrap transition-all cursor-pointer"
-                title="Sao chép FEN"
-              >
-                Sao chép
-              </button>
-              <button
-                onClick={() => setShowPgnInput(true)}
-                className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white font-semibold text-[11px] whitespace-nowrap transition-all flex items-center gap-1 cursor-pointer border border-emerald-500/20"
-                title="Dán PGN hoặc FEN để nạp vào bàn cờ"
-              >
-                <Upload className="w-3 h-3" />
-                <span>Dán PGN / FEN</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* MODE A: OPENING GAMES LIST PANEL (Chỉ hiển thị trên desktop vì mobile/tablet đã có sub-tab ván đấu riêng) */}
-      {selectedOpening && !selectedStructure && (
-        <div className="hidden lg:block bg-card border border-border/50 rounded-xl p-4 sm:p-5 shadow-2xs space-y-3.5 animate-fade-in">
+      {isOpeningActive && !isStructureActive && (
+        <div className="hidden lg:block bg-card border border-border/60 rounded-surface p-4 sm:p-5 space-y-3.5 animate-fade-in">
           {/* Header & Search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/30 pb-3">
             <div>
@@ -2326,7 +2439,7 @@ export function AnalyzeContent() {
                 placeholder="Tìm đối thủ, ECO..."
                 value={openingSearch}
                 onChange={(e) => setOpeningSearch(e.target.value)}
-                className="w-full bg-secondary/40 border border-border/50 rounded-lg pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/60"
+                className="w-full bg-secondary/40 border border-border/50 rounded-control pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/60"
               />
             </div>
           </div>
@@ -2335,7 +2448,7 @@ export function AnalyzeContent() {
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => setOpeningFilter("all")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-control text-xs font-medium transition cursor-pointer ${
                 openingFilter === "all"
                   ? "bg-primary text-primary-foreground"
                   : "bg-secondary/50 text-muted-foreground hover:text-foreground"
@@ -2345,7 +2458,7 @@ export function AnalyzeContent() {
             </button>
             <button
               onClick={() => setOpeningFilter("wins")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-control text-xs font-medium transition cursor-pointer ${
                 openingFilter === "wins"
                   ? "bg-emerald-600 text-white"
                   : "bg-secondary/50 text-muted-foreground hover:text-foreground"
@@ -2355,7 +2468,7 @@ export function AnalyzeContent() {
             </button>
             <button
               onClick={() => setOpeningFilter("draws")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-control text-xs font-medium transition cursor-pointer ${
                 openingFilter === "draws"
                   ? "bg-amber-600 text-white"
                   : "bg-secondary/50 text-muted-foreground hover:text-foreground"
@@ -2365,7 +2478,7 @@ export function AnalyzeContent() {
             </button>
             <button
               onClick={() => setOpeningFilter("losses")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-control text-xs font-medium transition cursor-pointer ${
                 openingFilter === "losses"
                   ? "bg-rose-600 text-white"
                   : "bg-secondary/50 text-muted-foreground hover:text-foreground"
@@ -2376,8 +2489,8 @@ export function AnalyzeContent() {
           </div>
 
           {/* Games Table */}
-          <div className="overflow-x-auto border border-border/40 rounded-lg">
-            <table className="w-full text-left text-xs">
+          <div className="overflow-x-auto border border-border/60 rounded-table">
+            <table className="data-table w-full text-left text-xs">
               <thead className="bg-muted/40 text-muted-foreground font-semibold">
                 <tr>
                   <th className="px-3.5 py-2.5">#</th>
@@ -2406,22 +2519,22 @@ export function AnalyzeContent() {
                     const isCurrent = activeOpeningGameId === g.id;
                     const outcome = getGamePlayerOutcome(g, currentPlayerObj?.canonical_name);
 
-                    let resBadge = <span className="text-muted-foreground font-mono">{g.result}</span>;
+                    let resBadge = <span className="text-muted-foreground font-mono tabular-nums">{g.result}</span>;
                     if (outcome.isWin) {
                       resBadge = (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <span className="px-1.5 py-0.5 rounded-tag text-xs font-semibold border border-emerald-200 bg-emerald-50 text-emerald-800">
                           {g.result} (Thắng)
                         </span>
                       );
                     } else if (outcome.isDraw) {
                       resBadge = (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                        <span className="px-1.5 py-0.5 rounded-tag text-xs font-semibold border border-slate-200 bg-slate-100 text-slate-700">
                           {g.result} (Hòa)
                         </span>
                       );
                     } else if (outcome.isLoss) {
                       resBadge = (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                        <span className="px-1.5 py-0.5 rounded-tag text-xs font-semibold border border-rose-200 bg-rose-50 text-rose-800">
                           {g.result} (Thua)
                         </span>
                       );
@@ -2442,24 +2555,24 @@ export function AnalyzeContent() {
                     return (
                       <tr
                         key={g.id || idx}
-                        className={`transition ${isCurrent ? "bg-emerald-500/15 dark:bg-emerald-500/20 font-semibold" : "hover:bg-muted/50"}`}
+                        className={`transition ${isCurrent ? "bg-emerald-50 text-emerald-950 font-semibold" : "hover:bg-muted/50"}`}
                       >
-                        <td className="px-3.5 py-2 font-mono text-muted-foreground">
+                        <td className="px-3.5 py-2 font-mono tabular-nums text-muted-foreground">
                           {idx + 1}
                         </td>
                         <td className="px-3.5 py-2">
                           <div className="flex items-center gap-1.5 font-medium text-foreground">
-                            <span className="w-2 h-2 rounded-full bg-white border border-slate-300 dark:border-slate-500 shrink-0" />
+                            <span className="w-2 h-2 rounded-full bg-white border border-slate-300 shrink-0" />
                             <span>{g.white_player}</span>
                             {g.white_elo ? (
-                              <span className="text-[10px] text-muted-foreground font-normal font-mono">({g.white_elo})</span>
+                              <span className="text-[10px] text-muted-foreground font-normal font-mono tabular-nums">({g.white_elo})</span>
                             ) : null}
                           </div>
                           <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
-                            <span className="w-2 h-2 rounded-full bg-slate-900 dark:bg-slate-950 border border-slate-600 dark:border-slate-500 shrink-0" />
+                            <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-700 shrink-0" />
                             <span>{g.black_player}</span>
                             {g.black_elo ? (
-                              <span className="text-[10px] text-muted-foreground font-normal font-mono">({g.black_elo})</span>
+                              <span className="text-[10px] text-muted-foreground font-normal font-mono tabular-nums">({g.black_elo})</span>
                             ) : null}
                           </div>
                         </td>
@@ -2472,7 +2585,7 @@ export function AnalyzeContent() {
                         </td>
                         <td className="px-3.5 py-2 text-center">
                           {movesCount ? (
-                            <span className="font-mono text-xs px-2 py-0.5 rounded bg-secondary text-foreground">
+                            <span className="font-mono text-xs px-2 py-0.5 rounded-tag bg-secondary text-foreground tabular-nums">
                               {movesCount} nước
                             </span>
                           ) : (
@@ -2488,10 +2601,10 @@ export function AnalyzeContent() {
                           <button
                             onClick={() => handleLoadOpeningGame(g)}
                             disabled={isCurrent}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-control text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary ${
                               isCurrent
                                 ? "bg-emerald-600 text-white cursor-default"
-                                : "bg-primary text-primary-foreground hover:bg-primary/90"
+                                : "bg-secondary text-secondary-foreground hover:bg-emerald-600 hover:text-white"
                             }`}
                           >
                             {isCurrent ? (
@@ -2518,8 +2631,8 @@ export function AnalyzeContent() {
       )}
 
       {/* MODE B: STRUCTURE GAMES LIST PANEL (Chỉ hiển thị trên desktop vì mobile/tablet đã có sub-tab cấu trúc riêng) */}
-      {selectedStructure && (
-        <div className="hidden lg:block bg-card border border-border/50 rounded-xl p-4 sm:p-5 shadow-2xs space-y-3.5 animate-fade-in">
+      {isStructureActive && selectedStructure && (
+        <div className="hidden lg:block bg-card border border-border/60 rounded-surface p-4 sm:p-5 space-y-3.5 animate-fade-in">
           {/* Header & Search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/30 pb-3">
             <div>
@@ -2540,7 +2653,7 @@ export function AnalyzeContent() {
                 placeholder="Tìm đối thủ, khai cuộc..."
                 value={structureSearch}
                 onChange={(e) => setStructureSearch(e.target.value)}
-                className="w-full bg-secondary/40 border border-border/50 rounded-lg pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/60"
+                className="w-full bg-secondary/40 border border-border/50 rounded-control pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/60"
               />
             </div>
           </div>
@@ -2549,7 +2662,7 @@ export function AnalyzeContent() {
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => setStructureFilter("all")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-control text-xs font-medium transition cursor-pointer ${
                 structureFilter === "all"
                   ? "bg-primary text-primary-foreground"
                   : "bg-secondary/50 text-muted-foreground hover:text-foreground"
@@ -2559,7 +2672,7 @@ export function AnalyzeContent() {
             </button>
             <button
               onClick={() => setStructureFilter("wins")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-control text-xs font-medium transition cursor-pointer ${
                 structureFilter === "wins"
                   ? "bg-emerald-600 text-white"
                   : "bg-secondary/50 text-muted-foreground hover:text-foreground"
@@ -2569,7 +2682,7 @@ export function AnalyzeContent() {
             </button>
             <button
               onClick={() => setStructureFilter("draws")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-control text-xs font-medium transition cursor-pointer ${
                 structureFilter === "draws"
                   ? "bg-amber-600 text-white"
                   : "bg-secondary/50 text-muted-foreground hover:text-foreground"
@@ -2579,7 +2692,7 @@ export function AnalyzeContent() {
             </button>
             <button
               onClick={() => setStructureFilter("losses")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-control text-xs font-medium transition cursor-pointer ${
                 structureFilter === "losses"
                   ? "bg-rose-600 text-white"
                   : "bg-secondary/50 text-muted-foreground hover:text-foreground"
@@ -2590,8 +2703,8 @@ export function AnalyzeContent() {
           </div>
 
           {/* Games Table */}
-          <div className="overflow-x-auto border border-border/40 rounded-lg">
-            <table className="w-full text-left text-xs">
+          <div className="overflow-x-auto border border-border/60 rounded-table">
+            <table className="data-table w-full text-left text-xs">
               <thead className="bg-muted/40 text-muted-foreground font-semibold">
                 <tr>
                   <th className="px-3.5 py-2.5">#</th>
@@ -2612,22 +2725,22 @@ export function AnalyzeContent() {
                   filteredStructureGames.map((g, idx) => {
                     const isCurrent = activeStructureGameIdx === (g.game_index ?? idx);
 
-                    let resBadge = <span className="text-muted-foreground font-mono">{g.result}</span>;
+                    let resBadge = <span className="text-muted-foreground font-mono tabular-nums">{g.result}</span>;
                     if (g.is_win) {
                       resBadge = (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <span className="px-1.5 py-0.5 rounded-tag text-xs font-semibold border border-emerald-200 bg-emerald-50 text-emerald-800">
                           {g.result} (Thắng)
                         </span>
                       );
                     } else if (g.is_draw) {
                       resBadge = (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                        <span className="px-1.5 py-0.5 rounded-tag text-xs font-semibold border border-slate-200 bg-slate-100 text-slate-700">
                           {g.result} (Hòa)
                         </span>
                       );
                     } else if (g.is_loss) {
                       resBadge = (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                        <span className="px-1.5 py-0.5 rounded-tag text-xs font-semibold border border-rose-200 bg-rose-50 text-rose-800">
                           {g.result} (Thua)
                         </span>
                       );
@@ -2636,18 +2749,18 @@ export function AnalyzeContent() {
                     return (
                       <tr
                         key={idx}
-                        className={`transition ${isCurrent ? "bg-emerald-500/15 dark:bg-emerald-500/20 font-semibold" : "hover:bg-muted/50"}`}
+                        className={`transition ${isCurrent ? "bg-emerald-50 text-emerald-950 font-semibold" : "hover:bg-muted/50"}`}
                       >
-                        <td className="px-3.5 py-2 font-mono text-muted-foreground">
+                        <td className="px-3.5 py-2 font-mono tabular-nums text-muted-foreground">
                           {g.game_index !== undefined ? g.game_index + 1 : idx + 1}
                         </td>
                         <td className="px-3.5 py-2">
                           <div className="flex items-center gap-1.5 font-medium text-foreground">
-                            <span className="w-2 h-2 rounded-full bg-white border border-slate-300 dark:border-slate-500 shrink-0" />
+                            <span className="w-2 h-2 rounded-full bg-white border border-slate-300 shrink-0" />
                             <span>{g.white}</span>
                           </div>
                           <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
-                            <span className="w-2 h-2 rounded-full bg-slate-900 dark:bg-slate-950 border border-slate-600 dark:border-slate-500 shrink-0" />
+                            <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-700 shrink-0" />
                             <span>{g.black}</span>
                           </div>
                         </td>
@@ -2658,23 +2771,18 @@ export function AnalyzeContent() {
                           <div className="mt-0.5">{resBadge}</div>
                         </td>
                         <td className="px-3.5 py-2 text-center">
-                          <span className="font-mono text-xs px-2 py-0.5 rounded bg-secondary text-foreground">
+                          <span className="font-mono text-xs px-2 py-0.5 rounded-tag bg-secondary text-foreground tabular-nums">
                             Nước {g.formation_move || "?"}
                           </span>
-                          {g.evidence && (
-                            <div className="text-[10px] text-muted-foreground truncate max-w-[160px] mx-auto mt-0.5" title={g.evidence}>
-                              {g.evidence}
-                            </div>
-                          )}
                         </td>
                         <td className="px-3.5 py-2 text-right">
                           <button
                             onClick={() => handleLoadStructureGame(g, g.game_index ?? idx)}
                             disabled={isCurrent}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-control text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary ${
                               isCurrent
                                 ? "bg-emerald-600 text-white cursor-default"
-                                : "bg-primary text-primary-foreground hover:bg-primary/90"
+                                : "bg-secondary text-secondary-foreground hover:bg-emerald-600 hover:text-white"
                             }`}
                           >
                             {isCurrent ? (
@@ -2700,8 +2808,8 @@ export function AnalyzeContent() {
         </div>
       )}
 
-      {!selectedStructure && queryStructure && !selectedOpening && isProfileDataLoading && (
-        <div className="hidden lg:flex bg-card border border-border/50 rounded-xl p-6 shadow-2xs items-center justify-center gap-2.5 text-xs text-muted-foreground animate-fade-in">
+      {!selectedStructure && isStructureActive && isProfileDataLoading && (
+        <div className="hidden lg:flex bg-card border border-border/60 rounded-surface p-6 items-center justify-center gap-2.5 text-xs text-muted-foreground animate-fade-in">
           <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
           <span>Đang tải danh sách các ván đấu thực tế có cấu trúc <b className="text-foreground">{queryStructure}</b>...</span>
         </div>
@@ -2709,8 +2817,8 @@ export function AnalyzeContent() {
 
       {/* Custom PGN / FEN Modal */}
       {showPgnInput && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-card border border-border/80 rounded-xl max-w-lg w-full p-5 shadow-xl space-y-3.5 animate-scale-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
+          <div className="bg-card rounded-surface max-w-lg w-full p-5 shadow-xl space-y-3.5 animate-scale-in">
             <h3 className="font-bold text-base text-foreground flex items-center gap-2">
               <FileText className="w-4 h-4 text-primary" />
               Tải PGN hoặc FEN vào Bàn cờ
@@ -2724,19 +2832,19 @@ export function AnalyzeContent() {
                 value={inputPgn}
                 onChange={(e) => setInputPgn(e.target.value)}
                 placeholder="1. e4 e5 2. Nf3 Nc6 3. Bb5 a6..."
-                className="w-full bg-background border border-border/60 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-primary/60"
+                className="w-full bg-background border border-border/60 rounded px-3 py-2 text-xs font-mono focus:outline-none focus:border-primary/60"
               />
             </div>
             <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border/40">
               <button
                 onClick={() => setShowPgnInput(false)}
-                className="px-3.5 py-1.5 rounded-lg border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition cursor-pointer"
+                className="px-3.5 py-1.5 rounded border border-border/60 text-muted-foreground hover:text-foreground text-xs font-medium transition cursor-pointer"
               >
                 Hủy bỏ
               </button>
               <button
                 onClick={handleLoadCustomPgn}
-                className="px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition shadow-xs cursor-pointer"
+                className="px-4 py-1.5 rounded bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition cursor-pointer"
               >
                 Tải vào Bàn cờ
               </button>

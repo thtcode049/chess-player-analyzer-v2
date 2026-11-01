@@ -22,8 +22,7 @@ class AnalysisService:
         games: List[Dict[str, Any]],
         player_name: str,
         color_filter: str = "all",
-        run_label: str = "Complete Analytical Snapshot",
-        max_stockfish_games: int = 0
+        run_label: str = "Complete Analytical Snapshot"
     ) -> Dict[str, Any]:
         """
         Executes full deterministic analysis pipeline across game collection.

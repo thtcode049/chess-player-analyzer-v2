@@ -15,6 +15,8 @@ import {
   ChevronsRight,
   ClipboardCopy,
   Trash2,
+  RotateCw,
+  RotateCcw,
 } from "lucide-react";
 import {
   MoveTreeState,
@@ -42,6 +44,11 @@ interface MoveHistoryProps {
   onSelectNode?: (nodeId: string) => void;
   onPromoteVariation?: (nodeId: string) => void;
   onDeleteFromHere?: (nodeId: string) => void;
+  // Board tools integration
+  onFlipBoard?: () => void;
+  boardOrientation?: "white" | "black";
+  onResetBoard?: () => void;
+  canResetBoard?: boolean;
 }
 
 interface ContextMenuState {
@@ -79,6 +86,10 @@ export default function MoveHistory({
   onSelectNode,
   onPromoteVariation,
   onDeleteFromHere,
+  onFlipBoard,
+  boardOrientation = "white",
+  onResetBoard,
+  canResetBoard = true,
 }: MoveHistoryProps) {
   const activeRef = useRef<HTMLButtonElement | null>(null);
   const listContainerRef = useRef<HTMLDivElement | null>(null);
@@ -142,7 +153,7 @@ export default function MoveHistory({
   const scoreCp = evaluation?.score ?? 0;
   const isMate = evaluation?.isMate ?? false;
   let evalText = "—";
-  let evalColor = "text-slate-900 dark:text-slate-100";
+  let evalColor = "text-slate-900";
 
   if (isEngineOn && evaluation) {
     if (isMate) {
@@ -150,8 +161,8 @@ export default function MoveHistory({
       evalText = mateIn > 0 ? `#${mateIn}` : `#${mateIn}`;
       evalColor =
         mateIn > 0
-          ? "text-emerald-600 dark:text-emerald-400"
-          : "text-rose-600 dark:text-rose-400";
+          ? "text-emerald-700"
+          : "text-rose-700";
     } else {
       const pawns = scoreCp / 100;
       if (pawns === 0) {
@@ -161,11 +172,11 @@ export default function MoveHistory({
       }
 
       if (pawns >= 0.3) {
-        evalColor = "text-emerald-600 dark:text-emerald-400";
+        evalColor = "text-emerald-700";
       } else if (pawns <= -0.3) {
-        evalColor = "text-slate-600 dark:text-slate-400";
+        evalColor = "text-slate-600";
       } else {
-        evalColor = "text-slate-800 dark:text-slate-200";
+        evalColor = "text-slate-800";
       }
     }
   }
@@ -362,12 +373,12 @@ export default function MoveHistory({
       className={
         embedded
           ? "flex flex-col h-full w-full overflow-hidden bg-transparent relative"
-          : "flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm h-full relative"
+          : "flex flex-col bg-white border border-slate-200 rounded-md overflow-hidden h-full relative"
       }
     >
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-lg border border-slate-700/80 animate-in fade-in-50 slide-in-from-top-2 pointer-events-none">
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full border border-slate-700/80 animate-in fade-in-50 slide-in-from-top-2 pointer-events-none">
           {toastMessage}
         </div>
       )}
@@ -376,11 +387,11 @@ export default function MoveHistory({
       {contextMenu && (
         <div
           style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
-          className="fixed z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-1.5 min-w-[210px] text-xs animate-in fade-in-50 zoom-in-95 select-none"
+          className="fixed z-50 bg-white border border-slate-200 rounded-md shadow-xl py-1.5 min-w-[210px] text-xs animate-in fade-in-50 zoom-in-95 select-none"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="px-3.5 py-1.5 font-bold text-slate-800 dark:text-slate-100 border-b border-slate-100 dark:border-slate-800 text-center text-sm">
+          <div className="px-3.5 py-1.5 font-bold text-slate-800 border-b border-slate-100 text-center text-sm">
             {contextMenu.title}
           </div>
 
@@ -389,9 +400,9 @@ export default function MoveHistory({
             <button
               type="button"
               onClick={handlePromoteAction}
-              className="w-full px-3.5 py-2 flex items-center gap-2.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-medium transition"
+              className="w-full px-3.5 py-2 flex items-center gap-2.5 text-left hover:bg-slate-100 text-slate-800 cursor-pointer font-medium transition"
             >
-              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
+              <Check className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
               <span>Trở thành biến chính</span>
             </button>
           )}
@@ -400,7 +411,7 @@ export default function MoveHistory({
           <button
             type="button"
             onClick={handleCopyPgnAction}
-            className="w-full px-3.5 py-2 flex items-center gap-2.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer font-medium transition"
+            className="w-full px-3.5 py-2 flex items-center gap-2.5 text-left hover:bg-slate-100 text-slate-700 cursor-pointer font-medium transition"
           >
             <ClipboardCopy className="w-4 h-4 text-slate-400" />
             <span>Sao chép biến PGN</span>
@@ -411,7 +422,7 @@ export default function MoveHistory({
             <button
               type="button"
               onClick={handleDeleteAction}
-              className="w-full px-3.5 py-2 flex items-center gap-2.5 text-left hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 cursor-pointer font-medium transition"
+              className="w-full px-3.5 py-2 flex items-center gap-2.5 text-left hover:bg-rose-50 text-rose-600 cursor-pointer font-medium transition"
             >
               <Trash2 className="w-4 h-4 text-rose-500" />
               <span>Xoá từ đây</span>
@@ -421,7 +432,7 @@ export default function MoveHistory({
       )}
 
       {/* Top Engine & Eval Header */}
-      <div className="px-3.5 py-2 bg-slate-50/90 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800 shrink-0">
+      <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-200 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Engine On/Off Toggle Switch */}
@@ -429,7 +440,7 @@ export default function MoveHistory({
               type="button"
               onClick={handleToggle}
               className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                isEngineOn ? "bg-emerald-600 shadow-xs" : "bg-slate-300 dark:bg-slate-700"
+                isEngineOn ? "bg-emerald-600 shadow-xs" : "bg-slate-300"
               }`}
               title={isEngineOn ? "Tắt tính toán Stockfish" : "Bật tính toán Stockfish"}
             >
@@ -448,33 +459,33 @@ export default function MoveHistory({
 
             {/* Large Bold Evaluation Score */}
             <div className="flex items-baseline gap-1">
-              <span className={`text-2xl font-black font-mono tracking-tight ${evalColor}`}>
+              <span className={`text-2xl font-black font-mono tabular-nums tracking-tight ${evalColor}`}>
                 {evalText}
               </span>
             </div>
 
             {/* Engine Sub-info (SF 19 1MB NNUE + Depth) */}
             <div className="flex flex-col text-[11px] leading-tight">
-              <div className="flex items-center gap-1 font-bold text-slate-700 dark:text-slate-300">
+              <div className="flex items-center gap-1 font-bold text-slate-700">
                 <span>SF 19 1MB</span>
-                <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">
+                <span className="text-[10px] font-extrabold text-emerald-700">
                   NNUE
                 </span>
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-500/10 px-1 py-0.2 rounded font-mono">
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-sky-700 bg-sky-50 px-1 py-0.2 rounded font-mono tabular-nums">
                   + Độ sâu {isEngineOn ? (evaluation?.depth ?? (isThinking ? "..." : 14)) : 0}
                 </span>
                 {evaluation?.isCloud ? (
                   <span
-                    className="inline-flex items-center gap-1 text-[9px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.2 rounded tracking-wide shadow-xs"
+                    className="inline-flex items-center gap-1 text-[9px] font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded tracking-wide shadow-xs"
                     title="Đánh giá từ Cloud Eval độ sâu tuyệt đối (Lichess Master DB)"
                   >
-                    <Cloud className="w-2.5 h-2.5 fill-emerald-500/30 text-emerald-600 dark:text-emerald-400" />
+                    <Cloud className="w-2.5 h-2.5 fill-emerald-500/30 text-emerald-700" />
                     CLOUD
                   </span>
                 ) : (
-                  <span className="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-500/15 px-1 py-0.2 rounded">
+                  <span className="text-[9px] font-extrabold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded">
                     WASM
                   </span>
                 )}
@@ -492,13 +503,13 @@ export default function MoveHistory({
             <div className="relative">
               <button
                 onClick={() => setShowSettingsPopover((prev) => !prev)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition cursor-pointer"
+                className="p-1.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
                 title="Thông tin Engine"
               >
                 <Settings className="w-4 h-4" />
               </button>
               {showSettingsPopover && (
-                <div className="absolute right-0 top-8 z-20 w-64 rounded-xl bg-slate-900 text-slate-100 p-3 text-[11px] shadow-xl border border-slate-700 space-y-2">
+                <div className="absolute right-0 top-8 z-20 w-64 rounded-md bg-slate-900 text-slate-100 p-3 text-[11px] shadow-xl border border-slate-700 space-y-2">
                   <div className="font-bold text-emerald-400">Stockfish 19 NNUE & Cloud Eval</div>
                   <div className="flex items-center justify-between text-slate-300">
                     <span>Độ sâu đám mây (Cloud):</span>
@@ -524,7 +535,7 @@ export default function MoveHistory({
         className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1 text-xs scroll-smooth"
       >
         {mainLinePairs.length === 0 ? (
-          <div className="text-center py-8 text-xs text-slate-400 dark:text-slate-500 font-sans">
+          <div className="text-center py-8 text-xs text-slate-400 font-sans">
             Chưa có nước đi nào
           </div>
         ) : (
@@ -546,7 +557,7 @@ export default function MoveHistory({
                 {/* Main line 3-column row */}
                 <div className="grid grid-cols-[34px_1fr_1fr] items-center gap-1.5 rounded-lg text-xs">
                   {/* Gutter: Move Number */}
-                  <span className="text-center font-semibold text-slate-400 bg-slate-100/70 dark:bg-slate-800/70 rounded py-1 select-none text-[13px]">
+                  <span className="text-center font-normal text-slate-400 py-1 select-none text-[13px] font-mono tabular-nums">
                     {pair.number}
                   </span>
 
@@ -566,14 +577,14 @@ export default function MoveHistory({
                     className={`px-2.5 py-1.5 rounded text-left transition flex items-center justify-between cursor-pointer ${
                       isWhiteActive
                         ? "bg-sky-600 text-white shadow-xs font-normal"
-                        : "text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 font-normal"
+                        : "text-slate-800 hover:bg-slate-100 font-normal"
                     }`}
                   >
                     <span className="font-normal text-[15px]">
                       <FigurineMove san={whiteSan} />
                     </span>
                     {isWhiteActive && isEngineOn && evalText !== "—" && (
-                      <span className="text-[11px] font-mono opacity-90 pl-1 font-bold">
+                      <span className="text-[11px] font-mono tabular-nums opacity-90 pl-1 font-bold">
                         {evalText}
                       </span>
                     )}
@@ -596,14 +607,14 @@ export default function MoveHistory({
                       className={`px-2.5 py-1.5 rounded text-left transition flex items-center justify-between cursor-pointer ${
                         isBlackActive
                           ? "bg-sky-600 text-white shadow-xs font-normal"
-                          : "text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 font-normal"
+                          : "text-slate-800 hover:bg-slate-100 font-normal"
                       }`}
                     >
                       <span className="font-normal text-[15px]">
                         <FigurineMove san={blackSan} />
                       </span>
                       {isBlackActive && isEngineOn && evalText !== "—" && (
-                        <span className="text-[11px] font-mono opacity-90 pl-1 font-bold">
+                        <span className="text-[11px] font-mono tabular-nums opacity-90 pl-1 font-bold">
                           {evalText}
                         </span>
                       )}
@@ -619,7 +630,7 @@ export default function MoveHistory({
                     return (
                       <div
                         key={`w-var-${vIdx}`}
-                        className="ml-5 pl-2.5 py-1 my-0.5 border-l-2 border-slate-300 dark:border-slate-700 bg-slate-100/40 dark:bg-slate-800/30 rounded-r flex flex-wrap items-center gap-1 text-xs"
+                        className="ml-5 min-w-0 border-l border-slate-200 pl-2 py-0.5 my-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs"
                       >
                         <span className="text-slate-400 font-bold select-none mr-0.5">—</span>
                         {varBranch.map((mNode: MoveNode, mIdx: number) => {
@@ -635,8 +646,8 @@ export default function MoveHistory({
                               onContextMenu={(e) => handleContextMenu(e, mNode)}
                               className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded transition cursor-pointer text-[13px] ${
                                 isActive
-                                  ? "bg-sky-600 text-white font-medium shadow-xs"
-                                  : "text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700/80 font-normal"
+                  ? "bg-sky-100 text-sky-900 font-medium"
+                                  : "text-slate-700 hover:text-slate-950 hover:underline decoration-slate-300 font-normal"
                               }`}
                               title="Bấm chuột phải để tuỳ chọn biến (Trở thành biến chính, sao chép, xoá)"
                             >
@@ -670,7 +681,7 @@ export default function MoveHistory({
                     return (
                       <div
                         key={`b-var-${vIdx}`}
-                        className="ml-5 pl-2.5 py-1 my-0.5 border-l-2 border-slate-300 dark:border-slate-700 bg-slate-100/40 dark:bg-slate-800/30 rounded-r flex flex-wrap items-center gap-1 text-xs"
+                        className="ml-5 min-w-0 border-l border-slate-200 pl-2 py-0.5 my-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs"
                       >
                         <span className="text-slate-400 font-bold select-none mr-0.5">—</span>
                         {varBranch.map((mNode: MoveNode, mIdx: number) => {
@@ -686,8 +697,8 @@ export default function MoveHistory({
                               onContextMenu={(e) => handleContextMenu(e, mNode)}
                               className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded transition cursor-pointer text-[13px] ${
                                 isActive
-                                  ? "bg-sky-600 text-white font-medium shadow-xs"
-                                  : "text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700/80 font-normal"
+                  ? "bg-sky-100 text-sky-900 font-medium"
+                                  : "text-slate-700 hover:text-slate-950 hover:underline decoration-slate-300 font-normal"
                               }`}
                               title="Bấm chuột phải để tuỳ chọn biến (Trở thành biến chính, sao chép, xoá)"
                             >
@@ -721,7 +732,7 @@ export default function MoveHistory({
       </div>
 
       {/* Touch-Friendly Move Navigation Bar */}
-      <div className="px-2.5 py-1.5 bg-slate-50/90 dark:bg-slate-800/80 border-t border-slate-200/80 dark:border-slate-800 shrink-0 flex items-center justify-between text-xs select-none">
+      <div className="px-2.5 py-1.5 bg-slate-50 border-t border-slate-200 shrink-0 flex items-center justify-start text-xs select-none">
         <div className="flex items-center gap-1 sm:gap-1.5">
           <button
             type="button"
@@ -732,7 +743,7 @@ export default function MoveHistory({
                 : currentPly === 0 || moves.length === 0
             }
             title="Nước đầu tiên (Phím Home)"
-            className="h-8 w-8 sm:h-8 sm:w-8.5 rounded-lg flex items-center justify-center bg-white dark:bg-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-600/80 transition cursor-pointer active:scale-95"
+            className="h-8 w-8 sm:h-8 sm:w-8.5 rounded-lg flex items-center justify-center border-0 bg-transparent hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none text-slate-700 transition cursor-pointer active:scale-95"
           >
             <ChevronsLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
@@ -745,7 +756,7 @@ export default function MoveHistory({
                 : currentPly === 0 || moves.length === 0
             }
             title="Lùi 1 nước (Phím < hoặc ←)"
-            className="h-8 w-9 sm:h-8 sm:w-10 rounded-lg flex items-center justify-center bg-white dark:bg-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-600/80 transition cursor-pointer active:scale-95"
+            className="h-8 w-9 sm:h-8 sm:w-10 rounded-lg flex items-center justify-center border-0 bg-transparent hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none text-slate-700 transition cursor-pointer active:scale-95"
           >
             <ChevronLeft className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           </button>
@@ -759,7 +770,7 @@ export default function MoveHistory({
                 : currentPly >= moves.length || moves.length === 0
             }
             title="Tiến 1 nước (Phím > hoặc →)"
-            className="h-8 w-9 sm:h-8 sm:w-10 rounded-lg flex items-center justify-center bg-white dark:bg-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-600/80 transition cursor-pointer active:scale-95"
+            className="h-8 w-9 sm:h-8 sm:w-10 rounded-lg flex items-center justify-center border-0 bg-transparent hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none text-slate-700 transition cursor-pointer active:scale-95"
           >
             <ChevronRight className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           </button>
@@ -773,13 +784,40 @@ export default function MoveHistory({
                 : currentPly >= moves.length || moves.length === 0
             }
             title="Nước cuối cùng (Phím End)"
-            className="h-8 w-8 sm:h-8 sm:w-8.5 rounded-lg flex items-center justify-center bg-white dark:bg-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-600/80 transition cursor-pointer active:scale-95"
+            className="h-8 w-8 sm:h-8 sm:w-8.5 rounded-lg flex items-center justify-center border-0 bg-transparent hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none text-slate-700 transition cursor-pointer active:scale-95"
           >
             <ChevronsRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
-        </div>
-        <div className="text-[11px] text-slate-400 font-mono hidden sm:block">
-          {moveTree ? `${activePath.length} nước` : `${moves.length} nước`}
+
+          {/* Board Tools: Flip & Reset */}
+          {(onFlipBoard || onResetBoard) && (
+            <>
+              <div className="h-4 w-px bg-slate-200 mx-0.5" />
+              {onFlipBoard && (
+                <button
+                  type="button"
+                  onClick={onFlipBoard}
+                  title={`Xoay bàn cờ (Đang xem: ${boardOrientation === "white" ? "Trắng" : "Đen"})`}
+                  className="h-8 px-2 rounded-lg flex items-center gap-1 border-0 bg-transparent hover:bg-slate-100 text-slate-700 transition cursor-pointer active:scale-95 text-[11px] font-medium"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Xoay</span>
+                </button>
+              )}
+              {onResetBoard && (
+                <button
+                  type="button"
+                  onClick={onResetBoard}
+                  disabled={canResetBoard === false}
+                  title="Xóa ván cờ về bàn cờ ban đầu"
+                  className="h-8 px-2 rounded-lg flex items-center gap-1 border-0 bg-transparent hover:bg-rose-100 hover:text-rose-700 disabled:opacity-30 disabled:pointer-events-none text-slate-700 transition cursor-pointer active:scale-95 text-[11px] font-medium"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Xóa bàn</span>
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

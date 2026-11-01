@@ -62,31 +62,31 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-12">
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-12">
       {/* Header */}
-      <div className="border-b border-border/40 pb-6">
-        <h1 className="text-3xl font-black text-foreground tracking-tight flex items-center gap-3">
-          <Settings className="w-8 h-8 text-primary" />
+      <div className="border-b border-border/40 pb-4">
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight flex items-center gap-2.5">
+          <Settings className="w-6 h-6 text-emerald-600 shrink-0" />
           Cấu Hình Tài Khoản & Tùy Chọn
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
           Quản lý tài khoản nền tảng cờ vua và ủy quyền kết nối Lichess.
         </p>
       </div>
 
       {saved && (
-        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-500 text-sm flex items-center gap-3 animate-fade-in">
-          <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-md text-emerald-800 text-xs sm:text-sm flex items-center gap-2.5 animate-fade-in">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>Đã lưu toàn bộ cài đặt thành công!</span>
         </div>
       )}
 
-      <form onSubmit={handleSaveSettings} className="space-y-8">
+      <form onSubmit={handleSaveSettings} className="space-y-6">
         {/* Section 1: User Profile */}
-        <div className="bg-card border border-border/60 rounded-xl p-6 sm:p-8 shadow-xs space-y-5">
-          <div className="flex items-center gap-2.5 pb-2 border-b border-border/40">
-            <User className="w-5 h-5 text-primary" />
-            <h3 className="text-base font-bold text-foreground">Hồ Sơ Người Dùng</h3>
+        <div className="bg-card border border-border/70 rounded-surface p-5 sm:p-6 space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-border/40">
+            <User className="w-4 h-4 text-emerald-600" />
+            <h3 className="text-sm font-semibold text-foreground">Hồ Sơ Người Dùng</h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
@@ -99,7 +99,7 @@ export default function SettingsPage() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Đại kiện tướng"
-                className="w-full bg-background border border-border/60 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="w-full bg-background border border-border/60 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
             <div>
@@ -110,17 +110,17 @@ export default function SettingsPage() {
                 type="email"
                 disabled
                 value={email || "guest@chess-analyzer.local"}
-                className="w-full bg-muted/40 border border-border/60 rounded-lg px-4 py-2.5 text-sm text-muted-foreground cursor-not-allowed"
+                className="w-full bg-muted/40 border border-border/60 rounded px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
               />
             </div>
           </div>
         </div>
 
         {/* Section 2: Chess Platforms */}
-        <div className="bg-card border border-border/60 rounded-xl p-6 sm:p-8 shadow-xs space-y-5">
-          <div className="flex items-center gap-2.5 pb-2 border-b border-border/40">
-            <Globe className="w-5 h-5 text-primary" />
-            <h3 className="text-base font-bold text-foreground">Tài Khoản Nền Tảng Cờ Vua</h3>
+        <div className="bg-card border border-border/70 rounded-surface p-5 sm:p-6 space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-border/40">
+            <Globe className="w-4 h-4 text-emerald-600" />
+            <h3 className="text-sm font-semibold text-foreground">Tài Khoản Nền Tảng Cờ Vua</h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
@@ -133,7 +133,7 @@ export default function SettingsPage() {
                 value={lichessUser}
                 onChange={(e) => setLichessUser(e.target.value)}
                 placeholder="VD: thtcode, magnuscarlsen"
-                className="w-full bg-background border border-border/60 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="w-full bg-background border border-border/60 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
             <div>
@@ -145,7 +145,7 @@ export default function SettingsPage() {
                 value={chesscomUser}
                 onChange={(e) => setChesscomUser(e.target.value)}
                 placeholder="VD: hikaru, magnuscarlsen"
-                className="w-full bg-background border border-border/60 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="w-full bg-background border border-border/60 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -156,12 +156,12 @@ export default function SettingsPage() {
                     Ủy Quyền Lichess (OAuth 2.0 PKCE 1-Click)
                   </label>
                   {lichessAuth.isAuthorized && (
-                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1">
                       <CheckCircle2 className="w-3 h-3" /> Đã liên kết
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-muted-foreground max-w-lg">
+                <p className="text-[11px] text-muted-foreground max-w-lg leading-relaxed">
                   {lichessAuth.isAuthorized
                     ? `Đang liên kết với tài khoản Lichess @${lichessAuth.username || lichessUser || "User"}. Hệ thống tự động sử dụng phiên này để tăng tốc độ nạp ván và mở rộng hạn ngạch Cloud Eval (15 req/s).`
                     : "Ủy quyền 1-click trực tiếp qua tài khoản Lichess để tăng tốc độ nạp ván đấu và mở rộng hạn mức Cloud Eval lên 15 req/s (miễn nhiễm giới hạn IP)."}
@@ -172,7 +172,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={handleDisconnectLichess}
-                    className="px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-lg transition cursor-pointer border border-destructive/20"
+                    className="px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 rounded transition cursor-pointer border border-destructive/20"
                   >
                     Hủy liên kết
                   </button>
@@ -180,7 +180,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={handleAuthorizeLichess}
-                    className="px-4 py-2 text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg transition shadow-xs cursor-pointer flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-500 rounded transition cursor-pointer flex items-center gap-1.5"
                   >
                     Kết nối Lichess 1-Click
                   </button>
@@ -193,7 +193,7 @@ export default function SettingsPage() {
         <div className="flex justify-end">
           <button
             type="submit"
-            className="px-6 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-all flex items-center gap-2 text-sm shadow-xs"
+            className="px-5 py-2 bg-emerald-600 text-white font-medium rounded hover:bg-emerald-500 transition-colors flex items-center gap-2 text-xs sm:text-sm"
           >
             <Save className="w-4 h-4" />
             Lưu Tùy Chọn Cài Đặt

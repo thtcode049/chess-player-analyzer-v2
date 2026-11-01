@@ -94,22 +94,17 @@ export default function GuestCountdownBanner() {
     return null;
   }, [guestPlayers]);
 
-  // Save guest creation timestamp if guest data exists and not recorded yet
+  // Save guest creation timestamp whenever entering guest mode and not recorded yet
   useEffect(() => {
-    if (typeof window !== "undefined" && guestPlayers.length > 0) {
+    if (typeof window !== "undefined" && !user && !isAuthPage) {
       if (!sessionStorage.getItem("chess_guest_created_at")) {
         sessionStorage.setItem("chess_guest_created_at", new Date().toISOString());
       }
     }
-  }, [guestPlayers]);
+  }, [user, isAuthPage]);
 
-  // Don't render if SSR, logged in, on auth page, or no guest data
+  // Don't render if SSR, logged in, or on auth page
   if (!mounted || user || isAuthPage) {
-    return null;
-  }
-
-  // Only show the banner if the guest has imported or created at least 1 player
-  if (guestPlayers.length === 0 && !targetExpiryMs) {
     return null;
   }
 
@@ -149,22 +144,22 @@ export default function GuestCountdownBanner() {
   return (
     <aside
       aria-label="Thông báo phiên khách"
-      className={`w-full border-b transition-colors duration-300 relative z-40 backdrop-blur-md ${
+      className={`w-full border-b transition-colors relative z-40 ${
         isExpired
-          ? "bg-rose-500/15 border-rose-500/30 text-rose-950 dark:text-rose-200"
+          ? "bg-rose-50 border-rose-200 text-rose-900"
           : isUrgent
-          ? "bg-gradient-to-r from-rose-500/15 via-orange-500/10 to-rose-500/15 border-rose-500/40 text-rose-950 dark:text-rose-200"
-          : "bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/15 border-amber-500/30 text-amber-950 dark:text-amber-100"
+          ? "bg-rose-50 border-rose-200 text-rose-900"
+          : "bg-amber-50 border-amber-200 text-amber-900"
       }`}
     >
-      <div className="max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 2xl:px-10 py-2 sm:py-2.5 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 text-xs sm:text-sm">
+      <div className="max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 2xl:px-10 py-1.5 sm:py-2 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 text-xs">
         {/* Left Side: Badge + Description */}
-        <div className="flex items-center gap-2.5 flex-wrap justify-center sm:justify-start text-center sm:text-left">
+        <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start text-center sm:text-left">
           <span
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase shadow-xs ${
+            className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold uppercase ${
               isUrgent
-                ? "bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/40"
-                : "bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/40"
+                ? "bg-rose-100 text-rose-800"
+                : "bg-amber-100 text-amber-800"
             }`}
           >
             {isUrgent ? (
@@ -175,10 +170,14 @@ export default function GuestCountdownBanner() {
             Phiên Khách 24H
           </span>
 
-          <span className="font-medium text-slate-800 dark:text-slate-200">
+          <span className="font-medium text-foreground">
             {isExpired ? (
-              <span className="text-rose-600 dark:text-rose-400 font-semibold">
+              <span className="text-rose-700 font-semibold">
                 Dữ liệu lưu tạm 24h đã hết hạn và đang được dọn dẹp.
+              </span>
+            ) : guestPlayers.length === 0 ? (
+              <span>
+                Bạn đang ở chế độ khách. Dữ liệu tải lên sẽ tự động xóa sau:
               </span>
             ) : (
               <span>
@@ -190,10 +189,10 @@ export default function GuestCountdownBanner() {
           {/* Countdown Clock Pill */}
           {!isExpired && (
             <div
-              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md font-mono font-bold text-xs sm:text-sm shadow-xs ${
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono tabular-nums font-bold text-xs ${
                 isUrgent
-                  ? "bg-rose-500/25 text-rose-700 dark:text-rose-300 border border-rose-500/50 animate-pulse"
-                  : "bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/40"
+                  ? "bg-rose-100 text-rose-800"
+                  : "bg-amber-100 text-amber-800"
               }`}
             >
               <span>{formattedTime}</span>
@@ -202,13 +201,13 @@ export default function GuestCountdownBanner() {
         </div>
 
         {/* Right Side: CTA Action Buttons + Collapse */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <Link
             href="/register"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-medium text-xs sm:text-sm shadow-sm transition-all"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition-colors"
           >
             <Save className="w-3.5 h-3.5" />
-            <span>Đăng ký để lưu vĩnh viễn</span>
+            <span>Đăng ký lưu vĩnh viễn</span>
           </Link>
 
           <Link
@@ -220,11 +219,10 @@ export default function GuestCountdownBanner() {
 
           <button
             onClick={() => setIsCollapsed(true)}
-            aria-label="Thu gọn banner"
-            className="p-1 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-            title="Thu gọn banner"
+            className="p-1 rounded text-muted-foreground hover:text-foreground transition cursor-pointer"
+            title="Thu gọn thông báo"
           >
-            <ChevronDown className="w-4 h-4" />
+            <ChevronDown className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

@@ -90,16 +90,16 @@ function LichessCallbackContent() {
   }, [searchParams]);
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-xl max-w-md w-full p-8 shadow-2xl text-center space-y-5">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="bg-white border border-slate-200 rounded-md max-w-md w-full p-8 shadow-sm text-center space-y-5">
         {status === "loading" && (
           <>
-            <div className="w-14 h-14 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto text-blue-400">
-              <Loader2 className="w-7 h-7 animate-spin" />
+            <div className="w-12 h-12 rounded-md bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto text-emerald-600">
+              <Loader2 className="w-6 h-6 animate-spin" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Đang kết nối tài khoản Lichess</h2>
-              <p className="text-xs text-slate-400 mt-1.5">
+              <h2 className="text-base font-bold text-slate-900">Đang kết nối tài khoản Lichess</h2>
+              <p className="text-xs text-slate-500 mt-1.5">
                 Vui lòng đợi trong giây lát để hệ thống lưu ủy quyền và kích hoạt Master Database...
               </p>
             </div>
@@ -108,12 +108,12 @@ function LichessCallbackContent() {
 
         {status === "success" && (
           <>
-            <div className="w-14 h-14 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto text-emerald-400 animate-bounce">
-              <CheckCircle2 className="w-7 h-7" />
+            <div className="w-12 h-12 rounded-md bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto text-emerald-600">
+              <CheckCircle2 className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Ủy quyền Lichess thành công!</h2>
-              <p className="text-xs text-emerald-400/90 mt-1.5">
+              <h2 className="text-base font-bold text-slate-900">Ủy quyền Lichess thành công!</h2>
+              <p className="text-xs text-emerald-600 font-medium mt-1.5">
                 Đã ghi nhớ tài khoản. Đang đưa bạn quay trở lại ứng dụng...
               </p>
             </div>
@@ -122,19 +122,19 @@ function LichessCallbackContent() {
 
         {status === "error" && (
           <>
-            <div className="w-14 h-14 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto text-red-400">
-              <AlertCircle className="w-7 h-7" />
+            <div className="w-12 h-12 rounded-md bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto text-red-600">
+              <AlertCircle className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Ủy quyền chưa thành công</h2>
-              <p className="text-xs text-red-400 mt-1.5 bg-red-950/40 p-3 rounded-xl border border-red-900/40">
+              <h2 className="text-base font-bold text-slate-900">Ủy quyền chưa thành công</h2>
+              <p className="text-xs text-red-600 mt-1.5 bg-red-50 p-3 rounded border border-red-200">
                 {errorMessage}
               </p>
             </div>
             <div className="pt-2">
               <Link
                 href="/dashboard"
-                className="inline-flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white transition"
+                className="inline-flex items-center gap-2 text-xs font-medium px-4 py-2 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 transition"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Quay lại Tổng quan</span>

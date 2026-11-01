@@ -117,13 +117,13 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-[75vh] flex items-center justify-center p-4 animate-fade-in">
-      <div className="w-full max-w-md bg-card border border-border/80 rounded-xl p-6 sm:p-8 shadow-xl space-y-6 relative">
+      <div className="w-[calc(100vw_-_2rem)] max-w-md bg-card rounded-surface p-6 sm:p-7 shadow-md space-y-5 relative">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10 border border-primary/20 text-primary mb-1">
-            <UserPlus className="w-6 h-6" />
+        <div className="text-center space-y-1.5">
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 mb-1">
+            <UserPlus className="w-5 h-5" />
           </div>
-          <h1 className="text-2xl font-black text-foreground tracking-tight">
+          <h1 className="text-xl font-bold text-foreground tracking-tight">
             Tạo Tài Khoản Mới
           </h1>
           <p className="text-xs text-muted-foreground">
@@ -132,7 +132,7 @@ export default function RegisterPage() {
         </div>
 
         {error && (
-          <div className="p-3.5 bg-destructive/10 border border-destructive/30 rounded-xl text-destructive text-xs leading-relaxed flex items-start gap-2.5 animate-fade-in">
+          <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-destructive text-xs leading-relaxed flex items-start gap-2.5 animate-fade-in">
             <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
@@ -140,29 +140,29 @@ export default function RegisterPage() {
 
         {success ? (
           immediateLogin ? (
-            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-500 text-xs flex items-center gap-3 animate-fade-in">
-              <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-md text-emerald-800 text-xs flex items-center gap-2.5 animate-fade-in">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
               <span>Đăng ký thành công! Đang chuyển hướng đến bảng điều khiển...</span>
             </div>
           ) : (
-            <div className="p-5 bg-sky-500/10 border border-sky-500/30 rounded-xl space-y-3 animate-fade-in">
-              <div className="flex items-center gap-2.5 text-sky-500 font-bold text-sm">
-                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+            <div className="p-4 bg-sky-50 border border-sky-200 rounded-md space-y-3 animate-fade-in">
+              <div className="flex items-center gap-2 text-sky-800 font-bold text-xs sm:text-sm">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
                 <span>Yêu cầu đăng ký đã được ghi nhận!</span>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Hệ thống đã gửi liên kết xác thực đến địa chỉ:{" "}
                 <strong className="text-foreground">{successEmail}</strong>.
               </p>
-              <div className="p-3 bg-background/80 rounded-xl border border-border/60 text-[11px] text-muted-foreground leading-relaxed">
+              <div className="p-3 bg-background/80 rounded border border-border/60 text-[11px] text-muted-foreground leading-relaxed">
                 ⚠️ <strong className="text-foreground">Lưu ý quan trọng:</strong> Bạn bắt buộc phải mở hộp thư email (kiểm tra cả mục <strong>Thư rác / Spam</strong>) và nhấp vào liên kết xác nhận thì tài khoản mới được kích hoạt để đăng nhập.
               </div>
               <Link
                 href="/login"
-                className="w-full py-2.5 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 text-xs shadow-md shadow-primary/20"
+                className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded transition-colors flex items-center justify-center gap-2 text-xs"
               >
                 <span>Đi đến trang Đăng nhập</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
           )
@@ -173,10 +173,10 @@ export default function RegisterPage() {
               type="button"
               onClick={handleGoogleLogin}
               disabled={googleLoading || loading}
-              className="w-full py-2.5 px-4 bg-background border border-border/80 hover:bg-muted/50 text-foreground font-semibold rounded-xl transition-all flex items-center justify-center gap-3 text-xs shadow-sm hover:shadow"
+              className="w-full py-2 px-3 bg-background border border-border/80 hover:bg-muted/50 text-foreground font-medium rounded transition-colors flex items-center justify-center gap-2.5 text-xs"
             >
               {googleLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
               ) : (
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path
@@ -205,42 +205,42 @@ export default function RegisterPage() {
                 <div className="w-full border-t border-border/40" />
               </div>
               <div className="relative flex justify-center text-[10px] uppercase">
-                <span className="bg-card px-3 text-muted-foreground font-semibold">Hoặc tạo tài khoản bằng email</span>
+                <span className="bg-card px-2 text-muted-foreground font-medium">Hoặc tạo tài khoản bằng email</span>
               </div>
             </div>
 
             {/* Form */}
-            <form onSubmit={handleRegister} className="space-y-4 text-sm">
+            <form onSubmit={handleRegister} className="space-y-3.5 text-sm">
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
                   Họ &amp; Tên / Biệt Danh
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
                     type="text"
                     required
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="Nguyễn Văn A"
-                    className="w-full bg-background border border-border/60 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full bg-background border border-border/60 rounded pl-9 pr-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
                   Địa Chỉ Email Chính Thức
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="grandmaster@gmail.com"
-                    className="w-full bg-background border border-border/60 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full bg-background border border-border/60 rounded pl-9 pr-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
@@ -249,11 +249,11 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
                   Mật Khẩu (Tối thiểu 6 ký tự)
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
                     type="password"
                     required
@@ -261,7 +261,7 @@ export default function RegisterPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-background border border-border/60 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full bg-background border border-border/60 rounded pl-9 pr-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
               </div>
@@ -269,7 +269,7 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={loading || googleLoading}
-                className="w-full py-3 px-6 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-primary/20 text-sm"
+                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded transition-colors flex items-center justify-center gap-2 disabled:opacity-50 text-xs sm:text-sm"
               >
                 {loading ? (
                   <>
@@ -288,9 +288,9 @@ export default function RegisterPage() {
         )}
 
         {/* Footer */}
-        <p className="text-center text-xs text-muted-foreground pt-2">
+        <p className="text-center text-xs text-muted-foreground pt-1">
           Đã có tài khoản?{" "}
-          <Link href="/login" className="text-primary font-bold hover:underline">
+          <Link href="/login" className="text-emerald-700 font-semibold hover:underline">
             Đăng nhập ngay
           </Link>
         </p>

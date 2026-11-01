@@ -69,27 +69,27 @@ const MarkdownRenderer = React.memo(function MarkdownRenderer({
   const components = useMemo(
     () => ({
       h1: ({ children }: any) => (
-        <h1 className="text-base font-black text-slate-900 dark:text-white mt-3 mb-2 flex items-center gap-1.5 border-b border-slate-200/80 dark:border-slate-800 pb-1">
+        <h1 className="text-base font-black text-slate-900 mt-3 mb-2 flex items-center gap-1.5 border-b border-slate-200 pb-1">
           {children}
         </h1>
       ),
       h2: ({ children }: any) => (
-        <h2 className="text-sm font-black text-slate-900 dark:text-white mt-3 mb-1.5 flex items-center gap-1.5">
+        <h2 className="text-sm font-black text-slate-900 mt-3 mb-1.5 flex items-center gap-1.5">
           {children}
         </h2>
       ),
       h3: ({ children }: any) => (
-        <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-2.5 mb-1.5 pb-1 border-b border-slate-200/60 dark:border-slate-800 flex items-center gap-1.5">
+        <h3 className="text-sm font-bold text-slate-900 mt-2.5 mb-1.5 pb-1 border-b border-slate-200 flex items-center gap-1.5">
           {children}
         </h3>
       ),
       h4: ({ children }: any) => (
-        <h4 className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mt-2.5 mb-1">
+        <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-wider mt-2.5 mb-1">
           {children}
         </h4>
       ),
       p: ({ children }: any) => (
-        <p className="text-sm leading-relaxed text-slate-800 dark:text-slate-200 mb-2 last:mb-0">
+        <p className="text-sm leading-relaxed text-slate-800 mb-2 last:mb-0">
           {children}
         </p>
       ),
@@ -99,17 +99,17 @@ const MarkdownRenderer = React.memo(function MarkdownRenderer({
         </ul>
       ),
       ol: ({ children }: any) => (
-        <ol className="space-y-2 my-2 pl-4 list-decimal marker:text-emerald-600 dark:marker:text-emerald-400 font-semibold text-sm">
+        <ol className="space-y-2 my-2 pl-4 list-decimal marker:text-emerald-600 font-semibold text-sm">
           {children}
         </ol>
       ),
       li: ({ children }: any) => (
-        <li className="text-sm leading-relaxed text-slate-800 dark:text-slate-200">
+        <li className="text-sm leading-relaxed text-slate-800">
           {children}
         </li>
       ),
       strong: ({ children }: any) => (
-        <strong className="font-bold text-slate-950 dark:text-white">
+        <strong className="font-bold text-slate-950">
           {children}
         </strong>
       ),
@@ -125,7 +125,7 @@ const MarkdownRenderer = React.memo(function MarkdownRenderer({
                 onApplyFen(normalizeFen(strVal));
               }}
               title="Bấm để hiển thị thế cờ này lên bàn cờ"
-              className="inline-flex items-center gap-1 px-2 py-0.5 mx-1 rounded-md font-mono text-xs bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300/80 dark:border-emerald-700 hover:scale-105 transition-transform cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-1 px-2 py-0.5 mx-1 rounded-md font-mono text-xs bg-emerald-50 text-emerald-800 font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
             >
               <Layers className="w-3 h-3 text-emerald-600" />
               <span>[Xem thế cờ trên Bàn cờ]</span>
@@ -141,25 +141,25 @@ const MarkdownRenderer = React.memo(function MarkdownRenderer({
         );
       },
       blockquote: ({ children }: any) => (
-        <blockquote className="border-l-3 border-emerald-500 pl-3 py-1.5 my-2 bg-emerald-50/50 dark:bg-emerald-950/20 text-slate-700 dark:text-slate-300 italic text-xs rounded-r-xl">
+        <blockquote className="border-l border-emerald-500 pl-3 py-1.5 my-2 bg-emerald-50/40 text-slate-800 italic text-xs rounded-r">
           {children}
         </blockquote>
       ),
       hr: () => (
-        <hr className="my-3 border-t border-slate-200/80 dark:border-slate-800" />
+        <hr className="my-3 border-t border-border/80" />
       ),
       table: ({ children }: any) => (
-        <div className="overflow-x-auto my-2 rounded-xl border border-slate-200 dark:border-slate-800">
+        <div className="overflow-x-auto my-2 rounded border border-border">
           <table className="w-full text-xs text-left border-collapse">{children}</table>
         </div>
       ),
       th: ({ children }: any) => (
-        <th className="bg-slate-100 dark:bg-slate-800/80 px-3 py-2 font-bold border-b border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
+        <th className="bg-muted px-3 py-2 font-bold border-b border-border text-foreground">
           {children}
         </th>
       ),
       td: ({ children }: any) => (
-        <td className="px-3 py-2 border-b border-slate-100 dark:border-slate-800/60 text-slate-700 dark:text-slate-300">
+        <td className="px-3 py-2 border-b border-border/60 text-foreground">
           {children}
         </td>
       ),
@@ -194,25 +194,25 @@ function ThinkingState() {
   }, [steps.length]);
 
   return (
-    <div className="flex items-center gap-3.5 p-3 rounded-xl bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border border-emerald-500/20 shadow-xs animate-fade-in">
-      <div className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-xs shrink-0">
+    <div className="flex items-center gap-3.5 p-3 rounded-md bg-muted/50 border border-border/60 animate-fade-in">
+      <div className="relative flex items-center justify-center w-8 h-8 rounded-md bg-emerald-600 text-white shrink-0">
         <Brain className="w-4 h-4 animate-pulse" />
         <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
       </div>
 
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 tracking-tight">
+          <span className="text-xs font-bold text-emerald-800 tracking-tight">
             Trợ lí AI đang suy nghĩ
           </span>
           <div className="flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]" />
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse [animation-delay:-0.3s]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse [animation-delay:-0.15s]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
           </div>
         </div>
 
-        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium transition-all duration-300">
+        <p className="text-[11px] text-muted-foreground font-medium transition-all duration-300">
           {steps[stepIndex]}
         </p>
       </div>
@@ -410,22 +410,22 @@ export default function AiAssistantChat({
   };
 
   return (
-    <div className="flex flex-col w-full h-full min-w-0 bg-card border border-border/60 rounded-xl overflow-hidden shadow-xs">
+    <div className="flex flex-col w-full h-full min-w-0 bg-card border border-border/60 rounded-md overflow-hidden">
       {/* Top Chat Header Bar */}
-      <div className="h-12 shrink-0 px-3.5 border-b border-border/60 flex items-center justify-between gap-2 bg-card/60 backdrop-blur-xs">
+      <div className="h-12 shrink-0 px-3.5 border-b border-border/60 flex items-center justify-between gap-2 bg-card">
         <div className="flex items-center gap-2 min-w-0">
           {onToggleSidebar && (
             <button
               type="button"
               onClick={onToggleSidebar}
               title={isSidebarOpen ? "Đóng danh sách lịch sử" : "Mở danh sách lịch sử"}
-              className="p-1.5 rounded-lg border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer"
+              className="p-1.5 rounded border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer"
             >
               <PanelLeft className="w-4 h-4" />
             </button>
           )}
 
-          <div className="p-1.5 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-2xs shrink-0">
+          <div className="p-1.5 rounded bg-emerald-600 text-white shrink-0">
             <Brain className="w-4 h-4" />
           </div>
 
@@ -441,13 +441,31 @@ export default function AiAssistantChat({
 
         {/* Right header controls */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Board Toggle Button */}
+          {onToggleBoard && (
+            <button
+              type="button"
+              onClick={onToggleBoard}
+              className={`px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer border ${
+                isBoardOpen
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                  : "bg-muted text-muted-foreground hover:text-foreground border-border/70"
+              }`}
+              title={isBoardOpen ? "Ẩn bàn cờ tương tác" : "Hiện bàn cờ tương tác"}
+            >
+              {isBoardOpen ? <Eye className="w-3.5 h-3.5 text-emerald-600" /> : <EyeOff className="w-3.5 h-3.5" />}
+              <span>Bàn cờ:</span>
+              <span className="uppercase font-bold">{isBoardOpen ? "Bật" : "Tắt"}</span>
+            </button>
+          )}
+
           {/* New Chat Button */}
           {onNewChat && (
             <button
               type="button"
               onClick={onNewChat}
               title="Tạo đoạn chat mới"
-              className="p-1.5 rounded-lg border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer"
+              className="p-1.5 rounded border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
@@ -457,8 +475,8 @@ export default function AiAssistantChat({
 
       {/* When Board is Closed Notice Banner */}
       {!isBoardOpen && (
-        <div className="px-4 py-2 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border-b border-emerald-500/20 flex items-center justify-between gap-2 shrink-0 text-xs">
-          <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-medium">
+        <div className="px-4 py-2 bg-muted/40 border-b border-border/60 flex items-center justify-between gap-2 shrink-0 text-xs">
+          <div className="flex items-center gap-2 text-foreground font-medium">
             <Layers className="w-4 h-4 text-emerald-600" />
             <span>Bàn cờ tương tác đang tắt. AI sẽ trả lời toàn diện qua PGN hoặc tự mở bàn cờ khi cần thiết.</span>
           </div>
@@ -466,7 +484,7 @@ export default function AiAssistantChat({
             <button
               type="button"
               onClick={onToggleBoard}
-              className="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition cursor-pointer shrink-0"
+              className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition cursor-pointer shrink-0"
             >
               Mở bàn cờ
             </button>
@@ -490,10 +508,10 @@ export default function AiAssistantChat({
             >
               {/* Avatar */}
               <div
-                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md flex items-center justify-center shrink-0 ${
                   isBot
-                    ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white"
-                    : "bg-slate-800 dark:bg-slate-700 text-white"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-slate-800 text-white"
                 }`}
               >
                 {isBot ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
@@ -506,10 +524,10 @@ export default function AiAssistantChat({
                   <ThinkingState />
                 ) : (
                   <div
-                    className={`relative rounded-xl px-4 py-3 leading-relaxed shadow-2xs ${
+                    className={`relative rounded-md px-4 py-3 leading-relaxed ${
                       isBot
-                        ? "bg-slate-50 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 rounded-tl-xs"
-                        : "bg-gradient-to-br from-emerald-600 to-teal-600 text-white rounded-tr-xs"
+                        ? "bg-slate-50 text-slate-900 border border-border/80"
+                        : "bg-emerald-600 text-white"
                     }`}
                   >
                     {isBot ? (
@@ -528,7 +546,7 @@ export default function AiAssistantChat({
                           type="button"
                           onClick={() => handleCopyMessage(msg.content, idx)}
                           title="Sao chép nội dung"
-                          className="p-1 rounded-md bg-white/90 dark:bg-slate-700/90 text-slate-500 hover:text-emerald-600 shadow-2xs border border-slate-200/60 dark:border-slate-600 transition"
+                          className="p-1 rounded bg-white/90 text-slate-600 hover:text-emerald-600 border border-border/80 transition"
                         >
                           {copiedIdx === idx ? (
                             <Check className="w-3 h-3 text-emerald-600" />
@@ -553,7 +571,7 @@ export default function AiAssistantChat({
           e.preventDefault();
           handleSendMessage();
         }}
-        className="p-3 border-t border-border/60 bg-card dark:bg-slate-900/95 flex items-center gap-2 shrink-0"
+        className="p-3 border-t border-border/60 bg-card flex items-center gap-2 shrink-0"
       >
         <input
           ref={inputRef}
@@ -566,12 +584,12 @@ export default function AiAssistantChat({
               : "Nhập câu hỏi phân tích (AI có thể tự mở bàn cờ để minh họa)..."
           }
           disabled={isStreaming}
-          className="flex-1 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700/80 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition shadow-inner"
+          className="flex-1 bg-background border border-border/70 rounded px-3.5 py-2 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500 transition"
         />
         <button
           type="submit"
           disabled={!inputMessage.trim() || isStreaming}
-          className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white rounded-xl shadow-xs transition flex items-center gap-1.5 font-bold text-xs sm:text-sm shrink-0 cursor-pointer"
+          className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded transition flex items-center gap-1.5 font-semibold text-xs sm:text-sm shrink-0 cursor-pointer"
         >
           <Send className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Gửi</span>

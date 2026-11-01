@@ -26,7 +26,7 @@ function checkPlayable(fen: string): boolean {
   }
 }
 
-export const BOARD_PLAYERS_BAR_HEIGHT = 68;
+export const BOARD_PLAYERS_BAR_HEIGHT = 56;
 
 export interface BoardPlayersInfo {
   whiteName: string;
@@ -71,54 +71,32 @@ function BoardPlayerStrip({
         width: `${boardWidth + offsetLeft}px`,
         paddingLeft: `${offsetLeft}px`,
       }}
-      className={`h-7 flex items-center justify-between gap-2 select-none shrink-0 ${
-        position === "top" ? "mb-1.5" : "mt-1.5"
+      className={`h-6 flex items-center justify-between gap-2 select-none shrink-0 ${
+        position === "top" ? "mb-1" : "mt-1"
       }`}
     >
-      <div className="flex items-center gap-2 min-w-0">
-        {/* Piece-color avatar badge (Chess.com style) */}
-        <div
-          className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 border shadow-2xs ${
-            side === "white"
-              ? "bg-slate-100 dark:bg-slate-200 border-slate-300 dark:border-slate-400"
-              : "bg-slate-200/90 dark:bg-slate-800 border-slate-300 dark:border-slate-700"
-          }`}
-          title={side === "white" ? "Quân Trắng" : "Quân Đen"}
+      <div className="flex items-baseline gap-1.5 min-w-0">
+        <span
+          className="font-semibold text-xs text-slate-800 truncate"
+          title={name}
         >
-          <svg viewBox="0 0 24 24" className="w-4 h-4" aria-hidden="true">
-            <path
-              d="M12 3.5a3.2 3.2 0 0 0-2.1 5.62c-.83.52-1.35 1.38-1.35 2.33h.95c-.38 2.15-1.45 3.92-2.75 5.05-.47.41-.75.99-.75 1.62V19.5c0 .55.45 1 1 1h10c.55 0 1-.45 1-1v-1.38c0-.63-.28-1.21-.75-1.62-1.3-1.13-2.37-2.9-2.75-5.05h.95c0-.95-.52-1.81-1.35-2.33A3.2 3.2 0 0 0 12 3.5Z"
-              fill={side === "white" ? "#ffffff" : "#1e293b"}
-              stroke={side === "white" ? "#334155" : "#0f172a"}
-              strokeWidth="1.6"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
-
-        <div className="flex items-baseline gap-1.5 min-w-0">
-          <span
-            className="font-bold text-[13px] sm:text-sm text-slate-900 dark:text-slate-100 truncate"
-            title={name}
-          >
-            {name}
+          {name}
+        </span>
+        {validElo !== null && (
+          <span className="text-[11px] font-medium font-mono tabular-nums text-slate-400 shrink-0">
+            ({validElo})
           </span>
-          {validElo !== null && (
-            <span className="text-xs sm:text-[13px] font-medium text-slate-500 dark:text-slate-400 shrink-0">
-              ({validElo})
-            </span>
-          )}
-        </div>
+        )}
       </div>
 
       {scoreLabel !== null && (
         <span
-          className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold shrink-0 ${
-            isWinner
-              ? side === "white"
-                ? "bg-white text-slate-900 border border-slate-300 shadow-2xs"
-                : "bg-slate-900 text-white border border-slate-700 dark:border-slate-600 shadow-2xs"
-              : "bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700"
+          className={`text-[12px] font-mono tabular-nums font-bold shrink-0 ${
+            scoreLabel === "1"
+              ? "text-emerald-600"
+              : scoreLabel === "0"
+              ? "text-rose-600"
+              : "text-slate-500"
           }`}
         >
           {scoreLabel}
@@ -158,7 +136,7 @@ export default function ChessBoard({
   onMakeMove,
   onEvaluationChange,
   isEngineEnabled = true,
-  height = 680,
+  height = 760,
   onBoardWidthChange,
   fitParentHeight = false,
 }: ChessBoardProps) {
@@ -176,10 +154,12 @@ export default function ChessBoard({
   const hasPlayersBar = Boolean(playersInfo);
   const [boardWidth, setBoardWidth] = useState<number>(() => {
     if (typeof window !== "undefined") {
-      const extraBars = playersInfo ? BOARD_PLAYERS_BAR_HEIGHT : 0;
-      const estCol = Math.min(window.innerWidth - 80, 720);
-      const estHeight = window.innerHeight - 140 - extraBars;
-      return Math.min(height, Math.max(280, estCol - 24), Math.max(280, estHeight));
+      const isLg = window.innerWidth >= 1024;
+      if (isLg) {
+        const vMax = Math.max(320, window.innerHeight - 130);
+        return Math.floor(Math.min(height, vMax));
+      }
+      return Math.max(240, Math.min(height, window.innerWidth - 32));
     }
     return height;
   });
@@ -217,19 +197,28 @@ export default function ChessBoard({
 
       if (parentWidth <= 0) return;
 
-      // 14px eval bar + 10px gap = 24px
-      const availableWidth = Math.max(220, parentWidth - 24);
       const extraBars = hasPlayersBar ? BOARD_PLAYERS_BAR_HEIGHT : 0;
 
       let optimal: number;
       if (fitParentHeight) {
         // Only fit parent height if explicitly requested (e.g. in bounded flex containers like ai-coach)
         const availableHeight = parentHeight > 80 ? Math.max(200, parentHeight - 8 - extraBars) : height;
+        const availableWidth = Math.max(220, parentWidth - 24);
         optimal = Math.floor(Math.min(height, availableWidth, availableHeight));
       } else {
         // In standard pages (analyze, games), board size matches column width, capped by height and viewport
         const viewportMax =
-          typeof window !== "undefined" ? Math.max(320, window.innerHeight - 170 - extraBars) : height;
+          typeof window !== "undefined" ? Math.max(320, window.innerHeight - 130) : height;
+        
+        // On desktop (>= 1024px), allow full vertical expansion up to viewportMax and height,
+        // without being trapped by parent container inline styling, while respecting screen width boundaries.
+        let effectiveParentWidth = parentWidth;
+        if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+          const maxDesktopWidth = Math.max(320, window.innerWidth - 32 - 280 - 320 - 48);
+          const targetDesktopSize = Math.min(height, viewportMax, maxDesktopWidth);
+          effectiveParentWidth = Math.max(parentWidth, targetDesktopSize + 24);
+        }
+        const availableWidth = Math.max(220, effectiveParentWidth - 24);
         optimal = Math.floor(Math.min(height, availableWidth, viewportMax));
       }
 
@@ -654,35 +643,36 @@ export default function ChessBoard({
   const evalBarOffset = isPlayable ? 24 : 0;
 
   return (
-    <div ref={rootRef} className="flex flex-col items-center justify-center w-full h-full py-1">
-      {playersInfo ? (
-        <BoardPlayerStrip
-          position="top"
-          side={topSide}
-          name={topSide === "white" ? playersInfo.whiteName : playersInfo.blackName}
-          elo={topSide === "white" ? playersInfo.whiteElo : playersInfo.blackElo}
-          scoreLabel={getSideScoreLabel(playersInfo.result, topSide)}
-          boardWidth={boardWidth}
-          offsetLeft={evalBarOffset}
-        />
-      ) : null}
-
+    <div ref={rootRef} className="flex flex-col items-center justify-center w-full">
       {/* Board with Left Evaluation Bar */}
       <div
-        className="flex items-stretch gap-2.5 justify-center"
+        className="relative flex items-stretch gap-2.5 justify-center"
         style={{ height: `${boardWidth}px` }}
       >
+        {playersInfo ? (
+          <div className="absolute bottom-full mb-1 left-0 right-0 flex justify-center pointer-events-auto">
+            <BoardPlayerStrip
+              position="top"
+              side={topSide}
+              name={topSide === "white" ? playersInfo.whiteName : playersInfo.blackName}
+              elo={topSide === "white" ? playersInfo.whiteElo : playersInfo.blackElo}
+              scoreLabel={getSideScoreLabel(playersInfo.result, topSide)}
+              boardWidth={boardWidth}
+              offsetLeft={evalBarOffset}
+            />
+          </div>
+        ) : null}
         {/* Eval Bar (Only displayed for playable positions) */}
         {isPlayable ? (
           <div
             className={`w-3.5 bg-slate-900 rounded-md overflow-hidden flex ${
               boardOrientation === "white" ? "flex-col-reverse" : "flex-col"
-            } shrink-0 border border-slate-500/80 dark:border-slate-500/80 shadow-xs ring-1 ring-black/10 dark:ring-white/10`}
+            } shrink-0 border border-slate-500 shadow-xs ring-1 ring-black/10`}
           >
             <div
               className={`w-full bg-white transition-all duration-300 ${
                 boardOrientation === "white" ? "border-t" : "border-b"
-              } border-slate-400/80 dark:border-slate-600`}
+              } border-slate-400`}
               style={{ height: `${whiteWinningPct}%` }}
             />
           </div>
@@ -700,10 +690,10 @@ export default function ChessBoard({
               setCustomArrows([]);
             }
           }}
-          className="overflow-hidden rounded-md border border-slate-300 dark:border-slate-700 shadow-xs flex justify-center shrink-0 select-none bg-[#edeed1]"
+          className="overflow-hidden rounded-none border border-slate-300 shadow-xs flex justify-center shrink-0 select-none bg-[#edeed1]"
         >
           <Chessboard
-            key={`cb-${boardWidth}-${boardOrientation}`}
+            key={`cb-${boardOrientation}`}
             position={currentPositionFen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}
             onPieceDrop={onDrop}
             onPieceDragBegin={() => {

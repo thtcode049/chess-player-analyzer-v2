@@ -95,19 +95,33 @@ function LoginContent() {
   };
 
   const handleDemoLogin = () => {
-    // Demo guest mode allows instant access to dashboard
+    // Generate clean guest session and clear legacy global data
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("chess_ai_conversations_v4");
+        const freshGuestId =
+          "guest_" +
+          (typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : Math.random().toString(36).substring(2) + Date.now().toString(36));
+        sessionStorage.setItem("chess_guest_session_id", freshGuestId);
+        sessionStorage.setItem("chess_guest_created_at", new Date().toISOString());
+        delete (window as any).__CHESSLOOK_WORKSPACE_SNAPSHOT__;
+      } catch {}
+    }
+    // Demo guest mode allows instant access to dashboard cleanly
     router.push("/dashboard");
   };
 
   return (
     <div className="min-h-[75vh] flex items-center justify-center p-4 animate-fade-in">
-      <div className="w-full max-w-md bg-card border border-border/80 rounded-xl p-6 sm:p-8 shadow-xl space-y-6 relative">
+      <div className="w-[calc(100vw_-_2rem)] max-w-md bg-card rounded-surface p-6 sm:p-7 shadow-md space-y-5 relative">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10 border border-primary/20 text-primary mb-1">
-            <Lock className="w-6 h-6" />
+        <div className="text-center space-y-1.5">
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 mb-1">
+            <Lock className="w-5 h-5" />
           </div>
-          <h1 className="text-2xl font-black text-foreground tracking-tight">
+          <h1 className="text-xl font-bold text-foreground tracking-tight">
             Đăng Nhập Tài Khoản
           </h1>
           <p className="text-xs text-muted-foreground">
@@ -116,7 +130,7 @@ function LoginContent() {
         </div>
 
         {error && (
-          <div className="p-3.5 bg-destructive/10 border border-destructive/30 rounded-xl text-destructive text-xs leading-relaxed animate-fade-in">
+          <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-destructive text-xs leading-relaxed animate-fade-in">
             {error}
           </div>
         )}
@@ -126,10 +140,10 @@ function LoginContent() {
           type="button"
           onClick={handleGoogleLogin}
           disabled={googleLoading || loading}
-          className="w-full py-2.5 px-4 bg-background border border-border/80 hover:bg-muted/50 text-foreground font-semibold rounded-xl transition-all flex items-center justify-center gap-3 text-xs shadow-sm hover:shadow"
+          className="w-full py-2 px-3 bg-background border border-border/80 hover:bg-muted/50 text-foreground font-medium rounded transition-colors flex items-center justify-center gap-2.5 text-xs"
         >
           {googleLoading ? (
-            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
           ) : (
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path
@@ -158,42 +172,42 @@ function LoginContent() {
             <div className="w-full border-t border-border/40" />
           </div>
           <div className="relative flex justify-center text-[10px] uppercase">
-            <span className="bg-card px-3 text-muted-foreground font-semibold">Hoặc tiếp tục với email</span>
+            <span className="bg-card px-2 text-muted-foreground font-medium">Hoặc tiếp tục với email</span>
           </div>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleLogin} className="space-y-4 text-sm">
+        <form onSubmit={handleLogin} className="space-y-3.5 text-sm">
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
               Địa Chỉ Email
             </label>
             <div className="relative">
-              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="grandmaster@chess.com"
-                className="w-full bg-background border border-border/60 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="w-full bg-background border border-border/60 rounded pl-9 pr-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
               Mật Khẩu
             </label>
             <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-background border border-border/60 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="w-full bg-background border border-border/60 rounded pl-9 pr-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
           </div>
@@ -201,7 +215,7 @@ function LoginContent() {
           <button
             type="submit"
             disabled={loading || googleLoading}
-            className="w-full py-3 px-6 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-primary/20 text-sm"
+            className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded transition-colors flex items-center justify-center gap-2 disabled:opacity-50 text-xs sm:text-sm"
           >
             {loading ? (
               <>
@@ -222,7 +236,7 @@ function LoginContent() {
             <div className="w-full border-t border-border/40" />
           </div>
           <div className="relative flex justify-center text-[10px] uppercase">
-            <span className="bg-card px-3 text-muted-foreground font-semibold">Khám phá nhanh</span>
+            <span className="bg-card px-2 text-muted-foreground font-medium">Khám phá nhanh</span>
           </div>
         </div>
 
@@ -230,16 +244,16 @@ function LoginContent() {
         <button
           type="button"
           onClick={handleDemoLogin}
-          className="w-full py-2.5 px-4 bg-secondary text-secondary-foreground font-semibold rounded-xl hover:bg-secondary/80 transition-all flex items-center justify-center gap-2 text-xs"
+          className="w-full py-2 px-3 bg-secondary text-secondary-foreground hover:bg-muted font-medium rounded transition-colors flex items-center justify-center gap-2 text-xs border border-border/50"
         >
-          <User className="w-4 h-4 text-emerald-500" />
+          <User className="w-3.5 h-3.5 text-emerald-700" />
           Vào Trực Tiếp (Chế Độ Khách / Guest)
         </button>
 
         {/* Footer */}
-        <p className="text-center text-xs text-muted-foreground pt-2">
+        <p className="text-center text-xs text-muted-foreground pt-1">
           Chưa có tài khoản?{" "}
-          <Link href="/register" className="text-primary font-bold hover:underline">
+          <Link href="/register" className="text-emerald-700 font-semibold hover:underline">
             Đăng ký miễn phí
           </Link>
         </p>

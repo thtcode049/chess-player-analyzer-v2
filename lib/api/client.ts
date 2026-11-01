@@ -145,6 +145,11 @@ async function getUserId(): Promise<string | undefined> {
 }
 
 export const apiClient = {
+  clearAuthCache() {
+    cachedAuthHeaders = null;
+    inFlightAuthHeaders = null;
+  },
+
   async healthCheck() {
     const res = await fetch(`${API_BASE}/api/health`);
     return handleResponse<any>(res);

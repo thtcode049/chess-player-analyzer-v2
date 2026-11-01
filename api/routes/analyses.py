@@ -16,7 +16,7 @@ from api.schemas.analyses import (
 )
 from api.services.analysis_service import AnalysisService
 from api.services.import_service import ImportService
-from api.services.db_service import DBService
+from api.services.db_service import DBService, GUEST_SYSTEM_USER_ID
 from api.routes.players import PLAYERS_STORE, GAMES_STORE, get_guest_session
 from api.services.lichess_masters_service import LichessMastersService
 from src.opening_tree import build_opening_tree
@@ -59,15 +59,22 @@ def _resolve_games_for_player(
             else:
                 games = DBService.convert_db_games_to_analysis_games(raw_games, player_name)
         else:
-            # Fallback to DB
+            # Fallback to DB ONLY if player belongs to this guest session
             try:
                 db_player = DBService.get_player(player_id)
                 if db_player:
-                    player_name = db_player.get("canonical_name", player_name)
-                db_games = DBService.get_player_games(player_id, limit=None)
-                if db_games:
-                    games = DBService.convert_db_games_to_analysis_games(db_games, player_name)
-                    guest_session.setdefault("games", {})[player_id] = db_games
+                    p_notes = db_player.get("notes") or ""
+                    p_user_id = db_player.get("user_id")
+                    is_valid_guest = (
+                        p_user_id == GUEST_SYSTEM_USER_ID and
+                        (not x_guest_session_id or p_notes.startswith(f"guest:{x_guest_session_id}"))
+                    )
+                    if is_valid_guest:
+                        player_name = db_player.get("canonical_name", player_name)
+                        db_games = DBService.get_player_games(player_id, limit=None)
+                        if db_games:
+                            games = DBService.convert_db_games_to_analysis_games(db_games, player_name)
+                            guest_session.setdefault("games", {})[player_id] = db_games
             except Exception as e:
                 logger.warning(f"Error resolving guest games from DB: {e}")
     else:

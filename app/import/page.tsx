@@ -962,7 +962,7 @@ function ImportContent() {
   };
 
   return (
-    <div className="w-full max-w-[1500px] mx-auto space-y-8 animate-fade-in pb-12">
+    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 space-y-8 animate-fade-in pb-12">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-6">
         <div>
@@ -977,10 +977,10 @@ function ImportContent() {
       </div>
 
       {/* Target Player Profile Selection Banner */}
-      <div className="bg-card border border-border/80 rounded-xl p-5 shadow-xs space-y-3">
+      <div className="bg-card border border-border/80 rounded-surface p-5 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold">
+            <div className="w-10 h-10 rounded bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold">
               <UserCheck className="w-5 h-5" />
             </div>
             <div>
@@ -1019,7 +1019,7 @@ function ImportContent() {
                 id="targetPlayerSelect"
                 value={selectedPlayerId}
                 onChange={(e) => setSelectedPlayerId(e.target.value)}
-                className="w-full bg-background border border-border/70 rounded-xl px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none pr-8 cursor-pointer"
+                className="w-full bg-background border border-border/70 rounded px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary appearance-none pr-8 cursor-pointer"
               >
                 <option value="">-- Tự động tạo hồ sơ mới --</option>
                 {players.map((p) => (
@@ -1034,8 +1034,8 @@ function ImportContent() {
         </div>
 
         {selectedPlayer && (
-          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-1.5 flex items-center gap-2">
-            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          <div className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-3 py-1.5 flex items-center gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
             <span>
               Các ván đấu mới sẽ được thêm trực tiếp vào hồ sơ <b>{selectedPlayer.canonical_name}</b>, không tạo hồ sơ trùng lặp.
             </span>
@@ -1044,14 +1044,14 @@ function ImportContent() {
       </div>
 
       {/* Source Selector Tabs */}
-      <div className="grid grid-cols-3 p-1.5 rounded-xl bg-card border border-border/60 max-w-lg">
+      <div className="grid grid-cols-3 p-1 rounded-control bg-card border border-border/60 max-w-lg">
         <button
           type="button"
           onClick={() => handleTabChange("lichess")}
           disabled={isLoading}
-          className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-semibold rounded-lg transition-all ${
+          className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-semibold rounded transition-all ${
             activeTab === "lichess"
-              ? "bg-primary text-primary-foreground shadow-sm"
+              ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:text-foreground"
           } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
         >
@@ -1062,9 +1062,9 @@ function ImportContent() {
           type="button"
           onClick={() => handleTabChange("chesscom")}
           disabled={isLoading}
-          className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-semibold rounded-lg transition-all ${
+          className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-semibold rounded transition-all ${
             activeTab === "chesscom"
-              ? "bg-primary text-primary-foreground shadow-sm"
+              ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:text-foreground"
           } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
         >
@@ -1075,9 +1075,9 @@ function ImportContent() {
           type="button"
           onClick={() => handleTabChange("pgn")}
           disabled={isLoading}
-          className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-semibold rounded-lg transition-all ${
+          className={`flex items-center justify-center gap-2 py-2 px-3 text-sm font-semibold rounded transition-all ${
             activeTab === "pgn"
-              ? "bg-primary text-primary-foreground shadow-sm"
+              ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:text-foreground"
           } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
         >
@@ -1090,17 +1090,17 @@ function ImportContent() {
       <div className={`grid grid-cols-1 ${result || error || (isLoading && importProgress) ? "lg:grid-cols-3" : ""} gap-8`}>
         {/* Left Form Area */}
         <div className={result || error || (isLoading && importProgress) ? "lg:col-span-2" : ""}>
-          <div className="bg-card border border-border/60 rounded-xl p-6 sm:p-8 shadow-xs">
+          <div className="bg-card border border-border/60 rounded-surface p-6 sm:p-8">
             {/* TAB LICHESS.ORG */}
             {activeTab === "lichess" && (
               <div className="space-y-6">
                 {/* Lichess Authorization Card */}
-                <div className="rounded-xl border border-amber-500/25 bg-gradient-to-br from-amber-500/5 via-transparent to-primary/5 p-5">
+                <div className="rounded-md border border-amber-500/25 bg-amber-500/5 p-4 sm:p-5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-start sm:items-center gap-3.5">
                       {/* Lichess Horse Logo Icon */}
-                      <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-bold shrink-0 shadow-inner">
-                        <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                      <div className="w-10 h-10 rounded bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-bold shrink-0">
+                        <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
                           <path d="M19.5 21a3 3 0 0 0 3-3v-4.5a3 3 0 0 0-3-3h-1.5V9a6 6 0 0 0-6-6H9a3 3 0 0 0-3 3v1.5H4.5a3 3 0 0 0-3 3V15a3 3 0 0 0 3 3H6v3h13.5zm-7.5-16.5a4.5 4.5 0 0 1 4.5 4.5v1.5H12a1.5 1.5 0 0 1-1.5-1.5V4.5zM7.5 6a1.5 1.5 0 0 1 1.5-1.5v4.5A3 3 0 0 0 12 12h4.5v1.5H4.5a1.5 1.5 0 0 1-1.5-1.5v-1.5a1.5 1.5 0 0 1 1.5-1.5H6V7.5A1.5 1.5 0 0 1 7.5 6zM6 16.5h12a1.5 1.5 0 0 1 1.5 1.5v1.5H6v-3z" />
                         </svg>
                       </div>
@@ -1135,7 +1135,7 @@ function ImportContent() {
                         <button
                           type="button"
                           onClick={handleDisconnectLichess}
-                          className="px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 border border-destructive/30 rounded-xl transition-all flex items-center gap-1.5"
+                          className="px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 border border-destructive/30 rounded transition-all flex items-center gap-1.5"
                           title="Hủy ủy quyền tài khoản Lichess"
                         >
                           <LogOut className="w-3.5 h-3.5" />
@@ -1146,7 +1146,7 @@ function ImportContent() {
                           type="button"
                           disabled={isVerifyingLichess}
                           onClick={handleAuthorizeLichess}
-                          className="px-4 py-2 text-xs font-bold text-white bg-[#629924] hover:bg-[#52821d] active:scale-95 rounded-xl transition-all shadow-md flex items-center gap-2"
+                          className="px-4 py-2 text-xs font-bold text-white bg-[#629924] hover:bg-[#52821d] rounded transition-all flex items-center gap-2"
                         >
                           {isVerifyingLichess ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1172,7 +1172,7 @@ function ImportContent() {
                       value={lichessUsername}
                       onChange={(e) => setLichessUsername(e.target.value)}
                       placeholder="VD: magnuscarlsen, penguingm1, nganbanghe..."
-                      className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 font-medium"
+                      className="w-full bg-background border border-border/60 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary font-medium"
                     />
                   </div>
 
@@ -1197,7 +1197,7 @@ function ImportContent() {
                           }
                         }}
                         placeholder="Tối đa 1000 ván"
-                        className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 font-medium"
+                        className="w-full bg-background border border-border/60 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary font-medium"
                       />
                     </div>
 
@@ -1205,7 +1205,7 @@ function ImportContent() {
                       <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                         Chế độ xếp hạng
                       </label>
-                      <div className="flex items-center gap-3 p-2.5 bg-card/60 border border-border/40 rounded-xl h-[42px]">
+                      <div className="flex items-center gap-3 p-2.5 bg-card/60 border border-border/40 rounded h-[38px]">
                         <input
                           type="checkbox"
                           id="ratedOnlyLichess"
@@ -1238,9 +1238,9 @@ function ImportContent() {
                             key={perf.id}
                             type="button"
                             onClick={() => toggleLichessPerf(perf.id)}
-                            className={`flex items-center justify-center py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
+                            className={`flex items-center justify-center py-2 px-3 rounded border text-xs font-medium transition-colors ${
                               isSelected
-                                ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                ? "bg-emerald-600 text-white border-emerald-600"
                                 : "bg-card hover:bg-accent/40 text-muted-foreground border-border/60 hover:text-foreground"
                             }`}
                           >
@@ -1264,9 +1264,9 @@ function ImportContent() {
                             key={preset.id}
                             type="button"
                             onClick={() => setLichessTimePreset(preset.id)}
-                            className={`py-1.5 px-3 rounded-lg border text-xs font-medium transition-all ${
+                            className={`py-1.5 px-3 rounded border text-xs font-medium transition-colors ${
                               isSelected
-                                ? "bg-primary/10 text-primary border-primary font-bold shadow-xs"
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-600 font-semibold"
                                 : "bg-card text-muted-foreground border-border/60 hover:text-foreground hover:bg-accent/30"
                             }`}
                           >
@@ -1277,7 +1277,7 @@ function ImportContent() {
                     </div>
 
                     {lichessTimePreset === "custom" && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 p-3 bg-accent/20 rounded-xl border border-border/40 animate-fade-in">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 p-3 bg-muted/30 rounded-md border border-border/40 animate-fade-in">
                         <div>
                           <label className="block text-[11px] font-semibold text-muted-foreground mb-1 flex items-center gap-1">
                             <Calendar className="w-3 h-3" /> Từ ngày:
@@ -1286,7 +1286,7 @@ function ImportContent() {
                             type="date"
                             value={lichessCustomStart}
                             onChange={(e) => setLichessCustomStart(e.target.value)}
-                            className="w-full bg-background border border-border/60 rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full bg-background border border-border/60 rounded px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                         </div>
                         <div>
@@ -1297,7 +1297,7 @@ function ImportContent() {
                             type="date"
                             value={lichessCustomEnd}
                             onChange={(e) => setLichessCustomEnd(e.target.value)}
-                            className="w-full bg-background border border-border/60 rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full bg-background border border-border/60 rounded px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                         </div>
                       </div>
@@ -1306,19 +1306,19 @@ function ImportContent() {
 
                   {/* Inline Progress Bar */}
                   {isLoading && importProgress && (
-                    <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-2.5 animate-fade-in shadow-inner">
+                    <div className="p-4 rounded-md border border-emerald-500/30 bg-emerald-500/5 space-y-2.5 animate-fade-in">
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-semibold text-foreground flex items-center gap-2">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
                           <span>{importProgress.stageName} ({importProgress.stage}/4)</span>
                         </span>
-                        <span className="font-bold text-primary tabular-nums">
+                        <span className="font-bold text-emerald-700 tabular-nums">
                           {importProgress.percent}%
                         </span>
                       </div>
-                      <div className="w-full h-2 rounded-full bg-secondary/80 overflow-hidden relative">
+                      <div className="w-full h-1.5 rounded bg-muted overflow-hidden relative">
                         <div
-                          className="h-full bg-gradient-to-r from-primary via-blue-500 to-emerald-500 transition-all duration-300 rounded-full"
+                          className="h-full bg-emerald-500 transition-all duration-300 rounded"
                           style={{ width: `${importProgress.percent}%` }}
                         />
                       </div>
@@ -1332,16 +1332,16 @@ function ImportContent() {
                   <button
                     type="submit"
                     disabled={isLoading || !lichessUsername.trim()}
-                    className="w-full py-3.5 px-6 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 shadow-md shadow-primary/20 text-sm"
+                    className="w-full py-3 px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded transition-colors flex items-center justify-center gap-2.5 disabled:opacity-50 text-sm"
                   >
                     {isLoading ? (
                       <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <Loader2 className="w-4 h-4 animate-spin" />
                         Đang nạp ván đấu từ Lichess.org...
                       </>
                     ) : (
                       <>
-                        <Download className="w-5 h-5" />
+                        <Download className="w-4 h-4" />
                         Nạp ván đấu từ Lichess.org
                       </>
                     )}
@@ -1363,7 +1363,7 @@ function ImportContent() {
                     value={chesscomUsername}
                     onChange={(e) => setChesscomUsername(e.target.value)}
                     placeholder="VD: hikaru, magnuscarlsen, gothamchess..."
-                    className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 font-medium"
+                    className="w-full bg-background border border-border/60 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary font-medium"
                   />
                 </div>
 
@@ -1387,7 +1387,7 @@ function ImportContent() {
                         }
                       }}
                       placeholder="Tối đa 1000 ván"
-                      className="w-full bg-background border border-border/60 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 font-medium"
+                      className="w-full bg-background border border-border/60 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary font-medium"
                     />
                   </div>
 
@@ -1395,7 +1395,7 @@ function ImportContent() {
                     <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                       Chế độ xếp hạng
                     </label>
-                    <div className="flex items-center gap-3 p-2.5 bg-card/60 border border-border/40 rounded-xl h-[42px]">
+                    <div className="flex items-center gap-3 p-2.5 bg-card/60 border border-border/40 rounded h-[38px]">
                       <input
                         type="checkbox"
                         id="ratedOnlyChesscom"
@@ -1428,9 +1428,9 @@ function ImportContent() {
                           key={perf.id}
                           type="button"
                           onClick={() => toggleChesscomPerf(perf.id)}
-                          className={`flex items-center justify-center py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
+                          className={`flex items-center justify-center py-2 px-3 rounded border text-xs font-medium transition-colors ${
                             isSelected
-                              ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                              ? "bg-emerald-600 text-white border-emerald-600"
                               : "bg-card hover:bg-accent/40 text-muted-foreground border-border/60 hover:text-foreground"
                           }`}
                         >
@@ -1454,9 +1454,9 @@ function ImportContent() {
                           key={preset.id}
                           type="button"
                           onClick={() => setChesscomTimePreset(preset.id)}
-                          className={`py-1.5 px-3 rounded-lg border text-xs font-medium transition-all ${
+                          className={`py-1.5 px-3 rounded border text-xs font-medium transition-colors ${
                             isSelected
-                              ? "bg-primary/10 text-primary border-primary font-bold shadow-xs"
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-600 font-semibold"
                               : "bg-card text-muted-foreground border-border/60 hover:text-foreground hover:bg-accent/30"
                           }`}
                         >
@@ -1467,7 +1467,7 @@ function ImportContent() {
                   </div>
 
                   {chesscomTimePreset === "custom" && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 p-3 bg-accent/20 rounded-xl border border-border/40 animate-fade-in">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 p-3 bg-muted/30 rounded-md border border-border/40 animate-fade-in">
                       <div>
                         <label className="block text-[11px] font-semibold text-muted-foreground mb-1 flex items-center gap-1">
                           <Calendar className="w-3 h-3" /> Từ ngày:
@@ -1476,7 +1476,7 @@ function ImportContent() {
                           type="date"
                           value={chesscomCustomStart}
                           onChange={(e) => setChesscomCustomStart(e.target.value)}
-                          className="w-full bg-background border border-border/60 rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-full bg-background border border-border/60 rounded px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                       </div>
                       <div>
@@ -1487,7 +1487,7 @@ function ImportContent() {
                           type="date"
                           value={chesscomCustomEnd}
                           onChange={(e) => setChesscomCustomEnd(e.target.value)}
-                          className="w-full bg-background border border-border/60 rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-full bg-background border border-border/60 rounded px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                       </div>
                     </div>
@@ -1496,19 +1496,19 @@ function ImportContent() {
 
                 {/* Inline Progress Bar */}
                 {isLoading && importProgress && (
-                  <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-2.5 animate-fade-in shadow-inner">
+                  <div className="p-4 rounded-md border border-emerald-500/30 bg-emerald-500/5 space-y-2.5 animate-fade-in">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-semibold text-foreground flex items-center gap-2">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
                         <span>{importProgress.stageName} ({importProgress.stage}/4)</span>
                       </span>
-                      <span className="font-bold text-primary tabular-nums">
+                      <span className="font-bold text-emerald-700 tabular-nums">
                         {importProgress.percent}%
                       </span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-secondary/80 overflow-hidden relative">
+                    <div className="w-full h-1.5 rounded bg-muted overflow-hidden relative">
                       <div
-                        className="h-full bg-gradient-to-r from-primary via-blue-500 to-emerald-500 transition-all duration-300 rounded-full"
+                        className="h-full bg-emerald-500 transition-all duration-300 rounded"
                         style={{ width: `${importProgress.percent}%` }}
                       />
                     </div>
@@ -1521,16 +1521,16 @@ function ImportContent() {
                 <button
                   type="submit"
                   disabled={isLoading || !chesscomUsername.trim()}
-                  className="w-full py-3.5 px-6 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 shadow-md shadow-primary/20 text-sm"
+                  className="w-full py-3 px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded transition-colors flex items-center justify-center gap-2.5 disabled:opacity-50 text-sm"
                 >
                   {isLoading ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" />
                       Đang nạp ván đấu từ Chess.com...
                     </>
                   ) : (
                     <>
-                      <Download className="w-5 h-5" />
+                      <Download className="w-4 h-4" />
                       Nạp ván đấu từ Chess.com
                     </>
                   )}
@@ -1541,14 +1541,14 @@ function ImportContent() {
             {/* TAB PGN */}
             {activeTab === "pgn" && (
               <form onSubmit={handlePgnImport} className="space-y-6">
-                <div className="border-2 border-dashed border-border/80 hover:border-primary/50 transition-colors rounded-xl p-6 text-center cursor-pointer relative bg-card/40">
+                <div className="border-2 border-dashed border-border/80 hover:border-emerald-500/50 transition-colors rounded-md p-6 text-center cursor-pointer relative bg-card/40">
                   <input
                     type="file"
                     accept=".pgn,.txt"
                     onChange={handleFileChange}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
-                  <UploadCloud className="w-10 h-10 text-primary mx-auto mb-3" />
+                  <UploadCloud className="w-9 h-9 text-emerald-600 mx-auto mb-3" />
                   <p className="text-sm font-medium text-foreground">
                     {pgnFile ? pgnFile.name : "Kéo thả tệp .pgn hoặc bấm để chọn"}
                   </p>
@@ -1577,21 +1577,21 @@ function ImportContent() {
                     value={pgnText}
                     onChange={(e) => handlePgnTextChange(e.target.value)}
                     placeholder="[Event &quot;FIDE Candidates 2024&quot;]&#10;1. e4 e5 2. Nf3 Nc6..."
-                    className="w-full bg-background border border-border/60 rounded-xl px-4 py-3 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full bg-background border border-border/60 rounded px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
 
                 {/* Detected Players in PGN */}
                 {detectedPlayers.length > 0 && (
-                  <div className="space-y-3 p-4 bg-accent/20 border border-border/60 rounded-xl animate-fade-in">
+                  <div className="space-y-3 p-4 bg-muted/30 border border-border/60 rounded-md animate-fade-in">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <UserCheck className="w-4 h-4 text-primary" />
+                        <UserCheck className="w-4 h-4 text-emerald-600" />
                         <label className="text-xs font-bold text-foreground uppercase tracking-wider">
                           Chọn kỳ thủ tạo hồ sơ & phân tích
                         </label>
                       </div>
-                      <span className="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full self-start sm:self-auto">
+                      <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded self-start sm:self-auto">
                         Phát hiện {detectedPlayers.length} kỳ thủ trong tệp
                       </span>
                     </div>
@@ -1608,7 +1608,7 @@ function ImportContent() {
                           value={playerSearchFilter}
                           onChange={(e) => setPlayerSearchFilter(e.target.value)}
                           placeholder="Tìm nhanh tên kỳ thủ..."
-                          className="w-full bg-background border border-border/60 rounded-xl pl-8 pr-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-full bg-background border border-border/60 rounded pl-8 pr-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                       </div>
                     )}
@@ -1623,22 +1623,22 @@ function ImportContent() {
                               key={player.name}
                               type="button"
                               onClick={() => setSelectedFocusPlayer(player.name)}
-                              className={`flex items-center justify-between p-2.5 rounded-xl border text-left transition-all ${
+                              className={`flex items-center justify-between p-2.5 rounded border text-left transition-colors ${
                                 isSelected
-                                  ? "bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/20"
-                                  : "bg-card hover:bg-accent/40 text-foreground border-border/70 hover:border-primary/40"
+                                  ? "bg-emerald-600 text-white border-emerald-600"
+                                  : "bg-card hover:bg-accent/40 text-foreground border-border/70 hover:border-emerald-500/40"
                               }`}
                             >
                               <div className="min-w-0 pr-2">
                                 <div className="text-xs font-bold truncate">
                                   {player.name}
                                 </div>
-                                <div className={`text-[10px] ${isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                                <div className={`text-[10px] ${isSelected ? "text-white/80" : "text-muted-foreground"}`}>
                                   {player.gameCount} ván ({player.whiteCount} Trắng / {player.blackCount} Đen)
                                 </div>
                               </div>
                               {isSelected ? (
-                                <CheckCircle2 className="w-4 h-4 shrink-0 text-primary-foreground" />
+                                <CheckCircle2 className="w-4 h-4 shrink-0 text-white" />
                               ) : (
                                 <div className="w-3.5 h-3.5 rounded-full border border-muted-foreground/30 shrink-0" />
                               )}
@@ -1648,8 +1648,8 @@ function ImportContent() {
                     </div>
 
                     {selectedFocusPlayer && (
-                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2.5 flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <div className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded p-2.5 flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
                         <span>
                           Đã chọn: <b>{selectedFocusPlayer}</b> — Ván đấu sẽ được gán và phân tích theo góc nhìn kỳ thủ này.
                         </span>
@@ -1660,19 +1660,19 @@ function ImportContent() {
 
                 {/* Inline Progress Bar */}
                 {isLoading && importProgress && (
-                  <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-2.5 animate-fade-in shadow-inner">
+                  <div className="p-4 rounded-md border border-emerald-500/30 bg-emerald-500/5 space-y-2.5 animate-fade-in">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-semibold text-foreground flex items-center gap-2">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
                         <span>{importProgress.stageName} ({importProgress.stage}/4)</span>
                       </span>
-                      <span className="font-bold text-primary tabular-nums">
+                      <span className="font-bold text-emerald-700 tabular-nums">
                         {importProgress.percent}%
                       </span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-secondary/80 overflow-hidden relative">
+                    <div className="w-full h-1.5 rounded bg-muted overflow-hidden relative">
                       <div
-                        className="h-full bg-gradient-to-r from-primary via-blue-500 to-emerald-500 transition-all duration-300 rounded-full"
+                        className="h-full bg-emerald-500 transition-all duration-300 rounded"
                         style={{ width: `${importProgress.percent}%` }}
                       />
                     </div>
@@ -1685,16 +1685,16 @@ function ImportContent() {
                 <button
                   type="submit"
                   disabled={isLoading || (!pgnFile && !pgnText.trim())}
-                  className="w-full py-3.5 px-6 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-primary/20 text-sm"
+                  className="w-full py-3 px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded transition-colors flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
                 >
                   {isLoading ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" />
                       Đang nạp ván đấu từ PGN...
                     </>
                   ) : (
                     <>
-                      <UploadCloud className="w-5 h-5" />
+                      <UploadCloud className="w-4 h-4" />
                       Nạp ván đấu từ PGN
                     </>
                   )}
@@ -1709,17 +1709,17 @@ function ImportContent() {
           <div className="space-y-6">
             {/* Live Progress Card when importing */}
             {isLoading && importProgress && (
-              <div className="bg-card border border-primary/30 rounded-xl p-6 shadow-md shadow-primary/5 space-y-5 animate-fade-in bg-gradient-to-br from-primary/5 via-card to-background">
+              <div className="bg-card border border-emerald-500/30 rounded-surface p-5 space-y-5 animate-fade-in">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary relative">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <div className="w-9 h-9 rounded bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 relative">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-sm text-foreground">Tiến trình nạp ván đấu</h3>
+                      <h3 className="font-semibold text-sm text-foreground">Tiến trình nạp ván đấu</h3>
                       <p className="text-[11px] text-muted-foreground">
                         {activeTab === "lichess" && "Nguồn: Lichess.org"}
                         {activeTab === "chesscom" && "Nguồn: Chess.com"}
@@ -1728,10 +1728,10 @@ function ImportContent() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-black text-primary tabular-nums tracking-tight">
+                    <div className="text-xl font-bold text-emerald-700 tabular-nums tracking-tight">
                       {importProgress.percent}%
                     </div>
-                    <div className="text-[10px] text-muted-foreground font-mono">
+                    <div className="text-[10px] text-muted-foreground font-mono tabular-nums">
                       Thời gian: {String(Math.floor(importProgress.elapsedSeconds / 60)).padStart(2, "0")}:{String(importProgress.elapsedSeconds % 60).padStart(2, "0")}s
                     </div>
                   </div>
@@ -1739,13 +1739,11 @@ function ImportContent() {
 
                 {/* Progress Bar Track */}
                 <div className="space-y-1.5">
-                  <div className="w-full h-2.5 rounded-full bg-secondary/80 overflow-hidden relative border border-border/40 p-0.5">
+                  <div className="w-full h-2 rounded bg-muted overflow-hidden relative border border-border/40">
                     <div
-                      className="h-full bg-gradient-to-r from-primary via-blue-500 to-emerald-500 transition-all duration-300 rounded-full relative"
+                      className="h-full bg-emerald-500 transition-all duration-300 rounded"
                       style={{ width: `${importProgress.percent}%` }}
-                    >
-                      <div className="absolute inset-0 bg-white/20 animate-pulse" />
-                    </div>
+                    />
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                     <span className="font-medium text-foreground">{importProgress.stageName}</span>
@@ -1754,13 +1752,13 @@ function ImportContent() {
                 </div>
 
                 {/* Detailed status note */}
-                <p className="text-xs text-muted-foreground bg-accent/20 border border-border/40 rounded-xl p-3 leading-relaxed">
+                <p className="text-xs text-muted-foreground bg-muted/30 border border-border/40 rounded p-3 leading-relaxed">
                   {importProgress.detail}
                 </p>
 
                 {/* 4 Process Stages Checklist */}
                 <div className="space-y-2 pt-1 border-t border-border/40">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Các giai đoạn xử lý
                   </div>
                   <div className="space-y-2">
@@ -1775,11 +1773,11 @@ function ImportContent() {
                       return (
                         <div
                           key={s.id}
-                          className={`flex items-center justify-between p-2.5 rounded-xl border text-xs transition-all ${
+                          className={`flex items-center justify-between p-2.5 rounded border text-xs transition-colors ${
                             isDone
-                              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-medium"
+                              ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-medium"
                               : isCurrent
-                              ? "bg-primary/10 border-primary/40 text-foreground font-semibold shadow-xs"
+                              ? "bg-emerald-50 border-emerald-300 text-foreground font-semibold"
                               : "bg-card/40 border-border/40 text-muted-foreground opacity-60"
                           }`}
                         >
@@ -1787,14 +1785,14 @@ function ImportContent() {
                             {isDone ? (
                               <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                             ) : isCurrent ? (
-                              <Loader2 className="w-4 h-4 text-primary animate-spin shrink-0" />
+                              <Loader2 className="w-4 h-4 text-emerald-600 animate-spin shrink-0" />
                             ) : (
                               <Clock className="w-4 h-4 text-muted-foreground/40 shrink-0" />
                             )}
                             <span>{s.label}</span>
                           </div>
                           {isDone && <span className="text-[10px] font-bold text-emerald-500">Đạt</span>}
-                          {isCurrent && <span className="text-[10px] font-bold text-primary animate-pulse">Đang chạy...</span>}
+                          {isCurrent && <span className="text-[10px] font-bold text-emerald-600 animate-pulse">Đang chạy...</span>}
                         </div>
                       );
                     })}
@@ -1811,53 +1809,53 @@ function ImportContent() {
 
             {/* Status / Result Card */}
             {result && !isLoading && (
-              <div className="bg-card border border-emerald-500/40 rounded-xl p-6 shadow-xs animate-fade-in bg-gradient-to-br from-emerald-500/5 to-transparent">
+              <div className="bg-card border border-emerald-500/40 rounded-surface p-5 animate-fade-in">
                 <div className="flex items-center justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-3 text-emerald-500">
-                    <CheckCircle2 className="w-6 h-6 shrink-0" />
-                    <h3 className="font-bold text-base text-foreground">Nạp dữ liệu thành công!</h3>
+                  <div className="flex items-center gap-2.5 text-emerald-700">
+                    <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600" />
+                    <h3 className="font-bold text-sm text-foreground">Nạp dữ liệu thành công!</h3>
                   </div>
                   <button
                     type="button"
                     onClick={() => setResult(null)}
                     title="Đóng bảng kết quả"
-                    className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-emerald-500/10 transition-colors"
+                    className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="space-y-3 text-sm">
+                <div className="space-y-2.5 text-xs">
                   <div className="flex justify-between py-1.5 border-b border-border/40">
                     <span className="text-muted-foreground">Nguồn dữ liệu:</span>
                     <span className="font-medium text-foreground uppercase">{result.source_type}</span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-border/40">
                     <span className="text-muted-foreground">Tổng ván quét được:</span>
-                    <span className="font-bold text-foreground">{result.total_found}</span>
+                    <span className="font-semibold text-foreground">{result.total_found}</span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-border/40">
                     <span className="text-muted-foreground">Ván mới nạp thêm:</span>
-                    <span className="font-bold text-emerald-500">+{result.imported_count}</span>
+                    <span className="font-bold text-emerald-700 font-mono tabular-nums">+{result.imported_count}</span>
                   </div>
                   {Boolean(result.skipped_count && result.skipped_count > 0) && (
                     <div className="flex justify-between py-1.5 border-b border-border/40">
                       <span className="text-muted-foreground">Ván trùng lặp (bỏ qua):</span>
-                      <span className="font-bold text-amber-500">{result.skipped_count} ván trùng</span>
+                      <span className="font-semibold text-amber-700">{result.skipped_count} ván trùng</span>
                     </div>
                   )}
                   <div className="flex justify-between py-1.5 border-b border-border/40">
                     <span className="text-muted-foreground">Hồ sơ kỳ thủ:</span>
-                    <span className="font-bold text-primary">{result.primary_player || "Kỳ thủ"}</span>
+                    <span className="font-semibold text-foreground">{result.primary_player || "Kỳ thủ"}</span>
                   </div>
                 </div>
 
                 {Boolean(result.skipped_count && result.skipped_count > 0) && (
-                  <div className="mt-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs">
+                  <div className="mt-3 p-2.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-xs">
                     💡 <b>Khử trùng lặp tự động:</b> Hệ thống đã phát hiện {result.skipped_count} ván đã có trong hồ sơ trước đó và chỉ nạp thêm {result.imported_count} ván mới.
                   </div>
                 )}
 
-                <div className="mt-6 pt-4 border-t border-border/60 space-y-2">
+                <div className="mt-5 pt-3 border-t border-border/60 space-y-2">
                   <Link
                     href={result.player_id ? `/analyze?playerId=${result.player_id}&runId=${result.run_id || ""}` : "/analyze"}
                     onClick={() => {
@@ -1865,11 +1863,11 @@ function ImportContent() {
                         selectSingleProfile(result.player_id, "board");
                       }
                     }}
-                    className="w-full py-2.5 px-4 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 text-sm shadow-md"
+                    className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded transition-colors flex items-center justify-center gap-2 text-xs"
                   >
-                    <BarChart3 className="w-4 h-4" />
+                    <BarChart3 className="w-3.5 h-3.5" />
                     Mở Bàn Cờ & Cây Khai Cuộc
-                    <ArrowRight className="w-4 h-4 ml-1" />
+                    <ArrowRight className="w-3.5 h-3.5 ml-1" />
                   </Link>
 
                   {result.player_id && (
@@ -1878,7 +1876,7 @@ function ImportContent() {
                       onClick={() => {
                         selectSingleProfile(result.player_id, "profile");
                       }}
-                      className="w-full py-2 px-4 bg-secondary text-secondary-foreground font-semibold rounded-xl hover:bg-secondary/80 transition-all flex items-center justify-center gap-2 text-xs"
+                      className="w-full py-2 px-3 bg-secondary text-secondary-foreground hover:bg-muted font-medium rounded transition-colors flex items-center justify-center gap-2 text-xs border border-border/50"
                     >
                       <User className="w-3.5 h-3.5" />
                       Xem Hồ Sơ & Thống Kê Kỳ Thủ
@@ -1888,14 +1886,14 @@ function ImportContent() {
                   <button
                     type="button"
                     onClick={() => setResult(null)}
-                    className="w-full py-2 px-4 bg-card border border-border/70 hover:bg-accent/40 text-muted-foreground hover:text-foreground font-semibold rounded-xl transition-all flex items-center justify-center gap-2 text-xs"
+                    className="w-full py-2 px-3 bg-card border border-border/70 hover:bg-accent/40 text-muted-foreground hover:text-foreground font-medium rounded transition-colors flex items-center justify-center gap-2 text-xs"
                   >
                     Nạp thêm ván đấu khác
                   </button>
 
                   <Link
                     href="/players"
-                    className="w-full py-1.5 px-4 text-center text-xs text-muted-foreground hover:text-foreground transition-colors block"
+                    className="w-full py-1 px-3 text-center text-xs text-muted-foreground hover:text-foreground transition-colors block"
                   >
                     Quay lại Thư viện Kỳ thủ
                   </Link>
@@ -1904,10 +1902,10 @@ function ImportContent() {
             )}
 
             {error && !isLoading && (
-              <div className="bg-destructive/10 border border-destructive/40 rounded-xl p-6 text-destructive animate-fade-in">
-                <div className="flex items-center gap-3 mb-2">
-                  <AlertCircle className="w-6 h-6" />
-                  <h3 className="font-bold text-base">Đã xảy ra lỗi</h3>
+              <div className="bg-destructive/10 border border-destructive/40 rounded-md p-5 text-destructive animate-fade-in">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <AlertCircle className="w-5 h-5" />
+                  <h3 className="font-semibold text-sm">Đã xảy ra lỗi</h3>
                 </div>
                 <p className="text-xs leading-relaxed opacity-90">{error}</p>
               </div>
@@ -1925,20 +1923,20 @@ function ImportContent() {
           aria-modal="true"
         >
           <div
-            className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl max-w-lg w-full p-6 sm:p-7 shadow-xl space-y-5 animate-scale-in relative ring-1 ring-black/10 dark:ring-white/10"
+            className="bg-card text-foreground rounded-surface max-w-lg w-full p-6 shadow-xl space-y-4 animate-scale-in relative"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-start justify-between border-b border-zinc-200 dark:border-zinc-800 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center border border-amber-500/20 shrink-0">
-                  <AlertCircle className="w-6 h-6" />
+            <div className="flex items-start justify-between border-b border-border/60 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded bg-amber-500/10 text-amber-500 flex items-center justify-center border border-amber-500/20 shrink-0">
+                  <AlertCircle className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-zinc-950 dark:text-white">
+                  <h3 className="text-sm font-bold text-foreground">
                     Phát Hiện Hồ Sơ Trùng Tên
                   </h3>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <p className="text-xs text-muted-foreground">
                     Bạn có muốn gộp ván đấu vào hồ sơ hiện có không?
                   </p>
                 </div>
@@ -1946,38 +1944,38 @@ function ImportContent() {
               <button
                 type="button"
                 onClick={() => setDuplicatePrompt(null)}
-                className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white p-1.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition-colors"
                 title="Đóng hộp thoại"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Matched profile comparison box */}
-            <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-3">
-              <div className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
-                Hệ thống phát hiện kỳ thủ đang nạp (<strong className="text-primary font-bold">{duplicatePrompt.incomingName}</strong>) có tên trùng khớp hoặc tương đương với hồ sơ hiện có:
+            <div className="p-3.5 rounded-md bg-amber-500/5 border border-amber-500/20 space-y-2.5">
+              <div className="text-xs text-muted-foreground leading-relaxed">
+                Hệ thống phát hiện kỳ thủ đang nạp (<strong className="text-foreground font-semibold">{duplicatePrompt.incomingName}</strong>) có tên trùng khớp hoặc tương đương với hồ sơ hiện có:
               </div>
 
-              <div className="bg-white dark:bg-zinc-800/80 p-3.5 rounded-xl border border-zinc-200/80 dark:border-zinc-700/60 flex items-center justify-between">
+              <div className="bg-card p-3 rounded border border-border/60 flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <div className="font-bold text-sm text-foreground flex items-center gap-2">
+                  <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
                     {duplicatePrompt.matchedPlayer.canonical_name}
                     {duplicatePrompt.matchedPlayer.title && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-extrabold uppercase rounded bg-amber-500/10 text-amber-500 border border-amber-500/30">
+                      <span className="px-1.5 py-0.2 text-[10px] font-bold uppercase rounded bg-amber-500/10 text-amber-500 border border-amber-500/30">
                         {duplicatePrompt.matchedPlayer.title}
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-2">
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
                     <span>{duplicatePrompt.matchedPlayer.total_games || 0} ván hiện có</span>
                     <span>•</span>
-                    <span>{duplicatePrompt.matchedPlayer.datasets?.length || 1} nguồn dữ liệu</span>
+                    <span>{duplicatePrompt.matchedPlayer.datasets?.length || 1} nguồn</span>
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <span className="inline-flex items-center px-2 py-1 rounded-lg text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
                     Đã có sẵn
                   </span>
                 </div>
@@ -1989,29 +1987,29 @@ function ImportContent() {
             </div>
 
             {/* Actions */}
-            <div className="flex flex-col gap-2.5 pt-2">
+            <div className="flex flex-col gap-2 pt-1">
               <button
                 type="button"
                 onClick={duplicatePrompt.onConfirmMerge}
-                className="w-full py-3 px-4 rounded-xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 shadow-xs transition-all flex items-center justify-center gap-2"
+                className="w-full py-2.5 px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition-colors flex items-center justify-center gap-2"
               >
-                <UserCheck className="w-4 h-4" />
+                <UserCheck className="w-3.5 h-3.5" />
                 Đồng ý gộp vào hồ sơ &quot;{duplicatePrompt.matchedPlayer.canonical_name}&quot;
               </button>
 
               <button
                 type="button"
                 onClick={duplicatePrompt.onConfirmForceNew}
-                className="w-full py-2.5 px-4 rounded-xl bg-secondary text-secondary-foreground hover:bg-zinc-200 dark:hover:bg-zinc-800 font-semibold text-xs border border-border/60 transition-all flex items-center justify-center gap-2"
+                className="w-full py-2 px-3 rounded bg-secondary text-secondary-foreground hover:bg-muted font-medium text-xs border border-border/60 transition-colors flex items-center justify-center gap-2"
               >
-                <Users className="w-4 h-4" />
+                <Users className="w-3.5 h-3.5" />
                 Tạo hồ sơ mới riêng biệt (Không gộp)
               </button>
 
               <button
                 type="button"
                 onClick={() => setDuplicatePrompt(null)}
-                className="w-full py-2 px-4 text-xs text-muted-foreground hover:text-foreground transition-colors font-medium text-center"
+                className="w-full py-1.5 px-3 text-xs text-muted-foreground hover:text-foreground transition-colors font-normal text-center"
               >
                 Hủy bỏ thao tác
               </button>

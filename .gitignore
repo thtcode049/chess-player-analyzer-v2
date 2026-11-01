@@ -87,6 +87,7 @@ data/processed/*
 # 10. AI Assistant & Agent local configs (Local coder only, not for repo)
 .agents/
 .gemini/
+.codex/
 
 # 11. Documentation & UML reports (only keep README.md)
 docs/

@@ -51,6 +51,7 @@ interface ProfileWorkspaceContextType {
   players: Player[];
   loadingPlayers: boolean;
   refreshPlayersList: () => Promise<void>;
+  clearWorkspaceState: () => void;
 
   // Profile Cache & Single-load
   cachedProfiles: Record<string, CachedProfileData>;
@@ -222,15 +223,24 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
       }
 
       if (openerSnap?.players && openerSnap.players.length > 0) {
-        playersRef.current = openerSnap.players;
-        setPlayers(openerSnap.players);
-        setLoadingPlayers(false);
+        // Only hydrate if snapshot matches guest tenancy or user is explicitly in that tenancy
+        const isSnapshotGuest = openerSnap.players.every((p) => p.is_guest || p.user_id === "guest");
+        const hasGuestSession = typeof window !== "undefined" && Boolean(sessionStorage.getItem("chess_guest_session_id"));
+        if (!hasGuestSession || isSnapshotGuest) {
+          playersRef.current = openerSnap.players;
+          setPlayers(openerSnap.players);
+          setLoadingPlayers(false);
+        }
       }
 
       if (openerSnap?.cachedProfiles && Object.keys(openerSnap.cachedProfiles).length > 0) {
-        const merged = { ...openerSnap.cachedProfiles, ...cachedProfilesRef.current };
-        cachedProfilesRef.current = merged;
-        setCachedProfiles(merged);
+        const isSnapshotGuest = openerSnap.players?.every((p) => p.is_guest || p.user_id === "guest");
+        const hasGuestSession = typeof window !== "undefined" && Boolean(sessionStorage.getItem("chess_guest_session_id"));
+        if (!hasGuestSession || isSnapshotGuest) {
+          const merged = { ...openerSnap.cachedProfiles, ...cachedProfilesRef.current };
+          cachedProfilesRef.current = merged;
+          setCachedProfiles(merged);
+        }
       }
 
       if (urlPlayerId) {
@@ -249,6 +259,33 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
   useEffect(() => {
     syncWindowSnapshot(players, cachedProfiles);
   }, [players, cachedProfiles, syncWindowSnapshot]);
+
+  // Clear all workspace state (used on logout or guest transitions)
+  const clearWorkspaceState = useCallback(() => {
+    playersRef.current = [];
+    cachedProfilesRef.current = {};
+    failedProfileIdsRef.current = {};
+    inFlightProfileLoadsRef.current.clear();
+    singleTreeCacheRef.current.clear();
+    inFlightTreeRef.current.clear();
+
+    setPlayers([]);
+    setCachedProfiles({});
+    setActivePlayerId(null);
+    setSelectedSubProfileId(null);
+    setActiveMode("sandbox");
+    setMultiProfiles([]);
+    setActiveGameForAnalysis(null);
+    setActiveOpeningForAnalysis(null);
+    setActiveStructureForAnalysis(null);
+    setMatchupIndex(null);
+
+    if (typeof window !== "undefined") {
+      try {
+        delete (window as any).__CHESSLOOK_WORKSPACE_SNAPSHOT__;
+      } catch {}
+    }
+  }, []);
 
   // 1. Initial Load of Players List
   const refreshPlayersList = useCallback(async () => {
@@ -737,6 +774,7 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
       players,
       loadingPlayers,
       refreshPlayersList,
+      clearWorkspaceState,
 
       cachedProfiles,
       loadingProfileId,
@@ -789,6 +827,7 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
       players,
       loadingPlayers,
       refreshPlayersList,
+      clearWorkspaceState,
       cachedProfiles,
       loadingProfileId,
       failedProfileIds,

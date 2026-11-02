@@ -173,6 +173,37 @@ export default function AiCoachView() {
   const [isEngineThinking, setIsEngineThinking] = useState(false);
   const [copiedFen, setCopiedFen] = useState(false);
 
+  // Move Ribbon refs & state
+  const moveRibbonRef = useRef<HTMLDivElement>(null);
+  const activeMoveRef = useRef<HTMLButtonElement>(null);
+
+  // Auto-scroll move ribbon to active move
+  useEffect(() => {
+    if (activeMoveRef.current) {
+      activeMoveRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }
+  }, [currentPly]);
+
+  const movePairs = useMemo(() => {
+    const pairs: { number: number; white?: string; whitePly?: number; black?: string; blackPly?: number }[] = [];
+    for (let i = 0; i < activeMoves.length; i += 2) {
+      pairs.push({
+        number: Math.floor(i / 2) + 1,
+        white: activeMoves[i],
+        whitePly: i + 1,
+        black: activeMoves[i + 1],
+        blackPly: i + 2 <= activeMoves.length ? i + 2 : undefined,
+      });
+    }
+    return pairs;
+  }, [activeMoves]);
+
+  const isWhiteTurn = (currentFen.split(" ")[1] || "w") === "w";
+
   // Games for board position loading
   const [playerGames, setPlayerGames] = useState<Game[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<string>("");
@@ -1223,45 +1254,98 @@ export default function AiCoachView() {
         {/* Center/Left: Interactive Chessboard Area (Toggleable) */}
         {isBoardOpen && (
           <div className="w-full max-w-full h-[360px] sm:h-[420px] md:h-full md:w-[380px] lg:w-[440px] xl:w-[480px] shrink-0 flex flex-col items-center bg-card border border-border/70 rounded-md p-2 sm:p-2.5 overflow-hidden">
-            {/* Board Top Status Bar */}
-            <div className="w-full h-9 flex items-center justify-between pb-1.5 mb-1.5 border-b border-border/60 gap-2 shrink-0">
-              <div className="flex items-center gap-2 truncate">
-                <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-emerald-600" />
-                  Bàn cờ
-                </span>
-
-                <div className="h-5 flex items-center">
-                  {isSkeleton ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                      <Layers className="w-3 h-3" />
-                      Hình thái Tốt (Skeleton)
-                    </span>
-                  ) : currentEval ? (
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                        (currentEval.score || 0) >= 0
-                          ? "bg-emerald-50 text-emerald-800 font-mono tabular-nums border border-emerald-200"
-                          : "bg-rose-50 text-rose-800 font-mono tabular-nums border border-rose-200"
-                      }`}
-                    >
-                      <TrendingUp className="w-3 h-3" />
-                      {currentEval.isMate
-                        ? `#M${currentEval.mateIn ?? currentEval.score}`
-                        : `${currentEval.score > 0 ? "+" : ""}${(currentEval.score / 100).toFixed(2)}`}
-                    </span>
-                  ) : null}
-                </div>
+            {/* Board Top Status Bar: Stockfish Eval & Horizontal Move Ribbon */}
+            <div className="w-full h-9 flex items-center gap-2 pb-1.5 mb-1.5 border-b border-border/60 shrink-0 overflow-hidden">
+              {/* Left: Eval Badge (Compact) */}
+              <div className="shrink-0 flex items-center">
+                {isSkeleton ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                    <Layers className="w-3 h-3" />
+                    <span>Skeleton</span>
+                  </span>
+                ) : currentEval ? (
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                      (currentEval.score || 0) >= 0
+                        ? "bg-emerald-50 text-emerald-800 font-mono tabular-nums border border-emerald-200"
+                        : "bg-rose-50 text-rose-800 font-mono tabular-nums border border-rose-200"
+                    }`}
+                    title={currentEval.isMate ? `Chiếu bí sau ${currentEval.mateIn ?? currentEval.score} nước` : `Đánh giá: ${(currentEval.score / 100).toFixed(2)}`}
+                  >
+                    <TrendingUp className="w-3 h-3" />
+                    {currentEval.isMate
+                      ? `#M${currentEval.mateIn ?? currentEval.score}`
+                      : `${currentEval.score > 0 ? "+" : ""}${(currentEval.score / 100).toFixed(2)}`}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 font-mono border border-slate-200">
+                    0.00
+                  </span>
+                )}
               </div>
 
-              {/* Turn indicator */}
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                <span
-                  className={`w-2.5 h-2.5 rounded-full border border-border ${
-                    currentFen.split(" ")[1] === "w" ? "bg-white" : "bg-slate-900"
-                  }`}
-                />
-                <span>Lượt: {currentFen.split(" ")[1] === "w" ? "Trắng" : "Đen"}</span>
+              {/* Middle: Horizontal Interactive Move Ribbon (Full width remaining) */}
+              <div
+                ref={moveRibbonRef}
+                className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth py-0.5"
+              >
+                {movePairs.length === 0 ? (
+                  <span className="text-[11px] text-muted-foreground/80 italic truncate px-1">
+                    {isSkeleton ? "Hình thái Tốt" : "Bàn cờ ban đầu (Chưa có nước đi)"}
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPly(0)}
+                      title="Về thế cờ ban đầu (Nước 0)"
+                      className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${
+                        currentPly === 0
+                          ? "bg-emerald-600 text-white font-bold shadow-xs"
+                          : "text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      Ban đầu
+                    </button>
+                    {movePairs.map((p) => (
+                      <div key={p.number} className="shrink-0 flex items-center text-xs font-mono">
+                        <span className="text-[10px] text-muted-foreground/70 font-semibold mr-1 select-none">
+                          {p.number}.
+                        </span>
+                        {p.white && (
+                          <button
+                            type="button"
+                            onClick={() => setCurrentPly(p.whitePly!)}
+                            ref={currentPly === p.whitePly ? activeMoveRef : null}
+                            title={`Chuyển tới nước ${p.number} (Trắng đi ${p.white})`}
+                            className={`px-1.5 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${
+                              currentPly === p.whitePly
+                                ? "bg-emerald-600 text-white font-bold shadow-xs scale-105"
+                                : "text-foreground/90 hover:bg-muted"
+                            }`}
+                          >
+                            {p.white}
+                          </button>
+                        )}
+                        {p.black && (
+                          <button
+                            type="button"
+                            onClick={() => setCurrentPly(p.blackPly!)}
+                            ref={currentPly === p.blackPly ? activeMoveRef : null}
+                            title={`Chuyển tới nước ${p.number}... ${p.black} (Đen)`}
+                            className={`px-1.5 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ml-0.5 ${
+                              currentPly === p.blackPly
+                                ? "bg-emerald-600 text-white font-bold shadow-xs scale-105"
+                                : "text-foreground/90 hover:bg-muted"
+                            }`}
+                          >
+                            {p.black}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
 
@@ -1373,6 +1457,18 @@ export default function AiCoachView() {
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Xóa bàn</span>
                 </button>
+
+                {/* Dot indicating turn (White or Black) at bottom-right corner below the board */}
+                <div
+                  className="flex items-center pl-1.5 sm:pl-2 border-l border-border/70 ml-0.5 shrink-0"
+                  title={`Đến lượt: ${isWhiteTurn ? "Trắng" : "Đen"} đi quân`}
+                >
+                  <span
+                    className={`w-3.5 h-3.5 rounded-full border border-slate-400/80 shadow-xs transition-colors shrink-0 ${
+                      isWhiteTurn ? "bg-white ring-1 ring-slate-200" : "bg-slate-900 ring-1 ring-slate-800"
+                    }`}
+                  />
+                </div>
               </div>
             </div>
 

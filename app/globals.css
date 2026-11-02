@@ -172,3 +172,12 @@ body {
   transition: height 0.3s ease;
   width: 100%;
 }
+
+/* Hide scrollbar for clean horizontal move ribbon */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

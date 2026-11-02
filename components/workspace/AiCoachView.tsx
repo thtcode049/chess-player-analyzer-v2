@@ -1532,7 +1532,7 @@ export default function AiCoachView() {
                     setTimeout(() => setCopiedFen(false), 2000);
                   }}
                   title="Sao chép FEN của thế cờ hiện tại"
-                  className="p-1.5 sm:p-2 rounded border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer shrink-0"
+                  className="p-1.5 sm:p-2 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer shrink-0"
                 >
                   {copiedFen ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>

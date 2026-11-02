@@ -180,20 +180,33 @@ export default function AiCoachView() {
 
   // Auto-scroll move ribbon to active move smoothly inside horizontal container
   useEffect(() => {
-    if (activeMoveRef.current && moveRibbonRef.current) {
-      const container = moveRibbonRef.current;
-      const target = activeMoveRef.current;
-      const containerWidth = container.clientWidth;
-      const targetLeft = target.offsetLeft;
-      const targetWidth = target.clientWidth;
+    if (!moveRibbonRef.current) return;
+    const container = moveRibbonRef.current;
 
-      const scrollGoal = targetLeft - containerWidth / 2 + targetWidth / 2;
+    // When at move 0 ("Ban đầu"), always scroll directly back to the beginning
+    if (currentPly === 0) {
       container.scrollTo({
-        left: Math.max(0, scrollGoal),
+        left: 0,
+        behavior: "smooth",
+      });
+      return;
+    }
+
+    if (activeMoveRef.current) {
+      const target = activeMoveRef.current;
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+
+      // Target position relative to visible container viewport
+      const relativeLeft = targetRect.left - containerRect.left;
+      const delta = relativeLeft - containerRect.width / 2 + targetRect.width / 2;
+
+      container.scrollTo({
+        left: Math.max(0, container.scrollLeft + delta),
         behavior: "smooth",
       });
     }
-  }, [currentPly]);
+  }, [currentPly, activeMoves]);
 
   const isEvalForCurrentFen = useMemo(() => {
     if (!currentEval || !currentFen) return false;
@@ -1315,6 +1328,11 @@ export default function AiCoachView() {
               {/* Middle: Horizontal Interactive Move Ribbon (Full width remaining) */}
               <div
                 ref={moveRibbonRef}
+                onWheel={(e) => {
+                  if (e.deltaY !== 0 && moveRibbonRef.current) {
+                    moveRibbonRef.current.scrollLeft += e.deltaY;
+                  }
+                }}
                 className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth py-0.5"
               >
                 {movePairs.length === 0 ? (
@@ -1326,6 +1344,7 @@ export default function AiCoachView() {
                     <button
                       type="button"
                       onClick={() => setCurrentPly(0)}
+                      ref={currentPly === 0 ? activeMoveRef : null}
                       title="Về thế cờ ban đầu (Nước 0)"
                       className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
                         currentPly === 0

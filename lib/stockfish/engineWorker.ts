@@ -200,7 +200,7 @@ export class StockfishEngineController {
       }
     }
 
-    // 2. Query Lichess Cloud Eval asynchronously with 120ms debounce (prevents 429 when arrow key is held)
+    // 2. Query Lichess Cloud Eval asynchronously with 50ms debounce (prevents 429 when arrow key is held)
     this.cloudDebounceTimer = setTimeout(() => {
       const abortCtrl = new AbortController();
       this.cloudAbortController = abortCtrl;
@@ -214,7 +214,7 @@ export class StockfishEngineController {
           this.stopLocalSearch();
         }
       });
-    }, 120);
+    }, 50);
 
     // 3. Start local Stockfish 19 WASM evaluation
     if (!this.worker) {
@@ -248,7 +248,6 @@ export class StockfishEngineController {
     this.currentSearchingReqId = reqId;
     this.pendingEval = null;
 
-    this.sendCommand("stop");
     this.sendCommand(`position fen ${fen}`);
     this.sendCommand(`go depth ${depth}`);
 

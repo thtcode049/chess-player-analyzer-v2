@@ -17,6 +17,7 @@ import {
   PanelLeft,
   PanelLeftClose,
   TrendingUp,
+  Loader2,
   User,
   Database,
   Copy,
@@ -177,16 +178,27 @@ export default function AiCoachView() {
   const moveRibbonRef = useRef<HTMLDivElement>(null);
   const activeMoveRef = useRef<HTMLButtonElement>(null);
 
-  // Auto-scroll move ribbon to active move
+  // Auto-scroll move ribbon to active move smoothly inside horizontal container
   useEffect(() => {
-    if (activeMoveRef.current) {
-      activeMoveRef.current.scrollIntoView({
+    if (activeMoveRef.current && moveRibbonRef.current) {
+      const container = moveRibbonRef.current;
+      const target = activeMoveRef.current;
+      const containerWidth = container.clientWidth;
+      const targetLeft = target.offsetLeft;
+      const targetWidth = target.clientWidth;
+
+      const scrollGoal = targetLeft - containerWidth / 2 + targetWidth / 2;
+      container.scrollTo({
+        left: Math.max(0, scrollGoal),
         behavior: "smooth",
-        block: "nearest",
-        inline: "center",
       });
     }
   }, [currentPly]);
+
+  const isEvalForCurrentFen = useMemo(() => {
+    if (!currentEval || !currentFen) return false;
+    return normalizeFen(currentEval.fen) === normalizeFen(currentFen);
+  }, [currentEval, currentFen]);
 
   const movePairs = useMemo(() => {
     const pairs: { number: number; white?: string; whitePly?: number; black?: string; blackPly?: number }[] = [];
@@ -1256,30 +1268,46 @@ export default function AiCoachView() {
           <div className="w-full max-w-full h-[360px] sm:h-[420px] md:h-full md:w-[380px] lg:w-[440px] xl:w-[480px] shrink-0 flex flex-col items-center bg-card border border-border/70 rounded-md p-2 sm:p-2.5 overflow-hidden">
             {/* Board Top Status Bar: Stockfish Eval & Horizontal Move Ribbon */}
             <div className="w-full h-9 flex items-center gap-2 pb-1.5 mb-1.5 border-b border-border/60 shrink-0 overflow-hidden">
-              {/* Left: Eval Badge (Compact) */}
-              <div className="shrink-0 flex items-center">
+              {/* Left: Eval Badge (Strict Fixed Width: 70px, zero layout shift) */}
+              <div className="w-[70px] h-6 shrink-0 flex items-center justify-center select-none">
                 {isSkeleton ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                    <Layers className="w-3 h-3" />
-                    <span>Skeleton</span>
+                  <span className="w-full h-full inline-flex items-center justify-center gap-1 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                    <Layers className="w-3 h-3 shrink-0" />
+                    <span>Hình thái</span>
                   </span>
-                ) : currentEval ? (
+                ) : isEvalForCurrentFen && currentEval ? (
                   <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                      (currentEval.score || 0) >= 0
-                        ? "bg-emerald-50 text-emerald-800 font-mono tabular-nums border border-emerald-200"
-                        : "bg-rose-50 text-rose-800 font-mono tabular-nums border border-rose-200"
+                    className={`w-full h-full inline-flex items-center justify-center gap-1 rounded-md text-[11px] font-mono tabular-nums font-bold border transition-colors ${
+                      currentEval.isMate
+                        ? (currentEval.mateIn ?? currentEval.score) > 0
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-rose-50 text-rose-700 border-rose-200"
+                        : (currentEval.score || 0) > 0
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        : (currentEval.score || 0) < 0
+                        ? "bg-rose-50 text-rose-800 border-rose-200"
+                        : "bg-slate-50 text-slate-700 border-slate-200"
                     }`}
-                    title={currentEval.isMate ? `Chiếu bí sau ${currentEval.mateIn ?? currentEval.score} nước` : `Đánh giá: ${(currentEval.score / 100).toFixed(2)}`}
+                    title={
+                      currentEval.isMate
+                        ? `Chiếu bí sau ${currentEval.mateIn ?? currentEval.score} nước`
+                        : `Đánh giá: ${(currentEval.score / 100).toFixed(2)}`
+                    }
                   >
-                    <TrendingUp className="w-3 h-3" />
-                    {currentEval.isMate
-                      ? `#M${currentEval.mateIn ?? currentEval.score}`
-                      : `${currentEval.score > 0 ? "+" : ""}${(currentEval.score / 100).toFixed(2)}`}
+                    <TrendingUp className="w-3 h-3 shrink-0 opacity-70" />
+                    <span className="truncate">
+                      {currentEval.isMate
+                        ? `#M${currentEval.mateIn ?? currentEval.score}`
+                        : `${currentEval.score > 0 ? "+" : ""}${(currentEval.score / 100).toFixed(2)}`}
+                    </span>
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 font-mono border border-slate-200">
-                    0.00
+                  <span
+                    className="w-full h-full inline-flex items-center justify-center gap-1 rounded-md text-[11px] font-mono font-medium bg-slate-50 text-slate-400 border border-slate-200"
+                    title="Đang tính điểm..."
+                  >
+                    <Loader2 className="w-3 h-3 animate-spin shrink-0 text-slate-400" />
+                    <span>...</span>
                   </span>
                 )}
               </div>
@@ -1299,7 +1327,7 @@ export default function AiCoachView() {
                       type="button"
                       onClick={() => setCurrentPly(0)}
                       title="Về thế cờ ban đầu (Nước 0)"
-                      className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${
+                      className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
                         currentPly === 0
                           ? "bg-emerald-600 text-white font-bold shadow-xs"
                           : "text-muted-foreground hover:bg-muted"
@@ -1318,9 +1346,9 @@ export default function AiCoachView() {
                             onClick={() => setCurrentPly(p.whitePly!)}
                             ref={currentPly === p.whitePly ? activeMoveRef : null}
                             title={`Chuyển tới nước ${p.number} (Trắng đi ${p.white})`}
-                            className={`px-1.5 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${
+                            className={`px-1.5 py-0.5 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
                               currentPly === p.whitePly
-                                ? "bg-emerald-600 text-white font-bold shadow-xs scale-105"
+                                ? "bg-emerald-600 text-white font-bold shadow-xs"
                                 : "text-foreground/90 hover:bg-muted"
                             }`}
                           >
@@ -1333,9 +1361,9 @@ export default function AiCoachView() {
                             onClick={() => setCurrentPly(p.blackPly!)}
                             ref={currentPly === p.blackPly ? activeMoveRef : null}
                             title={`Chuyển tới nước ${p.number}... ${p.black} (Đen)`}
-                            className={`px-1.5 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ml-0.5 ${
+                            className={`px-1.5 py-0.5 rounded text-[11px] font-semibold transition-colors cursor-pointer ml-0.5 ${
                               currentPly === p.blackPly
-                                ? "bg-emerald-600 text-white font-bold shadow-xs scale-105"
+                                ? "bg-emerald-600 text-white font-bold shadow-xs"
                                 : "text-foreground/90 hover:bg-muted"
                             }`}
                           >

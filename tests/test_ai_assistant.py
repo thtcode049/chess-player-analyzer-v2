@@ -208,7 +208,7 @@ def test_prepare_gemini_payload_config():
     from src.ai_assistant.gemini_client import _prepare_gemini_payload
     payload = _prepare_gemini_payload("Chào AI", "Ngữ cảnh", [{"role": "user", "content": "hello"}], include_thinking_config=True)
     assert payload["generationConfig"]["maxOutputTokens"] == 8192
-    assert payload["generationConfig"]["thinkingConfig"]["thinkingBudget"] == 0
+    assert payload["generationConfig"]["thinkingConfig"]["thinkingBudget"] == 1024
 
     payload_no_thinking = _prepare_gemini_payload("Chào AI", "Ngữ cảnh", [], include_thinking_config=False)
     assert payload_no_thinking["generationConfig"]["maxOutputTokens"] == 8192

@@ -69,11 +69,29 @@ class AIService:
         deep_profile: Optional[Dict[str, Any]] = None,
         chat_history: Optional[List[Dict[str, str]]] = None,
         perspective_mode: str = "self",
-        player_name: str = "Kỳ thủ"
+        player_name: str = "Kỳ thủ",
+        current_fen: Optional[str] = None,
+        engine_eval: Optional[Dict[str, Any]] = None,
     ) -> Generator[str, None, None]:
         """
         Streams response chunks from Gemini API with fallback to Local Expert.
+        Includes deterministic fact-checking and tag sanitation.
         """
+        # 1. Check deterministic response for pure geometric / factual chess queries
+        if current_fen:
+            try:
+                from src.ai_assistant.position_facts import PositionFacts
+                from src.ai_assistant.intent_router import IntentRouter
+                facts = PositionFacts(current_fen, engine_eval=engine_eval)
+                direct_ans = IntentRouter.try_answer_deterministic(prompt, facts)
+                if direct_ans:
+                    words = direct_ans.split(" ")
+                    for i in range(0, len(words), 4):
+                        yield " ".join(words[i:i+4]) + " "
+                    return
+            except Exception as e:
+                pass
+
         history_formatted = []
         if chat_history:
             for msg in chat_history:
@@ -82,6 +100,7 @@ class AIService:
                     "content": msg.get("content", "")
                 })
 
+        from src.ai_assistant.verifier import clean_chess_tags
         try:
             # Yield chunks from Gemini streaming client
             yielded_any = False
@@ -96,7 +115,7 @@ class AIService:
             ):
                 if chunk:
                     yielded_any = True
-                    yield chunk
+                    yield clean_chess_tags(chunk)
             
             if not yielded_any:
                 offline_res = (

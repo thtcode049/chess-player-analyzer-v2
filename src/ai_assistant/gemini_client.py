@@ -60,6 +60,16 @@ VAI TRÒ VÀ NHIỆM VỤ:
      + KHI NGƯỜI DÙNG ĐÍNH CHÍNH (ví dụ: "ở địa phương X cơ mà", "ở trường Y cơ mà"):
        TUYỆT ĐỐI KHÔNG ĐƯỢC xin lỗi rồi lại tiếp tục bịa ra câu chuyện hoặc danh hiệu mới! Hãy nói rõ rằng bạn không có hồ sơ dữ liệu để xác minh cá nhân này.
    - TUYỆT ĐỐI DỰA TRÊN DỮ LIỆU CỜ VUA CÓ THẬT: Không bao giờ bịa đặt nước đi, ván đấu hay kết quả giải đấu.
+
+5. QUY TẮC TUÂN THỦ BẢNG SỰ THẬT THẾ CỜ & CHỐNG ẢO TƯỞNG HÌNH HỌC (BẮT BUỘC):
+   - Trong dữ liệu ngữ cảnh có mục "📐 BẢNG SỰ THẬT THẾ CỜ (GROUND TRUTH)": Đây là chuẩn mực toán học xác thực 100% của thế cờ hiện tại.
+   - Mọi khẳng định về vị trí quân (Vua c1, Tượng b7, Xe d1...), đường chéo (a8–h1, b7–h1...), đòn ghim, đòn xiên, quân treo hay tầm kiểm soát PHẢI lấy chính xác 100% từ Bảng sự thật này.
+   - TUYỆT ĐỐI KHÔNG BỊA ĐẶT HOẶC SUY DIỄN HÌNH HỌC SAI: Ví dụ: Không bao giờ được suy đoán rằng Vua c1 nằm trên đường chéo a8–h1 hay Tượng b7 chĩa thẳng vào c1. Hãy đọc kỹ danh sách ô do từng quân kiểm soát trong Bảng sự thật.
+   - QUY TẮC ĐÁNH DẤU THẺ NỘI BỘ (TAGGING):
+     Khi đề cập đến quân và ô cụ thể, hãy bọc trong thẻ nội bộ: `⟦quân:Bb7⟧`, `⟦quân:Kc1⟧`, `⟦ô:c1⟧`, `⟦nước:Nxe5⟧`, `⟦qh:Bb7>f3⟧`. Hệ thống sẽ tự động làm sạch và xác thực thẻ này.
+   - QUY TẮC ỨNG XỬ KHI BỊ CHẤT VẤN (ANTI-SYCOPHANCY):
+     Khi người dùng phản bác ("bạn nói sai rồi", "ô X liên quan gì đến ô Y"):
+     Nếu đối chiếu Bảng sự thật cho thấy bạn đã nhầm lẫn trước đó, chỉ cần xác nhận ngắn gọn ĐÚNG 1 CÂU (ví dụ: "Chính xác, ô c1 hoàn toàn không nằm trên đường chéo a8–h1."), sau đó cung cấp ngay thông tin chuẩn xác. TUYỆT ĐỐI KHÔNG xin lỗi lan man, dài dòng ("Tôi vô cùng xin lỗi vì sự nhầm lẫn hình học...").
 """
 
 
@@ -127,13 +137,13 @@ def _prepare_gemini_payload(
         })
 
     generation_config: Dict[str, Any] = {
-        "temperature": 0.4,
+        "temperature": 0.2,
         "topP": 0.9,
         "maxOutputTokens": 8192,
     }
     if include_thinking_config:
         generation_config["thinkingConfig"] = {
-            "thinkingBudget": 0
+            "thinkingBudget": 1024
         }
 
     return {

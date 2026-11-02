@@ -96,10 +96,11 @@ def format_moves_san(moves: Any) -> str:
     return ""
 
 
-def format_games_pgn_for_context(games: Optional[List[Dict[str, Any]]], max_games: int = 100) -> str:
+def format_games_pgn_for_context(games: Optional[List[Dict[str, Any]]], max_games: int = 15) -> str:
     """
     Định dạng toàn bộ biên bản ván đấu (PGN) của kỳ thủ thành văn bản có cấu trúc
     để nạp vào Context cho Trợ lí AI phân tích trực tiếp.
+    Mặc định giới hạn 15 ván tiêu biểu để tránh làm loãng ngữ cảnh và gây ảo tưởng cho LLM.
     """
     if not games:
         return "Chưa có biên bản ván đấu PGN chi tiết."
@@ -244,6 +245,14 @@ def build_opponent_ai_context(
                 ctx_parts.append(f"- **Nước đi tối ưu Stockfish đề xuất**: `{best_move}`")
             if engine_eval.get("pv"):
                 ctx_parts.append(f"- **Biến thể dự tính chính (PV line)**: `{' '.join(engine_eval.get('pv')[:6])}`")
+
+        # Nạp Bảng sự thật thế cờ (Ground Truth Factsheet) tính toán chính xác 100% bằng python-chess
+        try:
+            from src.ai_assistant.position_facts import PositionFacts
+            facts = PositionFacts(current_fen, engine_eval=engine_eval)
+            ctx_parts.append("\n" + facts.generate_factsheet_markdown())
+        except Exception:
+            pass
         ctx_parts.append("")
     elif not is_board_open:
         ctx_parts.append("## ♟️ TRẠNG THÁI BÀN CỜ TƯƠNG TÁC")

@@ -229,7 +229,9 @@ async def chat_with_ai_coach(req: ChatRequest):
                 deep_profile=deep_profile,
                 chat_history=history_dicts,
                 perspective_mode=req.perspective_mode or "neutral",
-                player_name=player_name
+                player_name=player_name,
+                current_fen=req.current_fen,
+                engine_eval=req.engine_eval,
             ):
                 payload = json.dumps({"chunk": chunk})
                 yield f"data: {payload}\n\n"

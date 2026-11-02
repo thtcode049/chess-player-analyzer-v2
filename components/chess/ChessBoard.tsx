@@ -289,7 +289,7 @@ export default function ChessBoard({
       setCurrentPly(targetPly);
 
       if (isEngineEnabled && playable) {
-        evaluateFen(targetFen, 14);
+        evaluateFen(targetFen, 20);
       } else if (!playable) {
         stop();
       }
@@ -307,7 +307,7 @@ export default function ChessBoard({
     } else {
       const activeFen = historyFens[currentPly] || currentPositionFen;
       if (checkPlayable(activeFen)) {
-        evaluateFen(activeFen, 14);
+        evaluateFen(activeFen, 20);
       }
     }
   }, [isEngineEnabled, isPlayable]);
@@ -369,7 +369,7 @@ export default function ChessBoard({
     setCurrentPly(targetPly);
 
     if (isEngineEnabled) {
-      evaluateFen(targetFen, 14);
+      evaluateFen(targetFen, 20);
     }
     if (onPositionChange) {
       onPositionChange(targetFen, targetPly);
@@ -460,7 +460,7 @@ export default function ChessBoard({
           lastProcessedMoves.current = `${initialFen}__${updatedMoves.join(" ")}`;
 
           if (isEngineEnabled) {
-            evaluateFen(newFen, 14);
+            evaluateFen(newFen, 20);
           }
 
           // Update move list and notify parent

@@ -7,12 +7,22 @@
  * 4. Request Token barrier: 100% immune to desynchronization and sign inversion.
  */
 
+export interface PVLine {
+  moves: string[];
+  cp?: number;
+  mate?: number;
+}
+
 export interface EngineEvaluation {
   depth: number;
   score: number; // In centipawns (positive = white advantage)
+  scoreType?: "cp" | "mate";
   isMate: boolean;
   mateIn?: number;
   bestMove?: string;
+  bestMoveSan?: string;
+  pv?: string[];
+  pvs?: PVLine[];
   fen: string;
   isCloud?: boolean;
 }
@@ -76,12 +86,21 @@ async function fetchCloudEval(fen: string, abortSignal?: AbortSignal): Promise<E
     const moves = typeof pv0.moves === "string" ? pv0.moves.split(" ") : [];
     const bestMove = moves[0] || undefined;
 
+    const allPvs: PVLine[] = (data.pvs || []).slice(0, 3).map((p: any) => ({
+      moves: typeof p.moves === "string" ? p.moves.split(" ") : (Array.isArray(p.moves) ? p.moves : []),
+      cp: typeof p.cp === "number" ? p.cp : undefined,
+      mate: typeof p.mate === "number" ? p.mate : undefined,
+    }));
+
     return {
       depth,
       score,
+      scoreType: isMate ? "mate" : "cp",
       isMate,
       mateIn,
       bestMove,
+      pv: moves,
+      pvs: allPvs,
       fen,
       isCloud: true,
     };
@@ -388,15 +407,18 @@ export class StockfishEngineController {
       }
     }
 
-    const pvMatch = line.match(/\bpv\s+(\S+)/);
-    const bestMove = pvMatch ? pvMatch[1] : undefined;
+    const pvMatch = line.match(/\bpv\s+(.+)$/);
+    const pvMoves = pvMatch ? pvMatch[1].trim().split(/\s+/) : [];
+    const bestMove = pvMoves.length > 0 ? pvMoves[0] : undefined;
 
     return {
       depth,
       score,
+      scoreType: isMate ? "mate" : "cp",
       isMate,
       mateIn,
       bestMove,
+      pv: pvMoves,
       fen,
       isCloud: false,
     };

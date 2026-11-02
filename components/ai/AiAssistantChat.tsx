@@ -372,6 +372,7 @@ export default function AiAssistantChat({
           bestMove: currentEval.bestMove,
           depth: currentEval.depth,
           pv: currentEval.pv,
+          pvs: currentEval.pvs,
         } : undefined,
       },
       {

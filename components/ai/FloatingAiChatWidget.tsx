@@ -323,6 +323,15 @@ export default function FloatingAiChatWidget({
               current_ply: currentPly,
               total_ply: moves.length,
             }
+          : moves && moves.length > 0
+          ? {
+              id: "interactive-board-game",
+              white: playerName ? `${playerName} (Trắng)` : "Trắng",
+              black: "Đen",
+              moves_san: moves.join(" "),
+              current_ply: currentPly,
+              total_ply: moves.length,
+            }
           : undefined,
         engine_eval: evaluation
           ? {
@@ -493,7 +502,16 @@ export default function FloatingAiChatWidget({
       sessionTitle: finalTitle,
       messages: realMessages,
       draftInput: inputMessage,
-      game: gameInfo || null,
+      game: gameInfo || (moves && moves.length > 0 ? ({
+        id: "interactive-board-game",
+        white_player: playerName ? `${playerName} (Trắng)` : "Trắng",
+        black_player: "Đen",
+        result: "*",
+        moves,
+        moves_san: moves.join(" "),
+        current_ply: currentPly,
+        total_ply: moves.length,
+      } as any) : null),
       fen: currentFen,
       moves: moves,
       ply: currentPly,
@@ -521,6 +539,22 @@ export default function FloatingAiChatWidget({
     setCopiedIdx(idx);
     setTimeout(() => setCopiedIdx(null), 2000);
   };
+
+  const markdownComponents = useMemo(
+    () => ({
+      strong: ({ children }: any) => (
+        <strong className="font-bold text-slate-950 dark:text-white">
+          {children}
+        </strong>
+      ),
+      p: ({ children }: any) => (
+        <p className="leading-relaxed mb-1.5 last:mb-0">
+          {children}
+        </p>
+      ),
+    }),
+    []
+  );
 
   const currentMoveLabel = useMemo(() => {
     if (currentPly === 0) return "Thế cờ ban đầu";
@@ -795,7 +829,7 @@ export default function FloatingAiChatWidget({
                         ) : (
                           <div className="prose prose-xs dark:prose-invert max-w-none break-words text-slate-800 dark:text-slate-200">
                             {m.content ? (
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                                 {sanitizeChatText(m.content, currentFen)}
                               </ReactMarkdown>
                             ) : isStreaming && idx === messages.length - 1 ? (

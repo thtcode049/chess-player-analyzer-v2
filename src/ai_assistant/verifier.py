@@ -97,44 +97,76 @@ def clean_chess_tags(text: str, board: Optional[chess.Board] = None) -> str:
     # Xử lý các toạ độ 4 ký tự còn sót lại ngoài ngoặc
     cleaned = re.sub(r"\b[a-h][1-8][a-h][1-8]\b", lambda m: convert_uci_to_san(m.group(0)), cleaned)
 
-    # Tự động in đậm (Auto-bolding) các yếu tố cờ vua:
-    # 1. Ô cờ: "ô d5", "ô c2", "ô e3", v.v.
-    cleaned = re.sub(r"(^|[^\w*])ô\s+([a-h][1-8])(?=[^\w*]|$)", r"\1**ô \2**", cleaned, flags=re.IGNORECASE)
+    # Tự động in đậm (Auto-bolding) các yếu tố cờ vua mà không bao giờ bị lặp dấu sao hay lỗi khoảng trắng:
+    # 5. Chuẩn hóa khoảng trắng ngang (không làm mất ngắt dòng)
+    cleaned = re.sub(r"([^\S\r\n]){2,}", " ", cleaned)
 
-    # 2. Quân cờ gắn với ô: "Tượng e3", "Mã e4", "Tượng ở g2", "Hậu c2", v.v.
-    cleaned = re.sub(
-        r"(^|[^\w*])(Tượng|Mã|Hậu|Xe|Vua|Tốt)\s+(?:(ở|đứng ở|tại)\s+)?(?:ô\s+)?([a-h][1-8])(?=[^\w*]|$)",
-        lambda m: f"{m.group(1)}**{m.group(2)}{' ' + m.group(3) if m.group(3) else ''} {m.group(4)}**",
-        cleaned,
-        flags=re.IGNORECASE
-    )
+    # 6. Thu gọn các chuỗi dấu sao lỗi (3 dấu sao trở lên -> 2)
+    cleaned = re.sub(r"\*{3,}", "**", cleaned)
 
-    # 3. Nước đi dạng "nước a3", "nước g3"
-    cleaned = re.sub(r"\bnước\s+(?!\*\*)([a-h][1-8])\b(?!\*\*)(\s*)", r"nước **\1**\2", cleaned, flags=re.IGNORECASE)
+    # 7. Tách chuỗi theo dấu `**` để chỉ in đậm phần văn bản CHƯA in đậm (chỉ số chẵn)
+    # và giữ nguyên phần ĐÃ in đậm (chỉ số lẻ), tránh hoàn toàn lỗi in đậm lồng nhau ****text****
+    parts = cleaned.split("**")
+    processed = []
+    for idx, part in enumerate(parts):
+        if idx % 2 == 1:
+            clean_part = re.sub(r"\s+", " ", part).strip()
+            processed.append(clean_part)
+            continue
 
-    # 4. Ký hiệu nước đi SAN: Qc2, Qb3, Nd5, Be3, Nf3, Nf6, v.v.
-    cleaned = re.sub(
-        r"(?<![A-Za-z0-9_*`])([KQRBN][a-h]?[1-8]?x?[a-h][1-8](?:=[KQRBN])?[+#]?)(?![A-Za-z0-9_*`])",
-        r"**\1**",
-        cleaned
-    )
+        seg = part
+        seg = re.sub(r"\bô\s+([a-h][1-8])\b", r"**ô \1**", seg, flags=re.IGNORECASE)
 
-    # 5. Nước đi có đánh số: 1. c4, 1... e5, 2. Nf3
-    cleaned = re.sub(
-        r"(?<!\*\*)(\b\d{1,3}\.(?:\.\.)?\s*(?:\*\*)?[a-h][1-8](?:\*\*)?)\b(?!\*\*)",
-        lambda m: f"**{m.group(1).replace('**', '')}**",
-        cleaned
-    )
+        def _bold_vi_piece(m):
+            piece = m.group(1)
+            prep = m.group(2)
+            prep_str = f" {prep}" if prep else ""
+            sq = m.group(3)
+            return f"**{piece}{prep_str} {sq}**"
 
-    # 6. Nhập thành: O-O, O-O-O
-    cleaned = re.sub(r"(?<!\*\*)\b(O-O(?:-O)?|0-0(?:-0)?)\b(?!\*\*)", r"**\1**", cleaned)
+        seg = re.sub(
+            r"\b(Tượng|Mã|Hậu|Xe|Vua|Tốt)\s+(?:(ở|đứng ở|tại)\s+)?(?:ô\s+)?([a-h][1-8])\b",
+            _bold_vi_piece,
+            seg,
+            flags=re.IGNORECASE
+        )
 
-    # 7. Đánh giá thế cờ: +0.23, -0.45, #M3
-    cleaned = re.sub(r"(?<!\*\*)(\+[0-9]+\.[0-9]{2}|-[0-9]+\.[0-9]{2}|#M\d+)\b(?!\*\*)", r"**\1**", cleaned)
+        seg = re.sub(r"\bnước\s+([a-h][1-8])\b", r"nước **\1**", seg, flags=re.IGNORECASE)
 
-    # Dọn dẹp lặp dấu sao (vd: ****Qc2**** -> **Qc2**)
-    cleaned = re.sub(r"\*{4,}", "**", cleaned)
+        seg = re.sub(
+            r"(?<![A-Za-z0-9_*`])([KQRBN][a-h]?[1-8]?x?[a-h][1-8](?:=[KQRBN])?[+#]?)(?![A-Za-z0-9_*`])",
+            r"**\1**",
+            seg
+        )
 
+        seg = re.sub(
+            r"(\b\d{1,3}\.(?:\.\.)?\s*(?:[KQRBN][a-h]?[1-8]?x?)?[a-h][1-8](?:=[KQRBN])?[+#]?)\b",
+            r"**\1**",
+            seg
+        )
+
+        seg = re.sub(
+            r"(?<![A-Za-z0-9_*`])([a-h]x[a-h][1-8](?:=[KQRBN])?[+#]?)(?![A-Za-z0-9_*`])",
+            r"**\1**",
+            seg
+        )
+
+        seg = re.sub(r"\b(O-O(?:-O)?|0-0(?:-0)?)\b", r"**\1**", seg)
+        seg = re.sub(r"(\+[0-9]+\.[0-9]{2}|-[0-9]+\.[0-9]{2}|#M\d+)\b", r"**\1**", seg)
+
+        processed.append(seg)
+
+    result_parts = []
+    for i, p in enumerate(processed):
+        if i % 2 == 1:
+            if p:
+                result_parts.append(f"**{p}**")
+        else:
+            result_parts.append(p)
+    cleaned = "".join(result_parts)
+
+    cleaned = re.sub(r"(?:^|\s)\*\*\s*\*\*(?:\s|$)", " ", cleaned)
+    cleaned = re.sub(r"\*{3,}", "**", cleaned)
     return cleaned
 
 

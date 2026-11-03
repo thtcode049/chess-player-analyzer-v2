@@ -891,6 +891,24 @@ export default function AiCoachView() {
     [playerGames, selectedGameId]
   );
 
+  const effectiveGame = useMemo(() => {
+    if (selectedGame) return selectedGame;
+    if (activeMoves && activeMoves.length > 0) {
+      return {
+        id: "interactive-board-game",
+        white_player: activePlayerDisplayName ? `${activePlayerDisplayName} (Trắng)` : "Trắng",
+        black_player: "Đen",
+        result: "*",
+        moves: activeMoves,
+        moves_san: activeMoves.join(" "),
+        current_ply: currentPly,
+        total_ply: activeMoves.length,
+        opening_name: "",
+      } as any;
+    }
+    return null;
+  }, [selectedGame, activeMoves, activePlayerDisplayName, currentPly]);
+
   const handleAskAboutEntireGame = () => {
     if (!selectedGame) return;
     const white = selectedGame.white_player || "Trắng";
@@ -1737,7 +1755,8 @@ export default function AiCoachView() {
               gamesCount={playerGames.length}
               currentFen={currentFen}
               currentEval={currentEval}
-              selectedGame={selectedGame}
+              selectedGame={effectiveGame}
+              activeMoves={activeMoves}
               currentPly={currentPly}
               isBoardOpen={isBoardOpen}
               onToggleBoard={() => setIsBoardOpen((prev) => !prev)}

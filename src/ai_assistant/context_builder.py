@@ -9,6 +9,7 @@ chuẩn xác (Ground Truth) phục vụ cho LLM.
 
 from typing import Dict, Any, List, Optional
 import chess
+import re
 
 
 def format_pv_to_san(fen: str, pv_moves: List[str]) -> str:
@@ -116,21 +117,29 @@ def summarize_opening_tree(
 
 
 def format_moves_san(moves: Any) -> str:
-    """Chuyển danh sách moves thành chuỗi SAN có số thứ tự nước đi (1.e4 e5 2.Nf3 ...)."""
+    """Chuyển danh sách moves hoặc chuỗi moves thành chuỗi SAN có số thứ tự nước đi chuẩn (1. c4 e5 2. Nc3 f5 ...)."""
+    if not moves:
+        return ""
     if isinstance(moves, str):
-        return moves.strip()
-    if isinstance(moves, list):
-        tokens = []
-        for i in range(0, len(moves), 2):
-            move_num = (i // 2) + 1
-            w = moves[i]
-            b = moves[i + 1] if i + 1 < len(moves) else ""
-            if b:
-                tokens.append(f"{move_num}.{w} {b}")
-            else:
-                tokens.append(f"{move_num}.{w}")
-        return " ".join(tokens)
-    return ""
+        s_moves = moves.strip()
+        if re.search(r"\b1\.", s_moves) or re.search(r"\b1\.\.\.", s_moves):
+            return s_moves
+        tokens = [t.strip() for t in s_moves.split() if t.strip()]
+    elif isinstance(moves, list):
+        tokens = [str(m).strip() for m in moves if str(m).strip()]
+    else:
+        return ""
+
+    parts = []
+    for i in range(0, len(tokens), 2):
+        move_num = (i // 2) + 1
+        w = tokens[i]
+        b = tokens[i + 1] if i + 1 < len(tokens) else ""
+        if b:
+            parts.append(f"{move_num}. {w} {b}")
+        else:
+            parts.append(f"{move_num}. {w}")
+    return " ".join(parts)
 
 
 def format_games_pgn_for_context(games: Optional[List[Dict[str, Any]]], max_games: int = 15) -> str:
@@ -223,7 +232,7 @@ def build_opponent_ai_context(
         g_site = selected_game.get("site") or selected_game.get("site_url") or raw_h.get("Site") or raw_h.get("Link") or ""
         g_round = selected_game.get("round") or raw_h.get("Round") or ""
         g_tc = selected_game.get("time_control") or raw_h.get("TimeControl") or ""
-        g_moves = selected_game.get("moves_san") or format_moves_san(selected_game.get("moves", []))
+        g_moves = format_moves_san(selected_game.get("moves_san") or selected_game.get("moves", []))
         curr_ply = selected_game.get("current_ply", 0)
         tot_ply = selected_game.get("total_ply", 0)
 
@@ -301,6 +310,19 @@ def build_opponent_ai_context(
                 pv_san = format_pv_to_san(current_fen, engine_eval.get("pv")[:8])
                 if pv_san:
                     ctx_parts.append(f"- **Biến thể dự tính chính (PV line chuẩn SAN)**: `{pv_san}`")
+
+        if selected_game:
+            board_moves = format_moves_san(selected_game.get("moves_san") or selected_game.get("moves", []))
+            curr_ply = selected_game.get("current_ply", 0)
+            tot_ply = selected_game.get("total_ply", 0)
+            if board_moves:
+                ctx_parts.append(f"- **Biên bản toàn bộ nước đi đã chơi trên bàn cờ (Move History / PGN)**: `{board_moves}` (Đang xem ở Nước {curr_ply}/{tot_ply})")
+                ctx_parts.append(
+                    "> 💡 **HƯỚNG DẪN QUAN TRỌNG VỀ KHAI CUỘC & TIẾN TRÌNH**: Toàn bộ chuỗi nước đi đã chơi trên bàn cờ được cung cấp ở trên (bắt đầu từ nước 1...). "
+                    "Khi người dùng hỏi 'ván này dùng khai cuộc gì', 'khai cuộc gì', 'các nước đi tiếp theo', hoặc hỏi về kế hoạch ván đấu, "
+                    "bạn PHẢI tra cứu trực tiếp từ chuỗi nước đi trên bàn cờ ở trên (ví dụ: nước đầu 1. c4 là Khai cuộc Anh - English Opening, 1. e4 e5 là Khai cuộc Mở, v.v.) "
+                    "để trả lời chính xác tên khai cuộc, biến thể và phân tích kế hoạch. TUYỆT ĐỐI KHÔNG trả lời rằng bạn không có chuỗi nước đi PGN!"
+                )
 
         # Nạp Bảng sự thật thế cờ (Ground Truth Factsheet) tính toán chính xác 100% bằng python-chess
         try:

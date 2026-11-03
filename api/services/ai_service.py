@@ -123,7 +123,7 @@ class AIService:
             ):
                 if chunk:
                     yielded_any = True
-                    yield clean_chess_tags(chunk, board=current_board)
+                    yield chunk
             
             if not yielded_any:
                 offline_res = (

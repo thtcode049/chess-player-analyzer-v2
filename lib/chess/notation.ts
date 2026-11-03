@@ -239,35 +239,81 @@ export function sanitizeAndBoldChessText(text: string, currentFen?: string): str
   // Replace any remaining standalone 4-char UCI coordinate moves
   s = s.replace(/\b[a-h][1-8][a-h][1-8]\b/g, (uci: string) => resolveUci(uci));
 
-  // 8. Auto-bolding for chess elements:
-  // a. Squares: "ô d5", "ô c2", "ô e3", etc.
-  s = s.replace(/(^|[^\w*])ô\s+([a-h][1-8])(?=[^\w*]|$)/gi, (_m: string, p1: string, sq: string) => `${p1}**ô ${sq}**`);
+  // 8. Auto-bolding for chess elements without duplicate asterisks or spacing bugs:
+  // Pre-clean horizontal spaces (preserve newlines)
+  s = s.replace(/([^\S\r\n]){2,}/g, " ");
+  // Collapse 3+ asterisks to 2
+  s = s.replace(/\*{3,}/g, "**");
 
-  // b. Pieces with squares: "Tượng e3", "Mã e4", "Tượng ở g2", "Hậu c2", "Xe d1", "Vua g1", "Tốt a3"
-  s = s.replace(/(^|[^\w*])(Tượng|Mã|Hậu|Xe|Vua|Tốt)\s+(?:(ở|đứng ở|tại)\s+)?(?:ô\s+)?([a-h][1-8])(?=[^\w*]|$)/gi, (_m: string, p1: string, piece: string, prep: string, sq: string) => {
-    return `${p1}**${piece}${prep ? " " + prep : ""} ${sq}**`;
+  // Split by `**`: even indices are unbolded text, odd indices are already bolded text
+  const parts = s.split("**");
+  const processed = parts.map((part, idx) => {
+    if (idx % 2 === 1) {
+      // ODD: Already bold text! Clean internal spaces only, DO NOT touch or double-bold
+      return part.replace(/\s+/g, " ").trim();
+    }
+
+    // EVEN: Unbolded text. Auto-bold chess elements
+    let seg = part;
+
+    // a. Squares: "ô d5", "ô c2", "ô e3", etc.
+    seg = seg.replace(/\bô\s+([a-h][1-8])\b/gi, "**ô $1**");
+
+    // b. Pieces with squares: "Tượng e3", "Mã e4", "Tượng ở g2", "Hậu c2", etc.
+    seg = seg.replace(
+      /\b(Tượng|Mã|Hậu|Xe|Vua|Tốt)\s+(?:(ở|đứng ở|tại)\s+)?(?:ô\s+)?([a-h][1-8])\b/gi,
+      (_m: string, piece: string, prep: string, sq: string) => {
+        const prepStr = prep ? " " + prep : "";
+        return `**${piece}${prepStr} ${sq}**`;
+      }
+    );
+
+    // c. "nước [a-h][1-8]"
+    seg = seg.replace(/\bnước\s+([a-h][1-8])\b/gi, "nước **$1**");
+
+    // d. SAN moves: Qc2, Qb3, Nd5, Be3, Nf3, Nf6, Bxf5, Bxg6, etc.
+    seg = seg.replace(
+      /(?<![A-Za-z0-9_*`])([KQRBN][a-h]?[1-8]?x?[a-h][1-8](?:=[KQRBN])?[+#]?)(?![A-Za-z0-9_*`])/g,
+      "**$1**"
+    );
+
+    // e. Numbered moves: 1. c4, 1... e5, 2. Nf3, 14. fxg6, 16. exf5
+    seg = seg.replace(
+      /(\b\d{1,3}\.(?:\.\.)?\s*(?:[KQRBN][a-h]?[1-8]?x?)?[a-h][1-8](?:=[KQRBN])?[+#]?)\b/g,
+      "**$1**"
+    );
+
+    // f. Pawn captures in SAN: fxg6, exf5, cxd4
+    seg = seg.replace(
+      /(?<![A-Za-z0-9_*`])([a-h]x[a-h][1-8](?:=[KQRBN])?[+#]?)(?![A-Za-z0-9_*`])/g,
+      "**$1**"
+    );
+
+    // g. Castling: O-O, O-O-O
+    seg = seg.replace(/\b(O-O(?:-O)?|0-0(?:-0)?)\b/g, "**$1**");
+
+    // h. Evaluation numbers: (+0.23), -0.45, #M3
+    seg = seg.replace(/(\+[0-9]+\.[0-9]{2}|-[0-9]+\.[0-9]{2}|#M\d+)\b/g, "**$1**");
+
+    return seg;
   });
 
-  // c. "nước [a-h][1-8]" or "nước [KQRBN]..."
-  s = s.replace(/\bnước\s+(?!\*\*)([a-h][1-8])\b(?!\*\*)(\s*)/gi, "nước **$1**$2");
+  // Reassemble: odd parts get wrapped back into **
+  let result = "";
+  for (let i = 0; i < processed.length; i++) {
+    if (i % 2 === 1) {
+      if (processed[i].length > 0) {
+        result += `**${processed[i]}**`;
+      }
+    } else {
+      result += processed[i];
+    }
+  }
 
-  // d. SAN moves: Qc2, Qb3, Nd5, Be3, Nf3, Nf6, Bxd5, Nxe5, Rad1, etc.
-  s = s.replace(/(?<![A-Za-z0-9_*`])([KQRBN][a-h]?[1-8]?x?[a-h][1-8](?:=[KQRBN])?[+#]?)(?![A-Za-z0-9_*`])/g, "**$1**");
+  // 9. Clean up isolated empty bold tags without touching adjacent bold tokens
+  result = result.replace(/(?:^|\s)\*\*\s*\*\*(?:\s|$)/g, " ");
+  result = result.replace(/\*{3,}/g, "**");
 
-  // e. Numbered moves: 1. c4, 1... e5, 2. Nf3, 4. Bg2
-  s = s.replace(/(?<!\*\*)(\b\d{1,3}\.(?:\.\.)?\s*(?:\*\*)?[a-h][1-8](?:\*\*)?)\b(?!\*\*)/g, (_m: string, g1: string) => {
-    return "**" + g1.replace(/\*\*/g, "") + "**";
-  });
-
-  // f. Castling: O-O, O-O-O
-  s = s.replace(/(?<!\*\*)\b(O-O(?:-O)?|0-0(?:-0)?)\b(?!\*\*)/g, "**$1**");
-
-  // g. Evaluation numbers: (+0.23), -0.45, #M3
-  s = s.replace(/(?<!\*\*)(\+[0-9]+\.[0-9]{2}|-[0-9]+\.[0-9]{2}|#M\d+)\b(?!\*\*)/g, "**$1**");
-
-  // Clean up any double bolding
-  s = s.replace(/\*{4,}/g, "**");
-
-  return s.trim();
+  return result.trim();
 }
 

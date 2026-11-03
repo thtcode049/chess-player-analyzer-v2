@@ -388,6 +388,10 @@ export default function FloatingAiChatWidget({
 
   // 8. Open Title Input Modal before Expanding to AI Coach
   const handleOpenExpandModal = () => {
+    if (isSaveModalOpen) {
+      setIsSaveModalOpen(false);
+      return;
+    }
     const userMsg = messages.find((m) => m.role === "user");
     const defaultTitle =
       userMsg?.content.slice(0, 45) ||
@@ -640,6 +644,89 @@ export default function FloatingAiChatWidget({
             </div>
           </div>
 
+          {/* Compact Popover: Nhập tên đoạn chat khi chuyển sang Trợ lí AI (Nằm gọn ở cạnh trên popup) */}
+          {isSaveModalOpen && !isMinimized && (
+            <>
+              {/* Internal Backdrop inside chatbox */}
+              <div
+                className="absolute inset-0 z-20 bg-black/25 backdrop-blur-[1px] animate-in fade-in duration-100"
+                onClick={() => !isSavingAndExpanding && setIsSaveModalOpen(false)}
+              />
+
+              {/* Popover Box at top edge of popup */}
+              <div
+                className="absolute top-11 left-2 right-2 z-30 bg-card border border-emerald-500/40 shadow-2xl rounded-xl p-3 flex flex-col gap-2.5 animate-in fade-in slide-in-from-top-2 duration-150"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="w-5 h-5 rounded-md bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-500/20">
+                      <ExternalLink className="w-3 h-3" />
+                    </div>
+                    <span className="text-xs font-bold text-foreground truncate">
+                      Lưu & Mở rộng sang Trợ lí AI
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isSavingAndExpanding}
+                    onClick={() => setIsSaveModalOpen(false)}
+                    className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer disabled:opacity-50"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Form */}
+                <form onSubmit={handleConfirmExpandToAiCoach} className="flex flex-col gap-2">
+                  <div>
+                    <input
+                      type="text"
+                      value={customSessionTitle}
+                      onChange={(e) => setCustomSessionTitle(e.target.value)}
+                      placeholder="Tên cuộc trò chuyện..."
+                      autoFocus
+                      disabled={isSavingAndExpanding}
+                      maxLength={80}
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition shadow-inner"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-1 text-[10.5px] text-muted-foreground">
+                    <span className="truncate">Chuyển {currentMoveLabel} & {messages.length} tin</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        disabled={isSavingAndExpanding}
+                        onClick={() => setIsSaveModalOpen(false)}
+                        className="px-2.5 py-1 text-xs rounded-md border border-border hover:bg-muted text-foreground transition cursor-pointer disabled:opacity-50"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSavingAndExpanding}
+                        className="px-3 py-1 text-xs font-bold rounded-md bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+                      >
+                        {isSavingAndExpanding ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Đang lưu...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Lưu & Mở ↗</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </>
+          )}
+
           {/* Body Content (Hidden when minimized) */}
           {!isMinimized && (
             <>
@@ -781,100 +868,6 @@ export default function FloatingAiChatWidget({
               </div>
             </>
           )}
-        </div>
-      )}
-
-      {/* 3. Modal: Nhập tên đoạn chat khi chuyển sang Trợ lí AI */}
-      {isSaveModalOpen && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-          onClick={() => !isSavingAndExpanding && setIsSaveModalOpen(false)}
-        >
-          <div
-            className="w-full max-w-sm sm:max-w-md bg-card border border-border/90 shadow-2xl rounded-2xl p-4 sm:p-5 flex flex-col gap-4 text-foreground animate-in zoom-in-95 duration-150"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-500/20">
-                  <Bot className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm sm:text-base font-bold text-foreground">
-                    Lưu đoạn chat sang Trợ lí AI
-                  </h3>
-                  <p className="text-[11px] sm:text-xs text-muted-foreground">
-                    Đặt tên để lưu vào Lịch sử trò chuyện và tiếp tục phân tích trên bàn cờ.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                disabled={isSavingAndExpanding}
-                onClick={() => setIsSaveModalOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer disabled:opacity-50"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Form */}
-            <form onSubmit={handleConfirmExpandToAiCoach} className="flex flex-col gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1.5">
-                  Tên cuộc trò chuyện:
-                </label>
-                <input
-                  type="text"
-                  value={customSessionTitle}
-                  onChange={(e) => setCustomSessionTitle(e.target.value)}
-                  placeholder="Ví dụ: Phân tích thế cờ Nước 4..."
-                  autoFocus
-                  disabled={isSavingAndExpanding}
-                  maxLength={100}
-                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
-                />
-              </div>
-
-              {/* Info pill */}
-              <div className="p-2.5 rounded-xl bg-muted/50 border border-border/60 text-[11px] text-muted-foreground flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>
-                  Bàn cờ thế {currentMoveLabel} và {messages.length} tin nhắn sẽ được chuyển nguyên vẹn sang Trợ lí AI.
-                </span>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  disabled={isSavingAndExpanding}
-                  onClick={() => setIsSaveModalOpen(false)}
-                  className="px-3.5 py-1.5 text-xs font-medium rounded-xl border border-border hover:bg-muted text-foreground transition cursor-pointer disabled:opacity-50"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingAndExpanding}
-                  className="px-4 py-1.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
-                >
-                  {isSavingAndExpanding ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Đang lưu...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Lưu & Mở rộng</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
       )}
     </>

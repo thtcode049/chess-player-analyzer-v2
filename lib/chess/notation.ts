@@ -8,6 +8,8 @@
  * - Annotations: +, #, ?, !
  */
 
+import { Chess } from "chess.js";
+
 export interface NormalizedMove {
   moveNumber: number | null;
   isBlack: boolean;
@@ -147,3 +149,125 @@ export function normalizeMoveToSan(raw: string): NormalizedMove {
     original,
   };
 }
+
+/**
+ * Converts a UCI move string (e.g. "d1c2", "e1g1", "c3d5", "a2a3") to standard SAN notation.
+ */
+export function convertUciToSan(fen: string, uciMove: string): string {
+  if (!uciMove || uciMove.length < 4) return uciMove;
+  try {
+    const game = new Chess(normalizeFen(fen));
+    const m = game.move({
+      from: uciMove.slice(0, 2) as any,
+      to: uciMove.slice(2, 4) as any,
+      promotion: (uciMove[4] || undefined) as any,
+    });
+    return m ? m.san : uciMove.slice(2);
+  } catch {
+    return uciMove.slice(2);
+  }
+}
+
+/**
+ * Comprehensive Chess Assistant Text Sanitizer & Visual Formatter:
+ * 1. Cleans internal tags: ⟦...⟧ and [OPEN_BOARD]
+ * 2. Eliminates duplicate "ô ô"
+ * 3. Replaces "khả dĩ" with "tối ưu"
+ * 4. Resolves raw UCI coordinates (e.g. d1c2 -> Qc2 or c2, (c3d5) -> (Nd5), (như d1c2 hay d1b3) -> (như Qc2 hay Qb3))
+ * 5. Bolds all chess moves, piece squares, squares, evaluations and notations for maximum visibility
+ */
+export function sanitizeAndBoldChessText(text: string, currentFen?: string): string {
+  if (!text) return "";
+  let s = text;
+
+  // 1. Remove open board and internal tags
+  s = s.replace(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/gi, "");
+  s = s.replace(/⟦[^:]+:([^⟧]+)⟧/g, "$1");
+  s = s.replace(/[⟦⟧]/g, "");
+
+  // 2. Eliminate duplicate "ô ô" with proper Vietnamese Unicode spacing
+  s = s.replace(/(^|\s)ô(?:\s+ô)+(\s+)/gi, (m, p1, p2) => p1 + "ô" + p2);
+  s = s.replace(/\bô\s+ô\b/gi, "ô");
+
+  // 3. Prohibit "khả dĩ"
+  s = s.replace(/\bkhả dĩ\b/gi, "tối ưu");
+
+  // 4. Fix raw prefixes like "nước: a2a3" or "nước: a3"
+  s = s.replace(/\bnước:\s*([a-h][1-8])([a-h][1-8])\b/gi, "nước $2");
+  s = s.replace(/\bnước:\s*([a-h][1-8])\b/gi, "nước $1");
+
+  // 5. Clean "Piece (fromTo)": e.g. "Be3 (d2e3)" -> "Be3", "Hậu (d1c2)" -> "Hậu c2"
+  s = s.replace(/\b([KQRBN][a-h]?[1-8]?x?[a-h][1-8])\s*\([a-h][1-8]([a-h][1-8])\)/g, "$1");
+  s = s.replace(/(Hậu|Mã|Tượng|Xe|Vua|Tốt)\s*\([a-h][1-8]([a-h][1-8])\)/gi, "$1 $2");
+
+  // 6. Clean phrases: "từ ô d1 sang ô c2" -> "sang ô c2"
+  s = s.replace(/từ ô\s+[a-h][1-8]\s+(sang|lên|về|đến)\s+ô\s+([a-h][1-8])/gi, "$1 ô $2");
+  s = s.replace(/ở ô\s+[a-h][1-8]\s+((?:có thể\s+)?(?:nhảy|đi|tiến|lùi|sang|lên|về)\s+(?:lên|vào|sang|đến)?\s*ô\s+[a-h][1-8])/gi, "$1");
+
+  // 7. Dynamic UCI conversion with Chess instance if FEN available
+  let chessInstance: Chess | null = null;
+  if (currentFen && isFenString(currentFen)) {
+    try {
+      chessInstance = new Chess(normalizeFen(currentFen));
+    } catch {}
+  }
+
+  function resolveUci(uci: string): string {
+    if (chessInstance) {
+      try {
+        const m = chessInstance.move({
+          from: uci.slice(0, 2) as any,
+          to: uci.slice(2, 4) as any,
+          promotion: (uci[4] || undefined) as any,
+        });
+        if (m) {
+          chessInstance.undo();
+          return m.san;
+        }
+      } catch {}
+    }
+    // Fallback: pawn moves like a2a3 -> a3 or destination square
+    return uci.slice(2);
+  }
+
+  // Replace coordinate moves inside parens like '(như d1c2 hay d1b3)' or '(c3d5)'
+  s = s.replace(/\(([a-zA-Z0-9\s,–-]+)\)/g, (_fullMatch: string, inner: string) => {
+    const converted = inner.replace(/\b[a-h][1-8][a-h][1-8]\b/g, (uci: string) => resolveUci(uci));
+    return "(" + converted + ")";
+  });
+
+  // Replace any remaining standalone 4-char UCI coordinate moves
+  s = s.replace(/\b[a-h][1-8][a-h][1-8]\b/g, (uci: string) => resolveUci(uci));
+
+  // 8. Auto-bolding for chess elements:
+  // a. Squares: "ô d5", "ô c2", "ô e3", etc.
+  s = s.replace(/(^|[^\w*])ô\s+([a-h][1-8])(?=[^\w*]|$)/gi, (_m: string, p1: string, sq: string) => `${p1}**ô ${sq}**`);
+
+  // b. Pieces with squares: "Tượng e3", "Mã e4", "Tượng ở g2", "Hậu c2", "Xe d1", "Vua g1", "Tốt a3"
+  s = s.replace(/(^|[^\w*])(Tượng|Mã|Hậu|Xe|Vua|Tốt)\s+(?:(ở|đứng ở|tại)\s+)?(?:ô\s+)?([a-h][1-8])(?=[^\w*]|$)/gi, (_m: string, p1: string, piece: string, prep: string, sq: string) => {
+    return `${p1}**${piece}${prep ? " " + prep : ""} ${sq}**`;
+  });
+
+  // c. "nước [a-h][1-8]" or "nước [KQRBN]..."
+  s = s.replace(/\bnước\s+(?!\*\*)([a-h][1-8])\b(?!\*\*)(\s*)/gi, "nước **$1**$2");
+
+  // d. SAN moves: Qc2, Qb3, Nd5, Be3, Nf3, Nf6, Bxd5, Nxe5, Rad1, etc.
+  s = s.replace(/(?<![A-Za-z0-9_*`])([KQRBN][a-h]?[1-8]?x?[a-h][1-8](?:=[KQRBN])?[+#]?)(?![A-Za-z0-9_*`])/g, "**$1**");
+
+  // e. Numbered moves: 1. c4, 1... e5, 2. Nf3, 4. Bg2
+  s = s.replace(/(?<!\*\*)(\b\d{1,3}\.(?:\.\.)?\s*(?:\*\*)?[a-h][1-8](?:\*\*)?)\b(?!\*\*)/g, (_m: string, g1: string) => {
+    return "**" + g1.replace(/\*\*/g, "") + "**";
+  });
+
+  // f. Castling: O-O, O-O-O
+  s = s.replace(/(?<!\*\*)\b(O-O(?:-O)?|0-0(?:-0)?)\b(?!\*\*)/g, "**$1**");
+
+  // g. Evaluation numbers: (+0.23), -0.45, #M3
+  s = s.replace(/(?<!\*\*)(\+[0-9]+\.[0-9]{2}|-[0-9]+\.[0-9]{2}|#M\d+)\b(?!\*\*)/g, "**$1**");
+
+  // Clean up any double bolding
+  s = s.replace(/\*{4,}/g, "**");
+
+  return s.trim();
+}
+

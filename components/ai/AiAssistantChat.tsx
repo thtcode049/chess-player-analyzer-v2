@@ -17,7 +17,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { apiClient } from "@/lib/api/client";
-import { isFenString, normalizeFen } from "@/lib/chess/notation";
+import { isFenString, normalizeFen, sanitizeAndBoldChessText, convertUciToSan } from "@/lib/chess/notation";
 
 export interface Message {
   role: "user" | "assistant";
@@ -56,28 +56,17 @@ interface AiAssistantChatProps {
  */
 const MarkdownRenderer = React.memo(function MarkdownRenderer({
   content,
+  currentFen,
   onApplyFen,
 }: {
   content: string;
+  currentFen?: string;
   onApplyFen?: (fen: string) => void;
 }) {
-  // Strip [OPEN_BOARD] tags, internal tags, and unwanted terms cleanly so they don't appear in markdown
+  // Clean internal tags, raw coordinates, and auto-bold chess notations, squares and pieces
   const cleanContent = useMemo(() => {
-    return content
-      .replace(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/gi, "")
-      .replace(/⟦[^:]+:([^⟧]+)⟧/g, "$1")
-      .replace(/[⟦⟧]/g, "")
-      .replace(/\bô\s+ô\b/gi, "ô")
-      .replace(/\bkhả dĩ\b/gi, "tối ưu")
-      .replace(/\b([KQRBN]?[a-h][1-8])\s*\([a-h][1-8]([a-h][1-8])\)/g, "$1")
-      .replace(/(Hậu|Mã|Tượng|Xe|Vua|Tốt)\s*\([a-h][1-8]([a-h][1-8])\)/gi, "$1 $2")
-      .replace(/\(([a-h][1-8])([a-h][1-8])\)/g, "($2)")
-      .replace(/\bnước:\s*([a-h][1-8])([a-h][1-8])\b/gi, "nước $2")
-      .replace(/\bnước:\s*([a-h][1-8])\b/gi, "nước $1")
-      .replace(/từ ô\s+[a-h][1-8]\s+(sang|lên|về|đến)\s+ô\s+([a-h][1-8])/gi, "$1 ô $2")
-      .replace(/ở ô\s+[a-h][1-8]\s+((?:có thể\s+)?(?:nhảy|đi|tiến|lùi|sang|lên|về)\s+(?:lên|vào|sang|đến)?\s*ô\s+[a-h][1-8])/gi, "$1")
-      .trim();
-  }, [content]);
+    return sanitizeAndBoldChessText(content, currentFen);
+  }, [content, currentFen]);
 
   const components = useMemo(
     () => ({
@@ -383,6 +372,7 @@ export default function AiAssistantChat({
           score: currentEval.score,
           scoreType: currentEval.scoreType,
           bestMove: currentEval.bestMove,
+          bestMoveSan: currentEval.bestMoveSan || (currentEval.bestMove && currentFen ? convertUciToSan(currentFen, currentEval.bestMove) : undefined),
           depth: currentEval.depth,
           pv: currentEval.pv,
           pvs: currentEval.pvs,
@@ -547,6 +537,7 @@ export default function AiAssistantChat({
                     {isBot ? (
                       <MarkdownRenderer
                         content={msg.content}
+                        currentFen={currentFen}
                         onApplyFen={handleApplyFen}
                       />
                     ) : (

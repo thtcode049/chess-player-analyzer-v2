@@ -20,14 +20,15 @@ from src.ai_assistant.position_facts import PositionFacts, are_squares_on_diagon
 TAG_REGEX = r"⟦([^:]+):([^⟧]+)⟧"
 
 
-def clean_chess_tags(text: str) -> str:
+def clean_chess_tags(text: str, board: Optional[chess.Board] = None) -> str:
     """
-    Chuyển đổi các thẻ nội bộ ⟦loại:giá_trị⟧ thành văn bản Markdown tự nhiên.
+    Chuyển đổi các thẻ nội bộ ⟦loại:giá_trị⟧, loại bỏ toạ độ xuất phát-đích đến,
+    chuẩn hóa tên nước đi FIDE và tự động in đậm các nước đi, ô cờ, quân cờ để dễ quan sát.
     Ví dụ:
-      ⟦quân:Bb7⟧ -> Tượng b7
-      ⟦quân:Kc1⟧ -> Vua c1
-      ⟦nước:Nxe5⟧ -> Nxe5
-      ⟦ô:c1⟧ -> ô c1
+      ⟦quân:Bb7⟧ -> **Tượng b7**
+      ⟦quân:Kc1⟧ -> **Vua c1**
+      ⟦nước:Nxe5⟧ -> **Nxe5**
+      ⟦ô:c1⟧ -> **ô c1**
       ⟦đg:Trắng ưu thế⟧ -> Trắng ưu thế
     """
     def replace_tag(match):
@@ -41,12 +42,12 @@ def clean_chess_tags(text: str) -> str:
                 sq = val[1:]
                 p_map = {"K": "Vua", "Q": "Hậu", "R": "Xe", "B": "Tượng", "N": "Mã", "P": "Tốt"}
                 if piece_char in p_map:
-                    return f"{p_map[piece_char]} {sq}"
-            return val
+                    return f"**{p_map[piece_char]} {sq}**"
+            return f"**{val}**"
         elif tag_type == "nước":
-            return val
+            return f"**{val}**"
         elif tag_type == "ô":
-            return f"ô {val}"
+            return f"**ô {val}**"
         elif tag_type == "đg":
             return val
         elif tag_type == "qh":
@@ -60,19 +61,79 @@ def clean_chess_tags(text: str) -> str:
     cleaned = re.sub(TAG_REGEX, replace_tag, text)
     # Loại bỏ bất kỳ dấu ngoặc thẻ nội bộ còn sót
     cleaned = re.sub(r"[⟦⟧]", "", cleaned)
+    # Loại bỏ thẻ mở bàn cờ
+    cleaned = re.sub(r"\[OPEN_BOARD(?::\s*([^\]]+))?\]", "", cleaned, flags=re.IGNORECASE)
     # Chuẩn hóa nếu bị lặp từ "ô ô" (vd: "về ô ô g2" -> "về ô g2")
+    cleaned = re.sub(r"(^|\s)ô(?:\s+ô)+(\s+)", r"\1ô\2", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bô\s+ô\b", "ô", cleaned, flags=re.IGNORECASE)
     # Thay thế triệt để từ "khả dĩ" bằng "tối ưu" hoặc "tiềm năng"
     cleaned = re.sub(r"\bkhả dĩ\b", "tối ưu", cleaned, flags=re.IGNORECASE)
 
     # Làm sạch ký hiệu đọc cả vị trí đầu - cuối (như (d1c2), (c3d5), (d2e3), Be3 (d2e3), Hậu (d1c2))
     cleaned = re.sub(r"\b([KQRBN]?[a-h][1-8])\s*\([a-h][1-8]([a-h][1-8])\)", r"\1", cleaned)
-    cleaned = re.sub(r"(Hậu|Mã|Tượng|Xe|Vua|Tốt)\s*\([a-h][1-8]([a-h][1-8])\)", r"\1 \2", cleaned)
-    cleaned = re.sub(r"\(([a-h][1-8])([a-h][1-8])\)", r"(\2)", cleaned)
-    cleaned = re.sub(r"\bnước:\s*([a-h][1-8])([a-h][1-8])\b", r"nước \2", cleaned)
-    cleaned = re.sub(r"\bnước:\s*([a-h][1-8])\b", r"nước \1", cleaned)
-    cleaned = re.sub(r"từ ô\s+[a-h][1-8]\s+(sang|lên|về|đến)\s+ô\s+([a-h][1-8])", r"\1 ô \2", cleaned)
-    cleaned = re.sub(r"ở ô\s+[a-h][1-8]\s+((?:có thể\s+)?(?:nhảy|đi|tiến|lùi|sang|lên|về)\s+(?:lên|vào|sang|đến)?\s*ô\s+[a-h][1-8])", r"\1", cleaned)
+    cleaned = re.sub(r"(Hậu|Mã|Tượng|Xe|Vua|Tốt)\s*\([a-h][1-8]([a-h][1-8])\)", r"\1 \2", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bnước:\s*([a-h][1-8])([a-h][1-8])\b", r"nước \2", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bnước:\s*([a-h][1-8])\b", r"nước \1", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"từ ô\s+[a-h][1-8]\s+(sang|lên|về|đến)\s+ô\s+([a-h][1-8])", r"\1 ô \2", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"ở ô\s+[a-h][1-8]\s+((?:có thể\s+)?(?:nhảy|đi|tiến|lùi|sang|lên|về)\s+(?:lên|vào|sang|đến)?\s*ô\s+[a-h][1-8])", r"\1", cleaned, flags=re.IGNORECASE)
+
+    def convert_uci_to_san(uci_str: str) -> str:
+        if board:
+            try:
+                m = chess.Move.from_uci(uci_str)
+                if m in board.legal_moves:
+                    return board.san(m)
+            except Exception:
+                pass
+        return uci_str[2:]
+
+    # Xử lý các cụm toạ độ trong ngoặc đơn như (như d1c2 hay d1b3) hoặc (c3d5)
+    def clean_paren_content(match):
+        inner = match.group(1)
+        subbed = re.sub(r"\b[a-h][1-8][a-h][1-8]\b", lambda m: convert_uci_to_san(m.group(0)), inner)
+        return f"({subbed})"
+
+    cleaned = re.sub(r"\(([a-zA-Z0-9\s,–-]+)\)", clean_paren_content, cleaned)
+    # Xử lý các toạ độ 4 ký tự còn sót lại ngoài ngoặc
+    cleaned = re.sub(r"\b[a-h][1-8][a-h][1-8]\b", lambda m: convert_uci_to_san(m.group(0)), cleaned)
+
+    # Tự động in đậm (Auto-bolding) các yếu tố cờ vua:
+    # 1. Ô cờ: "ô d5", "ô c2", "ô e3", v.v.
+    cleaned = re.sub(r"(^|[^\w*])ô\s+([a-h][1-8])(?=[^\w*]|$)", r"\1**ô \2**", cleaned, flags=re.IGNORECASE)
+
+    # 2. Quân cờ gắn với ô: "Tượng e3", "Mã e4", "Tượng ở g2", "Hậu c2", v.v.
+    cleaned = re.sub(
+        r"(^|[^\w*])(Tượng|Mã|Hậu|Xe|Vua|Tốt)\s+(?:(ở|đứng ở|tại)\s+)?(?:ô\s+)?([a-h][1-8])(?=[^\w*]|$)",
+        lambda m: f"{m.group(1)}**{m.group(2)}{' ' + m.group(3) if m.group(3) else ''} {m.group(4)}**",
+        cleaned,
+        flags=re.IGNORECASE
+    )
+
+    # 3. Nước đi dạng "nước a3", "nước g3"
+    cleaned = re.sub(r"\bnước\s+(?!\*\*)([a-h][1-8])\b(?!\*\*)(\s*)", r"nước **\1**\2", cleaned, flags=re.IGNORECASE)
+
+    # 4. Ký hiệu nước đi SAN: Qc2, Qb3, Nd5, Be3, Nf3, Nf6, v.v.
+    cleaned = re.sub(
+        r"(?<![A-Za-z0-9_*`])([KQRBN][a-h]?[1-8]?x?[a-h][1-8](?:=[KQRBN])?[+#]?)(?![A-Za-z0-9_*`])",
+        r"**\1**",
+        cleaned
+    )
+
+    # 5. Nước đi có đánh số: 1. c4, 1... e5, 2. Nf3
+    cleaned = re.sub(
+        r"(?<!\*\*)(\b\d{1,3}\.(?:\.\.)?\s*(?:\*\*)?[a-h][1-8](?:\*\*)?)\b(?!\*\*)",
+        lambda m: f"**{m.group(1).replace('**', '')}**",
+        cleaned
+    )
+
+    # 6. Nhập thành: O-O, O-O-O
+    cleaned = re.sub(r"(?<!\*\*)\b(O-O(?:-O)?|0-0(?:-0)?)\b(?!\*\*)", r"**\1**", cleaned)
+
+    # 7. Đánh giá thế cờ: +0.23, -0.45, #M3
+    cleaned = re.sub(r"(?<!\*\*)(\+[0-9]+\.[0-9]{2}|-[0-9]+\.[0-9]{2}|#M\d+)\b(?!\*\*)", r"**\1**", cleaned)
+
+    # Dọn dẹp lặp dấu sao (vd: ****Qc2**** -> **Qc2**)
+    cleaned = re.sub(r"\*{4,}", "**", cleaned)
 
     return cleaned
 
@@ -157,7 +218,7 @@ class ChessOutputVerifier:
                 pass
 
         # Làm sạch thẻ và trả về câu hợp lệ
-        sanitized = clean_chess_tags(sentence)
+        sanitized = clean_chess_tags(sentence, board=facts.board)
         return True, sanitized, None
 
     @classmethod
@@ -181,4 +242,4 @@ class ChessOutputVerifier:
                 continue
 
         result = " ".join(valid_sentences).strip()
-        return clean_chess_tags(result or text)
+        return clean_chess_tags(result or text, board=facts.board)

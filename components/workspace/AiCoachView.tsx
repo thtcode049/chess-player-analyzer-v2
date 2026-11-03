@@ -43,7 +43,7 @@ import AiAssistantChat from "@/components/ai/AiAssistantChat";
 import { apiClient } from "@/lib/api/client";
 import { Player, Game } from "@/lib/api/types";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
-import { isFenString, normalizeFen, isPawnSkeletonFen } from "@/lib/chess/notation";
+import { isFenString, normalizeFen, isPawnSkeletonFen, convertUciToSan } from "@/lib/chess/notation";
 import { useProfileWorkspaceStore } from "@/lib/stores/profileWorkspaceStore";
 import { createClient } from "@/lib/supabase/client";
 
@@ -915,7 +915,9 @@ export default function AiCoachView() {
       const scoreStr = currentEval.isMate
         ? `Chiếu bí sau ${currentEval.mateIn ?? currentEval.score} nước`
         : `${currentEval.score > 0 ? "+" : ""}${(currentEval.score / 100).toFixed(2)} Tốt`;
-      evalText = ` (Stockfish chấm: ${scoreStr}, nước tối ưu: ${currentEval.bestMove || "chưa rõ"})`;
+      const bestMoveFormatted = currentEval.bestMoveSan || (currentEval.bestMove ? convertUciToSan(currentFen, currentEval.bestMove) : "");
+      const bmText = bestMoveFormatted ? `, nước tối ưu: ${bestMoveFormatted}` : "";
+      evalText = ` (Stockfish chấm: ${scoreStr}${bmText})`;
     }
     const moveContext = selectedGame
       ? ` ở Nước ${currentPly}/${activeMoves.length} trong ván ${selectedGame.white_player || "Trắng"} vs ${selectedGame.black_player || "Đen"}`
@@ -1416,12 +1418,7 @@ export default function AiCoachView() {
             <div className="w-full h-9 flex items-center gap-2 pb-1.5 mb-1.5 border-b border-border/60 shrink-0 overflow-hidden">
               {/* Left: Eval Badge (Strict Fixed Width: 70px, zero layout shift) */}
               <div className="w-[70px] h-6 shrink-0 flex items-center justify-center select-none">
-                {isSkeleton ? (
-                  <span className="w-full h-full inline-flex items-center justify-center gap-1 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                    <Layers className="w-3 h-3 shrink-0" />
-                    <span>Hình thái</span>
-                  </span>
-                ) : isEvalForCurrentFen && currentEval ? (
+                {isEvalForCurrentFen && currentEval ? (
                   <span
                     className={`w-full h-full inline-flex items-center justify-center gap-1 rounded-md text-[11px] font-mono tabular-nums font-bold border transition-colors ${
                       currentEval.isMate
@@ -1470,7 +1467,7 @@ export default function AiCoachView() {
               >
                 {movePairs.length === 0 ? (
                   <span className="text-[11px] text-muted-foreground/80 italic truncate px-1">
-                    {isSkeleton ? "Hình thái Tốt" : "Bàn cờ ban đầu (Chưa có nước đi)"}
+                    Bàn cờ ban đầu (Chưa có nước đi)
                   </span>
                 ) : (
                   <>
@@ -1584,9 +1581,7 @@ export default function AiCoachView() {
                   }
                   className="font-mono text-[11px] font-semibold px-2 py-1 text-slate-600 min-w-[65px] text-center"
                 >
-                  {isSkeleton
-                    ? "Hình thái Tốt"
-                    : currentPly === 0
+                  {currentPly === 0
                     ? "Ban đầu"
                     : `Nước ${Math.ceil(currentPly / 2)}/${Math.ceil(activeMoves.length / 2)}`}
                 </span>

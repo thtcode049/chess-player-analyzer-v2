@@ -26,6 +26,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useProfileWorkspaceStore, ActiveChatHandoffData } from "@/lib/stores/profileWorkspaceStore";
 import { Game } from "@/lib/api/types";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
+import { sanitizeAndBoldChessText, convertUciToSan } from "@/lib/chess/notation";
 
 export interface FloatingAiChatWidgetProps {
   currentFen: string;
@@ -56,20 +57,8 @@ function generateUUID(): string {
   });
 }
 
-export function sanitizeChatText(text: string): string {
-  if (!text) return "";
-  return text
-    .replace(/⟦[^:]+:([^⟧]+)⟧/g, "$1")
-    .replace(/[⟦⟧]/g, "")
-    .replace(/\bô\s+ô\b/gi, "ô")
-    .replace(/\bkhả dĩ\b/gi, "tối ưu")
-    .replace(/\b([KQRBN]?[a-h][1-8])\s*\([a-h][1-8]([a-h][1-8])\)/g, "$1")
-    .replace(/(Hậu|Mã|Tượng|Xe|Vua|Tốt)\s*\([a-h][1-8]([a-h][1-8])\)/gi, "$1 $2")
-    .replace(/\(([a-h][1-8])([a-h][1-8])\)/g, "($2)")
-    .replace(/\bnước:\s*([a-h][1-8])([a-h][1-8])\b/gi, "nước $2")
-    .replace(/\bnước:\s*([a-h][1-8])\b/gi, "nước $1")
-    .replace(/từ ô\s+[a-h][1-8]\s+(sang|lên|về|đến)\s+ô\s+([a-h][1-8])/gi, "$1 ô $2")
-    .replace(/ở ô\s+[a-h][1-8]\s+((?:có thể\s+)?(?:nhảy|đi|tiến|lùi|sang|lên|về)\s+(?:lên|vào|sang|đến)?\s*ô\s+[a-h][1-8])/gi, "$1");
+export function sanitizeChatText(text: string, currentFen?: string): string {
+  return sanitizeAndBoldChessText(text, currentFen);
 }
 
 export default function FloatingAiChatWidget({
@@ -340,6 +329,7 @@ export default function FloatingAiChatWidget({
               score: evaluation.score,
               scoreType: evaluation.scoreType,
               bestMove: evaluation.bestMove,
+              bestMoveSan: evaluation.bestMoveSan || (evaluation.bestMove && currentFen ? convertUciToSan(currentFen, evaluation.bestMove) : undefined),
               depth: evaluation.depth,
               pv: evaluation.pv,
               pvs: evaluation.pvs,
@@ -354,7 +344,7 @@ export default function FloatingAiChatWidget({
             if (last && last.role === "assistant") {
               next[next.length - 1] = {
                 ...last,
-                content: sanitizeChatText(last.content + chunk),
+                content: last.content + chunk,
               };
             }
             return next;
@@ -719,7 +709,7 @@ export default function FloatingAiChatWidget({
                           <div className="prose prose-xs dark:prose-invert max-w-none break-words text-slate-800 dark:text-slate-200">
                             {m.content ? (
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {sanitizeChatText(m.content).replace(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/gi, "").trim()}
+                                {sanitizeChatText(m.content, currentFen)}
                               </ReactMarkdown>
                             ) : isStreaming && idx === messages.length - 1 ? (
                               <div className="flex items-center gap-1.5 py-1 text-muted-foreground">
@@ -735,7 +725,7 @@ export default function FloatingAiChatWidget({
                           <div className="mt-1 flex items-center justify-end">
                             <button
                               type="button"
-                              onClick={() => handleCopyMessage(sanitizeChatText(m.content), idx)}
+                              onClick={() => handleCopyMessage(sanitizeChatText(m.content, currentFen), idx)}
                               title="Sao chép câu trả lời"
                               className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition cursor-pointer p-0.5"
                             >

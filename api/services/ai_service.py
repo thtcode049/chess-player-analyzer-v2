@@ -101,6 +101,14 @@ class AIService:
                 })
 
         from src.ai_assistant.verifier import clean_chess_tags
+        import chess
+        current_board = None
+        if current_fen:
+            try:
+                current_board = chess.Board(current_fen)
+            except Exception:
+                pass
+
         try:
             # Yield chunks from Gemini streaming client
             yielded_any = False
@@ -115,7 +123,7 @@ class AIService:
             ):
                 if chunk:
                     yielded_any = True
-                    yield clean_chess_tags(chunk)
+                    yield clean_chess_tags(chunk, board=current_board)
             
             if not yielded_any:
                 offline_res = (

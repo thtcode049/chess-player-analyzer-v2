@@ -305,18 +305,18 @@ def build_opponent_ai_context(
                     move_pfx = f"{b_bm.fullmove_number}. " if b_bm.turn == chess.WHITE else f"{b_bm.fullmove_number}... "
                 except Exception:
                     move_pfx = ""
-                ctx_parts.append(f"- **Nước đi tối ưu Stockfish đề xuất**: `{move_pfx}{best_move}` (Ký hiệu SAN chuẩn)")
+                ctx_parts.append(f"- **Nước đi tối ưu Stockfish đề xuất**: **{move_pfx}{best_move}** (Ký hiệu SAN chuẩn)")
             if engine_eval.get("pv"):
                 pv_san = format_pv_to_san(current_fen, engine_eval.get("pv")[:8])
                 if pv_san:
-                    ctx_parts.append(f"- **Biến thể dự tính chính (PV line chuẩn SAN)**: `{pv_san}`")
+                    ctx_parts.append(f"- **Biến thể dự tính chính (PV line chuẩn SAN)**: {pv_san}")
 
         if selected_game:
             board_moves = format_moves_san(selected_game.get("moves_san") or selected_game.get("moves", []))
             curr_ply = selected_game.get("current_ply", 0)
             tot_ply = selected_game.get("total_ply", 0)
             if board_moves:
-                ctx_parts.append(f"- **Biên bản toàn bộ nước đi đã chơi trên bàn cờ (Move History / PGN)**: `{board_moves}` (Đang xem ở Nước {curr_ply}/{tot_ply})")
+                ctx_parts.append(f"- **Biên bản toàn bộ nước đi đã chơi trên bàn cờ (Move History / PGN)**: {board_moves} (Đang xem ở Nước {curr_ply}/{tot_ply})")
                 ctx_parts.append(
                     "> 💡 **HƯỚNG DẪN QUAN TRỌNG VỀ KHAI CUỘC & TIẾN TRÌNH**: Toàn bộ chuỗi nước đi đã chơi trên bàn cờ được cung cấp ở trên (bắt đầu từ nước 1...). "
                     "Khi người dùng hỏi 'ván này dùng khai cuộc gì', 'khai cuộc gì', 'các nước đi tiếp theo', hoặc hỏi về kế hoạch ván đấu, "

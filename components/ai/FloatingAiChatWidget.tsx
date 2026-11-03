@@ -543,12 +543,17 @@ export default function FloatingAiChatWidget({
   const markdownComponents = useMemo(
     () => ({
       strong: ({ children }: any) => (
-        <strong className="font-bold text-slate-950 dark:text-white">
+        <strong className="font-semibold text-slate-900 dark:text-slate-100">
           {children}
         </strong>
       ),
+      code: ({ children }: any) => (
+        <span className="font-sans font-semibold text-slate-900 dark:text-slate-100">
+          {children}
+        </span>
+      ),
       p: ({ children }: any) => (
-        <p className="leading-relaxed mb-1.5 last:mb-0">
+        <p className="leading-relaxed mb-1.5 last:mb-0 text-slate-800 dark:text-slate-200">
           {children}
         </p>
       ),

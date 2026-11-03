@@ -72,27 +72,27 @@ const MarkdownRenderer = React.memo(function MarkdownRenderer({
   const components = useMemo(
     () => ({
       h1: ({ children }: any) => (
-        <h1 className="text-base font-black text-slate-900 mt-3 mb-2 flex items-center gap-1.5 border-b border-slate-200 pb-1">
+        <h1 className="text-base font-bold text-slate-900 mt-3 mb-2 flex items-center gap-1.5 border-b border-slate-200 pb-1">
           {children}
         </h1>
       ),
       h2: ({ children }: any) => (
-        <h2 className="text-sm font-black text-slate-900 mt-3 mb-1.5 flex items-center gap-1.5">
+        <h2 className="text-sm font-bold text-slate-900 mt-3 mb-1.5 flex items-center gap-1.5">
           {children}
         </h2>
       ),
       h3: ({ children }: any) => (
-        <h3 className="text-sm font-bold text-slate-900 mt-2.5 mb-1.5 pb-1 border-b border-slate-200 flex items-center gap-1.5">
+        <h3 className="text-sm font-semibold text-slate-900 mt-2.5 mb-1.5 pb-1 border-b border-slate-200 flex items-center gap-1.5">
           {children}
         </h3>
       ),
       h4: ({ children }: any) => (
-        <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-wider mt-2.5 mb-1">
+        <h4 className="text-xs font-semibold text-emerald-700 uppercase tracking-wider mt-2.5 mb-1">
           {children}
         </h4>
       ),
       p: ({ children }: any) => (
-        <p className="text-sm leading-relaxed text-slate-800 mb-2 last:mb-0">
+        <p className="text-sm leading-relaxed text-slate-800 dark:text-slate-200 mb-2 last:mb-0">
           {children}
         </p>
       ),
@@ -107,12 +107,12 @@ const MarkdownRenderer = React.memo(function MarkdownRenderer({
         </ol>
       ),
       li: ({ children }: any) => (
-        <li className="text-sm leading-relaxed text-slate-800">
+        <li className="text-sm leading-relaxed text-slate-800 dark:text-slate-200">
           {children}
         </li>
       ),
       strong: ({ children }: any) => (
-        <strong className="font-bold text-slate-950">
+        <strong className="font-semibold text-slate-900 dark:text-slate-100">
           {children}
         </strong>
       ),
@@ -136,11 +136,12 @@ const MarkdownRenderer = React.memo(function MarkdownRenderer({
           );
         }
 
-        // Clean inline text without borders, background box or rounded corners
+        // Clean inline text without borders, background box or rounded corners.
+        // Uses the same natural sans-serif font family, matching text-sm size, and gentle semibold weight.
         return (
-          <code className="font-mono text-xs font-bold text-foreground px-0.5">
+          <span className="font-sans font-semibold text-slate-900 dark:text-slate-100">
             {children}
-          </code>
+          </span>
         );
       },
       blockquote: ({ children }: any) => (

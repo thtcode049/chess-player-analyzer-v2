@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Lock, Mail, ArrowRight, Loader2, User } from "lucide-react";
+import { enterGuestMode, exitGuestMode } from "@/lib/auth/guest";
 
 function LoginContent() {
   const router = useRouter();
@@ -46,11 +47,11 @@ function LoginContent() {
         if (guestId) {
           const { apiClient } = await import("@/lib/api/client");
           await apiClient.claimGuestData(guestId);
-          sessionStorage.removeItem("chess_guest_session_id");
-          sessionStorage.removeItem("chess_guest_created_at");
         }
       } catch (e) {
         console.warn("Could not claim guest session on login:", e);
+      } finally {
+        exitGuestMode();
       }
 
       window.location.href = "/dashboard";
@@ -95,21 +96,8 @@ function LoginContent() {
   };
 
   const handleDemoLogin = () => {
-    // Generate clean guest session and clear legacy global data
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.removeItem("chess_ai_conversations_v4");
-        const freshGuestId =
-          "guest_" +
-          (typeof crypto !== "undefined" && crypto.randomUUID
-            ? crypto.randomUUID()
-            : Math.random().toString(36).substring(2) + Date.now().toString(36));
-        sessionStorage.setItem("chess_guest_session_id", freshGuestId);
-        sessionStorage.setItem("chess_guest_created_at", new Date().toISOString());
-        delete (window as any).__CHESSLOOK_WORKSPACE_SNAPSHOT__;
-      } catch {}
-    }
-    // Demo guest mode allows instant access to dashboard cleanly
+    // Generate clean guest session, sync cookies and storage, and enter dashboard
+    enterGuestMode();
     router.push("/dashboard");
   };
 

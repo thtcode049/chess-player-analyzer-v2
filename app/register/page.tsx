@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UserPlus, Mail, Lock, User, ArrowRight, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { exitGuestMode } from "@/lib/auth/guest";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -62,8 +63,7 @@ export default function RegisterPage() {
         if (guestId && data.user?.id) {
           const { apiClient } = await import("@/lib/api/client");
           await apiClient.claimGuestData(guestId);
-          sessionStorage.removeItem("chess_guest_session_id");
-          sessionStorage.removeItem("chess_guest_created_at");
+          exitGuestMode();
         }
       } catch (e) {
         console.warn("Could not claim guest session on register:", e);

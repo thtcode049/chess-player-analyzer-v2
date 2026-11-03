@@ -25,6 +25,7 @@ import {
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { apiClient } from "@/lib/api/client";
+import { exitGuestMode } from "@/lib/auth/guest";
 import ChessLookLogo from "@/components/ChessLookLogo";
 import { useProfileWorkspaceStore, ColorRole } from "@/lib/stores/profileWorkspaceStore";
 
@@ -204,11 +205,10 @@ export default function Navbar() {
       localStorage.removeItem("setting_lichess_user");
       localStorage.removeItem("setting_chesscom_user");
 
-      // Clear session storage
+      // Clear session storage and guest cookies
+      exitGuestMode();
       sessionStorage.removeItem("lichess_token");
       sessionStorage.removeItem("lichess_username");
-      sessionStorage.removeItem("chess_guest_session_id");
-      sessionStorage.removeItem("chess_guest_created_at");
       sessionStorage.removeItem("inspect_game");
       for (let i = sessionStorage.length - 1; i >= 0; i--) {
         const key = sessionStorage.key(i);
@@ -222,7 +222,7 @@ export default function Navbar() {
       }
     } catch {}
 
-    window.location.href = "/login";
+    window.location.href = "/";
   };
 
   const isSingleProfileLoading = Boolean(activeMode === "single" && activePlayerId && !activePlayer);

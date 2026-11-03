@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useProfileWorkspaceStore } from "@/lib/stores/profileWorkspaceStore";
+import { isGuestModeActive } from "@/lib/auth/guest";
 
 export default function GuestCountdownBanner() {
   const pathname = usePathname();
@@ -47,9 +48,10 @@ export default function GuestCountdownBanner() {
     return () => clearInterval(timer);
   }, []);
 
-  // Check if current route is auth-related
-  const isAuthPage = useMemo(() => {
+  // Check if current route is home or auth-related
+  const isExcludedPage = useMemo(() => {
     return (
+      pathname === "/" ||
       pathname?.startsWith("/login") ||
       pathname?.startsWith("/register") ||
       pathname?.startsWith("/auth")
@@ -62,6 +64,10 @@ export default function GuestCountdownBanner() {
       (p) => p.is_guest || p.user_id === "guest" || (p.notes && p.notes.includes("guest:"))
     );
   }, [players]);
+
+  const hasActiveGuest = useMemo(() => {
+    return mounted && isGuestModeActive();
+  }, [mounted, pathname]);
 
   // Calculate target expiration timestamp (24 hours from creation)
   const targetExpiryMs = useMemo(() => {
@@ -96,15 +102,15 @@ export default function GuestCountdownBanner() {
 
   // Save guest creation timestamp whenever entering guest mode and not recorded yet
   useEffect(() => {
-    if (typeof window !== "undefined" && !user && !isAuthPage) {
+    if (typeof window !== "undefined" && !user && !isExcludedPage && isGuestModeActive()) {
       if (!sessionStorage.getItem("chess_guest_created_at")) {
         sessionStorage.setItem("chess_guest_created_at", new Date().toISOString());
       }
     }
-  }, [user, isAuthPage]);
+  }, [user, isExcludedPage]);
 
-  // Don't render if SSR, logged in, or on auth page
-  if (!mounted || user || isAuthPage) {
+  // Don't render if SSR, logged in, on excluded page, or not in guest mode
+  if (!mounted || user || isExcludedPage || !hasActiveGuest) {
     return null;
   }
 

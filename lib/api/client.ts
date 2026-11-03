@@ -103,6 +103,10 @@ async function resolveAuthHeadersUncached(): Promise<Record<string, string>> {
         sessionStorage.setItem("chess_guest_session_id", guestId);
       }
       headers["X-Guest-Session-Id"] = guestId;
+      if (typeof document !== "undefined") {
+        document.cookie = `chess_guest_mode=true; path=/; max-age=86400; SameSite=Lax`;
+        document.cookie = `chess_guest_session_id=${encodeURIComponent(guestId)}; path=/; max-age=86400; SameSite=Lax`;
+      }
     } catch {
       // In case sessionStorage is blocked by browser privacy settings
     }

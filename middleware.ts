@@ -28,8 +28,46 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // Refresh auth session
-  await supabase.auth.getUser();
+  // Refresh auth session and get authenticated user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const pathname = request.nextUrl.pathname;
+
+  // Check if guest mode cookie is active
+  const isGuest =
+    request.cookies.get("chess_guest_mode")?.value === "true" ||
+    Boolean(request.cookies.get("chess_guest_session_id")?.value);
+
+  // 1. Landing / Home page is always accessible
+  if (pathname === "/") {
+    return response;
+  }
+
+  // 2. Auth routes (/login, /register, /auth/*)
+  const isAuthRoute =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/auth");
+
+  if (isAuthRoute) {
+    // If already logged in, redirect away from login/register to dashboard
+    if (user && (pathname.startsWith("/login") || pathname.startsWith("/register"))) {
+      const dashboardUrl = request.nextUrl.clone();
+      dashboardUrl.pathname = "/dashboard";
+      return NextResponse.redirect(dashboardUrl);
+    }
+    return response;
+  }
+
+  // 3. Protected system routes (/dashboard, /analyze, /ai-coach, /players, /import, /settings, etc.)
+  // When not logged in AND not in guest mode, redirect directly to home page (/)
+  if (!user && !isGuest) {
+    const homeUrl = request.nextUrl.clone();
+    homeUrl.pathname = "/";
+    return NextResponse.redirect(homeUrl);
+  }
 
   return response;
 }

@@ -1,25 +1,34 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { 
   Brain, 
   ArrowRight, 
   BarChart3, 
-  BookOpen,
-  Target,
-  Upload,
-  Layers,
-  CheckCircle2
+  BookOpen, 
+  Target, 
+  Upload, 
+  Layers, 
+  CheckCircle2,
+  LogIn,
+  User,
+  Clock,
+  Sparkles
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { enterGuestMode, isGuestModeActive } from "@/lib/auth/guest";
 
 export default function LandingPage() {
+  const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
+    setIsGuest(isGuestModeActive());
     const supabase = createClient();
 
     supabase.auth.getUser().then(({ data }) => {
@@ -35,6 +44,12 @@ export default function LandingPage() {
     };
   }, []);
 
+  const handleEnterGuest = () => {
+    enterGuestMode();
+    setIsGuest(true);
+    router.push("/dashboard");
+  };
+
   const displayName = 
     user?.user_metadata?.full_name || 
     user?.user_metadata?.name || 
@@ -47,9 +62,7 @@ export default function LandingPage() {
       {/* Official Brand Logo Mark */}
       <div className="relative w-full max-w-5xl mx-auto flex flex-col items-center">
         <div className="mb-4 sm:mb-5 flex items-center justify-center">
-          <div className="p-2.5 rounded bg-card border border-border">
-            <img src="/logo.png" alt="ChessLook Logo" className="w-14 h-14 sm:w-16 sm:h-16 object-contain" />
-          </div>
+          <img src="/logo.png" alt="ChessLook Logo" className="w-16 h-16 sm:w-20 sm:h-20 object-contain" />
         </div>
 
         {/* Brand Pill Badge */}
@@ -60,10 +73,7 @@ export default function LandingPage() {
 
         {/* Main Hero Title */}
         <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight max-w-4xl leading-[1.2] sm:leading-[1.15] px-2 sm:px-0">
-          Làm Chủ Bàn Cờ Với{" "}
-          <span className="text-emerald-600">
-            Trí Tuệ Phân Tích Chuyên Sâu
-          </span>
+          Làm Chủ Bàn Cờ Với Trí Tuệ Phân Tích Chuyên Sâu
         </h1>
 
         {/* Subtitle */}
@@ -72,25 +82,66 @@ export default function LandingPage() {
           phân tích cấu trúc Tốt, đánh giá động cơ Stockfish 19 và tương tác trực quan cùng Trợ lí AI.
         </p>
 
-        {/* Dual Primary CTA Buttons */}
+        {/* Dual Primary Actions: Đăng nhập vs Chế độ khách (khi chưa đăng nhập) */}
         <div className="mt-6 sm:mt-7 flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto px-4 sm:px-0">
-          <Link
-            href="/dashboard"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2.5 rounded text-sm transition-colors group"
-          >
-            <span>{isMounted && user ? "Vào Bảng Điều Khiển" : "Khám Phá Bảng Điều Khiển"}</span>
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-          </Link>
-          <Link
-            href="/import"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-card border border-border text-foreground hover:bg-muted font-semibold px-6 py-2.5 rounded text-sm transition-colors"
-          >
-            <Upload className="w-4 h-4 text-emerald-500" />
-            <span>Nhập Ván Đấu Của Bạn</span>
-          </Link>
+          {isMounted && user ? (
+            <>
+              <Link
+                href="/dashboard"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2.5 rounded text-sm transition-colors group shadow-xs"
+              >
+                <span>Vào Bảng Điều Khiển</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+              <Link
+                href="/import"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-card border border-border text-foreground hover:bg-muted font-semibold px-6 py-2.5 rounded text-sm transition-colors shadow-xs"
+              >
+                <Upload className="w-4 h-4 text-emerald-500" />
+                <span>Nhập Ván Đấu Của Bạn</span>
+              </Link>
+            </>
+          ) : isMounted && isGuest ? (
+            <>
+              <Link
+                href="/dashboard"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2.5 rounded text-sm transition-colors group shadow-xs"
+              >
+                <span>Tiếp Tục Bảng Điều Khiển</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+              <Link
+                href="/login"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-card border border-border text-foreground hover:bg-muted font-semibold px-6 py-2.5 rounded text-sm transition-colors shadow-xs"
+              >
+                <LogIn className="w-4 h-4 text-emerald-600" />
+                <span>Đăng Nhập Tài Khoản</span>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2.5 rounded text-sm transition-colors group shadow-xs"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Đăng Nhập Tài Khoản</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+              <button
+                type="button"
+                onClick={handleEnterGuest}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-card border border-border text-foreground hover:bg-muted font-semibold px-6 py-2.5 rounded text-sm transition-colors shadow-xs cursor-pointer"
+              >
+                <User className="w-4 h-4 text-emerald-600" />
+                <span>Vào Chế Độ Khách</span>
+                <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 ml-0.5">24H</span>
+              </button>
+            </>
+          )}
         </div>
 
-        {/* Helper Links */}
+        {/* Helper Links & Account Status */}
         <div className="mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-2 text-xs text-muted-foreground min-h-[22px]">
           {isMounted && user ? (
             <>
@@ -103,21 +154,26 @@ export default function LandingPage() {
                 Xem Thư Viện Kỳ Thủ
               </Link>
             </>
-          ) : isMounted ? (
+          ) : isMounted && isGuest ? (
             <>
-              <span>Đã có tài khoản?</span>
-              <Link href="/login" className="text-emerald-700 font-semibold hover:underline">
-                Đăng nhập ngay
-              </Link>
+              <span className="inline-flex items-center gap-1.5 text-amber-800 font-medium bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                <Clock className="w-3 h-3 text-amber-600" />
+                Đang trong phiên khách (Dữ liệu tạm 24h)
+              </span>
               <span>•</span>
-              <Link href="/players" className="text-muted-foreground hover:text-foreground font-medium hover:underline">
-                Xem Thư Viện Kỳ Thủ
+              <Link href="/register" className="text-emerald-700 font-semibold hover:underline">
+                Đăng ký tài khoản để lưu vĩnh viễn
               </Link>
             </>
           ) : (
-            <Link href="/players" className="text-muted-foreground hover:text-foreground font-medium hover:underline">
-              Xem Thư Viện Kỳ Thủ
-            </Link>
+            <>
+              <span>Chưa có tài khoản?</span>
+              <Link href="/register" className="text-emerald-700 font-semibold hover:underline">
+                Đăng ký miễn phí
+              </Link>
+              <span>•</span>
+              <span className="text-muted-foreground">Không cần thẻ tín dụng, trải nghiệm tức thì</span>
+            </>
           )}
         </div>
 
@@ -203,19 +259,58 @@ export default function LandingPage() {
             Nhập các ván đấu gần đây của bạn từ Lichess hoặc Chess.com để nhận hồ sơ phân tích toàn diện chỉ trong vài giây.
           </p>
           <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-2.5">
-            <Link
-              href="/import"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded text-xs sm:text-sm transition-colors"
-            >
-              <Upload className="w-4 h-4" />
-              <span>Bắt Đầu Nhập Ván Đấu</span>
-            </Link>
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-semibold rounded border border-border transition-colors text-xs sm:text-sm"
-            >
-              <span>{isMounted && user ? "Vào Bảng Điều Khiển" : "Xem Demo Bảng Điều Khiển"}</span>
-            </Link>
+            {isMounted && user ? (
+              <>
+                <Link
+                  href="/import"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded text-xs sm:text-sm transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Bắt Đầu Nhập Ván Đấu</span>
+                </Link>
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-semibold rounded border border-border transition-colors text-xs sm:text-sm"
+                >
+                  <span>Vào Bảng Điều Khiển</span>
+                </Link>
+              </>
+            ) : isMounted && isGuest ? (
+              <>
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded text-xs sm:text-sm transition-colors"
+                >
+                  <span>Tiếp Tục Bảng Điều Khiển</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link
+                  href="/login"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-semibold rounded border border-border transition-colors text-xs sm:text-sm"
+                >
+                  <LogIn className="w-4 h-4 text-emerald-600" />
+                  <span>Đăng Nhập Tài Khoản</span>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded text-xs sm:text-sm transition-colors"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Đăng Nhập Ngay</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleEnterGuest}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-semibold rounded border border-border transition-colors text-xs sm:text-sm cursor-pointer"
+                >
+                  <User className="w-4 h-4 text-emerald-700" />
+                  <span>Vào Chế Độ Khách (24h)</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

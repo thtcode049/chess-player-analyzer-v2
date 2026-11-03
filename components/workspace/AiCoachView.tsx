@@ -352,7 +352,12 @@ export default function AiCoachView() {
 
       if (loaded.length > 0) {
         setSessions(loaded);
-        setActiveSessionId(loaded[0].id);
+        const targetSid = workspaceStore.activeChatSessionId || activeSessionIdRef.current;
+        if (targetSid && loaded.some((s) => s.id === targetSid)) {
+          setActiveSessionId(targetSid);
+        } else {
+          setActiveSessionId(loaded[0].id);
+        }
       } else {
         // No saved sessions: Initialize initial draft session (LAZY CREATION: not persisted!)
         let initialPids: string[] = [];
@@ -381,13 +386,99 @@ export default function AiCoachView() {
     };
   }, [players, workspaceStore.chatSessionsVersion]);
 
+  // Handle atomic handoff from FloatingAiChatWidget (chat messages + board position + game)
+  useEffect(() => {
+    if (!workspaceStore.activeChatHandoff) return;
+    const handoff = workspaceStore.activeChatHandoff;
+
+    // 1. Board Handoff
+    if (handoff.game) {
+      setPlayerGames((prev) => {
+        if (prev.some((g) => g.id === handoff.game!.id)) return prev;
+        return [handoff.game!, ...prev];
+      });
+      setSelectedGameId(handoff.game.id);
+    }
+
+    if (handoff.moves && handoff.moves.length > 0) {
+      setActiveMoves(handoff.moves);
+    }
+
+    if (handoff.fen) {
+      const cleanFen = normalizeFen(handoff.fen);
+      setBaseFen(handoff.game ? START_FEN : cleanFen);
+      setCurrentFen(cleanFen);
+    }
+
+    if (typeof handoff.ply === "number") {
+      setCurrentPly(handoff.ply);
+    }
+
+    // Always ensure board is open
+    setIsBoardOpen(true);
+
+    // 2. Chat Session Handoff
+    if (handoff.sessionId) {
+      const targetPids =
+        handoff.playerIds && handoff.playerIds.length > 0
+          ? handoff.playerIds
+          : workspaceStore.activePlayerId
+          ? [workspaceStore.activePlayerId]
+          : [];
+
+      const handoffMessages: ChatMessage[] = handoff.messages.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        fen: m.fen || handoff.fen,
+      }));
+
+      const newOrUpdatedSession: ChatSession = {
+        id: handoff.sessionId,
+        user_id: currentUser?.id,
+        playerIds: targetPids,
+        title: handoff.sessionTitle || "Phân tích thế cờ",
+        perspectiveMode: "neutral",
+        pinned: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        messages: handoffMessages,
+        isDraft: false,
+      };
+
+      activeSessionIdRef.current = handoff.sessionId;
+      setActiveSessionId(handoff.sessionId);
+
+      setSessions((prev) => {
+        const existingIdx = prev.findIndex((s) => s.id === handoff.sessionId);
+        if (existingIdx >= 0) {
+          const next = [...prev];
+          next[existingIdx] = {
+            ...next[existingIdx],
+            playerIds: targetPids.length > 0 ? targetPids : next[existingIdx].playerIds,
+            messages: handoffMessages,
+            title: handoff.sessionTitle || next[existingIdx].title,
+            updatedAt: Date.now(),
+          };
+          return next;
+        }
+        return [
+          newOrUpdatedSession,
+          ...prev.filter((s) => (s.isDraft ? s.messages.some((m) => m.role === "user") : true)),
+        ];
+      });
+    }
+
+    // Clear handoff after consuming
+    workspaceStore.setActiveChatHandoff(null);
+  }, [workspaceStore.activeChatHandoff, currentUser, workspaceStore.activePlayerId, workspaceStore]);
+
   // Handle direct navigation to active chat session from FloatingAiChatWidget
   useEffect(() => {
     if (workspaceStore.activeChatSessionId) {
       setActiveSessionId(workspaceStore.activeChatSessionId);
       workspaceStore.setActiveChatSessionId(null);
     }
-  }, [workspaceStore.activeChatSessionId]);
+  }, [workspaceStore.activeChatSessionId, workspaceStore]);
 
   // 3. Save concrete sessions strictly isolated by tenancy
   useEffect(() => {

@@ -7,6 +7,8 @@ import {
   X,
   Minus,
   Maximize2,
+  ExternalLink,
+  ChevronUp,
   Send,
   Plus,
   Loader2,
@@ -42,6 +44,15 @@ interface ChatMessage {
 }
 
 const supabase = createClient();
+
+export function sanitizeChatText(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/⟦[^:]+:([^⟧]+)⟧/g, "$1")
+    .replace(/[⟦⟧]/g, "")
+    .replace(/\bô\s+ô\b/gi, "ô")
+    .replace(/\bkhả dĩ\b/gi, "tối ưu");
+}
 
 export default function FloatingAiChatWidget({
   currentFen,
@@ -320,7 +331,7 @@ export default function FloatingAiChatWidget({
             if (last && last.role === "assistant") {
               next[next.length - 1] = {
                 ...last,
-                content: last.content + chunk,
+                content: sanitizeChatText(last.content + chunk),
               };
             }
             return next;
@@ -364,9 +375,32 @@ export default function FloatingAiChatWidget({
 
   // 8. Handle Expand to AI Coach (Seamless 100% Context Handoff)
   const handleExpandToAiCoach = async () => {
+    const userMsg = messages.find((m) => m.role === "user");
+    const title =
+      userMsg?.content.slice(0, 40) ||
+      (playerName ? `Phân tích: ${playerName}` : "Phân tích thế cờ");
+
+    const handoffData = {
+      sessionId,
+      sessionTitle: title,
+      messages: messages.map((m) => ({
+        role: m.role,
+        content: sanitizeChatText(m.content),
+        fen: m.fen || currentFen,
+      })),
+      draftInput: inputMessage,
+      game: gameInfo || null,
+      fen: currentFen,
+      moves: moves,
+      ply: currentPly,
+      playerIds: effectivePlayerId ? [effectivePlayerId] : [],
+    };
+
+    // Ensure session is saved to tenancy storage
     await persistSession(messages, sessionId);
 
-    // Handoff session ID and active game to workspaceStore
+    // Synchronously set atomic handoff in workspaceStore
+    workspaceStore.setActiveChatHandoff(handoffData);
     workspaceStore.setActiveChatSessionId(sessionId);
     if (gameInfo) {
       workspaceStore.analyzeGame(gameInfo);
@@ -477,10 +511,10 @@ export default function FloatingAiChatWidget({
               <button
                 type="button"
                 onClick={handleExpandToAiCoach}
-                title="Mở rộng sang trang Trợ lí AI toàn diện (Bảo toàn 100% ngữ cảnh)"
+                title="Mở rộng sang trang Trợ lí AI toàn diện (Bảo toàn 100% ngữ cảnh & bàn cờ)"
                 className="p-1.5 rounded hover:bg-emerald-50 hover:text-emerald-700 transition cursor-pointer"
               >
-                <Maximize2 className="w-3.5 h-3.5" />
+                <ExternalLink className="w-3.5 h-3.5" />
               </button>
 
               {/* Minimize / Restore */}
@@ -490,7 +524,7 @@ export default function FloatingAiChatWidget({
                 title={isMinimized ? "Mở rộng lại boxchat" : "Thu nhỏ boxchat"}
                 className="p-1.5 rounded hover:bg-background/80 hover:text-foreground transition cursor-pointer"
               >
-                <Minus className="w-3.5 h-3.5" />
+                {isMinimized ? <ChevronUp className="w-3.5 h-3.5" /> : <Minus className="w-3.5 h-3.5" />}
               </button>
 
               {/* Close */}
@@ -520,7 +554,7 @@ export default function FloatingAiChatWidget({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleSendMessage(`Kế hoạch chiến thuật khả dĩ tiếp theo cho bên đi là gì?`)}
+                  onClick={() => handleSendMessage(`Kế hoạch chiến thuật tối ưu tiếp theo cho bên đi là gì?`)}
                   disabled={isStreaming}
                   className="shrink-0 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-secondary hover:bg-secondary/80 text-foreground border border-border/60 transition cursor-pointer disabled:opacity-50"
                 >
@@ -574,7 +608,7 @@ export default function FloatingAiChatWidget({
                           <div className="prose prose-xs dark:prose-invert max-w-none break-words text-slate-800 dark:text-slate-200">
                             {m.content ? (
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {m.content.replace(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/gi, "").trim()}
+                                {sanitizeChatText(m.content).replace(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/gi, "").trim()}
                               </ReactMarkdown>
                             ) : isStreaming && idx === messages.length - 1 ? (
                               <div className="flex items-center gap-1.5 py-1 text-muted-foreground">
@@ -590,7 +624,7 @@ export default function FloatingAiChatWidget({
                           <div className="mt-1 flex items-center justify-end">
                             <button
                               type="button"
-                              onClick={() => handleCopyMessage(m.content, idx)}
+                              onClick={() => handleCopyMessage(sanitizeChatText(m.content), idx)}
                               title="Sao chép câu trả lời"
                               className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition cursor-pointer p-0.5"
                             >

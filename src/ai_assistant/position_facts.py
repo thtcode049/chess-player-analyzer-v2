@@ -377,12 +377,29 @@ class PositionFacts:
             is_mate = self.engine_eval.get("isMate")
 
             if is_mate or (isinstance(eval_score, (int, float)) and abs(eval_score) >= 200 and len(simulated_moves_san) >= 2):
+                # Định dạng PV string chuẩn SAN có số thứ tự nước đi
+                formatted_pv_parts = []
+                cur_num = self.board.fullmove_number
+                cur_turn = self.board.turn
+                for m_san in simulated_moves_san:
+                    if cur_turn == chess.WHITE:
+                        formatted_pv_parts.append(f"{cur_num}. {m_san}")
+                        cur_turn = chess.BLACK
+                    else:
+                        if not formatted_pv_parts:
+                            formatted_pv_parts.append(f"{cur_num}... {m_san}")
+                        else:
+                            formatted_pv_parts.append(m_san)
+                        cur_turn = chess.WHITE
+                        cur_num += 1
+                pv_formatted_str = " ".join(formatted_pv_parts)
+
                 desc_type = "Đòn phối hợp chiếu bí ép buộc" if is_mate else ("Đòn phối hợp thí quân đoạt ưu thế" if is_sacrifice else "Đòn phối hợp chiến thuật")
                 return {
                     "type": desc_type,
                     "pv_san": simulated_moves_san,
-                    "pv_str": " ".join([f"{i//2 + 1}.{simulated_moves_san[i]}" if i % 2 == 0 else simulated_moves_san[i] for i in range(len(simulated_moves_san))]),
-                    "description": f"{desc_type}: { ' '.join(simulated_moves_san) } làm biến đổi cục diện chiến thuật.",
+                    "pv_str": pv_formatted_str,
+                    "description": f"{desc_type}: {pv_formatted_str} làm biến đổi cục diện chiến thuật.",
                 }
         except Exception:
             return None

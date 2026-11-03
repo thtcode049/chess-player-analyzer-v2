@@ -46,6 +46,22 @@ export interface ActiveStructureForAnalysis {
   playerId?: string;
 }
 
+export interface ActiveChatHandoffData {
+  sessionId: string;
+  sessionTitle?: string;
+  messages: Array<{
+    role: "user" | "assistant" | "system";
+    content: string;
+    fen?: string;
+  }>;
+  draftInput?: string;
+  game?: Game | null;
+  fen?: string;
+  moves?: string[];
+  ply?: number;
+  playerIds?: string[];
+}
+
 interface ProfileWorkspaceContextType {
   // Players Library
   players: Player[];
@@ -94,6 +110,8 @@ interface ProfileWorkspaceContextType {
   setActiveChatSessionId: (id: string | null) => void;
   chatSessionsVersion: number;
   bumpChatSessionsVersion: () => void;
+  activeChatHandoff: ActiveChatHandoffData | null;
+  setActiveChatHandoff: (handoff: ActiveChatHandoffData | null) => void;
 
   // Game to Board Direct Action
   activeGameForAnalysis: Game | null;
@@ -182,6 +200,7 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
 
   // AI Chat Session Navigation Handoff
   const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null);
+  const [activeChatHandoff, setActiveChatHandoff] = useState<ActiveChatHandoffData | null>(null);
   const [chatSessionsVersion, setChatSessionsVersion] = useState(0);
   const bumpChatSessionsVersion = useCallback(() => {
     setChatSessionsVersion((v) => v + 1);
@@ -824,6 +843,8 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
       setActiveChatSessionId,
       chatSessionsVersion,
       bumpChatSessionsVersion,
+      activeChatHandoff,
+      setActiveChatHandoff,
 
       activeGameForAnalysis,
       analyzeGame,
@@ -876,6 +897,8 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
       setActiveChatSessionId,
       chatSessionsVersion,
       bumpChatSessionsVersion,
+      activeChatHandoff,
+      setActiveChatHandoff,
       activeGameForAnalysis,
       analyzeGame,
       clearActiveGameForAnalysis,

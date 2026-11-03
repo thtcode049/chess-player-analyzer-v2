@@ -58,6 +58,12 @@ def clean_chess_tags(text: str) -> str:
         return val
 
     cleaned = re.sub(TAG_REGEX, replace_tag, text)
+    # Loại bỏ bất kỳ dấu ngoặc thẻ nội bộ còn sót
+    cleaned = re.sub(r"[⟦⟧]", "", cleaned)
+    # Chuẩn hóa nếu bị lặp từ "ô ô" (vd: "về ô ô g2" -> "về ô g2")
+    cleaned = re.sub(r"\bô\s+ô\b", "ô", cleaned, flags=re.IGNORECASE)
+    # Thay thế triệt để từ "khả dĩ" bằng "tối ưu" hoặc "tiềm năng"
+    cleaned = re.sub(r"\bkhả dĩ\b", "tối ưu", cleaned, flags=re.IGNORECASE)
     return cleaned
 
 

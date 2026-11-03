@@ -61,9 +61,15 @@ const MarkdownRenderer = React.memo(function MarkdownRenderer({
   content: string;
   onApplyFen?: (fen: string) => void;
 }) {
-  // Strip [OPEN_BOARD] tags cleanly so they don't appear in markdown
+  // Strip [OPEN_BOARD] tags, internal tags, and unwanted terms cleanly so they don't appear in markdown
   const cleanContent = useMemo(() => {
-    return content.replace(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/gi, "").trim();
+    return content
+      .replace(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/gi, "")
+      .replace(/⟦[^:]+:([^⟧]+)⟧/g, "$1")
+      .replace(/[⟦⟧]/g, "")
+      .replace(/\bô\s+ô\b/gi, "ô")
+      .replace(/\bkhả dĩ\b/gi, "tối ưu")
+      .trim();
   }, [content]);
 
   const components = useMemo(

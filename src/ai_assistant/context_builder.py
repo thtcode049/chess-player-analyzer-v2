@@ -11,6 +11,43 @@ from typing import Dict, Any, List, Optional
 import chess
 
 
+def format_pv_to_san(fen: str, pv_moves: List[str]) -> str:
+    """
+    Chuyển đổi danh sách nước đi dạng UCI (vd: ['g1f3', 'g8f6', 'g2g3', 'd7d5'])
+    thành chuỗi ký hiệu biên bản tiêu chuẩn quốc tế (SAN) có đánh số thứ tự nước đi chuẩn xác.
+    Ví dụ:
+      - Nếu Trắng đi trước ở nước 1: '1. Nf3 Nf6 2. g3 d5'
+      - Nếu Đen đi trước ở nước 1: '1... e5 2. Nf3 Nc6'
+    """
+    if not pv_moves:
+        return ""
+    try:
+        board = chess.Board(fen)
+    except Exception:
+        return " ".join(pv_moves)
+
+    san_parts: List[str] = []
+    for uci_move in pv_moves:
+        try:
+            move = chess.Move.from_uci(uci_move)
+            if move not in board.legal_moves:
+                break
+            san = board.san(move)
+            num = board.fullmove_number
+            if board.turn == chess.WHITE:
+                san_parts.append(f"{num}. {san}")
+            else:
+                if not san_parts:
+                    san_parts.append(f"{num}... {san}")
+                else:
+                    san_parts.append(san)
+            board.push(move)
+        except Exception:
+            break
+
+    return " ".join(san_parts) if san_parts else " ".join(pv_moves)
+
+
 def summarize_opening_tree(
     fen_map_white: Optional[Dict[str, Any]] = None,
     fen_map_black: Optional[Dict[str, Any]] = None,
@@ -240,11 +277,30 @@ def build_opponent_ai_context(
                 eval_str = str(score)
 
             ctx_parts.append(f"- **Đánh giá Stockfish**: `{eval_str}`")
-            best_move = engine_eval.get("bestMoveSan") or engine_eval.get("bestMove")
+            best_move = engine_eval.get("bestMoveSan")
+            if not best_move and engine_eval.get("bestMove"):
+                raw_bm = str(engine_eval.get("bestMove")).strip()
+                try:
+                    b_test = chess.Board(current_fen)
+                    m_test = chess.Move.from_uci(raw_bm)
+                    if m_test in b_test.legal_moves:
+                        best_move = b_test.san(m_test)
+                    else:
+                        best_move = raw_bm
+                except Exception:
+                    best_move = raw_bm
+
             if best_move:
-                ctx_parts.append(f"- **Nước đi tối ưu Stockfish đề xuất**: `{best_move}`")
+                try:
+                    b_bm = chess.Board(current_fen)
+                    move_pfx = f"{b_bm.fullmove_number}. " if b_bm.turn == chess.WHITE else f"{b_bm.fullmove_number}... "
+                except Exception:
+                    move_pfx = ""
+                ctx_parts.append(f"- **Nước đi tối ưu Stockfish đề xuất**: `{move_pfx}{best_move}` (Ký hiệu SAN chuẩn)")
             if engine_eval.get("pv"):
-                ctx_parts.append(f"- **Biến thể dự tính chính (PV line)**: `{' '.join(engine_eval.get('pv')[:6])}`")
+                pv_san = format_pv_to_san(current_fen, engine_eval.get("pv")[:8])
+                if pv_san:
+                    ctx_parts.append(f"- **Biến thể dự tính chính (PV line chuẩn SAN)**: `{pv_san}`")
 
         # Nạp Bảng sự thật thế cờ (Ground Truth Factsheet) tính toán chính xác 100% bằng python-chess
         try:

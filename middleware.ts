@@ -29,9 +29,13 @@ export async function middleware(request: NextRequest) {
   });
 
   // Refresh auth session and get authenticated user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: any = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data?.user || null;
+  } catch (err) {
+    console.warn("[Middleware] Supabase auth check error:", err);
+  }
 
   const pathname = request.nextUrl.pathname;
 

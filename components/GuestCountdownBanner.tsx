@@ -208,20 +208,28 @@ export default function GuestCountdownBanner() {
 
         {/* Right Side: CTA Action Buttons + Collapse */}
         <div className="flex items-center gap-2 shrink-0">
-          <Link
+          <a
             href="/register"
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition-colors"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.href = "/register";
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition-colors cursor-pointer"
           >
             <Save className="w-3.5 h-3.5" />
             <span>Đăng ký lưu vĩnh viễn</span>
-          </Link>
+          </a>
 
-          <Link
+          <a
             href="/login"
-            className="text-xs text-muted-foreground hover:text-foreground font-medium underline underline-offset-4 hidden md:inline transition-colors"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.href = "/login";
+            }}
+            className="text-xs text-muted-foreground hover:text-foreground font-medium underline underline-offset-4 inline-flex transition-colors cursor-pointer"
           >
             Đã có tài khoản? Đăng nhập
-          </Link>
+          </a>
 
           <button
             onClick={() => setIsCollapsed(true)}

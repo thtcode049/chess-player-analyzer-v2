@@ -547,11 +547,14 @@ export default function FloatingAiChatWidget({
           {children}
         </strong>
       ),
-      code: ({ children }: any) => (
-        <span className="font-sans font-semibold text-slate-900 dark:text-slate-100">
-          {children}
-        </span>
-      ),
+      code: ({ children }: any) => {
+        const cleanText = typeof children === "string" ? children.replace(/\*\*/g, "") : children;
+        return (
+          <span className="font-sans font-semibold text-slate-900 dark:text-slate-100">
+            {cleanText}
+          </span>
+        );
+      },
       p: ({ children }: any) => (
         <p className="leading-relaxed mb-1.5 last:mb-0 text-slate-800 dark:text-slate-200">
           {children}

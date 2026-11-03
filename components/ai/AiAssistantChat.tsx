@@ -138,9 +138,11 @@ const MarkdownRenderer = React.memo(function MarkdownRenderer({
 
         // Clean inline text without borders, background box or rounded corners.
         // Uses the same natural sans-serif font family, matching text-sm size, and gentle semibold weight.
+        // Also strips any accidental asterisks inside code blocks as a bulletproof safeguard.
+        const cleanText = typeof children === "string" ? children.replace(/\*\*/g, "") : children;
         return (
           <span className="font-sans font-semibold text-slate-900 dark:text-slate-100">
-            {children}
+            {cleanText}
           </span>
         );
       },

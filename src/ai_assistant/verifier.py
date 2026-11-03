@@ -98,13 +98,25 @@ def clean_chess_tags(text: str, board: Optional[chess.Board] = None) -> str:
     cleaned = re.sub(r"\b[a-h][1-8][a-h][1-8]\b", lambda m: convert_uci_to_san(m.group(0)), cleaned)
 
     # Tự động in đậm (Auto-bolding) các yếu tố cờ vua mà không bao giờ bị lặp dấu sao hay lỗi khoảng trắng:
-    # 5. Chuẩn hóa khoảng trắng ngang (không làm mất ngắt dòng)
+    # a. Bảo vệ toàn bộ khối code inline (trong dấu backtick) để không chèn markdown ** vào code
+    code_blocks = []
+    def _save_code(m):
+        clean_c = m.group(1).replace("**", "")
+        code_blocks.append(clean_c)
+        return f"___CODE_BLOCK_{len(code_blocks) - 1}___"
+
+    cleaned = re.sub(r"`([^`]+)`", _save_code, cleaned)
+
+    # b. Chuẩn hóa khoảng trắng ngang (không làm mất ngắt dòng)
     cleaned = re.sub(r"([^\S\r\n]){2,}", " ", cleaned)
 
-    # 6. Thu gọn các chuỗi dấu sao lỗi (3 dấu sao trở lên -> 2)
+    # c. Thu gọn các chuỗi dấu sao lỗi (3 dấu sao trở lên -> 2)
     cleaned = re.sub(r"\*{3,}", "**", cleaned)
 
-    # 7. Tách chuỗi theo dấu `**` để chỉ in đậm phần văn bản CHƯA in đậm (chỉ số chẵn)
+    # d. Chuẩn hóa số thứ tự nước đi bị dính liền chữ: vd: "9.Ne2" -> "9. Ne2", "8...a5" -> "8... a5"
+    cleaned = re.sub(r"(\b\d{1,3}\.(?:\.\.)?)([a-zA-Z])", r"\1 \2", cleaned)
+
+    # e. Tách chuỗi theo dấu `**` để chỉ in đậm phần văn bản CHƯA in đậm (chỉ số chẵn)
     # và giữ nguyên phần ĐÃ in đậm (chỉ số lẻ), tránh hoàn toàn lỗi in đậm lồng nhau ****text****
     parts = cleaned.split("**")
     processed = []
@@ -167,6 +179,10 @@ def clean_chess_tags(text: str, board: Optional[chess.Board] = None) -> str:
 
     cleaned = re.sub(r"(?:^|\s)\*\*\s*\*\*(?:\s|$)", " ", cleaned)
     cleaned = re.sub(r"\*{3,}", "**", cleaned)
+
+    # Khôi phục các khối code đã bảo vệ
+    cleaned = re.sub(r"___CODE_BLOCK_(\d+)___", lambda m: f"`{code_blocks[int(m.group(1))]}`", cleaned)
+
     return cleaned
 
 

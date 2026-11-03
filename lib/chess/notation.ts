@@ -240,10 +240,22 @@ export function sanitizeAndBoldChessText(text: string, currentFen?: string): str
   s = s.replace(/\b[a-h][1-8][a-h][1-8]\b/g, (uci: string) => resolveUci(uci));
 
   // 8. Auto-bolding for chess elements without duplicate asterisks or spacing bugs:
-  // Pre-clean horizontal spaces (preserve newlines)
+  // a. Protect all inline code blocks (anything between backticks) from auto-bolding
+  const codeBlocks: string[] = [];
+  s = s.replace(/`([^`]+)`/g, (_m: string, codeContent: string) => {
+    // Clean any accidental asterisks inside code blocks
+    const cleanCode = codeContent.replace(/\*\*/g, "");
+    codeBlocks.push(cleanCode);
+    return `___CODE_BLOCK_${codeBlocks.length - 1}___`;
+  });
+
+  // b. Pre-clean horizontal spaces (preserve newlines)
   s = s.replace(/([^\S\r\n]){2,}/g, " ");
   // Collapse 3+ asterisks to 2
   s = s.replace(/\*{3,}/g, "**");
+
+  // c. Normalize glued move numbers in text: e.g. "9.Ne2" -> "9. Ne2", "8...a5" -> "8... a5"
+  s = s.replace(/(\b\d{1,3}\.(?:\.\.)?)([a-zA-Z])/g, "$1 $2");
 
   // Split by `**`: even indices are unbolded text, odd indices are already bolded text
   const parts = s.split("**");
@@ -313,6 +325,11 @@ export function sanitizeAndBoldChessText(text: string, currentFen?: string): str
   // 9. Clean up isolated empty bold tags without touching adjacent bold tokens
   result = result.replace(/(?:^|\s)\*\*\s*\*\*(?:\s|$)/g, " ");
   result = result.replace(/\*{3,}/g, "**");
+
+  // 10. Restore protected code blocks
+  result = result.replace(/___CODE_BLOCK_(\d+)___/g, (_m: string, idx: string) => {
+    return "`" + codeBlocks[Number(idx)] + "`";
+  });
 
   return result.trim();
 }

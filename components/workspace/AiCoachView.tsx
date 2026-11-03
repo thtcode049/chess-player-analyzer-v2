@@ -351,9 +351,16 @@ export default function AiCoachView() {
       if (!isSubscribed) return;
 
       if (loaded.length > 0) {
-        setSessions(loaded);
         const targetSid = workspaceStore.activeChatSessionId || activeSessionIdRef.current;
-        if (targetSid && loaded.some((s) => s.id === targetSid)) {
+        setSessions((prev) => {
+          const currentActiveInState = prev.find((s) => s.id === targetSid);
+          if (currentActiveInState && !loaded.some((s) => s.id === targetSid)) {
+            return [currentActiveInState, ...loaded];
+          }
+          return loaded;
+        });
+
+        if (targetSid && (loaded.some((s) => s.id === targetSid) || targetSid === activeSessionIdRef.current)) {
           setActiveSessionId(targetSid);
         } else {
           setActiveSessionId(loaded[0].id);
@@ -452,20 +459,41 @@ export default function AiCoachView() {
         const existingIdx = prev.findIndex((s) => s.id === handoff.sessionId);
         if (existingIdx >= 0) {
           const next = [...prev];
-          next[existingIdx] = {
+          const updated = {
             ...next[existingIdx],
             playerIds: targetPids.length > 0 ? targetPids : next[existingIdx].playerIds,
             messages: handoffMessages,
             title: handoff.sessionTitle || next[existingIdx].title,
             updatedAt: Date.now(),
           };
-          return next;
+          next.splice(existingIdx, 1);
+          return [updated, ...next];
         }
         return [
           newOrUpdatedSession,
-          ...prev.filter((s) => (s.isDraft ? s.messages.some((m) => m.role === "user") : true)),
+          ...prev.filter((s) => s.id !== handoff.sessionId && (s.isDraft ? s.messages.some((m) => m.role === "user") : true)),
         ];
       });
+
+      // Synchronously write to tenancy local storage backup
+      if (typeof window !== "undefined") {
+        try {
+          if (currentUser?.id) {
+            const userKey = `chess_ai_conversations_user_${currentUser.id}`;
+            const raw = localStorage.getItem(userKey);
+            const list = raw ? JSON.parse(raw) : [];
+            const remaining = list.filter((s: any) => s.id !== handoff.sessionId);
+            localStorage.setItem(userKey, JSON.stringify([newOrUpdatedSession, ...remaining]));
+          } else {
+            const guestId = sessionStorage.getItem("chess_guest_session_id") || "guest";
+            const key = `chess_guest_ai_conversations_${guestId}`;
+            const raw = sessionStorage.getItem(key);
+            const list = raw ? JSON.parse(raw) : [];
+            const remaining = list.filter((s: any) => s.id !== handoff.sessionId);
+            sessionStorage.setItem(key, JSON.stringify([newOrUpdatedSession, ...remaining]));
+          }
+        } catch (e) {}
+      }
     }
 
     // Clear handoff after consuming
@@ -652,10 +680,16 @@ export default function AiCoachView() {
     setActiveSessionId(newDraft.id);
   };
 
+  const prevPlayerIdRef = useRef<string | null>(workspaceStore.activePlayerId);
+
   // Synchronize when active player changes in workspaceStore (e.g. from Navbar profile switcher)
   useEffect(() => {
     if (!isLoaded) return;
     const navPid = workspaceStore.activePlayerId;
+    if (prevPlayerIdRef.current === navPid) {
+      return; // Do NOT switch active chat if activePlayerId did not actually change!
+    }
+    prevPlayerIdRef.current = navPid;
     if (!navPid || workspaceStore.activeMode !== "single") return;
 
     // Check if the current active session already belongs to this player

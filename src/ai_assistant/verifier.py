@@ -64,6 +64,16 @@ def clean_chess_tags(text: str) -> str:
     cleaned = re.sub(r"\bô\s+ô\b", "ô", cleaned, flags=re.IGNORECASE)
     # Thay thế triệt để từ "khả dĩ" bằng "tối ưu" hoặc "tiềm năng"
     cleaned = re.sub(r"\bkhả dĩ\b", "tối ưu", cleaned, flags=re.IGNORECASE)
+
+    # Làm sạch ký hiệu đọc cả vị trí đầu - cuối (như (d1c2), (c3d5), (d2e3), Be3 (d2e3), Hậu (d1c2))
+    cleaned = re.sub(r"\b([KQRBN]?[a-h][1-8])\s*\([a-h][1-8]([a-h][1-8])\)", r"\1", cleaned)
+    cleaned = re.sub(r"(Hậu|Mã|Tượng|Xe|Vua|Tốt)\s*\([a-h][1-8]([a-h][1-8])\)", r"\1 \2", cleaned)
+    cleaned = re.sub(r"\(([a-h][1-8])([a-h][1-8])\)", r"(\2)", cleaned)
+    cleaned = re.sub(r"\bnước:\s*([a-h][1-8])([a-h][1-8])\b", r"nước \2", cleaned)
+    cleaned = re.sub(r"\bnước:\s*([a-h][1-8])\b", r"nước \1", cleaned)
+    cleaned = re.sub(r"từ ô\s+[a-h][1-8]\s+(sang|lên|về|đến)\s+ô\s+([a-h][1-8])", r"\1 ô \2", cleaned)
+    cleaned = re.sub(r"ở ô\s+[a-h][1-8]\s+((?:có thể\s+)?(?:nhảy|đi|tiến|lùi|sang|lên|về)\s+(?:lên|vào|sang|đến)?\s*ô\s+[a-h][1-8])", r"\1", cleaned)
+
     return cleaned
 
 

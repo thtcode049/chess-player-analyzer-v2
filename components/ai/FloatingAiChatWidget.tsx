@@ -23,7 +23,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { apiClient } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
-import { useProfileWorkspaceStore } from "@/lib/stores/profileWorkspaceStore";
+import { useProfileWorkspaceStore, ActiveChatHandoffData } from "@/lib/stores/profileWorkspaceStore";
 import { Game } from "@/lib/api/types";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
 
@@ -45,13 +45,31 @@ interface ChatMessage {
 
 const supabase = createClient();
 
+function generateUUID(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export function sanitizeChatText(text: string): string {
   if (!text) return "";
   return text
     .replace(/⟦[^:]+:([^⟧]+)⟧/g, "$1")
     .replace(/[⟦⟧]/g, "")
     .replace(/\bô\s+ô\b/gi, "ô")
-    .replace(/\bkhả dĩ\b/gi, "tối ưu");
+    .replace(/\bkhả dĩ\b/gi, "tối ưu")
+    .replace(/\b([KQRBN]?[a-h][1-8])\s*\([a-h][1-8]([a-h][1-8])\)/g, "$1")
+    .replace(/(Hậu|Mã|Tượng|Xe|Vua|Tốt)\s*\([a-h][1-8]([a-h][1-8])\)/gi, "$1 $2")
+    .replace(/\(([a-h][1-8])([a-h][1-8])\)/g, "($2)")
+    .replace(/\bnước:\s*([a-h][1-8])([a-h][1-8])\b/gi, "nước $2")
+    .replace(/\bnước:\s*([a-h][1-8])\b/gi, "nước $1")
+    .replace(/từ ô\s+[a-h][1-8]\s+(sang|lên|về|đến)\s+ô\s+([a-h][1-8])/gi, "$1 ô $2")
+    .replace(/ở ô\s+[a-h][1-8]\s+((?:có thể\s+)?(?:nhảy|đi|tiến|lùi|sang|lên|về)\s+(?:lên|vào|sang|đến)?\s*ô\s+[a-h][1-8])/gi, "$1");
 }
 
 export default function FloatingAiChatWidget({
@@ -69,12 +87,17 @@ export default function FloatingAiChatWidget({
   const [isMinimized, setIsMinimized] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // Active chat session state
-  const [sessionId, setSessionId] = useState<string>(() => `mini-session-${Date.now()}`);
+  // Active chat session state with standard UUID
+  const [sessionId, setSessionId] = useState<string>(() => generateUUID());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+
+  // Modal for saving and expanding to AI Coach
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [customSessionTitle, setCustomSessionTitle] = useState("");
+  const [isSavingAndExpanding, setIsSavingAndExpanding] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -367,46 +390,134 @@ export default function FloatingAiChatWidget({
 
   // 7. Handle New Chat Session
   const handleNewChat = () => {
-    const newId = `session-${Date.now()}`;
+    const newId = generateUUID();
     setSessionId(newId);
     setMessages([getWelcomeMessage(playerName)]);
     setInputMessage("");
   };
 
-  // 8. Handle Expand to AI Coach (Seamless 100% Context Handoff)
-  const handleExpandToAiCoach = async () => {
+  // 8. Open Title Input Modal before Expanding to AI Coach
+  const handleOpenExpandModal = () => {
     const userMsg = messages.find((m) => m.role === "user");
-    const title =
-      userMsg?.content.slice(0, 40) ||
-      (playerName ? `Phân tích: ${playerName}` : "Phân tích thế cờ");
+    const defaultTitle =
+      userMsg?.content.slice(0, 45) ||
+      (playerName ? `Phân tích ${playerName} - ${currentMoveLabel}` : `Phân tích thế cờ ${currentMoveLabel}`);
 
-    const handoffData = {
+    setCustomSessionTitle(defaultTitle);
+    setIsSaveModalOpen(true);
+  };
+
+  // 9. Confirm and Expand to AI Coach (Seamless 100% Context Handoff with Custom Title)
+  const handleConfirmExpandToAiCoach = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (isSavingAndExpanding) return;
+
+    setIsSavingAndExpanding(true);
+
+    const userMsg = messages.find((m) => m.role === "user");
+    const defaultTitle =
+      userMsg?.content.slice(0, 45) ||
+      (playerName ? `Phân tích ${playerName} - ${currentMoveLabel}` : `Phân tích thế cờ ${currentMoveLabel}`);
+
+    const finalTitle = customSessionTitle.trim() || defaultTitle;
+    const targetPlayerId = effectivePlayerId || workspaceStore.activePlayerId || "";
+    const pids = targetPlayerId ? [targetPlayerId] : [];
+
+    const realMessages = messages.map((m) => ({
+      role: m.role,
+      content: sanitizeChatText(m.content),
+      fen: m.fen || currentFen,
+    }));
+
+    // 1. Direct Persist to DB or tenancy storage
+    if (currentUser?.id) {
+      try {
+        await apiClient.createAiChatSession({
+          id: sessionId,
+          player_ids: pids,
+          title: finalTitle,
+          messages: realMessages,
+        });
+      } catch (err) {
+        console.warn("Could not create DB session:", err);
+      }
+
+      if (typeof window !== "undefined") {
+        try {
+          const userKey = `chess_ai_conversations_user_${currentUser.id}`;
+          const raw = localStorage.getItem(userKey);
+          const list = raw ? JSON.parse(raw) : [];
+          const sessionObj = {
+            id: sessionId,
+            user_id: currentUser.id,
+            playerIds: pids,
+            title: finalTitle,
+            pinned: false,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            messages: realMessages,
+            isDraft: false,
+          };
+          const existingIdx = list.findIndex((s: any) => s.id === sessionId);
+          if (existingIdx >= 0) {
+            list[existingIdx] = sessionObj;
+          } else {
+            list.unshift(sessionObj);
+          }
+          localStorage.setItem(userKey, JSON.stringify(list));
+        } catch (e) {}
+      }
+    } else if (typeof window !== "undefined") {
+      try {
+        const guestId = sessionStorage.getItem("chess_guest_session_id") || "guest";
+        const key = `chess_guest_ai_conversations_${guestId}`;
+        const raw = sessionStorage.getItem(key);
+        const list = raw ? JSON.parse(raw) : [];
+        const sessionObj = {
+          id: sessionId,
+          playerIds: pids,
+          title: finalTitle,
+          pinned: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          messages: realMessages,
+          isDraft: false,
+        };
+        const existingIdx = list.findIndex((s: any) => s.id === sessionId);
+        if (existingIdx >= 0) {
+          list[existingIdx] = sessionObj;
+        } else {
+          list.unshift(sessionObj);
+        }
+        sessionStorage.setItem(key, JSON.stringify(list));
+      } catch (e) {}
+    }
+
+    // 2. Set synchronous handoff data
+    const handoffData: ActiveChatHandoffData = {
       sessionId,
-      sessionTitle: title,
-      messages: messages.map((m) => ({
-        role: m.role,
-        content: sanitizeChatText(m.content),
-        fen: m.fen || currentFen,
-      })),
+      sessionTitle: finalTitle,
+      messages: realMessages,
       draftInput: inputMessage,
       game: gameInfo || null,
       fen: currentFen,
       moves: moves,
       ply: currentPly,
-      playerIds: effectivePlayerId ? [effectivePlayerId] : [],
+      playerIds: pids,
     };
 
-    // Ensure session is saved to tenancy storage
-    await persistSession(messages, sessionId);
-
-    // Synchronously set atomic handoff in workspaceStore
     workspaceStore.setActiveChatHandoff(handoffData);
     workspaceStore.setActiveChatSessionId(sessionId);
+    workspaceStore.bumpChatSessionsVersion();
+
     if (gameInfo) {
       workspaceStore.analyzeGame(gameInfo);
     }
 
-    // Switch to AI Coach tab
+    setIsSaveModalOpen(false);
+    setIsSavingAndExpanding(false);
+
+    // 3. Switch to AI Coach tab
     workspaceStore.setActiveTab("ai");
     setIsMinimized(true);
   };
@@ -510,8 +621,8 @@ export default function FloatingAiChatWidget({
               {/* Expand to full AI Coach */}
               <button
                 type="button"
-                onClick={handleExpandToAiCoach}
-                title="Mở rộng sang trang Trợ lí AI toàn diện (Bảo toàn 100% ngữ cảnh & bàn cờ)"
+                onClick={handleOpenExpandModal}
+                title="Lưu và mở rộng sang trang Trợ lí AI toàn diện (Bảo toàn 100% ngữ cảnh & bàn cờ)"
                 className="p-1.5 rounded hover:bg-emerald-50 hover:text-emerald-700 transition cursor-pointer"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -680,6 +791,100 @@ export default function FloatingAiChatWidget({
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* 3. Modal: Nhập tên đoạn chat khi chuyển sang Trợ lí AI */}
+      {isSaveModalOpen && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => !isSavingAndExpanding && setIsSaveModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm sm:max-w-md bg-card border border-border/90 shadow-2xl rounded-2xl p-4 sm:p-5 flex flex-col gap-4 text-foreground animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-500/20">
+                  <Bot className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-foreground">
+                    Lưu đoạn chat sang Trợ lí AI
+                  </h3>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground">
+                    Đặt tên để lưu vào Lịch sử trò chuyện và tiếp tục phân tích trên bàn cờ.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isSavingAndExpanding}
+                onClick={() => setIsSaveModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleConfirmExpandToAiCoach} className="flex flex-col gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1.5">
+                  Tên cuộc trò chuyện:
+                </label>
+                <input
+                  type="text"
+                  value={customSessionTitle}
+                  onChange={(e) => setCustomSessionTitle(e.target.value)}
+                  placeholder="Ví dụ: Phân tích thế cờ Nước 4..."
+                  autoFocus
+                  disabled={isSavingAndExpanding}
+                  maxLength={100}
+                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                />
+              </div>
+
+              {/* Info pill */}
+              <div className="p-2.5 rounded-xl bg-muted/50 border border-border/60 text-[11px] text-muted-foreground flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  Bàn cờ thế {currentMoveLabel} và {messages.length} tin nhắn sẽ được chuyển nguyên vẹn sang Trợ lí AI.
+                </span>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={isSavingAndExpanding}
+                  onClick={() => setIsSaveModalOpen(false)}
+                  className="px-3.5 py-1.5 text-xs font-medium rounded-xl border border-border hover:bg-muted text-foreground transition cursor-pointer disabled:opacity-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingAndExpanding}
+                  className="px-4 py-1.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingAndExpanding ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Lưu & Mở rộng</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </>

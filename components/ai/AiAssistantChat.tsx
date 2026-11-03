@@ -69,6 +69,13 @@ const MarkdownRenderer = React.memo(function MarkdownRenderer({
       .replace(/[⟦⟧]/g, "")
       .replace(/\bô\s+ô\b/gi, "ô")
       .replace(/\bkhả dĩ\b/gi, "tối ưu")
+      .replace(/\b([KQRBN]?[a-h][1-8])\s*\([a-h][1-8]([a-h][1-8])\)/g, "$1")
+      .replace(/(Hậu|Mã|Tượng|Xe|Vua|Tốt)\s*\([a-h][1-8]([a-h][1-8])\)/gi, "$1 $2")
+      .replace(/\(([a-h][1-8])([a-h][1-8])\)/g, "($2)")
+      .replace(/\bnước:\s*([a-h][1-8])([a-h][1-8])\b/gi, "nước $2")
+      .replace(/\bnước:\s*([a-h][1-8])\b/gi, "nước $1")
+      .replace(/từ ô\s+[a-h][1-8]\s+(sang|lên|về|đến)\s+ô\s+([a-h][1-8])/gi, "$1 ô $2")
+      .replace(/ở ô\s+[a-h][1-8]\s+((?:có thể\s+)?(?:nhảy|đi|tiến|lùi|sang|lên|về)\s+(?:lên|vào|sang|đến)?\s*ô\s+[a-h][1-8])/gi, "$1")
       .trim();
   }, [content]);
 

@@ -379,7 +379,15 @@ export default function AiCoachView() {
     return () => {
       isSubscribed = false;
     };
-  }, [players]);
+  }, [players, workspaceStore.chatSessionsVersion]);
+
+  // Handle direct navigation to active chat session from FloatingAiChatWidget
+  useEffect(() => {
+    if (workspaceStore.activeChatSessionId) {
+      setActiveSessionId(workspaceStore.activeChatSessionId);
+      workspaceStore.setActiveChatSessionId(null);
+    }
+  }, [workspaceStore.activeChatSessionId]);
 
   // 3. Save concrete sessions strictly isolated by tenancy
   useEffect(() => {

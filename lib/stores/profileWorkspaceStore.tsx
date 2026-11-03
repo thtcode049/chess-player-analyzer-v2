@@ -89,6 +89,12 @@ interface ProfileWorkspaceContextType {
   openHub: () => void;
   closeHub: () => void;
 
+  // AI Chat Session Navigation Handoff
+  activeChatSessionId: string | null;
+  setActiveChatSessionId: (id: string | null) => void;
+  chatSessionsVersion: number;
+  bumpChatSessionsVersion: () => void;
+
   // Game to Board Direct Action
   activeGameForAnalysis: Game | null;
   analyzeGame: (game: Game) => void;
@@ -173,6 +179,13 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
   // Tabs & Hub Visibility (Mặc định: tab bàn cờ)
   const [activeTab, setActiveTabState] = useState<WorkspaceTab>("board");
   const [isHubOpen, setIsHubOpen] = useState(false);
+
+  // AI Chat Session Navigation Handoff
+  const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null);
+  const [chatSessionsVersion, setChatSessionsVersion] = useState(0);
+  const bumpChatSessionsVersion = useCallback(() => {
+    setChatSessionsVersion((v) => v + 1);
+  }, []);
 
   // Direct game analysis handoff
   const [activeGameForAnalysis, setActiveGameForAnalysis] = useState<Game | null>(null);
@@ -807,6 +820,11 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
       openHub,
       closeHub,
 
+      activeChatSessionId,
+      setActiveChatSessionId,
+      chatSessionsVersion,
+      bumpChatSessionsVersion,
+
       activeGameForAnalysis,
       analyzeGame,
       clearActiveGameForAnalysis,
@@ -853,6 +871,11 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
       isHubOpen,
       openHub,
       closeHub,
+
+      activeChatSessionId,
+      setActiveChatSessionId,
+      chatSessionsVersion,
+      bumpChatSessionsVersion,
       activeGameForAnalysis,
       analyzeGame,
       clearActiveGameForAnalysis,

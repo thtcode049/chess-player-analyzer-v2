@@ -27,6 +27,7 @@ import ChessBoard, { BOARD_PLAYERS_BAR_HEIGHT, BoardPlayersInfo } from "@/compon
 import MoveHistory from "@/components/chess/MoveHistory";
 import PawnStructureInfoBadge from "@/components/chess/PawnStructureInfoBadge";
 import OpeningTreeTable from "@/components/analysis/OpeningTreeTable";
+import FloatingAiChatWidget from "@/components/ai/FloatingAiChatWidget";
 import { apiClient } from "@/lib/api/client";
 import {
   Game,
@@ -2852,6 +2853,17 @@ export function AnalyzeContent() {
           </div>
         </div>
       )}
+
+      {/* Floating AI Chat Copilot Widget (Context-aware on Board & Players) */}
+      <FloatingAiChatWidget
+        currentFen={currentFen}
+        currentPly={currentPly}
+        evaluation={evaluation}
+        gameInfo={gameInfo}
+        effectivePlayerId={effectivePlayerId}
+        playerName={workspaceStore.activePlayer?.canonical_name || cachedProfile?.player?.canonical_name || undefined}
+        moves={moves}
+      />
     </div>
   );
 }

@@ -442,7 +442,7 @@ export default function AiAssistantChat({
             <h3 className="font-bold text-foreground text-xs sm:text-sm truncate flex items-center gap-1.5">
               <span>Trợ Lí AI Cờ Vua</span>
               <span className="hidden md:inline-flex text-[11px] font-medium text-muted-foreground truncate">
-                • {playerId && playerId !== "general" ? playerName : "Trò chuyện tự do"}
+                • {(playerId && playerId !== "general") || (playerIds && playerIds.length > 0) ? playerName : "Trò chuyện tự do"}
               </span>
             </h3>
           </div>

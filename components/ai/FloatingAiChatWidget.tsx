@@ -23,7 +23,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { apiClient } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
-import { useProfileWorkspaceStore, ActiveChatHandoffData } from "@/lib/stores/profileWorkspaceStore";
+import { useProfileWorkspaceStore, ActiveChatHandoffData, MultiProfileAssignment } from "@/lib/stores/profileWorkspaceStore";
 import { Game } from "@/lib/api/types";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
 import { sanitizeAndBoldChessText, convertUciToSan } from "@/lib/chess/notation";
@@ -36,6 +36,8 @@ export interface FloatingAiChatWidgetProps {
   effectivePlayerId?: string | null;
   playerName?: string;
   moves?: string[];
+  isMultiMode?: boolean;
+  multiProfiles?: MultiProfileAssignment[];
 }
 
 interface ChatMessage {
@@ -69,8 +71,34 @@ export default function FloatingAiChatWidget({
   effectivePlayerId,
   playerName,
   moves = [],
+  isMultiMode,
+  multiProfiles,
 }: FloatingAiChatWidgetProps) {
   const workspaceStore = useProfileWorkspaceStore();
+
+  const isMulti = Boolean(isMultiMode || (workspaceStore.activeMode === "multi" && workspaceStore.multiProfiles.length > 0));
+  const effectiveMultiProfiles = (multiProfiles && multiProfiles.length > 0) ? multiProfiles : workspaceStore.multiProfiles;
+
+  const whiteProfiles = useMemo(
+    () => effectiveMultiProfiles.filter((m) => m.role === "white" || m.role === "both"),
+    [effectiveMultiProfiles]
+  );
+  const blackProfiles = useMemo(
+    () => effectiveMultiProfiles.filter((m) => m.role === "black" || m.role === "both"),
+    [effectiveMultiProfiles]
+  );
+  const whiteNames = useMemo(
+    () => whiteProfiles.map((m) => m.player.canonical_name).join(", "),
+    [whiteProfiles]
+  );
+  const blackNames = useMemo(
+    () => blackProfiles.map((m) => m.player.canonical_name).join(", "),
+    [blackProfiles]
+  );
+  const multiPlayerIds = useMemo(
+    () => Array.from(new Set(effectiveMultiProfiles.map((m) => m.player.id))),
+    [effectiveMultiProfiles]
+  );
 
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -102,21 +130,29 @@ export default function FloatingAiChatWidget({
 
   // 2. Default Welcome Message
   const getWelcomeMessage = useCallback(
-    (name?: string): ChatMessage => ({
-      role: "assistant",
-      content: name
-        ? `Xin chào! Tôi là Trợ lí AI phân tích cờ vua. Tôi đang theo dõi bàn cờ phân tích của **${name}**.\n\nBạn có thể hỏi tôi bất kỳ điều gì về thế cờ hiện tại, đánh giá ưu thế, đòn phối hợp hoặc phong cách xử lý của kì thủ này!`
-        : `Xin chào! Tôi là Trợ lí AI phân tích cờ vua. Tôi đang theo dõi thế cờ trên bàn cờ phân tích.\n\nBạn có thể hỏi tôi bất kỳ điều gì về thế cờ này, đánh giá Stockfish, đòn chiến thuật hoặc kế hoạch tiếp theo!`,
-    }),
+    (name?: string, multiMode = false, wNames = "", bNames = ""): ChatMessage => {
+      if (multiMode && (wNames || bNames)) {
+        return {
+          role: "assistant",
+          content: `Xin chào! Tôi là Trợ lí AI Cờ Vua chế độ Đa hồ sơ. Tôi đang theo dõi bàn cờ đối đầu giữa **⚪ ${wNames || "Trắng"}** và **⚫ ${bNames || "Đen"}**.\n\nBạn có thể hỏi tôi bất kỳ điều gì về thế cờ hiện tại, đánh giá cơ hội mỗi bên, đối chiếu khai cuộc, hoặc phân tích kế hoạch chiến thuật cho từng kỳ thủ!`,
+        };
+      }
+      return {
+        role: "assistant",
+        content: name
+          ? `Xin chào! Tôi là Trợ lí AI phân tích cờ vua. Tôi đang theo dõi bàn cờ phân tích của **${name}**.\n\nBạn có thể hỏi tôi bất kỳ điều gì về thế cờ hiện tại, đánh giá ưu thế, đòn phối hợp hoặc phong cách xử lý của kì thủ này!`
+          : `Xin chào! Tôi là Trợ lí AI phân tích cờ vua. Tôi đang theo dõi thế cờ trên bàn cờ phân tích.\n\nBạn có thể hỏi tôi bất kỳ điều gì về thế cờ này, đánh giá Stockfish, đòn chiến thuật hoặc kế hoạch tiếp theo!`,
+      };
+    },
     []
   );
 
-  // 3. Load or initialize session tagged by effectivePlayerId
+  // 3. Load or initialize session tagged by effectivePlayerId or multiPlayerIds
   useEffect(() => {
     let isSubscribed = true;
 
     async function initSession() {
-      const pid = effectivePlayerId || "";
+      const targetPids = isMulti ? multiPlayerIds : (effectivePlayerId ? [effectivePlayerId] : []);
       let foundSession: any = null;
 
       try {
@@ -124,9 +160,16 @@ export default function FloatingAiChatWidget({
           // Authenticated: Query DB
           const sessions = await apiClient.getAiChatSessions().catch(() => []);
           if (sessions && sessions.length > 0) {
-            foundSession = sessions.find((s) =>
-              pid ? s.player_ids?.includes(pid) : s.player_ids?.length === 0
-            );
+            foundSession = sessions.find((s) => {
+              const sPids = s.player_ids || [];
+              if (targetPids.length > 0) {
+                return (
+                  sPids.length === targetPids.length &&
+                  targetPids.every((id) => sPids.includes(id))
+                );
+              }
+              return sPids.length === 0;
+            });
           }
         } else if (typeof window !== "undefined") {
           // Guest: Query SessionStorage
@@ -135,9 +178,16 @@ export default function FloatingAiChatWidget({
           if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              foundSession = parsed.find((s: any) =>
-                pid ? s.playerIds?.includes(pid) : s.playerIds?.length === 0
-              );
+              foundSession = parsed.find((s: any) => {
+                const sPids = s.playerIds || s.player_ids || [];
+                if (targetPids.length > 0) {
+                  return (
+                    sPids.length === targetPids.length &&
+                    targetPids.every((id) => sPids.includes(id))
+                  );
+                }
+                return sPids.length === 0;
+              });
             }
           }
         }
@@ -159,7 +209,7 @@ export default function FloatingAiChatWidget({
       } else {
         const newId = `session-${Date.now()}`;
         setSessionId(newId);
-        setMessages([getWelcomeMessage(playerName)]);
+        setMessages([getWelcomeMessage(playerName, isMulti, whiteNames, blackNames)]);
       }
     }
 
@@ -168,7 +218,16 @@ export default function FloatingAiChatWidget({
     return () => {
       isSubscribed = false;
     };
-  }, [effectivePlayerId, playerName, currentUser, getWelcomeMessage]);
+  }, [
+    effectivePlayerId,
+    playerName,
+    isMulti,
+    multiPlayerIds.join(","),
+    whiteNames,
+    blackNames,
+    currentUser,
+    getWelcomeMessage,
+  ]);
 
   // 4. Auto scroll to bottom of chat
   useEffect(() => {
@@ -192,11 +251,16 @@ export default function FloatingAiChatWidget({
       );
       if (realMessages.length === 0) return;
 
+      const targetPids = isMulti ? multiPlayerIds : (effectivePlayerId ? [effectivePlayerId] : []);
       const title =
         realMessages.find((m) => m.role === "user")?.content.slice(0, 40) ||
-        (playerName ? `Phân tích: ${playerName}` : "Phân tích thế cờ");
+        (isMulti
+          ? `Matchup: ${whiteNames || "Trắng"} vs ${blackNames || "Đen"}`
+          : playerName
+          ? `Phân tích: ${playerName}`
+          : "Phân tích thế cờ");
 
-      const pids = effectivePlayerId ? [effectivePlayerId] : [];
+      const pids = targetPids;
 
       if (currentUser?.id) {
         try {
@@ -296,14 +360,15 @@ export default function FloatingAiChatWidget({
     setInputMessage("");
     setIsStreaming(true);
 
-    const targetPlayerId = effectivePlayerId || "";
+    const targetPlayerIds = isMulti ? multiPlayerIds : (effectivePlayerId ? [effectivePlayerId] : []);
+    const targetPlayerId = isMulti ? "" : (effectivePlayerId || "");
     const activeSid = currentSessionIdRef.current;
 
     await apiClient.chatAiStream(
       {
-        run_id: "general",
+        run_id: isMulti ? "multi" : (targetPlayerId ? `run-${targetPlayerId}` : "general"),
         player_id: targetPlayerId,
-        player_ids: targetPlayerId ? [targetPlayerId] : undefined,
+        player_ids: targetPlayerIds.length > 0 ? targetPlayerIds : undefined,
         message: text,
         perspective_mode: "neutral",
         history: historyForAi,
@@ -312,8 +377,8 @@ export default function FloatingAiChatWidget({
         selected_game: gameInfo
           ? {
               id: gameInfo.id,
-              white: gameInfo.white_player || "Trắng",
-              black: gameInfo.black_player || "Đen",
+              white: gameInfo.white_player || (isMulti ? (whiteNames ? `${whiteNames} (Trắng)` : "Trắng") : "Trắng"),
+              black: gameInfo.black_player || (isMulti ? (blackNames ? `${blackNames} (Đen)` : "Đen") : "Đen"),
               white_elo: gameInfo.white_elo || "",
               black_elo: gameInfo.black_elo || "",
               result: gameInfo.result || "*",
@@ -326,8 +391,12 @@ export default function FloatingAiChatWidget({
           : moves && moves.length > 0
           ? {
               id: "interactive-board-game",
-              white: playerName ? `${playerName} (Trắng)` : "Trắng",
-              black: "Đen",
+              white: isMulti
+                ? (whiteNames ? `${whiteNames} (Trắng)` : "Trắng")
+                : (playerName ? `${playerName} (Trắng)` : "Trắng"),
+              black: isMulti
+                ? (blackNames ? `${blackNames} (Đen)` : "Đen")
+                : "Đen",
               moves_san: moves.join(" "),
               current_ply: currentPly,
               total_ply: moves.length,
@@ -391,7 +460,7 @@ export default function FloatingAiChatWidget({
   const handleNewChat = () => {
     const newId = generateUUID();
     setSessionId(newId);
-    setMessages([getWelcomeMessage(playerName)]);
+    setMessages([getWelcomeMessage(playerName, isMulti, whiteNames, blackNames)]);
     setInputMessage("");
   };
 
@@ -404,7 +473,11 @@ export default function FloatingAiChatWidget({
     const userMsg = messages.find((m) => m.role === "user");
     const defaultTitle =
       userMsg?.content.slice(0, 45) ||
-      (playerName ? `Phân tích ${playerName} - ${currentMoveLabel}` : `Phân tích thế cờ ${currentMoveLabel}`);
+      (isMulti
+        ? `Matchup: ${whiteNames || "Trắng"} vs ${blackNames || "Đen"} - ${currentMoveLabel}`
+        : playerName
+        ? `Phân tích ${playerName} - ${currentMoveLabel}`
+        : `Phân tích thế cờ ${currentMoveLabel}`);
 
     setCustomSessionTitle(defaultTitle);
     setIsSaveModalOpen(true);
@@ -420,11 +493,19 @@ export default function FloatingAiChatWidget({
     const userMsg = messages.find((m) => m.role === "user");
     const defaultTitle =
       userMsg?.content.slice(0, 45) ||
-      (playerName ? `Phân tích ${playerName} - ${currentMoveLabel}` : `Phân tích thế cờ ${currentMoveLabel}`);
+      (isMulti
+        ? `Matchup: ${whiteNames || "Trắng"} vs ${blackNames || "Đen"} - ${currentMoveLabel}`
+        : playerName
+        ? `Phân tích ${playerName} - ${currentMoveLabel}`
+        : `Phân tích thế cờ ${currentMoveLabel}`);
 
     const finalTitle = customSessionTitle.trim() || defaultTitle;
-    const targetPlayerId = effectivePlayerId || workspaceStore.activePlayerId || "";
-    const pids = targetPlayerId ? [targetPlayerId] : [];
+    const targetPlayerIds = isMulti
+      ? multiPlayerIds
+      : effectivePlayerId || workspaceStore.activePlayerId
+      ? [effectivePlayerId || workspaceStore.activePlayerId!]
+      : [];
+    const pids = targetPlayerIds;
 
     const realMessages = messages.map((m) => ({
       role: m.role,
@@ -504,8 +585,12 @@ export default function FloatingAiChatWidget({
       draftInput: inputMessage,
       game: gameInfo || (moves && moves.length > 0 ? ({
         id: "interactive-board-game",
-        white_player: playerName ? `${playerName} (Trắng)` : "Trắng",
-        black_player: "Đen",
+        white_player: isMulti
+          ? (whiteNames ? `${whiteNames} (Trắng)` : "Trắng")
+          : (playerName ? `${playerName} (Trắng)` : "Trắng"),
+        black_player: isMulti
+          ? (blackNames ? `${blackNames} (Đen)` : "Đen")
+          : "Đen",
         result: "*",
         moves,
         moves_san: moves.join(" "),
@@ -588,7 +673,14 @@ export default function FloatingAiChatWidget({
         <div className="fixed bottom-6 right-6 z-40 flex items-center gap-2 animate-fade-in">
           {/* Helpful tooltip badge */}
           <div className="hidden sm:flex items-center px-2.5 py-1 rounded-full bg-card/95 backdrop-blur-md border border-border/80 shadow-md text-xs font-semibold text-foreground select-none pointer-events-none">
-            <span>Hỏi đáp AI {playerName ? `• ${playerName}` : ""}</span>
+            <span>
+              Hỏi đáp AI{" "}
+              {isMulti
+                ? `• Matchup (${whiteNames || "Trắng"} vs ${blackNames || "Đen"})`
+                : playerName
+                ? `• ${playerName}`
+                : ""}
+            </span>
           </div>
 
           <button
@@ -628,11 +720,20 @@ export default function FloatingAiChatWidget({
                 <Bot className="w-3.5 h-3.5" />
               </div>
               <div className="min-w-0">
-                <span className="text-xs font-bold text-foreground truncate block">
-                  {playerName ? playerName : "Trợ lí AI Thế cờ"}
+                <span
+                  className="text-xs font-bold text-foreground truncate block"
+                  title={
+                    isMulti
+                      ? `⚪ ${whiteNames || "Trắng"} vs ⚫ ${blackNames || "Đen"}`
+                      : playerName || "Trợ lí AI Thế cờ"
+                  }
+                >
+                  {isMulti
+                    ? `⚪ ${whiteNames || "Trắng"} vs ⚫ ${blackNames || "Đen"}`
+                    : playerName || "Trợ lí AI Thế cờ"}
                 </span>
                 <p className="text-[10px] text-muted-foreground truncate leading-none">
-                  {currentMoveLabel} {evalSummary ? `• ${evalSummary}` : ""}
+                  {isMulti ? "Đa hồ sơ đối đầu • " : ""}{currentMoveLabel} {evalSummary ? `• ${evalSummary}` : ""}
                 </p>
               </div>
             </div>
@@ -790,17 +891,58 @@ export default function FloatingAiChatWidget({
                 >
                   💡 Kế hoạch tiếp theo
                 </button>
-                {playerName && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleSendMessage(`Kì thủ ${playerName} thường xử lý các tình huống tương tự thế cờ này như thế nào?`)
-                    }
-                    disabled={isStreaming}
-                    className="shrink-0 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-secondary hover:bg-secondary/80 text-foreground border border-border/60 transition cursor-pointer disabled:opacity-50"
-                  >
-                    ♟️ Thói quen kì thủ
-                  </button>
+                {isMulti ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleSendMessage(
+                          `So sánh cơ hội và kế hoạch chiến thuật giữa Trắng (${whiteNames || "Trắng"}) và Đen (${blackNames || "Đen"}) ở thế cờ này?`
+                        )
+                      }
+                      disabled={isStreaming}
+                      className="shrink-0 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 transition cursor-pointer disabled:opacity-50"
+                    >
+                      ⚔️ Đối chiếu 2 kỳ thủ
+                    </button>
+                    {whiteNames && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleSendMessage(`Kỳ thủ Trắng (${whiteNames}) thường xử lý thế cờ tương tự như thế nào?`)
+                        }
+                        disabled={isStreaming}
+                        className="shrink-0 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-secondary hover:bg-secondary/80 text-foreground border border-border/60 transition cursor-pointer disabled:opacity-50"
+                      >
+                        ⚪ Thói quen Trắng
+                      </button>
+                    )}
+                    {blackNames && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleSendMessage(`Kỳ thủ Đen (${blackNames}) thường xử lý thế cờ tương tự như thế nào?`)
+                        }
+                        disabled={isStreaming}
+                        className="shrink-0 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-secondary hover:bg-secondary/80 text-foreground border border-border/60 transition cursor-pointer disabled:opacity-50"
+                      >
+                        ⚫ Thói quen Đen
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  playerName && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleSendMessage(`Kì thủ ${playerName} thường xử lý các tình huống tương tự thế cờ này như thế nào?`)
+                      }
+                      disabled={isStreaming}
+                      className="shrink-0 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-secondary hover:bg-secondary/80 text-foreground border border-border/60 transition cursor-pointer disabled:opacity-50"
+                    >
+                      ♟️ Thói quen kì thủ
+                    </button>
+                  )
                 )}
               </div>
 

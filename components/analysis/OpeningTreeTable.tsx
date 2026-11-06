@@ -30,6 +30,8 @@ import {
   AlertTriangle,
   RefreshCw,
   ChevronDown,
+  Swords,
+  Settings2,
 } from "lucide-react";
 import { FigurineMove } from "@/components/chess/FigurineMove";
 
@@ -47,6 +49,11 @@ interface OpeningTreeTableProps {
   isSandboxMode?: boolean;
   isMultiMode?: boolean;
   multiTitle?: string;
+  multiProfiles?: Array<{
+    player: { id: string; canonical_name: string; total_games?: number };
+    role: "white" | "black" | "both";
+  }>;
+  onEditMatchup?: () => void;
   isLoading?: boolean;
 }
 
@@ -94,9 +101,12 @@ export default function OpeningTreeTable({
   isSandboxMode = false,
   isMultiMode = false,
   multiTitle,
+  multiProfiles = [],
+  onEditMatchup,
   isLoading = false,
 }: OpeningTreeTableProps) {
   const [activeTab, setActiveTab] = useState<"player" | "master">("player");
+  const [isMatchupMenuOpen, setIsMatchupMenuOpen] = useState(false);
   const [masterMoves, setMasterMoves] = useState<LichessMasterMove[]>([]);
   const [masterTopGames, setMasterTopGames] = useState<LichessMasterTopGame[]>([]);
   const [masterTotal, setMasterTotal] = useState<number>(0);
@@ -277,6 +287,11 @@ export default function OpeningTreeTable({
     setShowAuthModal(false);
   };
 
+  const whiteProfiles = multiProfiles.filter((m) => m.role === "white" || m.role === "both");
+  const blackProfiles = multiProfiles.filter((m) => m.role === "black" || m.role === "both");
+  const whiteName = whiteProfiles.map((m) => m.player.canonical_name).join(", ") || "Trắng";
+  const blackName = blackProfiles.map((m) => m.player.canonical_name).join(", ") || "Đen";
+
   return (
     <div
       className={`w-full flex flex-col h-full overflow-hidden ${
@@ -300,9 +315,13 @@ export default function OpeningTreeTable({
               type="button"
               onClick={() => setActiveTab("player")}
               className="flex items-center gap-1 cursor-pointer py-1"
-              title="Xem cây khai cuộc của kỳ thủ"
+              title={isMultiMode ? "Xem cây khai cuộc đối đầu Matchup" : "Xem cây khai cuộc của kỳ thủ"}
             >
-              <User className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+              {isMultiMode ? (
+                <Swords className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+              ) : (
+                <User className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+              )}
             </button>
 
             {isSandboxMode ? (
@@ -325,13 +344,101 @@ export default function OpeningTreeTable({
                 ))}
               </select>
             ) : isMultiMode ? (
-              <span
-                onClick={() => setActiveTab("player")}
-                className="cursor-pointer truncate max-w-[140px] sm:max-w-[200px] py-1 font-bold text-xs text-emerald-800"
-                title={multiTitle || "Matchup Ghép đôi"}
-              >
-                {multiTitle || "Matchup Ghép đôi"}
-              </span>
+              <div className="relative inline-flex items-center">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveTab("player");
+                    setIsMatchupMenuOpen((prev) => !prev);
+                  }}
+                  className="flex items-center gap-1 py-0.5 px-1 rounded hover:bg-slate-100 text-xs font-bold text-emerald-800 transition cursor-pointer max-w-[200px] sm:max-w-[280px]"
+                  title={multiTitle || `Matchup: ⚪ ${whiteName} vs ⚫ ${blackName} (Bấm để xem chi tiết / chỉnh sửa tổ hợp)`}
+                >
+                  <span className="truncate flex items-center gap-1 min-w-0">
+                    <span className="w-2 h-2 rounded-full bg-white border border-slate-400 shrink-0 shadow-2xs" />
+                    <span className="truncate max-w-[70px] sm:max-w-[105px]">{whiteName}</span>
+                    <span className="text-slate-400 font-normal shrink-0 text-[10px]">vs</span>
+                    <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-600 shrink-0 shadow-2xs" />
+                    <span className="truncate max-w-[70px] sm:max-w-[105px]">{blackName}</span>
+                  </span>
+                  <ChevronDown className={`w-3 h-3 shrink-0 text-emerald-600 transition-transform ${isMatchupMenuOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {/* Matchup Dropdown Popover */}
+                {isMatchupMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-30"
+                      onClick={() => setIsMatchupMenuOpen(false)}
+                    />
+                    <div
+                      className="absolute top-full left-0 mt-1.5 z-40 w-72 p-3 bg-white border border-slate-200 rounded-lg shadow-xl text-xs space-y-2.5 animate-in fade-in duration-100"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <Swords className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Cây Khai Cuộc Matchup</span>
+                        </span>
+                        <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-semibold border border-emerald-200">
+                          Đa hồ sơ
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 text-slate-700">
+                        <div className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-100">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2.5 h-2.5 rounded-full bg-white border border-slate-400 shrink-0 shadow-2xs" />
+                            <div className="min-w-0">
+                              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Trắng</span>
+                              <b className="font-semibold text-slate-800 truncate block">{whiteName}</b>
+                            </div>
+                          </div>
+                          {whiteProfiles.length > 0 && (
+                            <span className="text-[11px] text-muted-foreground shrink-0 font-medium">
+                              {whiteProfiles.reduce((acc, p) => acc + (p.player.total_games || 0), 0)} ván
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-100">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-600 shrink-0 shadow-2xs" />
+                            <div className="min-w-0">
+                              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Đen</span>
+                              <b className="font-semibold text-slate-800 truncate block">{blackName}</b>
+                            </div>
+                          </div>
+                          {blackProfiles.length > 0 && (
+                            <span className="text-[11px] text-muted-foreground shrink-0 font-medium">
+                              {blackProfiles.reduce((acc, p) => acc + (p.player.total_games || 0), 0)} ván
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="text-[10.5px] text-slate-500 leading-tight">
+                        Tần suất nước đi & tỷ lệ thắng được tổng hợp đối đầu chuẩn theo đúng vai trò quân cầm.
+                      </p>
+
+                      {onEditMatchup && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMatchupMenuOpen(false);
+                            onEditMatchup();
+                          }}
+                          className="w-full py-1.5 px-2.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+                        >
+                          <Settings2 className="w-3.5 h-3.5" />
+                          <span>Chỉnh sửa tổ hợp kỳ thủ</span>
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             ) : (
               <span
                 onClick={() => setActiveTab("player")}

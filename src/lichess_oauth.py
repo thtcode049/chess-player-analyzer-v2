@@ -31,7 +31,7 @@ def generate_state() -> str:
 def get_pkce_verifier_for_state(state: str) -> str:
     """
     Trích xuất hoặc suy diễn code_verifier từ chuỗi state.
-    Đảm bảo 100% không bị lệch giữa trước và sau khi redirect kể cả khi session Streamlit khởi tạo lại.
+    Đảm bảo 100% không bị lệch giữa trước và sau khi redirect kể cả khi phiên làm việc được khởi tạo lại.
     """
     if state and state in _STATE_CACHE:
         return _STATE_CACHE[state]

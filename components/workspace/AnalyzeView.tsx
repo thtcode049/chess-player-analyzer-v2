@@ -2067,21 +2067,8 @@ export function AnalyzeContent() {
           isLoading={treeLoading || isProfileDataLoading}
           isSandboxMode={workspaceStore.activeMode === "sandbox"}
           isMultiMode={workspaceStore.activeMode === "multi"}
-          multiTitle={
-            workspaceStore.activeMode === "multi"
-              ? `Matchup: ⚪ ${
-                  workspaceStore.multiProfiles
-                    .filter((m) => m.role === "white" || m.role === "both")
-                    .map((m) => m.player.canonical_name)
-                    .join(", ") || "Trắng"
-                } vs ⚫ ${
-                  workspaceStore.multiProfiles
-                    .filter((m) => m.role === "black" || m.role === "both")
-                    .map((m) => m.player.canonical_name)
-                    .join(", ") || "Đen"
-                }`
-              : undefined
-          }
+          multiProfiles={workspaceStore.multiProfiles}
+          onEditMatchup={() => workspaceStore.openHub()}
         />
       </div>
     </>
@@ -2089,37 +2076,6 @@ export function AnalyzeContent() {
 
   return (
     <div className={`w-full max-w-[1720px] mx-auto animate-fade-in ${boardPlayersInfo ? "pt-7 sm:pt-8" : "pt-1 sm:pt-3"} pb-6 space-y-5`}>
-
-      {/* MATCHUP MODE BANNER */}
-      {workspaceStore.activeMode === "multi" && workspaceStore.multiProfiles.length > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:px-4 sm:py-3 rounded-md bg-muted/40 border border-border/70 text-foreground">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded bg-emerald-50 text-emerald-700">
-              <Swords className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                  Cây Khai Cuộc Matchup Ghép Đôi
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Tần suất nước đi & tỷ lệ thắng được tổng hợp theo đúng vai trò:{" "}
-                <b className="text-foreground">⚪ Trắng ({workspaceStore.multiProfiles.filter((m) => m.role === "white" || m.role === "both").map((m) => m.player.canonical_name).join(", ") || "Chưa chọn"})</b>{" "}
-                vs{" "}
-                <b className="text-foreground">⚫ Đen ({workspaceStore.multiProfiles.filter((m) => m.role === "black" || m.role === "both").map((m) => m.player.canonical_name).join(", ") || "Chưa chọn"})</b>
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => workspaceStore.openHub()}
-            className="px-3 py-1.5 rounded border border-border/70 hover:bg-muted text-foreground text-xs font-medium transition self-start sm:self-auto shrink-0"
-          >
-            Chỉnh sửa tổ hợp
-          </button>
-        </div>
-      )}
 
       {/* Main Analysis Workspace */}
       {isExplorerMode ? (
@@ -2313,6 +2269,8 @@ export function AnalyzeContent() {
                     isLoading={treeLoading || isProfileDataLoading}
                     isSandboxMode={workspaceStore.activeMode === "sandbox"}
                     isMultiMode={workspaceStore.activeMode === "multi"}
+                    multiProfiles={workspaceStore.multiProfiles}
+                    onEditMatchup={() => workspaceStore.openHub()}
                   />
                 </div>
               </div>
@@ -2862,6 +2820,8 @@ export function AnalyzeContent() {
         gameInfo={gameInfo}
         effectivePlayerId={effectivePlayerId}
         playerName={workspaceStore.activePlayer?.canonical_name || cachedProfile?.player?.canonical_name || undefined}
+        isMultiMode={workspaceStore.activeMode === "multi"}
+        multiProfiles={workspaceStore.multiProfiles}
         moves={moves}
       />
     </div>

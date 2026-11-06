@@ -106,6 +106,53 @@ function formatGameDate(g: Game): string {
   return cleaned;
 }
 
+function normalizePlayerName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isPlayerNameMatch(nameA?: string | null, nameB?: string | null): boolean {
+  if (!nameA || !nameB) return false;
+  const a = normalizePlayerName(nameA);
+  const b = normalizePlayerName(nameB);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.includes(b) || b.includes(a)) return true;
+  const tokensA = a.split(" ").filter((t) => t.length >= 2);
+  const tokensB = b.split(" ").filter((t) => t.length >= 2);
+  const matches = tokensA.filter((t) => tokensB.includes(t));
+  return matches.length >= 1;
+}
+
+function getGamePlayerColor(
+  game: Game,
+  canonicalName?: string,
+  primaryName?: string
+): "white" | "black" {
+  const explicitColor = (game as any).player_color;
+  if (explicitColor === "white" || explicitColor === "black") {
+    return explicitColor;
+  }
+  if (primaryName) {
+    const isW = isPlayerNameMatch(primaryName, game.white_player);
+    const isB = isPlayerNameMatch(primaryName, game.black_player);
+    if (isW && !isB) return "white";
+    if (isB && !isW) return "black";
+  }
+  if (canonicalName) {
+    const isW = isPlayerNameMatch(canonicalName, game.white_player);
+    const isB = isPlayerNameMatch(canonicalName, game.black_player);
+    if (isW && !isB) return "white";
+    if (isB && !isW) return "black";
+  }
+  return "white";
+}
+
 export default function ProfileDetailContent({
   targetPlayerId,
 }: {
@@ -252,30 +299,55 @@ export default function ProfileDetailContent({
 
   // Filter games
   const safeGames = Array.isArray(games) ? games : [];
+
+  // Auto-detect the primary player username in this dataset (appears in most games)
+  const primaryDatasetPlayer = useMemo(() => {
+    if (!safeGames || safeGames.length === 0) return "";
+    const counts = new Map<string, number>();
+    for (const g of safeGames) {
+      if (g.white_player) {
+        const w = g.white_player.trim();
+        counts.set(w, (counts.get(w) || 0) + 1);
+      }
+      if (g.black_player) {
+        const b = g.black_player.trim();
+        counts.set(b, (counts.get(b) || 0) + 1);
+      }
+    }
+    let topName = "";
+    let topCount = 0;
+    counts.forEach((count, name) => {
+      if (count > topCount) {
+        topCount = count;
+        topName = name;
+      }
+    });
+    return topCount >= Math.max(1, Math.floor(safeGames.length * 0.2)) ? topName : "";
+  }, [safeGames]);
+
   const filteredGames = useMemo(() => {
     return safeGames.filter((g) => {
       if (!g) return false;
-      const pName = (player?.canonical_name || "").toLowerCase();
+      const color = getGamePlayerColor(g, player?.canonical_name, primaryDatasetPlayer);
+      const isPlayerWhite = color === "white";
+      const isPlayerBlack = color === "black";
       const wPlayer = (g.white_player || "").toLowerCase();
       const bPlayer = (g.black_player || "").toLowerCase();
-      const isPlayerWhite = pName ? wPlayer.includes(pName) : false;
-      const isPlayerBlack = pName ? bPlayer.includes(pName) : false;
 
       // Color Filter
       if (gameColorFilter === "white" && !isPlayerWhite) return false;
       if (gameColorFilter === "black" && !isPlayerBlack) return false;
 
       // Result Filter
+      const res = (g.result || "").trim();
       if (gameResultFilter === "win") {
-        if (isPlayerWhite && g.result !== "1-0") return false;
-        if (isPlayerBlack && g.result !== "0-1") return false;
-        if (!isPlayerWhite && !isPlayerBlack && g.result !== "1-0") return false;
+        if (isPlayerWhite && res !== "1-0") return false;
+        if (isPlayerBlack && res !== "0-1") return false;
       } else if (gameResultFilter === "loss") {
-        if (isPlayerWhite && g.result !== "0-1") return false;
-        if (isPlayerBlack && g.result !== "1-0") return false;
-        if (!isPlayerWhite && !isPlayerBlack && g.result !== "0-1") return false;
+        if (isPlayerWhite && res !== "0-1") return false;
+        if (isPlayerBlack && res !== "1-0") return false;
       } else if (gameResultFilter === "draw") {
-        if (g.result !== "1/2-1/2") return false;
+        if (res !== "1/2-1/2" && res !== "0.5-0.5") return false;
       }
 
       // Search Filter
@@ -295,7 +367,7 @@ export default function ProfileDetailContent({
 
       return true;
     });
-  }, [safeGames, player?.canonical_name, gameColorFilter, gameResultFilter, gameSearchQuery]);
+  }, [safeGames, player?.canonical_name, primaryDatasetPlayer, gameColorFilter, gameResultFilter, gameSearchQuery]);
 
   const totalFiltered = filteredGames.length;
   const totalPages = gamesPerPage === -1 ? 1 : Math.max(1, Math.ceil(totalFiltered / gamesPerPage));
@@ -307,7 +379,6 @@ export default function ProfileDetailContent({
 
   // Detailed Game Statistics for Visual Charts
   const profileChartsData = useMemo(() => {
-    const pName = (player?.canonical_name || "").toLowerCase();
     let totalWins = 0;
     let totalDraws = 0;
     let totalLosses = 0;
@@ -325,9 +396,9 @@ export default function ProfileDetailContent({
     const openingMap = new Map<string, { name: string; eco: string; count: number; wins: number; draws: number; losses: number }>();
 
     for (const g of safeGames) {
-      const isWhite = (g.white_player || "").toLowerCase().includes(pName);
-      const isBlack = (g.black_player || "").toLowerCase().includes(pName);
-      const res = g.result;
+      const color = getGamePlayerColor(g, player?.canonical_name, primaryDatasetPlayer);
+      const isWhite = color === "white";
+      const res = (g.result || "").trim();
 
       let isWin = false;
       let isDraw = false;
@@ -336,17 +407,13 @@ export default function ProfileDetailContent({
       if (isWhite) {
         whiteGames++;
         if (res === "1-0") { isWin = true; whiteWins++; }
-        else if (res === "1/2-1/2") { isDraw = true; whiteDraws++; }
+        else if (res === "1/2-1/2" || res === "0.5-0.5") { isDraw = true; whiteDraws++; }
         else if (res === "0-1") { isLoss = true; whiteLosses++; }
-      } else if (isBlack) {
+      } else {
         blackGames++;
         if (res === "0-1") { isWin = true; blackWins++; }
-        else if (res === "1/2-1/2") { isDraw = true; blackDraws++; }
+        else if (res === "1/2-1/2" || res === "0.5-0.5") { isDraw = true; blackDraws++; }
         else if (res === "1-0") { isLoss = true; blackLosses++; }
-      } else {
-        if (res === "1-0") isWin = true;
-        else if (res === "1/2-1/2") isDraw = true;
-        else if (res === "0-1") isLoss = true;
       }
 
       if (isWin) totalWins++;
@@ -1539,12 +1606,13 @@ export default function ProfileDetailContent({
                     </tr>
                   ) : (
                     paginatedGames.map((g, idx) => {
-                      const pName = (player?.canonical_name || "").toLowerCase();
-                      const isWhite = (g.white_player || "").toLowerCase().includes(pName);
-                      const isBlack = (g.black_player || "").toLowerCase().includes(pName);
-                      const isPlayerWin = (isWhite && g.result === "1-0") || (isBlack && g.result === "0-1");
-                      const isPlayerLoss = (isWhite && g.result === "0-1") || (isBlack && g.result === "1-0");
-                      const isDraw = g.result === "1/2-1/2";
+                      const color = getGamePlayerColor(g, player?.canonical_name, primaryDatasetPlayer);
+                      const isWhite = color === "white";
+                      const isBlack = color === "black";
+                      const res = (g.result || "").trim();
+                      const isPlayerWin = (isWhite && res === "1-0") || (isBlack && res === "0-1");
+                      const isPlayerLoss = (isWhite && res === "0-1") || (isBlack && res === "1-0");
+                      const isDraw = res === "1/2-1/2" || res === "0.5-0.5";
                       const dateDisplay = formatGameDate(g);
                       const pInfo = getPlatformInfo(g);
 

@@ -854,8 +854,9 @@ export default function AiCoachView() {
     setCurrentFen(START_FEN);
 
     // Auto set board orientation if selected player is Black
-    const firstPName = activePlayerNames[0]?.toLowerCase() || "";
-    if (g.black_player && firstPName && g.black_player.toLowerCase().includes(firstPName)) {
+    const firstPName = (activePlayerNames[0] || "").toLowerCase().trim();
+    const bPlayer = (g.black_player || "").toLowerCase().trim();
+    if (bPlayer && firstPName && (bPlayer.includes(firstPName) || firstPName.includes(bPlayer))) {
       setBoardOrientation("black");
     } else {
       setBoardOrientation("white");

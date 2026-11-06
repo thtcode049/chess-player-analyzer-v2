@@ -96,6 +96,8 @@ docs/
 !readme.md
 thesis_report/
 *.docx
+# Local thesis report workspace (documents, figures, renders and editing scripts)
+/Báo cáo/
 
 # 12. Unused legacy assets
 assets/

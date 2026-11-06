@@ -3,8 +3,7 @@ AI Assistant Configuration Module
 ---------------------------------
 Chức năng: Tự động nạp Gemini API Key từ môi trường máy chủ (Server-side):
 1. Biến môi trường hệ thống (Environment variables: GEMINI_API_KEY / GOOGLE_API_KEY)
-2. File cấu hình nội bộ .env (nếu có)
-3. Streamlit Secrets (st.secrets["GEMINI_API_KEY"] khi triển khai Cloud)
+2. File cấu hình nội bộ .env / .env.local (nếu có)
 """
 
 import os
@@ -44,12 +43,6 @@ def get_server_gemini_api_key() -> str:
     if key.strip():
         return key.strip()
 
-    # 2. Kiểm tra Streamlit secrets (nếu chạy trên Streamlit Cloud)
-    try:
-        import streamlit as st
-        if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
-            return str(st.secrets["GEMINI_API_KEY"]).strip()
-    except Exception:
-        pass
+
 
     return ""

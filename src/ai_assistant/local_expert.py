@@ -60,7 +60,13 @@ def generate_local_expert_response(
     # =========================================================================
     # 1. TRẢ LỜI VỀ CẤU TRÚC TỐT (PAWN STRUCTURES)
     # =========================================================================
-    if any(k in p for k in ["cấu trúc", "tốt", "structure", "pawn", "carlsbad", "isolani", "iqp", "hanging", "hedgehog", "stonewall", "scheveningen", "boleslavsky", "maroczy", "french", "mar del plata"]):
+    pawn_keywords = [
+        "cấu trúc", "tốt", "structure", "pawn", "carlsbad", "isolani", "iqp", "hanging",
+        "hedgehog", "stonewall", "scheveningen", "boleslavsky", "maroczy", "french", "mar del plata",
+        "benoni", "najdorf", "grunfeld", "grünfeld", "slav", "caro-kann", "caro kann",
+        "panov", "dragon", "benko", "ruy lopez", "lopez", "kid", "king's indian",
+    ]
+    if any(k in p for k in pawn_keywords):
         lines = [f"### 🧬 Phân tích Chuyên sâu về Cấu trúc Tốt của **{selected_player}**\n"]
         if not structs:
             lines.append("Chưa phát hiện cấu trúc Tốt đặc trưng nào nổi bật trong các ván đấu đã phân tích.")
@@ -69,7 +75,10 @@ def generate_local_expert_response(
         # Kiểm tra nếu hỏi cấu trúc cụ thể
         specific_match = None
         for s in structs:
-            if s["name"].lower() in p:
+            s_name = s.get("name", "").lower()
+            s_key = s.get("structure_key", "").lower()
+            s_key_spaced = s_key.replace("_", " ") if s_key else ""
+            if (s_name and s_name in p) or (s_key and (s_key in p or s_key_spaced in p)):
                 specific_match = s
                 break
 

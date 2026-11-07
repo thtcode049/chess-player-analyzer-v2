@@ -167,8 +167,10 @@ export interface PawnStructureGame {
 export interface PawnStructureItem {
   name: string;
   structure_key?: string;
+  chapter?: string;
   group?: "A" | "B" | string;
   group_title?: string;
+  group_order?: number;
   strategic_plan?: {
     ideas: string[];
     counter_ideas: string[];
@@ -181,6 +183,7 @@ export interface PawnStructureItem {
   score_pct: number;
   adjusted_score_pct?: number;
   delta_vs_baseline?: number;
+  confidence?: string;
   assessment_badge?: string;
   assessment_color?: string;
   games?: PawnStructureGame[];

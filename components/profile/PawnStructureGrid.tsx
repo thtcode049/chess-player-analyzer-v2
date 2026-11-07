@@ -12,6 +12,52 @@ interface PawnStructureGridProps {
   playerId?: string;
 }
 
+interface GroupMeta {
+  key: string;
+  title: string;
+  subtitle: string;
+  order: number;
+}
+
+const CANONICAL_GROUPS: Record<string, GroupMeta> = {
+  family_1: {
+    key: "family_1",
+    title: "Family One – d4 & ...d5",
+    subtitle: "Chương 1–7: Isolani, Hanging Pawns, Caro-Kann, Slav, Carlsbad, Stonewall, Grünfeld Centre",
+    order: 1,
+  },
+  family_2: {
+    key: "family_2",
+    title: "Family Two – Open Sicilian",
+    subtitle: "Chương 8–11: Najdorf Type I, Najdorf Type II, The Hedgehog, The Maroczy",
+    order: 2,
+  },
+  family_3: {
+    key: "family_3",
+    title: "Family Three – Benoni",
+    subtitle: "Chương 12–13: Asymmetric Benoni, Symmetric Benoni",
+    order: 3,
+  },
+  family_4: {
+    key: "family_4",
+    title: "Family Four – King's Indian",
+    subtitle: "Chương 14–18: KID Type I, KID Type II, KID Type III, Open KID, KID Complex",
+    order: 4,
+  },
+  family_5: {
+    key: "family_5",
+    title: "Family Five – French",
+    subtitle: "Chương 19–21: French Type I, French Type II, French Type III",
+    order: 5,
+  },
+  miscellaneous: {
+    key: "miscellaneous",
+    title: "Miscellaneous – Various Structures",
+    subtitle: "Chương 22: 3-3 vs. 4-2, Panov, Dragon, Scheveningen, Benko, Closed Ruy Lopez, Lopez Formation",
+    order: 6,
+  },
+};
+
 export default function PawnStructureGrid({
   structures = [],
   playerId,
@@ -28,50 +74,70 @@ export default function PawnStructureGrid({
     );
   }
 
-  // Danh sách chuẩn hóa của các cấu trúc chính thức (chỉ render các cấu trúc hợp lệ)
-  const ALLOWED_GROUP_B = [
-    "carlsbad",
-    "french_chain",
-    "french",
-    "kings_indian",
-    "king's indian",
-    "scheveningen",
-    "boleslavsky",
-    "boleslavsky_hole",
-    "maroczy_bind",
-    "maroczy bind",
-    "hedgehog",
-    "stonewall",
-  ];
-  const ALLOWED_GROUP_A = [
-    "iqp",
-    "isolated queen's pawn",
-    "hanging_pawns",
-    "hanging pawns",
-    "open",
-    "open center",
-    "semi-open",
-    "semi-open center",
-    "closed",
-    "closed center",
-    "symmetrical",
-    "symmetrical center",
-  ];
+  // Nhóm cấu trúc động theo các Family chuẩn Flores Rios (kèm tương thích ngược cho dữ liệu cũ A / B)
+  const groupedSections: { meta: GroupMeta; items: PawnStructureItem[] }[] = [];
+  const buckets: Record<string, PawnStructureItem[]> = {};
 
-  const isValidGroupB = (s: PawnStructureItem) => {
-    const k = (s.structure_key || "").toLowerCase();
-    const n = (s.name || "").toLowerCase();
-    return s.group === "B" || ALLOWED_GROUP_B.some((allowed) => k.includes(allowed) || n.includes(allowed));
-  };
+  for (const s of structures) {
+    const gKey = s.group || "miscellaneous";
+    if (!buckets[gKey]) {
+      buckets[gKey] = [];
+    }
+    buckets[gKey].push(s);
+  }
 
-  const isValidGroupA = (s: PawnStructureItem) => {
-    const k = (s.structure_key || "").toLowerCase();
-    const n = (s.name || "").toLowerCase();
-    return s.group === "A" || ALLOWED_GROUP_A.some((allowed) => k.includes(allowed) || n.includes(allowed));
-  };
+  // Thêm 6 nhóm chính theo thứ tự
+  for (const [key, meta] of Object.entries(CANONICAL_GROUPS)) {
+    if (buckets[key] && buckets[key].length > 0) {
+      groupedSections.push({ meta, items: buckets[key] });
+    }
+  }
 
-  const groupB = structures.filter(isValidGroupB);
-  const groupA = structures.filter((s) => !isValidGroupB(s) && isValidGroupA(s));
+  // Tương thích ngược: dữ liệu cũ có group "B" hoặc "A"
+  if (buckets["B"] && buckets["B"].length > 0) {
+    groupedSections.push({
+      meta: {
+        key: "legacy_B",
+        title: "Cấu trúc Chiến lược (Lịch sử)",
+        subtitle: "Các cấu trúc chiến lược từ bản phân tích trước",
+        order: 91,
+      },
+      items: buckets["B"],
+    });
+  }
+  if (buckets["A"] && buckets["A"].length > 0) {
+    groupedSections.push({
+      meta: {
+        key: "legacy_A",
+        title: "Cấu trúc Nền tảng & Trung tâm (Lịch sử)",
+        subtitle: "Các cấu trúc trung tâm cơ bản từ bản phân tích trước",
+        order: 92,
+      },
+      items: buckets["A"],
+    });
+  }
+
+  // Các nhóm khác nếu có
+  for (const [k, items] of Object.entries(buckets)) {
+    if (
+      !CANONICAL_GROUPS[k] &&
+      k !== "B" &&
+      k !== "A" &&
+      items.length > 0
+    ) {
+      groupedSections.push({
+        meta: {
+          key: k,
+          title: items[0].group_title || `Cấu trúc Tốt (${k})`,
+          subtitle: "Cấu trúc chiến lược bổ trợ",
+          order: 99,
+        },
+        items,
+      });
+    }
+  }
+
+  groupedSections.sort((a, b) => a.meta.order - b.meta.order);
 
   const renderStructureCard = (item: PawnStructureItem, idx: number) => {
     const delta = item.delta_vs_baseline ?? 0;
@@ -84,18 +150,6 @@ export default function PawnStructureGrid({
         : "text-muted-foreground";
 
     const hasGames = item.games && item.games.length > 0;
-    const isGroupB =
-      item.group === "B" ||
-      [
-        "Carlsbad",
-        "French_Chain",
-        "Kings_Indian",
-        "Scheveningen",
-        "Boleslavsky_Hole",
-        "Maroczy_Bind",
-        "Hedgehog",
-        "Stonewall",
-      ].includes(item.structure_key || "");
 
     return (
       <div
@@ -105,13 +159,7 @@ export default function PawnStructureGrid({
         <div>
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
-              <div
-                className={`p-1.5 rounded-control text-xs shrink-0 ${
-                  isGroupB
-                    ? "bg-amber-50 text-amber-800"
-                    : "bg-primary/10 text-primary"
-                }`}
-              >
+              <div className="p-1.5 rounded-control text-xs shrink-0 bg-primary/10 text-primary">
                 <Layers className="w-4 h-4" />
               </div>
               <div>
@@ -122,19 +170,23 @@ export default function PawnStructureGrid({
                   <PawnStructureInfoBadge structureName={item.name} />
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
+                  {item.chapter && (
+                    <>
+                      <span className="text-[10px] font-bold text-primary">
+                        {item.chapter}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/60">•</span>
+                    </>
+                  )}
                   <span className="text-[10px] text-muted-foreground">
                     Hình thành ~nước {item.typical_formation_move ?? 12}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground/60">•</span>
-                  <span className="text-[10px] font-semibold text-muted-foreground">
-                    {isGroupB ? "Chiến lược" : "Trung tâm"}
                   </span>
                 </div>
               </div>
             </div>
 
             <span
-              className="assessment-tag border whitespace-nowrap"
+              className="assessment-tag border"
               style={{
                 backgroundColor: `${item.assessment_color ?? "#94A3B8"}18`,
                 color: `color-mix(in srgb, ${item.assessment_color ?? "#64748b"} 45%, #0f172a)`,
@@ -145,54 +197,56 @@ export default function PawnStructureGrid({
             </span>
           </div>
 
-          {/* Strategic Plan Preview (if available) - Clean text without nested card */}
-          {item.strategic_plan?.ideas && item.strategic_plan.ideas.length > 0 && (
-            <div className="my-2.5 text-[11px] text-muted-foreground flex items-start gap-1.5 leading-relaxed">
-              <Lightbulb className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-              <span className="line-clamp-2 text-foreground/85">
-                <b className="text-foreground">Kế hoạch:</b> {item.strategic_plan.ideas[0]}
-              </span>
+          <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-border/40 text-xs">
+            <div>
+              <span className="text-muted-foreground text-[11px] block">Điểm số đạt</span>
+              <div className="flex items-baseline gap-1 mt-0.5">
+                <span className="font-bold text-foreground text-sm">{item.score_pct}%</span>
+                <span className={`text-[10px] ${deltaColor}`}>{deltaStr}</span>
+              </div>
+            </div>
+            <div>
+              <span className="text-muted-foreground text-[11px] block">Thành tích</span>
+              <div className="font-medium text-foreground text-xs mt-0.5">
+                <span className="text-emerald-800">{item.wins}T</span>{" "}
+                <span className="text-muted-foreground">{item.draws}H</span>{" "}
+                <span className="text-rose-800">{item.losses}B</span>
+              </div>
+            </div>
+          </div>
+
+          {item.strategic_plan && (
+            <div className="mt-3 pt-2.5 border-t border-border/40 space-y-1.5">
+              <div className="text-[11px] text-foreground font-medium flex items-start gap-1">
+                <span className="text-primary font-bold shrink-0">💡 Kế hoạch:</span>
+                <span className="line-clamp-2 text-muted-foreground">
+                  {item.strategic_plan.ideas?.[0] || "Đang cập nhật..."}
+                </span>
+              </div>
             </div>
           )}
-
-          {/* Stats row */}
-          <div className="grid grid-cols-3 gap-2 py-2 border-y border-border/40 my-2 text-center text-xs">
-            <div>
-              <span className="block text-[10px] text-muted-foreground">Số ván</span>
-              <span className="font-bold text-foreground">{item.games_count}</span>
-            </div>
-            <div>
-              <span className="block text-[10px] text-muted-foreground">W / D / L</span>
-              <span className="font-mono text-[11px]">
-                <span className="text-emerald-500 font-bold">{item.wins}</span>-
-                <span className="text-muted-foreground">{item.draws}</span>-
-                <span className="text-rose-500 font-bold">{item.losses}</span>
-              </span>
-            </div>
-            <div>
-              <span className="block text-[10px] text-muted-foreground">Điểm thô</span>
-              <span className="font-bold text-foreground">
-                {item.score_pct.toFixed(0)}%
-              </span>
-            </div>
-          </div>
         </div>
 
-        {/* Performance Score & Actions */}
-        <div>
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-xs text-muted-foreground">Điểm hiệu suất:</span>
-            <div className="text-right">
-              <span className="text-sm font-extrabold text-foreground">
-                {(item.adjusted_score_pct ?? item.score_pct).toFixed(1)}%
-              </span>{" "}
-              <span className={`text-xs ${deltaColor}`}>({deltaStr})</span>
-            </div>
+        <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-muted-foreground">Độ tin cậy:</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                item.confidence === "high"
+                  ? "bg-emerald-50 text-emerald-800"
+                  : item.confidence === "medium"
+                  ? "bg-amber-50 text-amber-800"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {item.confidence || "N/A"}
+            </span>
           </div>
 
-          <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2">
             {hasGames ? (
               <button
+                type="button"
                 onClick={() => {
                   setActiveModalStructure(item);
                   setModalFilter("all");
@@ -223,39 +277,21 @@ export default function PawnStructureGrid({
   return (
     <>
       <div className="space-y-6">
-        {/* CẤU TRÚC CHIẾN LƯỢC KINH ĐIỂN */}
-        {groupB.length > 0 && (
-          <div className="space-y-3">
+        {groupedSections.map((sec) => (
+          <div key={sec.meta.key} className="space-y-3">
             <div className="flex items-center justify-between border-b border-border/50 pb-2">
               <h3 className="font-bold text-sm text-foreground">
-                Cấu trúc Chiến lược Kinh điển ({groupB.length})
+                {sec.meta.title} ({sec.items.length})
               </h3>
-              <span className="text-[11px] text-muted-foreground">
-                Carlsbad, Pháp, King&apos;s Indian, Scheveningen, Boleslavsky, Maroczy, Nhím, Stonewall
+              <span className="text-[11px] text-muted-foreground hidden sm:inline">
+                {sec.meta.subtitle}
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {groupB.map((item, idx) => renderStructureCard(item, idx))}
+              {sec.items.map((item, idx) => renderStructureCard(item, idx))}
             </div>
           </div>
-        )}
-
-        {/* CẤU TRÚC NỀN TẢNG VÀ TRẠNG THÁI TRUNG TÂM */}
-        {groupA.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between border-b border-border/50 pb-2">
-              <h3 className="font-bold text-sm text-foreground">
-                Cấu trúc Nền tảng & Trạng thái Trung tâm ({groupA.length})
-              </h3>
-              <span className="text-[11px] text-muted-foreground">
-                IQP, Cặp tốt treo, Mở, Nửa mở, Đóng, Đối xứng
-              </span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {groupA.map((item, idx) => renderStructureCard(item, idx))}
-            </div>
-          </div>
-        )}
+        ))}
       </div>
 
       {/* Modal: View Games & Detailed Strategic Plan */}
@@ -267,7 +303,7 @@ export default function PawnStructureGrid({
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-primary uppercase tracking-wider">
-                    {activeModalStructure.group === "B" ? "Cấu trúc Chiến lược" : "Cấu trúc Trung tâm"}
+                    {activeModalStructure.group_title || "Chuẩn Flores Rios"}
                   </span>
                   <span
                     className="assessment-tag border"
@@ -299,185 +335,154 @@ export default function PawnStructureGrid({
               </button>
             </div>
 
-            {/* Strategic Plan Details (Ideas & Counter-Ideas) */}
+            {/* Strategic Plan Section */}
             {activeModalStructure.strategic_plan && (
-              <div className="border-t border-border/50 pt-3 text-xs space-y-2">
-                <div className="flex items-center gap-1.5 font-bold text-primary">
-                  <Compass className="w-4 h-4" />
-                  <span>Kế hoạch & Phương án Chiến lược Tham khảo</span>
+              <div className="bg-secondary/40 rounded-surface p-3.5 border border-border/40 text-xs space-y-2 shrink-0">
+                <div className="flex items-center gap-1.5 font-bold text-primary text-xs">
+                  <Lightbulb className="w-4 h-4 text-amber-500" />
+                  Kế hoạch Chiến lược Chuẩn (Flores Rios - Chess Structures):
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-1">
                   <div className="space-y-1">
-                    <span className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
-                      <Lightbulb className="w-3.5 h-3.5" /> Kế hoạch chủ động:
+                    <span className="font-semibold text-emerald-800 text-[11px] block">
+                      🎯 Kế hoạch bên chủ động / sở hữu (Ideas):
                     </span>
-                    <ul className="list-disc list-inside text-muted-foreground text-[11px] space-y-0.5">
-                      {activeModalStructure.strategic_plan.ideas.map((idea, i) => (
+                    <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground text-[11px]">
+                      {activeModalStructure.strategic_plan.ideas?.map((idea, i) => (
                         <li key={i}>{idea}</li>
-                      ))}
+                      )) || <li>Chưa có kế hoạch chi tiết</li>}
                     </ul>
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[11px] font-semibold text-rose-700 flex items-center gap-1">
-                      <ShieldAlert className="w-3.5 h-3.5" /> Phương án đối ứng:
+                    <span className="font-semibold text-rose-800 text-[11px] block">
+                      🛡️ Kế hoạch phản công / đối phó (Counter-Ideas):
                     </span>
-                    <ul className="list-disc list-inside text-muted-foreground text-[11px] space-y-0.5">
-                      {activeModalStructure.strategic_plan.counter_ideas.map((cidea, i) => (
-                        <li key={i}>{cidea}</li>
-                      ))}
+                    <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground text-[11px]">
+                      {activeModalStructure.strategic_plan.counter_ideas?.map((c_idea, i) => (
+                        <li key={i}>{c_idea}</li>
+                      )) || <li>Chưa có kế hoạch phản công chi tiết</li>}
                     </ul>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Filter Pills & Analyze CTA */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 p-1 bg-secondary/60 rounded">
-                <button
-                  onClick={() => setModalFilter("all")}
-                  className={`px-2.5 py-1 rounded text-xs font-semibold transition cursor-pointer ${
-                    modalFilter === "all" ? "bg-card text-foreground" : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Tất cả ({activeModalStructure.games?.length || 0})
-                </button>
-                <button
-                  onClick={() => setModalFilter("wins")}
-                  className={`px-2.5 py-1 rounded text-xs font-semibold transition cursor-pointer ${
-                    modalFilter === "wins" ? "bg-emerald-600 text-white" : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Thắng ({activeModalStructure.wins})
-                </button>
-                <button
-                  onClick={() => setModalFilter("draws")}
-                  className={`px-2.5 py-1 rounded text-xs font-semibold transition cursor-pointer ${
-                    modalFilter === "draws" ? "bg-amber-600 text-white" : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Hòa ({activeModalStructure.draws})
-                </button>
-                <button
-                  onClick={() => setModalFilter("losses")}
-                  className={`px-2.5 py-1 rounded text-xs font-semibold transition cursor-pointer ${
-                    modalFilter === "losses" ? "bg-rose-600 text-white" : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Thua ({activeModalStructure.losses})
-                </button>
+            {/* Games Filter Tabs */}
+            <div className="flex items-center justify-between border-b border-border/40 pb-2">
+              <span className="text-xs font-bold text-foreground">Ván đấu cụ thể ({activeModalStructure.games?.length || 0}):</span>
+              <div className="flex items-center gap-1 text-[11px]">
+                {(["all", "wins", "draws", "losses"] as const).map((filter) => {
+                  const label =
+                    filter === "all"
+                      ? "Tất cả"
+                      : filter === "wins"
+                      ? "Thắng"
+                      : filter === "draws"
+                      ? "Hòa"
+                      : "Thua";
+                  const count =
+                    filter === "all"
+                      ? activeModalStructure.games?.length || 0
+                      : activeModalStructure.games?.filter((g) =>
+                          filter === "wins" ? g.is_win : filter === "draws" ? g.is_draw : g.is_loss
+                        ).length || 0;
+                  return (
+                    <button
+                      key={filter}
+                      onClick={() => setModalFilter(filter)}
+                      className={`px-2 py-0.5 rounded cursor-pointer transition ${
+                        modalFilter === filter
+                          ? "bg-primary text-primary-foreground font-bold"
+                          : "text-muted-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      {label} ({count})
+                    </button>
+                  );
+                })}
               </div>
+            </div>
 
-              {playerId && (
+            {/* Games List (Scrollable) */}
+            <div className="overflow-y-auto space-y-2 pr-1 flex-1 min-h-[160px]">
+              {activeModalStructure.games
+                ?.filter((g) => {
+                  if (modalFilter === "wins") return g.is_win;
+                  if (modalFilter === "draws") return g.is_draw;
+                  if (modalFilter === "losses") return g.is_loss;
+                  return true;
+                })
+                .map((game, gIdx) => {
+                  const resultColor = game.is_win
+                    ? "text-emerald-800 font-bold"
+                    : game.is_loss
+                    ? "text-rose-800 font-bold"
+                    : "text-muted-foreground font-semibold";
+                  const resultBadge = game.is_win ? "Thắng" : game.is_loss ? "Thua" : "Hòa";
+
+                  return (
+                    <div
+                      key={gIdx}
+                      className="p-3 bg-secondary/20 hover:bg-secondary/40 border border-border/40 rounded-surface transition flex items-center justify-between text-xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-foreground">
+                            {game.white} vs {game.black}
+                          </span>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded border ${resultColor}`}>
+                            {resultBadge} ({game.result})
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+                          <span>{game.opening}</span>
+                          <span>•</span>
+                          <span>Hình thành nước {game.formation_move}</span>
+                          {game.date && (
+                            <>
+                              <span>•</span>
+                              <span>{game.date}</span>
+                            </>
+                          )}
+                        </div>
+                        {game.evidence && (
+                          <div className="text-[10px] text-muted-foreground/80 italic mt-0.5">
+                            {game.evidence}
+                          </div>
+                        )}
+                      </div>
+
+                      {game.id && (
+                        <Link
+                          href={`/games/${game.id}`}
+                          className="px-2.5 py-1 text-[11px] font-bold text-primary hover:bg-primary/10 rounded transition inline-flex items-center gap-1 shrink-0"
+                        >
+                          <Play className="w-3 h-3" /> Xem ván
+                        </Link>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-border/40 pt-3 flex items-center justify-between">
+              {playerId && activeModalStructure && (
                 <button
                   type="button"
-                  onClick={() => exploreStructure(activeModalStructure, playerId)}
-                  className="px-3 py-1.5 rounded bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition flex items-center gap-1.5 cursor-pointer"
+                  onClick={() => {
+                    exploreStructure(activeModalStructure, playerId);
+                    setActiveModalStructure(null);
+                  }}
+                  className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Play className="w-3 h-3" />
-                  <span>Mở Structure Explorer trên Bàn cờ →</span>
+                  <Compass className="w-3.5 h-3.5" /> Khám phá Cấu trúc trên Bàn cờ
                 </button>
               )}
-            </div>
-
-            {/* Games List Table */}
-            <div className="relative flex-1 min-h-0 overflow-auto overscroll-contain border border-border/60 rounded-table">
-              <table className="data-table w-full text-left text-xs">
-                  <thead className="sticky top-0 z-20 border-b border-border bg-muted text-muted-foreground font-semibold">
-                  <tr>
-                    <th className="px-3 py-2">#</th>
-                    <th className="px-3 py-2">Trắng vs Đen</th>
-                    <th className="px-3 py-2">Khai cuộc / Kết quả</th>
-                    <th className="px-3 py-2 text-center">Nước hình thành</th>
-                    <th className="px-3 py-2 text-right">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {(() => {
-                    const games = (activeModalStructure.games || []).filter((g) => {
-                      if (modalFilter === "wins") return g.is_win;
-                      if (modalFilter === "draws") return g.is_draw;
-                      if (modalFilter === "losses") return g.is_loss;
-                      return true;
-                    });
-
-                    if (games.length === 0) {
-                      return (
-                        <tr>
-                          <td colSpan={5} className="py-6 text-center text-muted-foreground">
-                            Không có ván đấu nào phù hợp với bộ lọc.
-                          </td>
-                        </tr>
-                      );
-                    }
-
-                    return games.map((g, gIdx) => {
-                      let resColor = "bg-slate-100 text-slate-700 border-slate-200";
-                      let resText = g.result;
-                      if (g.is_win) {
-                        resColor = "bg-emerald-50 text-emerald-800 border-emerald-200";
-                        resText = `${g.result} (Thắng)`;
-                      } else if (g.is_draw) {
-                        resColor = "bg-slate-100 text-slate-700 border-slate-200";
-                        resText = `${g.result} (Hòa)`;
-                      } else if (g.is_loss) {
-                        resColor = "bg-rose-50 text-rose-800 border-rose-200";
-                        resText = `${g.result} (Thua)`;
-                      }
-
-                      return (
-                        <tr key={gIdx} className="hover:bg-secondary/30 transition">
-                          <td className="px-3 py-2.5 font-mono text-muted-foreground">
-                            {g.game_index !== undefined ? g.game_index + 1 : gIdx + 1}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                              <span className="w-2 h-2 rounded-full bg-white border border-slate-300 shrink-0" />
-                              <span>{g.white}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
-                              <span className="w-2 h-2 rounded-full bg-slate-900 border border-slate-700 shrink-0" />
-                              <span>{g.black}</span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <div className="text-muted-foreground truncate max-w-[200px]">
-                              {g.opening || "Khai cuộc"}
-                            </div>
-                            <span className={`inline-block px-1.5 py-0.5 rounded-tag border text-xs font-semibold mt-1 ${resColor}`}>
-                              {resText}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2.5 text-center">
-                            <span className="font-mono text-xs px-2 py-0.5 rounded-tag bg-secondary text-foreground tabular-nums">
-                              Nước {g.formation_move || "?"}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2.5 text-right">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                exploreStructure(activeModalStructure, playerId, g.game_index ?? gIdx, g)
-                              }
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-control bg-secondary hover:bg-primary hover:text-primary-foreground font-medium text-[11px] text-foreground transition cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-                            >
-                              Phân tích
-                              <ExternalLink className="w-3 h-3" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    });
-                  })()}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-end pt-2">
               <button
+                type="button"
                 onClick={() => setActiveModalStructure(null)}
-                className="px-3.5 py-1.5 rounded-control border border-border/60 text-xs font-semibold text-muted-foreground hover:text-foreground transition cursor-pointer"
+                className="px-4 py-1.5 bg-secondary hover:bg-secondary/80 text-foreground rounded text-xs font-medium transition cursor-pointer ml-auto"
               >
                 Đóng
               </button>

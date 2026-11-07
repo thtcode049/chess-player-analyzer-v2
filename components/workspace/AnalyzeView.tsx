@@ -465,11 +465,7 @@ export function AnalyzeContent() {
   const activeRunObj = cachedProfile?.run || workspaceStore.activePlayerRun || null;
 
   const availableStructures = useMemo<PawnStructureItem[]>(() => {
-    const raw = activeRunObj?.pawn_structures_summary?.structures || [];
-    return raw.filter(
-      (s: PawnStructureItem) =>
-        !s.name?.toLowerCase().includes("benoni") && !(s.structure_key || "").toLowerCase().includes("benoni")
-    );
+    return activeRunObj?.pawn_structures_summary?.structures || [];
   }, [activeRunObj]);
 
   const availableOpenings = useMemo<OpeningRepertoireItem[]>(() => {
@@ -1875,46 +1871,54 @@ export function AnalyzeContent() {
                   className="w-full bg-secondary/50 border border-border/70 rounded px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
                 >
                   {(() => {
-                    const validStructures = availableStructures.filter(
-                      (s) => !s.name?.toLowerCase().includes("benoni") && !(s.structure_key || "").toLowerCase().includes("benoni")
-                    );
-                    const groupB = validStructures.filter(
-                      (s) =>
-                        s.group === "B" ||
-                        [
-                          "Carlsbad",
-                          "French_Chain",
-                          "Kings_Indian",
-                          "Scheveningen",
-                          "Boleslavsky_Hole",
-                          "Maroczy_Bind",
-                          "Hedgehog",
-                          "Stonewall",
-                        ].includes(s.structure_key || "")
-                    );
-                    const groupA = validStructures.filter(
-                      (s) => s.group === "A" || !groupB.includes(s)
-                    );
+                    const CANONICAL_ORDER: { key: string; label: string }[] = [
+                      { key: "family_1", label: "Family One – d4 & ...d5" },
+                      { key: "family_2", label: "Family Two – Open Sicilian" },
+                      { key: "family_3", label: "Family Three – Benoni" },
+                      { key: "family_4", label: "Family Four – King's Indian" },
+                      { key: "family_5", label: "Family Five – French" },
+                      { key: "miscellaneous", label: "Miscellaneous – Various Structures" },
+                    ];
+
+                    const groupsMap: Record<string, { label: string; items: PawnStructureItem[] }> = {};
+                    for (const fam of CANONICAL_ORDER) {
+                      groupsMap[fam.key] = { label: fam.label, items: [] };
+                    }
+                    groupsMap["legacy_B"] = { label: "Cấu trúc Chiến lược (Lịch sử)", items: [] };
+                    groupsMap["legacy_A"] = { label: "Cấu trúc Nền tảng (Lịch sử)", items: [] };
+                    groupsMap["other"] = { label: "Cấu trúc khác", items: [] };
+
+                    for (const s of availableStructures) {
+                      const g = s.group || "miscellaneous";
+                      if (groupsMap[g]) {
+                        groupsMap[g].items.push(s);
+                      } else if (g === "B") {
+                        groupsMap["legacy_B"].items.push(s);
+                      } else if (g === "A") {
+                        groupsMap["legacy_A"].items.push(s);
+                      } else {
+                        groupsMap["other"].items.push(s);
+                      }
+                    }
+
+                    const activeSections = [
+                      ...CANONICAL_ORDER.map((c) => groupsMap[c.key]),
+                      groupsMap["legacy_B"],
+                      groupsMap["legacy_A"],
+                      groupsMap["other"],
+                    ].filter((sec) => sec.items.length > 0);
+
                     return (
                       <>
-                        {groupB.length > 0 && (
-                          <optgroup label="Cấu trúc chiến lược kinh điển" className="bg-card text-foreground font-bold">
-                            {groupB.map((s) => (
+                        {activeSections.map((sec) => (
+                          <optgroup key={sec.label} label={sec.label} className="bg-card text-foreground font-bold">
+                            {sec.items.map((s) => (
                               <option key={s.name} value={s.name} className="bg-card text-foreground font-normal">
                                 {s.name} ({s.games_count} ván)
                               </option>
                             ))}
                           </optgroup>
-                        )}
-                        {groupA.length > 0 && (
-                          <optgroup label="Cấu trúc nền tảng & Trung tâm" className="bg-card text-foreground font-bold">
-                            {groupA.map((s) => (
-                              <option key={s.name} value={s.name} className="bg-card text-foreground font-normal">
-                                {s.name} ({s.games_count} ván)
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
+                        ))}
                       </>
                     );
                   })()}

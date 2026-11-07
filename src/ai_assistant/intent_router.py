@@ -13,6 +13,10 @@ Chức năng:
 import re
 from typing import Optional, Dict, Any, Tuple, List
 import chess
+from src.analysis.pawn_structure import (
+    find_canonical_pawn_skeleton,
+    STRATEGIC_PLANS,
+)
 from src.ai_assistant.position_facts import (
     PositionFacts,
     are_squares_on_diagonal,
@@ -44,6 +48,74 @@ def parse_diagonals_from_text(text: str) -> List[Tuple[str, str]]:
         except Exception:
             continue
     return diags
+
+
+
+
+def format_canonical_pawn_structure_markdown(
+    key: str,
+    data: Dict[str, Any],
+    deep_profile: Optional[Dict[str, Any]] = None,
+    selected_player: str = "Kỳ thủ",
+    mode: str = "self",
+) -> str:
+    """Tạo văn bản Markdown chuẩn mực cao cấp giải thích cấu trúc Tốt và Pawn Skeleton."""
+    plans = STRATEGIC_PLANS.get(key, {})
+    white_ideas = plans.get("ideas", [])
+    black_ideas = plans.get("counter_ideas", [])
+
+    lines = []
+    lines.append(f"### ♟️ {data['vietnamese_name']}")
+    lines.append(f"*(Chuẩn hóa theo Đại kiện tướng Mauricio Flores Rios - Sách 'Chess Structures: A Grandmaster Guide')*\n")
+    lines.append(f"- 🏷️ **Phân nhóm:** **{data['group_title']}**")
+    lines.append(f"- 📖 **Vị trí sách:** **{data['chapter']}**\n")
+    lines.append("---")
+    lines.append("\n#### ♟️ Hình thái cấu trúc (Pawn Skeleton):")
+    lines.append(f"Bạn có thể bấm vào nút dưới đây để tải thế cờ trần trụi tiêu biểu của cấu trúc này lên bàn cờ tương tác:\n")
+    lines.append(f"`{data['fen']}`\n")
+    lines.append("---")
+    lines.append("\n#### 🔍 Bố cục Tốt & Đặc trưng cốt lõi:")
+    lines.append(f"- ⚪ **Tốt Trắng ({len(data['white_pawns'])} quân):** {', '.join(data['white_pawns'])}")
+    lines.append(f"- ⚫ **Tốt Đen ({len(data['black_pawns'])} quân):** {', '.join(data['black_pawns'])}")
+    lines.append(f"- 📝 **Bản chất chiến lược:** {data['description']}\n")
+    lines.append("---")
+    lines.append("\n#### 🎯 Kế hoạch Chiến lược Chuẩn Đại Kiện tướng (GM Strategic Plans):")
+
+    lines.append("\n**⚪ Kế hoạch hành động tiêu biểu của bên Trắng (Plans for White):**")
+    for i, idea in enumerate(white_ideas, 1):
+        lines.append(f"{i}. {idea}")
+
+    lines.append("\n**⚫ Kế hoạch tác chiến tiêu biểu của bên Đen (Plans for Black):**")
+    for i, c_idea in enumerate(black_ideas, 1):
+        lines.append(f"{i}. {c_idea}")
+
+    # Player profile stats if available
+    player_struct = None
+    if deep_profile and "structures" in deep_profile:
+        raw_s = deep_profile["structures"]
+        struct_list = raw_s.get("structures", []) if isinstance(raw_s, dict) else (raw_s if isinstance(raw_s, list) else [])
+        for s in struct_list:
+            if isinstance(s, dict) and (s.get("structure") == key or s.get("structure_key") == key or s.get("name") == data["name"]):
+                player_struct = s
+                break
+
+    lines.append("\n---")
+    lines.append(f"\n#### 📊 Thống kê thực chiến của **{selected_player}**:")
+    if player_struct:
+        w = player_struct.get("wins", 0)
+        d = player_struct.get("draws", 0)
+        l = player_struct.get("losses", 0)
+        cnt = player_struct.get("games_count", 0)
+        score = player_struct.get("score_pct", 0)
+        bayes = player_struct.get("adjusted_score_pct", score)
+        badge = player_struct.get("assessment_badge", "Trung tính")
+        lines.append(f"- **Số ván thực chiến:** **{cnt} ván** ({w} thắng / {d} hòa / {l} thua)")
+        lines.append(f"- **Điểm hiệu suất:** **{score}%** (Điểm Bayes: **{bayes}%**)")
+        lines.append(f"- **Đánh giá hệ thống:** `{badge}`")
+    else:
+        lines.append(f"- Chưa phát hiện ván đấu thực chiến nào ở cấu trúc này trong tập dữ liệu của kỳ thủ.")
+
+    return "\n".join(lines)
 
 
 class IntentRouter:
@@ -156,3 +228,44 @@ class IntentRouter:
 
         # Không thuộc nhóm câu hỏi sự thật thuần túy -> chuyển tiếp cho LLM + Verifier
         return None
+
+    @staticmethod
+    def try_answer_pawn_structure(
+        prompt: str,
+        deep_profile: Optional[Dict[str, Any]] = None,
+        selected_player: str = "Kỳ thủ",
+        mode: str = "self",
+    ) -> Optional[str]:
+        """
+        Kiểm tra nếu người dùng hỏi về cấu trúc Tốt hoặc yêu cầu hình thái / pawn skeleton.
+        Nếu khớp với bất kỳ cấu trúc Tốt nào trong 28 cấu trúc của GM Flores Rios,
+        trả về phản hồi chuẩn hóa tất định 100% kèm chuỗi FEN chuẩn xác của Pawn Skeleton
+        (Zero Hallucination, Zero Sycophancy).
+        """
+        p_lower = prompt.lower().strip()
+        triggers = [
+            "cấu trúc", "cau truc", "structure", "pawn skeleton", "hình thái tốt",
+            "hinh thai tot", "bộ khung tốt", "bo khung tot", "giới thiệu", "gioi thieu",
+            "tìm hiểu", "tim hieu", "thế nào là", "the nao la", "là gì", "la gi",
+            "kế hoạch", "ke hoach", "đặc trưng", "dac trung", "bố cục tốt", "bo cuc tot"
+        ]
+
+        matched = find_canonical_pawn_skeleton(prompt)
+        if not matched:
+            return None
+
+        key, data = matched
+        has_trigger = any(t in p_lower for t in triggers)
+        is_direct_name = len(p_lower.split()) <= 4
+
+        if not (has_trigger or is_direct_name):
+            return None
+
+        return format_canonical_pawn_structure_markdown(
+            key=key,
+            data=data,
+            deep_profile=deep_profile,
+            selected_player=selected_player,
+            mode=mode,
+        )
+

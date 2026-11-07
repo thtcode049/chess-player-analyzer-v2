@@ -14,7 +14,8 @@ Tổ chức thành 5 Họ cấu trúc (Family One -> Family Five, Chương 1-21)
 - Miscellaneous (miscellaneous): Various Structures - Ch. 22 (3-3 vs. 4-2, Panov, Dragon, Scheveningen, Benko, Closed Ruy Lopez, Lopez Formation)
 """
 
-from typing import List, Dict, Any, Optional
+import re
+from typing import List, Dict, Any, Optional, Tuple
 import chess
 
 from src.analysis.confidence import (
@@ -360,6 +361,397 @@ STRATEGIC_PLANS: Dict[str, Dict[str, List[str]]] = {
         ],
     },
 }
+
+# =========================================================================
+# CANONICAL PAWN SKELETONS (28 Structures - Mauricio Flores Rios Ground Truth)
+# "Chess Structures: A Grandmaster Guide" (Quality Chess)
+# =========================================================================
+CANONICAL_PAWN_SKELETONS: Dict[str, Dict[str, Any]] = {
+    # =========================================================================
+    # FAMILY ONE: d4 and ...d5 (Chapters 1 - 7)
+    # =========================================================================
+    "Isolani": {
+        "name": "The Isolani",
+        "vietnamese_name": "Cấu trúc Tốt đơn độc Isolani (IQP)",
+        "group": "family_1",
+        "group_title": "Nhóm 1: Các cấu trúc d4 và ...d5 (Chương 1 - 7)",
+        "chapter": "Chương 1 (Chapter 1)",
+        "fen": "8/pp3ppp/4p3/8/3P4/8/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "d4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "e6", "f7", "g7", "h7"],
+        "description": "Trắng sở hữu Tốt đơn độc d4 (không còn Tốt ở cột c và e bảo vệ), đổi lại kiểm soát các ô tiền đồn quan trọng c5/e5 và hai cột mở/nửa mở c, e; Đen nhắm vào phong tỏa ô d5 và gia tăng sức ép công kích tốt d4.",
+        "aliases": ["isolani", "iqp", "tot co lap", "tốt cô lập", "tot don doc", "tốt đơn độc", "isolated queen pawn", "isolated pawn"],
+    },
+    "Hanging_Pawns": {
+        "name": "Hanging Pawns",
+        "vietnamese_name": "Cấu trúc Tốt treo (Hanging Pawns)",
+        "group": "family_1",
+        "group_title": "Nhóm 1: Các cấu trúc d4 và ...d5 (Chương 1 - 7)",
+        "chapter": "Chương 2 (Chapter 2)",
+        "fen": "8/pp3ppp/4p3/8/2PP4/8/P4PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "c4", "d4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "e6", "f7", "g7", "h7"],
+        "description": "Trắng sở hữu cặp Tốt treo c4 và d4 đứng cạnh nhau ở trung tâm trên hai cột bán mở, hai cột lân cận b và e không còn Tốt che chở; Đen gây sức ép trực diện dọc cột c và d nhằm buộc một Tốt phải tiến lên hoặc bị cô lập.",
+        "aliases": ["hanging pawns", "hanging pawn", "tot treo", "tốt treo", "cap tot treo", "cặp tốt treo", "hanging"],
+    },
+    "Caro_Kann_Formation": {
+        "name": "Caro-Kann Formation",
+        "vietnamese_name": "Cấu trúc Caro-Kann (Caro-Kann Formation)",
+        "group": "family_1",
+        "group_title": "Nhóm 1: Các cấu trúc d4 và ...d5 (Chương 1 - 7)",
+        "chapter": "Chương 3 (Chapter 3)",
+        "fen": "8/pp3ppp/2p1p3/8/3P4/2P5/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c3", "d4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "c6", "e6", "f7", "g7", "h7"],
+        "description": "Trắng có Tốt c3+d4 vững chắc (mất Tốt e); Đen giữ cấu trúc c6+e6 kiên cố (mất Tốt d). Trắng nhắm vào kiểm soát tiền đồn e5 và tấn công cánh Vua; Đen phản công bằng các đòn giải phóng trung tâm ...c5 hoặc ...e5.",
+        "aliases": ["caro kann formation", "caro-kann formation", "caro kann", "caro-kann", "cau truc caro kann", "cấu trúc caro kann"],
+    },
+    "Slav_Formation": {
+        "name": "Slav Formation",
+        "vietnamese_name": "Cấu trúc Slav (Slav Formation)",
+        "group": "family_1",
+        "group_title": "Nhóm 1: Các cấu trúc d4 và ...d5 (Chương 1 - 7)",
+        "chapter": "Chương 4 (Chapter 4)",
+        "fen": "8/pp3ppp/2p1p3/8/3P4/4P3/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "d4", "e3", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "c6", "e6", "f7", "g7", "h7"],
+        "description": "Trắng có d4+e3 (mất Tốt c); Đen có c6+e6 (mất Tốt d). Tương tự Caro-Kann nhưng Trắng giữ cột c mở và có thể đẩy c2-c4 chiếm không gian cánh Hậu; Đen tìm cách đột phá ...c5 hoặc ...e5.",
+        "aliases": ["slav formation", "slav", "cau truc slav", "cấu trúc slav"],
+    },
+    "Carlsbad_Formation": {
+        "name": "The Carlsbad Formation",
+        "vietnamese_name": "Cấu trúc Carlsbad (The Carlsbad Formation)",
+        "group": "family_1",
+        "group_title": "Nhóm 1: Các cấu trúc d4 và ...d5 (Chương 1 - 7)",
+        "chapter": "Chương 5 (Chapter 5)",
+        "fen": "8/pp3ppp/2p5/3p4/3P4/4P3/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "d4", "e3", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "c6", "d5", "f7", "g7", "h7"],
+        "description": "Cấu trúc bất đối xứng kinh điển: Trắng có d4+e3 (mất Tốt c, mở cột c); Đen có c6+d5 (mất Tốt e, mở cột e). Kế hoạch đặc trưng là Trắng tấn công thiểu số b2-b4-b5 công phá c6, hoặc đột phá trung tâm e3-e4.",
+        "aliases": ["carlsbad", "carlsbad formation", "the carlsbad formation", "cau truc carlsbad", "cấu trúc carlsbad"],
+    },
+    "Stonewall": {
+        "name": "The Stonewall",
+        "vietnamese_name": "Cấu trúc Bức tường đá (The Stonewall)",
+        "group": "family_1",
+        "group_title": "Nhóm 1: Các cấu trúc d4 và ...d5 (Chương 1 - 7)",
+        "chapter": "Chương 6 (Chapter 6)",
+        "fen": "8/pp4pp/2p1p3/3p1p2/2PP4/4P3/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c4", "d4", "e3", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "c6", "d5", "e6", "f5", "g7", "h7"],
+        "description": "Bức tường đá trung tâm với xích Tốt c6-d5-e6-f5 kiểm soát vững chắc ô tiền đồn e4 nhưng để lại lỗ hổng cố hữu tại ô e5 và Tượng ô trắng c8 bị phong tỏa sau hàng Tốt.",
+        "aliases": ["stonewall", "the stonewall", "buc tuong da", "bức tường đá", "cau truc stonewall", "cấu trúc stonewall"],
+    },
+    "Grunfeld_Centre": {
+        "name": "Grünfeld Centre",
+        "vietnamese_name": "Cấu trúc Trung tâm Grünfeld (Grünfeld Centre)",
+        "group": "family_1",
+        "group_title": "Nhóm 1: Các cấu trúc d4 và ...d5 (Chương 1 - 7)",
+        "chapter": "Chương 7 (Chapter 7)",
+        "fen": "8/pp2pp1p/6p1/8/3PP3/8/P4PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "d4", "e4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "e7", "f7", "g6", "h7"],
+        "description": "Trắng kiểm soát cặp Tốt trung tâm áp đảo d4+e4 (sau khi đổi c-pawn trên c6); Đen sử dụng Tượng fianchetto g7 phối hợp cùng các đòn phản công ...c5, ...Nc6, ...Qa5 để phá hủy trung tâm Trắng.",
+        "aliases": ["grunfeld centre", "grünfeld centre", "grunfeld center", "grünfeld center", "grunfeld", "grünfeld", "trung tam grunfeld", "trung tâm grünfeld"],
+    },
+
+    # =========================================================================
+    # FAMILY TWO: Open Sicilian (Chapters 8 - 11)
+    # =========================================================================
+    "Najdorf_Type_I": {
+        "name": "Najdorf Type I",
+        "vietnamese_name": "Cấu trúc Najdorf Type I",
+        "group": "family_2",
+        "group_title": "Nhóm 2: Các cấu trúc Sicilian Mở (Chương 8 - 11)",
+        "chapter": "Chương 8 (Chapter 8)",
+        "fen": "8/pp3ppp/3p4/3Pp3/2P5/8/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c4", "d5", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "d6", "e5", "f7", "g7", "h7"],
+        "description": "Trắng chiếm cứ tiền đồn d5 bằng Tốt d5 được bảo vệ bởi c4; Đen chấp nhận Tốt lạc hậu d6 để giữ vững e5 và tập trung phản công cánh Hậu bằng ...b7-b5.",
+        "aliases": ["najdorf type i", "najdorf type 1", "najdorf 1", "najdorf i"],
+    },
+    "Najdorf_Type_II": {
+        "name": "Najdorf Type II",
+        "vietnamese_name": "Cấu trúc Najdorf Type II",
+        "group": "family_2",
+        "group_title": "Nhóm 2: Các cấu trúc Sicilian Mở (Chương 8 - 11)",
+        "chapter": "Chương 9 (Chapter 9)",
+        "fen": "8/pp3ppp/3p4/4p3/4P3/8/PPP2PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c2", "e4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "d6", "e5", "f7", "g7", "h7"],
+        "description": "Hình thái Sicilian kinh điển sau khi Đen đẩy ...e5: Trắng chiếm ô tiền đồn tuyệt đối d5; Đen có cột nửa mở c để tạo áp lực cánh Hậu và bù đắp cho lỗ hổng d5.",
+        "aliases": ["najdorf type ii", "najdorf type 2", "najdorf 2", "najdorf ii", "najdorf"],
+    },
+    "Hedgehog": {
+        "name": "The Hedgehog",
+        "vietnamese_name": "Cấu trúc Nhím (The Hedgehog)",
+        "group": "family_2",
+        "group_title": "Nhóm 2: Các cấu trúc Sicilian Mở (Chương 8 - 11)",
+        "chapter": "Chương 10 (Chapter 10)",
+        "fen": "8/5ppp/pp1pp3/8/2P1P3/1P6/P4PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b3", "c4", "e4", "f2", "g2", "h2"],
+        "black_pawns": ["a6", "b6", "d6", "e6", "f7", "g7", "h7"],
+        "description": "Cấu trúc Con Nhím: Toàn bộ Tốt Đen nằm khiêm tốn ở hàng 6 (a6, b6, d6, e6) như những chiếc gai bảo vệ vững chắc trận địa, kiên nhẫn chờ thời cơ nổ đòn giải phóng ...b5 hoặc ...d5 công phá trung tâm Trắng (c4+e4).",
+        "aliases": ["hedgehog", "the hedgehog", "cau truc nhim", "cấu trúc nhím", "nhim", "nhím"],
+    },
+    "Maroczy": {
+        "name": "The Maróczy Bind",
+        "vietnamese_name": "Gọng kìm Maróczy (The Maróczy Bind)",
+        "group": "family_2",
+        "group_title": "Nhóm 2: Các cấu trúc Sicilian Mở (Chương 8 - 11)",
+        "chapter": "Chương 11 (Chapter 11)",
+        "fen": "8/pp2pp1p/3p2p1/8/2P1P3/8/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c4", "e4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "d6", "e7", "f7", "g6", "h7"],
+        "description": "Gọng kìm trứ danh của Trắng với cặp Tốt c4+e4 siết chặt ô d5 và dập tắt các đòn bứt phá ...d5 của Đen; Đen thường đưa Tượng lên g7 và tìm cách đổi bớt quân nhẹ để giảm bớt sự ngột ngạt.",
+        "aliases": ["maroczy", "maróczy", "the maroczy", "the maróczy", "maroczy bind", "maróczy bind", "gong kim maroczy", "gọng kìm maróczy"],
+    },
+
+    # =========================================================================
+    # FAMILY THREE: Benoni (Chapters 12 - 13)
+    # =========================================================================
+    "Asymmetric_Benoni": {
+        "name": "Asymmetric Benoni",
+        "vietnamese_name": "Cấu trúc Benoni Bất đối xứng (Asymmetric Benoni)",
+        "group": "family_3",
+        "group_title": "Nhóm 3: Các cấu trúc Benoni (Chương 12 - 13)",
+        "chapter": "Chương 12 (Chapter 12)",
+        "fen": "8/pp3ppp/3p4/2pP4/4P3/8/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "d5", "e4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "c5", "d6", "f7", "g7", "h7"],
+        "description": "Benoni bất đối xứng với cột c mở cho Trắng và cột e mở cho Đen; Trắng tận dụng Tốt d5 làm điểm tựa đẩy e4-e5 hoặc chiếm d6, trong khi Đen tấn công cánh Hậu bằng đa số Tốt a7-b7-c5.",
+        "aliases": ["asymmetric benoni", "benoni bat doi xung", "benoni bất đối xứng", "benoni type 1", "benoni 1"],
+    },
+    "Symmetric_Benoni": {
+        "name": "Symmetric Benoni",
+        "vietnamese_name": "Cấu trúc Benoni Đối xứng (Symmetric Benoni)",
+        "group": "family_3",
+        "group_title": "Nhóm 3: Các cấu trúc Benoni (Chương 12 - 13)",
+        "chapter": "Chương 13 (Chapter 13)",
+        "fen": "8/pp3ppp/3p4/2pP4/2P5/8/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c4", "d5", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "c5", "d6", "f7", "g7", "h7"],
+        "description": "Benoni đối xứng: Cả hai bên đều đã khóa cánh Hậu với c4+d5 đối đầu c5+d6; Trắng kiểm soát không gian lớn hơn và tìm cách thâm nhập qua cột b hoặc đẩy f2-f4; Đen nỗ lực đục cánh Hậu bằng ...b5 hoặc bứt phá ...f5.",
+        "aliases": ["symmetric benoni", "benoni doi xung", "benoni đối xứng", "benoni", "cau truc benoni", "cấu trúc benoni"],
+    },
+
+    # =========================================================================
+    # FAMILY FOUR: King's Indian (Chapters 14 - 18)
+    # =========================================================================
+    "KID_Type_I": {
+        "name": "KID Type I",
+        "vietnamese_name": "Cấu trúc KID Type I",
+        "group": "family_4",
+        "group_title": "Nhóm 4: Các cấu trúc King's Indian (Chương 14 - 18)",
+        "chapter": "Chương 14 (Chapter 14)",
+        "fen": "8/pp3p1p/3p2p1/3Pp3/4P3/5P2/PP4PP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "d5", "e4", "f3", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "d6", "e5", "f7", "g6", "h7"],
+        "description": "KID Type I với cột c hoàn toàn mở sau khi đổi Tốt; Trắng dồn quân nặng tranh đoạt cột c và xâm nhập hàng 7 cánh Hậu; Đen tổ chức bão Tốt công thành cánh Vua bằng ...f5-f4 và ...g5-g4.",
+        "aliases": ["kid type i", "kid type 1", "kid 1", "kid i", "kings indian 1", "king's indian 1"],
+    },
+    "KID_Type_II": {
+        "name": "KID Type II",
+        "vietnamese_name": "Cấu trúc KID Type II",
+        "group": "family_4",
+        "group_title": "Nhóm 4: Các cấu trúc King's Indian (Chương 14 - 18)",
+        "chapter": "Chương 15 (Chapter 15)",
+        "fen": "8/pp3p1p/3p2p1/2pPp3/2P1P3/8/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c4", "d5", "e4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "c5", "d6", "e5", "f7", "g6", "h7"],
+        "description": "KID Type II với trung tâm bị khóa chặt hoàn toàn (c4+d5+e4 đối đầu c5+d6+e5): Trắng tấn công bứt phá cánh Hậu bằng c4-c5 hoặc b2-b4; Đen dồn toàn lực phản công chiếu sát Vua bằng ...f7-f5-f4.",
+        "aliases": ["kid type ii", "kid type 2", "kid 2", "kid ii", "kings indian 2", "king's indian 2"],
+    },
+    "KID_Type_III": {
+        "name": "KID Type III",
+        "vietnamese_name": "Cấu trúc KID Type III",
+        "group": "family_4",
+        "group_title": "Nhóm 4: Các cấu trúc King's Indian (Chương 14 - 18)",
+        "chapter": "Chương 16 (Chapter 16)",
+        "fen": "8/ppp2p1p/3p2p1/3Pp3/2P1P3/8/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c4", "d5", "e4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "c7", "d6", "e5", "f7", "g6", "h7"],
+        "description": "KID Type III với Tốt Đen ở c7 được giữ lại (chưa đẩy c5): Đen duy trì tính cơ động cao có thể đẩy ...c6 đục trung tâm d5 hoặc chuẩn bị ...f5; Trắng tranh thủ thời cơ bành trướng cánh Hậu với c4-c5.",
+        "aliases": ["kid type iii", "kid type 3", "kid 3", "kid iii", "kings indian 3", "king's indian 3"],
+    },
+    "Open_KID": {
+        "name": "Open KID",
+        "vietnamese_name": "Cấu trúc Open KID (KID Mở)",
+        "group": "family_4",
+        "group_title": "Nhóm 4: Các cấu trúc King's Indian (Chương 14 - 18)",
+        "chapter": "Chương 17 (Chapter 17)",
+        "fen": "8/pp3p1p/2pp2p1/8/2P1P3/8/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c4", "e4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "c6", "d6", "f7", "g6", "h7"],
+        "description": "KID Mở sau khi Tốt d4 và e5 được đổi: Cột d hoàn toàn mở; Trắng kiểm soát không gian trung tâm với c4+e4; Đen sử dụng ô d4 làm tiền đồn cho Mã và gây sức ép dọc cột d.",
+        "aliases": ["open kid", "kid mo", "kid mở", "kings indian open", "king's indian open"],
+    },
+    "KID_Complex": {
+        "name": "KID Complex",
+        "vietnamese_name": "Cấu trúc KID Phức hợp (KID Complex)",
+        "group": "family_4",
+        "group_title": "Nhóm 4: Các cấu trúc King's Indian (Chương 14 - 18)",
+        "chapter": "Chương 18 (Chapter 18)",
+        "fen": "8/pp3p1p/2pp2p1/4p3/2PPP3/8/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c4", "d4", "e4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "c6", "d6", "e5", "f7", "g6", "h7"],
+        "description": "KID Phức hợp với bộ ba Tốt c4+d4+e4 của Trắng đối đầu c6+d6+e5 của Đen; Trung tâm căng thẳng cao độ đòi hỏi tính toán chính xác việc duy trì áp lực d4 hay khóa trung tâm d4-d5.",
+        "aliases": ["kid complex", "kid phuc hop", "kid phức hợp", "kings indian complex", "king's indian complex"],
+    },
+
+    # =========================================================================
+    # FAMILY FIVE: French (Chapters 19 - 21)
+    # =========================================================================
+    "French_Type_I": {
+        "name": "French Type I",
+        "vietnamese_name": "Cấu trúc Pháp Type I (French Type I)",
+        "group": "family_5",
+        "group_title": "Nhóm 5: Các cấu trúc Phòng thủ Pháp (Chương 19 - 21)",
+        "chapter": "Chương 19 (Chapter 19)",
+        "fen": "8/pp4pp/2p1p3/3p4/3P4/2P5/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c3", "d4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "c6", "d5", "e6", "g7", "h7"],
+        "description": "Cấu trúc Pháp Type I sau khi Đen đổi ...f6 exf6: Cột e mở cho Trắng dồn quân nặng gây sức ép lên tốt lạc hậu e6 và chiếm cứ tiền đồn e5; Đen có cột nửa mở f để phản công cánh Vua và gây sức ép lên d4.",
+        "aliases": ["french type i", "french type 1", "french 1", "french i", "phap type 1", "pháp type 1"],
+    },
+    "French_Type_II": {
+        "name": "French Type II",
+        "vietnamese_name": "Cấu trúc Pháp Type II (French Type II)",
+        "group": "family_5",
+        "group_title": "Nhóm 5: Các cấu trúc Phòng thủ Pháp (Chương 19 - 21)",
+        "chapter": "Chương 20 (Chapter 20)",
+        "fen": "8/pp3ppp/4p3/3pP3/5P2/8/PPP3PP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c2", "e5", "f4", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "d5", "e6", "f7", "g7", "h7"],
+        "description": "Cấu trúc Pháp Type II sau khi Đen đổi ...cxd4 Nxd4: Trắng giữ mũi nhọn e5 được yểm trợ bởi f4 và chốt Mã tiền đồn cực mạnh tại d4; Đen phản công bằng bão tốt cánh Hậu ...b5-b4 hoặc bẻ gãy mũi nhọn e5 bằng ...f6/ ...g5.",
+        "aliases": ["french type ii", "french type 2", "french 2", "french ii", "phap type 2", "pháp type 2"],
+    },
+    "French_Type_III": {
+        "name": "French Type III",
+        "vietnamese_name": "Cấu trúc Pháp Type III (French Type III)",
+        "group": "family_5",
+        "group_title": "Nhóm 5: Các cấu trúc Phòng thủ Pháp (Chương 19 - 21)",
+        "chapter": "Chương 21 (Chapter 21)",
+        "fen": "8/pp4pp/4p3/2ppP3/3P1P2/2P5/PP4PP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c3", "d4", "e5", "f4", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "c5", "d5", "e6", "g7", "h7"],
+        "description": "Xích Tốt Pháp Advance nguyên vẹn (d4+e5 đối đầu d5+e6): Trắng công kích gốc xích e6 bằng f4-f5 kết hợp tấn công cánh Vua; Đen dồn lực công kích gốc xích d4 bằng ...c5 và xâm nhập dọc cột mở c.",
+        "aliases": ["french type iii", "french type 3", "french 3", "french iii", "phap type 3", "pháp type 3", "french", "phap", "pháp", "french advance"],
+    },
+
+    # =========================================================================
+    # MISCELLANEOUS: Chapter 22 - Various Structures (22.1 - 22.7)
+    # =========================================================================
+    "Structure_33_vs_42": {
+        "name": "The 3-3 vs. 4-2 Structure",
+        "vietnamese_name": "Cấu trúc 3-3 đấu 4-2 (The 3-3 vs. 4-2 Structure)",
+        "group": "miscellaneous",
+        "group_title": "Nhóm Khác: Các cấu trúc hỗn hợp (Chương 22.1 - 22.7)",
+        "chapter": "Chương 22.1 (Chapter 22.1)",
+        "fen": "8/pp3ppp/4p3/8/8/2P5/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c3", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "e6", "f7", "g7", "h7"],
+        "description": "Hai cột trung tâm d và e đều mở hoàn toàn: Trắng sở hữu đa số Tốt cánh Hậu (3 đấu 2 trên cột a, b, c) tạo điều kiện đẩy tốt thông trong tàn cuộc; Đen sở hữu đa số Tốt cánh Vua (4 đấu 3) và phát huy sức mạnh cặp Tượng trong thế cờ mở.",
+        "aliases": ["3-3 vs 4-2", "3-3 vs. 4-2", "structure 33 vs 42", "3 3 vs 4 2", "33 vs 42", "cau truc 3-3"],
+    },
+    "Panov_Structure": {
+        "name": "The Panov Structure",
+        "vietnamese_name": "Cấu trúc Panov (The Panov Structure)",
+        "group": "miscellaneous",
+        "group_title": "Nhóm Khác: Các cấu trúc hỗn hợp (Chương 22.1 - 22.7)",
+        "chapter": "Chương 22.2 (Chapter 22.2)",
+        "fen": "8/p4ppp/1p2p3/2Pp4/1P1P4/8/P4PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b4", "c5", "d4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b6", "d5", "e6", "f7", "g7", "h7"],
+        "description": "Xuất phát từ Đòn tấn công Panov (Caro-Kann) khi Trắng đẩy c4-c5 và b2-b4 cố thủ mũi nhọn cánh Hậu c5; Đen phản công gốc xích bằng ...b6 hoặc bứt phá trung tâm ...e5.",
+        "aliases": ["panov", "the panov structure", "panov structure", "cau truc panov", "cấu trúc panov"],
+    },
+    "Dragon_Formation": {
+        "name": "The Dragon Formation",
+        "vietnamese_name": "Cấu trúc Rồng (The Dragon Formation)",
+        "group": "miscellaneous",
+        "group_title": "Nhóm Khác: Các cấu trúc hỗn hợp (Chương 22.1 - 22.7)",
+        "chapter": "Chương 22.3 (Chapter 22.3)",
+        "fen": "8/pp2pp1p/3p2p1/8/4P3/8/PPP2PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c2", "e4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "d6", "e7", "f7", "g6", "h7"],
+        "description": "Cấu trúc Sicilian Rồng với 'đuôi rồng' g6-f7-e7-d6: Trắng nhắm vào bão Tốt h4-h5 mở toang thành Vua Đen và đổi Tượng g7; Đen dồn hỏa lực dọc cột nửa mở c (sẵn sàng thí Xe ...Rxc3) và sức ép chéo từ Tượng g7.",
+        "aliases": ["dragon", "the dragon formation", "dragon formation", "cau truc rong", "cấu trúc rồng", "sicilian dragon"],
+    },
+    "Scheveningen_Structure": {
+        "name": "The Scheveningen Structure",
+        "vietnamese_name": "Cấu trúc Scheveningen (The Scheveningen Structure)",
+        "group": "miscellaneous",
+        "group_title": "Nhóm Khác: Các cấu trúc hỗn hợp (Chương 22.1 - 22.7)",
+        "chapter": "Chương 22.4 (Chapter 22.4)",
+        "fen": "8/pp3ppp/3pp3/8/4PP2/8/PPP3PP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c2", "e4", "f4", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "d6", "e6", "f7", "g7", "h7"],
+        "description": "Bộ đôi 'Tốt tí hon' d6+e6 của Đen kiểm soát vững chắc hàng 5 (c5, d5, e5, f5); Trắng thường mở đợt tấn công Keres g4-g5 hoặc f4-f5 công phá cánh Vua; Đen triển khai phản công cánh Hậu bằng ...a6, ...b5 và khai thác cột c.",
+        "aliases": ["scheveningen", "the scheveningen structure", "scheveningen structure", "cau truc scheveningen", "cấu trúc scheveningen"],
+    },
+    "Benko_Structure": {
+        "name": "The Benko Structure",
+        "vietnamese_name": "Cấu trúc Benko Gambit (The Benko Structure)",
+        "group": "miscellaneous",
+        "group_title": "Nhóm Khác: Các cấu trúc hỗn hợp (Chương 22.1 - 22.7)",
+        "chapter": "Chương 22.5 (Chapter 22.5)",
+        "fen": "8/4pp1p/3p2p1/2pP4/4P3/8/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "d5", "e4", "f2", "g2", "h2"],
+        "black_pawns": ["c5", "d6", "e7", "f7", "g6", "h7"],
+        "description": "Benko Gambit sau khi Đen thí Tốt a và b để mở thông hoàn toàn hai cột a và b: Đen sở hữu áp lực đè nặng cánh Hậu suốt từ trung cuộc đến tàn cuộc; Trắng cố gắng giữ vững Tốt hơn và trung hòa sức ép trên hai cột mở.",
+        "aliases": ["benko", "the benko structure", "benko structure", "cau truc benko", "cấu trúc benko", "benko gambit"],
+    },
+    "Closed_Ruy_Lopez": {
+        "name": "The Closed Ruy Lopez",
+        "vietnamese_name": "Cấu trúc Tây Ban Nha Đóng (The Closed Ruy Lopez)",
+        "group": "miscellaneous",
+        "group_title": "Nhóm Khác: Các cấu trúc hỗn hợp (Chương 22.1 - 22.7)",
+        "chapter": "Chương 22.6 (Chapter 22.6)",
+        "fen": "8/5ppp/p2p4/1p1Pp3/4P3/2P5/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c3", "d5", "e4", "f2", "g2", "h2"],
+        "black_pawns": ["a6", "b5", "d6", "e5", "f7", "g7", "h7"],
+        "description": "Cấu trúc Tây Ban Nha Đóng sau khi Trắng khóa trung tâm bằng d4-d5 và Đen giữ e5 cùng b5: Trắng cơ động Mã cánh Hậu sang cánh Vua (Nbd2-f1-g3/e3) phục vụ công thành; Đen cơ động Mã sang c4 hoặc phản công ...c6.",
+        "aliases": ["closed ruy lopez", "the closed ruy lopez", "tay ban nha dong", "tây ban nha đóng", "ruy lopez", "ruy lopez dong"],
+    },
+    "Lopez_Formation": {
+        "name": "The Lopez Formation",
+        "vietnamese_name": "Cấu trúc Lopez Mở/Mềm (The Lopez Formation)",
+        "group": "miscellaneous",
+        "group_title": "Nhóm Khác: Các cấu trúc hỗn hợp (Chương 22.1 - 22.7)",
+        "chapter": "Chương 22.7 (Chapter 22.7)",
+        "fen": "8/pp3ppp/2pp4/4p3/3PP3/2P5/PP3PPP/8 w - - 0 1",
+        "white_pawns": ["a2", "b2", "c3", "d4", "e4", "f2", "g2", "h2"],
+        "black_pawns": ["a7", "b7", "c6", "d6", "e5", "f7", "g7", "h7"],
+        "description": "Cấu trúc trung tâm Lopez kinh điển với căng thẳng d4 đối đầu e5: Trắng duy trì cặp Tốt trung tâm lý tưởng d4+e4 được hậu thuẫn bởi c3; Đen kìm giữ điểm tựa e5 và sẵn sàng phản kích trung tâm bằng ...d5 khi Trắng bộc lộ sơ hở.",
+        "aliases": ["lopez formation", "the lopez formation", "cau truc lopez", "cấu trúc lopez"],
+    },
+}
+
+def find_canonical_pawn_skeleton(query: str):
+    q_norm = query.lower().strip()
+    # Normalize punctuation and spaces
+    q_clean = re.sub(r"[^\w\s\-\.]", " ", q_norm)
+    q_clean = re.sub(r"\s+", " ", q_clean).strip()
+    
+    # 1. Exact alias match or substring in query
+    best_match = None
+    max_len = 0
+    for key, data in CANONICAL_PAWN_SKELETONS.items():
+        if key.lower() in q_clean:
+            return key, data
+        for alias in data["aliases"]:
+            if alias in q_clean and len(alias) > max_len:
+                best_match = (key, data)
+                max_len = len(alias)
+    if best_match:
+        return best_match
+    return None
+
+def get_canonical_pawn_skeleton(structure_key: str) -> Optional[Dict[str, Any]]:
+    """Lấy dữ liệu hình thái cấu trúc chuẩn (Canonical Pawn Skeleton) theo khóa cấu trúc."""
+    return CANONICAL_PAWN_SKELETONS.get(structure_key)
+
 
 
 def _make_detected(

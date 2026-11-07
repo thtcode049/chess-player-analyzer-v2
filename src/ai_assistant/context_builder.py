@@ -9,6 +9,7 @@ chuẩn xác (Ground Truth) phục vụ cho LLM.
 
 from typing import Dict, Any, List, Optional
 import chess
+from src.analysis.pawn_structure import CANONICAL_PAWN_SKELETONS, get_canonical_pawn_skeleton
 import re
 
 
@@ -373,14 +374,20 @@ def build_opponent_ai_context(
                     f"- **{item.get('name', 'N/A')}**: {item.get('games_count', 0)} ván ({item.get('wins', 0)}T/{item.get('draws', 0)}H/{item.get('losses', 0)}B) | Score: {item.get('score_pct', 0)}%"
                 )
 
-    # 6. Cấu trúc Tốt
+    # 6. Cấu trúc Tốt & Bảng hình thái chuẩn 28 cấu trúc GM Flores Rios
     structs = deep_profile.get("structures", {}).get("structures", [])
+    ctx_parts.append("\n## IV. CẤU TRÚC TỐT & BẢNG HÌNH THÁI CHUẨN (CANONICAL PAWN SKELETONS)")
     if structs:
-        ctx_parts.append("\n## IV. CẤU TRÚC TỐT NỔI BẬT")
+        ctx_parts.append("### Cấu trúc kỳ thủ từng thi đấu thực tế:")
         for s in structs[:6]:
+            sk = get_canonical_pawn_skeleton(s.get("structure", ""))
+            fen_str = f" | FEN: `{sk['fen']}`" if sk else ""
             ctx_parts.append(
-                f"- **{s.get('name', 'N/A')}**: {s.get('games_count', 0)} ván | Score: {s.get('score_pct', 0)}% | Hình thành quanh nước: {s.get('typical_formation_move', s.get('typical_move', 'N/A'))}"
+                f"- **{s.get('name', 'N/A')}**: {s.get('games_count', 0)} ván | Score: {s.get('score_pct', 0)}% | Nước hình thành: {s.get('typical_formation_move', s.get('typical_move', 'N/A'))}{fen_str}"
             )
+    ctx_parts.append("\n### Bảng Tra cứu 28 Hình thái Cấu trúc Tốt Chuẩn (Flores Rios Ground Truth):")
+    for k, data in CANONICAL_PAWN_SKELETONS.items():
+        ctx_parts.append(f"- **{data['name']}** ({data['vietnamese_name']}) [{data['chapter']}]: `{data['fen']}`")
 
     # 7. TOÀN BỘ CƠ SỞ DỮ LIỆU BIÊN BẢN VÁN ĐẤU (PGN GAMES ARCHIVE)
     if games:

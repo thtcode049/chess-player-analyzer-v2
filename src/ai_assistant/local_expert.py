@@ -7,6 +7,8 @@ khi không có API Key của Gemini hoặc khi mạng Internet gián đoạn.
 """
 
 from typing import Dict, Any, List, Optional
+from src.analysis.pawn_structure import find_canonical_pawn_skeleton
+from src.ai_assistant.intent_router import format_canonical_pawn_structure_markdown
 from src.analysis.confidence import (
     assess_performance,
     rank_strongest_items,
@@ -37,6 +39,18 @@ def generate_local_expert_response(
     """
     Sinh câu trả lời thông minh dựa trên luật (Rule-Based Expert System) từ dữ liệu thực nghiệm.
     """
+    p_lower = prompt.lower().strip()
+    is_intro_query = any(k in p_lower for k in ["giới thiệu", "gioi thieu", "pawn skeleton", "hình thái", "hinh thai", "thế nào là", "the nao la", "là gì", "la gi", "skeleton"])
+    canonical_match = find_canonical_pawn_skeleton(prompt)
+    if canonical_match and (is_intro_query or not deep_profile or not stats):
+        return format_canonical_pawn_structure_markdown(
+            key=canonical_match[0],
+            data=canonical_match[1],
+            deep_profile=deep_profile,
+            selected_player=selected_player,
+            mode=mode,
+        )
+
     if not deep_profile or not stats:
         return (
             f"Hiện tại chưa có đủ dữ liệu phân tích ván đấu của **{selected_player}**. "

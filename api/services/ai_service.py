@@ -77,7 +77,24 @@ class AIService:
         Streams response chunks from Gemini API with fallback to Local Expert.
         Includes deterministic fact-checking and tag sanitation.
         """
-        # 1. Check deterministic response for pure geometric / factual chess queries
+        # 1. Check deterministic response for pawn structures / pawn skeletons
+        try:
+            from src.ai_assistant.intent_router import IntentRouter
+            direct_pawn_ans = IntentRouter.try_answer_pawn_structure(
+                prompt=prompt,
+                deep_profile=deep_profile,
+                selected_player=player_name,
+                mode=perspective_mode,
+            )
+            if direct_pawn_ans:
+                words = direct_pawn_ans.split(" ")
+                for i in range(0, len(words), 4):
+                    yield " ".join(words[i:i+4]) + " "
+                return
+        except Exception:
+            pass
+
+        # 2. Check deterministic response for pure geometric / factual chess queries
         if current_fen:
             try:
                 from src.ai_assistant.position_facts import PositionFacts

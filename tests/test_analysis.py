@@ -18,10 +18,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from src.analysis.pawn_structure import (
     STRATEGIC_PLANS,
     FLORES_RIOS_GROUPS,
+    CANONICAL_PAWN_SKELETONS,
+    get_canonical_pawn_skeleton,
+    find_canonical_pawn_skeleton,
     detect_pawn_structure,
     detect_all_pawn_structures,
     analyze_structural_performance,
 )
+from src.ai_assistant.intent_router import IntentRouter
 from src.analysis.confidence import get_confidence_level
 from src.strategy import generate_actionable_match_preparation
 
@@ -321,3 +325,70 @@ def test_analyze_structural_performance_end_to_end():
     assert isolani["games"][0]["white"] == "Zvjaginsev"
     assert "strategic_plan" in isolani
     assert len(isolani["strategic_plan"]["ideas"]) >= 2
+
+
+def test_all_28_canonical_pawn_skeletons_registry():
+    """
+    Kiểm tra toàn diện 100% 28 hình thái cấu trúc Tốt chuẩn (Canonical Pawn Skeletons)
+    theo sách Mauricio Flores Rios 'Chess Structures: A Grandmaster Guide'.
+    assert mọi FEN chuẩn đều được detect_all_pawn_structures nhận diện chính xác.
+    """
+    assert len(CANONICAL_PAWN_SKELETONS) == 28
+
+    for key, data in CANONICAL_PAWN_SKELETONS.items():
+        fen = data["fen"]
+        board = chess.Board(fen)
+        assert board is not None
+
+        # Kiểm tra khớp vị trí Tốt với danh sách ô
+        for sq_name in data["white_pawns"]:
+            sq = chess.parse_square(sq_name)
+            p = board.piece_at(sq)
+            assert p is not None and p.piece_type == chess.PAWN and p.color == chess.WHITE, f"{key}: White pawn missing at {sq_name}"
+
+        for sq_name in data["black_pawns"]:
+            sq = chess.parse_square(sq_name)
+            p = board.piece_at(sq)
+            assert p is not None and p.piece_type == chess.PAWN and p.color == chess.BLACK, f"{key}: Black pawn missing at {sq_name}"
+
+        # Nhận diện cấu trúc bằng code engine
+        detected = detect_all_pawn_structures(board)
+        matched = [s for s in detected if s["structure"] == key and s["group"] == data["group"]]
+        assert len(matched) >= 1, f"Engine failed to detect canonical skeleton for {key} ({data['group']}) with FEN {fen}. Detected: {[s['structure'] for s in detected]}"
+
+
+def test_find_canonical_pawn_skeleton_query_matching():
+    """Kiểm tra tra cứu linh hoạt tên cấu trúc Tốt qua tiếng Việt, tiếng Anh và bí danh."""
+    test_cases = [
+        ("giới thiệu cấu trúc hanging pawns", "Hanging_Pawns"),
+        ("cấu trúc tốt treo là gì", "Hanging_Pawns"),
+        ("pawn skeleton của isolani", "Isolani"),
+        ("cấu trúc carlsbad", "Carlsbad_Formation"),
+        ("cấu trúc nhím", "Hedgehog"),
+        ("gọng kìm maroczy", "Maroczy"),
+        ("bức tường đá stonewall", "Stonewall"),
+        ("pháp type 2", "French_Type_II"),
+        ("cấu trúc 3-3 vs 4-2", "Structure_33_vs_42"),
+        ("cấu trúc rồng dragon", "Dragon_Formation"),
+        ("tây ban nha đóng", "Closed_Ruy_Lopez"),
+        ("benko gambit", "Benko_Structure"),
+    ]
+    for query, exp_key in test_cases:
+        res = find_canonical_pawn_skeleton(query)
+        assert res is not None, f"Failed to match query: '{query}'"
+        assert res[0] == exp_key, f"Expected {exp_key} for '{query}', got {res[0]}"
+
+
+def test_intent_router_pawn_structure_answer():
+    """Kiểm tra IntentRouter trả về câu trả lời tất định chuẩn xác cho cấu trúc Hanging Pawns."""
+    answer = IntentRouter.try_answer_pawn_structure("giới thiệu cấu trúc hanging pawns")
+    assert answer is not None
+    # Bắt buộc chứa FEN chuẩn xác của Hanging Pawns (6 quân Trắng vs 6 quân Đen)
+    assert "`8/pp3ppp/4p3/8/2PP4/8/P4PPP/8 w - - 0 1`" in answer
+    # Bắt buộc chứa phân nhóm và chương sách của Flores Rios
+    assert "Nhóm 1: Các cấu trúc d4 và ...d5 (Chương 1 - 7)" in answer
+    assert "Chương 2 (Chapter 2)" in answer
+    # Bắt buộc chứa kế hoạch GM của Trắng và Đen
+    assert "Kế hoạch Chiến lược Chuẩn Đại Kiện tướng" in answer
+    assert "Kế hoạch hành động tiêu biểu của bên Trắng" in answer
+    assert "Kế hoạch tác chiến tiêu biểu của bên Đen" in answer

@@ -160,6 +160,24 @@ def test_local_expert_response():
     resp_struct = generate_local_expert_response("Cấu trúc Tốt đối thủ chơi ra sao?", deep_profile, stats, selected_player="Magnus")
     assert "Cấu trúc" in resp_struct or "Carlsbad" in resp_struct
 
+    resp_confirmed = generate_local_expert_response("Phân tích cấu trúc Carlsbad", deep_profile, stats, selected_player="Magnus", mode="opponent")
+    assert "điểm yếu đã xác thực" in resp_confirmed.lower()
+
+    potential_profile = {
+        "repertoire": {},
+        "structures": {
+            "structures": [
+                {"name": "Carlsbad", "games_count": 6, "score_pct": 40.0, "adjusted_score_pct": 53.0, "delta_vs_baseline": -7.0, "wins": 2, "draws": 1, "losses": 3, "assessment_badge": "▽ Điểm yếu Tiềm năng", "typical_formation_move": 11},
+                {"name": "French Structure", "games_count": 6, "score_pct": 50.0, "adjusted_score_pct": 56.0, "delta_vs_baseline": -4.0, "wins": 3, "draws": 0, "losses": 3, "assessment_badge": "● Trung tính", "typical_formation_move": 9},
+            ]
+        },
+    }
+    resp_potential = generate_local_expert_response("Phân tích cấu trúc Carlsbad", potential_profile, stats, selected_player="Magnus", mode="opponent")
+    assert "điểm yếu tiềm năng" in resp_potential.lower()
+
+    resp_neutral = generate_local_expert_response("Phân tích cấu trúc French Structure", potential_profile, stats, selected_player="Magnus", mode="opponent")
+    assert "ổn định trung bình" in resp_neutral.lower()
+
 
 def test_call_gemini_api_fallback_when_no_key():
     stats = {

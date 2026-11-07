@@ -167,8 +167,8 @@ def generate_match_preparation(
         raw_score = op.get("score_pct", 50.0)
         g_count = op.get("games_count", 0)
 
-        # Điều kiện điểm yếu: Confirmed Weakness HOẶC Potential Weakness HOẶC Delta <= -5% HOẶC Raw Score <= 45%
-        if assess in [ASSESSMENT_CONFIRMED_WEAKNESS, ASSESSMENT_POTENTIAL_WEAKNESS] or delta <= -5.0 or (g_count >= 1 and raw_score <= 45.0):
+        # Điều kiện điểm yếu: Confirmed Weakness HOẶC Potential Weakness HOẶC Raw Score <= 45%
+        if assess in [ASSESSMENT_CONFIRMED_WEAKNESS, ASSESSMENT_POTENTIAL_WEAKNESS] or (g_count >= 1 and raw_score <= 45.0):
             l_pct = op.get("loss_pct", round((op.get("losses", 0) / g_count) * 100, 1) if g_count > 0 else 0.0)
             target_weaknesses.append({
                 "name": op["name"],
@@ -191,7 +191,6 @@ def generate_match_preparation(
         weak_black_ops = [
             b for b in ranked_b_weak 
             if b.get("assessment") in [ASSESSMENT_CONFIRMED_WEAKNESS, ASSESSMENT_POTENTIAL_WEAKNESS] 
-            or b.get("delta_vs_baseline", 0.0) <= -5.0 
             or b.get("score_pct", 50.0) <= 50.0
         ]
         if weak_black_ops:
@@ -216,7 +215,6 @@ def generate_match_preparation(
         weak_white_ops = [
             w for w in ranked_w_weak 
             if w.get("assessment") in [ASSESSMENT_CONFIRMED_WEAKNESS, ASSESSMENT_POTENTIAL_WEAKNESS] 
-            or w.get("delta_vs_baseline", 0.0) <= -5.0 
             or w.get("score_pct", 50.0) <= 50.0
         ]
         if weak_white_ops:

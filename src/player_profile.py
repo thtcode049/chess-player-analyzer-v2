@@ -49,7 +49,7 @@ def analyze_opening_repertoire(
     filtered_games: List[Dict[str, Any]],
     min_sample: int = 2,
     baseline_score: Optional[float] = None,
-    prior_strength: float = 3.0,
+    prior_strength: float = DEFAULT_PRIOR_STRENGTH,
     lang: str = "vi"
 ) -> Dict[str, Any]:
     """

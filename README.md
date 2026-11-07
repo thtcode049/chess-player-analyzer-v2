@@ -1,6 +1,6 @@
 # ♟️ Chess Player Analyzer V2 (ChessLook)
 
-> **Nền tảng Phân tích Dữ liệu Kỳ thủ, Cây Khai cuộc Bayesian & Trợ lý AI Chiến lược Cờ vua Hiện đại**  
+> **Nền tảng Phân tích Dữ liệu Kỳ thủ, Cây Khai cuộc, Cấu trúc Tốt Bayesian & Trợ lý AI Chiến lược Cờ vua Hiện đại**  
 > *Production-Oriented Web Application for Chess Player Scouting, Repertoire Analysis, and AI Strategic Coaching.*
 
 [![Next.js](https://img.shields.io/badge/Next.js-14%20App%20Router-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -8,56 +8,65 @@
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python)](https://python.org/)
 [![Stockfish](https://img.shields.io/badge/Stockfish-Web%20Worker-red?style=flat-square)](https://stockfishchess.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL%20%2B%20Auth-3ECF8E?style=flat-square&logo=supabase)](https://supabase.com/)
-[![Pytest](https://img.shields.io/badge/Pytest-100%2F100%20Passing-brightgreen?style=flat-square&logo=pytest)](https://docs.pytest.org/)
-[![Frontend Tests](https://img.shields.io/badge/Node%20Test-45%2F45%20Passing-brightgreen?style=flat-square)](https://nodejs.org/)
+[![Pytest](https://img.shields.io/badge/Pytest-88%2F88%20Passing-brightgreen?style=flat-square&logo=pytest)](https://docs.pytest.org/)
+[![Frontend Tests](https://img.shields.io/badge/Node%20Tests-73%2F73%20Passing-brightgreen?style=flat-square)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)]()
 
 ---
 
 ## 🚀 Giới Thiệu & Điểm Đột Phá Ở Phiên Bản V2
 
-**Chess Player Analyzer V2 (ChessLook)** được tái kiến trúc toàn diện từ nguyên mẫu Streamlit nguyên khối thành hệ thống ứng dụng Web phân tán hiện đại, tối ưu hóa để vận hành **100% Miễn phí vĩnh viễn (Zero-Cost Free Tier)** trên nền tảng Vercel Serverless và Supabase BaaS:
+**Chess Player Analyzer V2 (ChessLook)** được tái kiến trúc toàn diện thành hệ thống ứng dụng Web phân tán hiện đại, tối ưu hóa để vận hành **100% Miễn phí (Zero-Cost Free Tier)** trên nền tảng Vercel Serverless và Supabase BaaS:
 
 1. **Giao Diện Không Gian Làm Việc Hợp Nhất (Unified Workspace)**:
-   - Kiến trúc **Keep-Alive Workspace** duy trì trạng thái phân tích, bàn cờ và luồng hội thoại AI chuyển đổi tức thì (`0ms`) giữa các tab mà không cần tải lại trang.
-   - Hỗ trợ 3 chế độ làm việc: **Đơn hồ sơ (`single`)**, **Đa hồ sơ đối đầu (`multi` - phân định vai trò Cầm Trắng ⚪ / Cầm Đen ⚫)** và **Bàn cờ phân tích tự do (`sandbox`)**.
+   - Kiến trúc **Keep-Alive Workspace** thông qua `ProfileWorkspaceProvider` duy trì trạng thái phân tích, bàn cờ, cây biến thể và luồng hội thoại AI chuyển đổi tức thì giữa các chế độ mà không tải lại trang.
+   - Hỗ trợ 3 chế độ làm việc: **Đơn hồ sơ (`single`)**, **Đa hồ sơ đối đầu (`multi` - đồng bộ cây đối đầu Cầm Trắng ⚪ / Cầm Đen ⚫ & chatbox đa hồ sơ)** và **Bàn cờ phân tích tự do (`sandbox`)**.
 2. **Động Cơ Tính Toán Stockfish Phía Client (Zero Server CPU Load)**:
    - Động cơ Stockfish chạy trực tiếp trong luồng nền **Web Worker** (`/public/stockfish/stockfish.js`) ngay trên trình duyệt người dùng.
-   - Giải phóng 100% tài nguyên CPU cho backend, loại bỏ triệt để nguy cơ vượt hạn mức thời gian thực thi (10s timeout) của Serverless.
-3. **Cơ Sở Dữ Liệu Tinh Gọn & Xử Lý Bộ Nhớ Đệm (Zero Storage Bloat)**:
-   - Cơ sở dữ liệu chuẩn hóa gồm **6 bảng quan hệ** có ràng buộc toàn vẹn, chỉ mục tối ưu và bảo mật đa tầng với **Supabase Row-Level Security (RLS)**.
-   - Tệp PGN tải lên được phân tích trực tiếp trên bộ nhớ RAM (`ImportService.parse_pgn_bytes`), không lưu trữ tệp thô vào kho đối tượng (Storage Bucket), tiết kiệm tuyệt đối hạn mức lưu trữ.
-4. **Bảo Toàn Toàn Bộ Thuật Toán Cờ Vua Cốt Lõi (`src/`)**:
-   - Cây khai cuộc EPD phân nhánh an toàn hoán vị (Transposition-Safe) kết hợp bộ lọc làm mượt thống kê Bayes thực nghiệm (**Empirical Bayesian Shrinkage** với $K=6.0$).
-   - Nhận diện 5 cấu trúc Tốt chiến lược kinh điển: **Isolani (Tốt cô lập)**, **Carlsbad (Tấn công thiểu số)**, **Hedgehog (Nhím biển)**, **Hanging Pawns (Tốt treo)** và **French (Cấu trúc Pháp)**.
-   - Cây tiền tố 3.865 biến thể ECO chuẩn Lichess (`data/lichess_openings.json`) tra cứu tức thì dưới 1ms.
-5. **Trợ Lý AI Chiến Lược Đa Phiên (AI Coach)**:
-   - Kết hợp mô hình **Google Gemini** (Gemini Flash qua Google AI Studio) và hệ thống dự phòng luật chuyên gia cục bộ (**Local Heuristic Expert**) hoạt động ổn định kể cả khi không có kết nối internet hoặc API key.
-   - Lưu trữ lịch sử hội thoại nhiều phiên làm việc (`ai_chat_sessions`) trực tiếp trên Supabase.
-6. **Chế Độ Khách Không Cần Đăng Nhập (Guest Mode)**:
-   - Cho phép người dùng trải nghiệm tức thì toàn bộ tính năng phân tích mà không bắt buộc tạo tài khoản. Dữ liệu khách tự động dọn dẹp sau 24 giờ qua Vercel Cron.
+   - Giải phóng 100% tài nguyên CPU cho backend, loại bỏ nguy cơ vượt hạn mức thời gian thực thi của Serverless.
+3. **Cơ Sở Dữ Liệu Tinh Gọn & Xử Lý Trên Bộ Nhớ (Zero Storage Bloat)**:
+   - Cơ sở dữ liệu chuẩn hóa gồm **6 bảng quan hệ** có chỉ mục tối ưu và bảo mật đa tầng với **Supabase Row-Level Security (RLS)**.
+   - Tệp PGN tải lên được phân tích trực tiếp trên RAM (`ImportService.parse_pgn_bytes`), không lưu tệp thô vào Storage Bucket.
+4. **Hệ Thống Thuật Toán Cờ Vua Cốt Lõi Đồng Bộ (`src/`)**:
+   - **Cây khai cuộc EPD (`src/opening_tree.py`)**: Gom nhóm thế cờ an toàn hoán vị (Transposition-Safe EPD Aggregation), lọc theo màu quân và trích xuất dòng biến đại diện.
+   - **Đánh giá độ tin cậy Bayesian Shrinkage thống nhất (`src/analysis/confidence.py`)**: Áp dụng mô hình Empirical Bayes với trọng số tiên nghiệm đồng nhất **$K = 6.0$** cho cả **Danh mục Khai cuộc** và **Cấu trúc Tốt**, phân loại 5 cấp độ nhất quán:
+     - `CONFIRMED_STRENGTH` / `CONFIRMED_WEAKNESS` (*★ Điểm mạnh / ⚠️ Điểm yếu Xác thực*): $N \ge 5$ ván và $|\Delta| \ge 10.0\%$.
+     - `POTENTIAL_STRENGTH` / `POTENTIAL_WEAKNESS` (*▲ Điểm mạnh / ▽ Điểm yếu Tiềm năng*): Chưa đạt mức xác thực nhưng $N \ge 2$ ván và $|\Delta| \ge 6.0\%$.
+     - `NEUTRAL` (*● Trung tính*): $|\Delta| < 6.0\%$ hoặc mẫu đơn lẻ $N < 2$.
+   - **Nhận diện 14 cấu trúc Tốt trung cuộc (`src/analysis/pawn_structure.py`)**: Quét trong cửa sổ định hình trung cuộc từ nước 8 đến hết nước 20 (`ply 15 -> 40`), chia làm 2 nhóm:
+     - **Nhóm A – 6 Cấu trúc nền tảng & trạng thái trung tâm**: *Isolated Queen's Pawn (IQP)*, *Hanging Pawns*, *Open Center*, *Closed Center*, *Semi-Open Center*, *Symmetrical Center*.
+     - **Nhóm B – 8 Cấu trúc chiến lược kinh điển**: *Carlsbad Structure (Chuẩn & Đảo màu)*, *French Structure*, *King's Indian Complex*, *Scheveningen Structure*, *Boleslavsky Hole*, *Maroczy Bind*, *Hedgehog Structure*, *Stonewall Structure*.
+   - **Tra cứu khai cuộc chuẩn quốc tế (`src/pgn_parser.py`)**: Cây Trie tiền tố 3.865 biến thể ECO chuẩn Lichess (`data/lichess_openings.json`).
+5. **Trợ Lý AI Chiến Lược Chống Ảo Giác (AI Coach)**:
+   - Kết hợp chuỗi mô hình **Google Gemini Flash** với bộ định tuyến ý định (`intent_router.py`), trích xuất dữ kiện thế cờ tất định (`position_facts.py`), bộ kiểm chứng nước đi hợp lệ (`verifier.py`) và hệ thống chuyên gia ngoại tuyến (**Local Expert** trong `local_expert.py`) đồng bộ trực tiếp với nhãn Bayesian.
+   - Lưu trữ lịch sử hội thoại đa phiên (`ai_chat_sessions`) trực tiếp trên Supabase.
+6. **Xác Thực Linh Hoạt & Chế Độ Khách (Auth & Guest Mode)**:
+   - Bảo vệ route qua Middleware (tự động điều hướng về trang chủ khi chưa đăng nhập), hỗ trợ đăng nhập/đăng ký Supabase, liên kết OAuth PKCE Lichess và chế độ khách tự động dọn dẹp sau 24 giờ qua Vercel Cron.
 
 ---
 
-## 🏛 Kiến Trúc Hệ Thống (4-Tier Cloud-Native Architecture)
+## 🏛 Kiến Trúc Hệ Thống (Cloud-Native Architecture)
 
 ```
 [Browser Client - Next.js 14 App Router]
-  ├── Giao diện người dùng: TailwindCSS + Lucide Icons + React-Chessboard
-  ├── Không gian làm việc hợp nhất: Zustand / ProfileWorkspaceStore (Single / Multi / Sandbox)
+  ├── Giao diện người dùng: TailwindCSS + Lucide Icons + React-Chessboard + chess.js
+  ├── Quản lý trạng thái Workspace: React Context Store (ProfileWorkspaceProvider: Single / Multi / Sandbox)
+  ├── Cây nước đi & đối đầu: MoveTree + MatchupTreeBuilder + Lichess Masters Explorer
   └── Động cơ phân tích: Stockfish Web Worker (/stockfish/stockfish.js, Client CPU)
            │
            │ REST API & Server-Sent Events (SSE)
            ▼
 [Vercel Serverless Functions - Python 3.11+]
   └── FastAPI Application (/api/*)
-        ├── api.routes (imports, players, games, analyses, ai, cron)
-        ├── src.opening_tree (EPD Tree, Bayesian Shrinkage K=6.0)
-        ├── src.analysis (5 Classic Pawn Structures, Bayesian Confidence Scoring)
-        ├── src.pgn_parser (Trie 3.865 ECO Variants, In-Memory PGN Parsing)
-        └── src.ai_assistant (Gemini Flash + Local Heuristic Fallback)
+        ├── api.routes (imports, players, games, analyses, ai) & /api/cron/cleanup-guests
+        ├── src.opening_tree (Transposition-Safe EPD Trie & Representative Line Finder)
+        ├── src.player_profile & src.strategy (Repertoire Analytics & Match Preparation, K=6.0)
+        ├── src.analysis.confidence (Empirical Bayesian Shrinkage K=6.0, 5-Tier Assessment)
+        ├── src.analysis.pawn_structure (14 Pawn Structures Detection, Ply 15-40)
+        ├── src.pgn_parser & src.game_fetcher (Trie 3.865 ECO Variants, Lichess/Chess.com Fetcher)
+        └── src.ai_assistant (Gemini Streaming + Intent Router + Position Verifier + Local Expert)
            │
-           │ HTTPS / PostgreSQL Connection Pooling / JWT Auth
+           │ HTTPS / PostgreSQL REST / JWT Auth
            ▼
 [Supabase BaaS Infrastructure]
   ├── PostgreSQL Database (6 Bảng quan hệ chuẩn hóa với RLS):
@@ -65,7 +74,7 @@
   │     ├── players           (Danh sách kỳ thủ được phân tích)
   │     ├── datasets          (Nguồn nạp: Lichess, Chess.com, PGN Upload)
   │     ├── games             (Kho lưu trữ ván đấu & nước đi SAN)
-  │     ├── analysis_runs     (Dữ liệu thống kê Repertoire & cấu trúc Tốt)
+  │     ├── analysis_runs     (Dữ liệu thống kê Repertoire & 14 cấu trúc Tốt)
   │     └── ai_chat_sessions  (Lịch sử trò chuyện với AI Coach)
   └── Supabase Auth (Quản lý phiên làm việc JWT & Guest Tenancy)
 ```
@@ -77,59 +86,67 @@
 ```
 chess-player-analyzer-v2/
 ├── api/                             # Backend FastAPI Serverless
-│   ├── index.py                     # Entrypoint FastAPI chính (gắn tại /api/*)
+│   ├── index.py                     # Entrypoint FastAPI chính (/api/*, /api/health, /api/cron/*)
 │   ├── requirements.txt             # Phụ thuộc Python cho môi trường Vercel
 │   ├── routes/                      # Route handlers (ai, analyses, games, imports, players)
 │   ├── schemas/                     # Pydantic v2 data models
-│   └── services/                    # Business services (ai, analysis, db, import, lichess)
+│   └── services/                    # Business services (ai, analysis, db, import, lichess_masters)
 ├── app/                             # Frontend Next.js 14 (App Router)
-│   ├── (auth)/                      # Trang đăng nhập, đăng ký, xác thực Lichess OAuth
 │   ├── ai-coach/                    # Trung tâm Trợ lý AI chiến lược
 │   ├── analyze/                     # Bàn cờ phân tích ván đấu tương tác & Stockfish
+│   ├── api/validate-email/          # API kiểm tra hợp lệ email phía frontend
+│   ├── auth/                        # Callback xác thực Supabase & Lichess OAuth
 │   ├── dashboard/                   # Bảng điều khiển người dùng
 │   ├── import/                      # Trung tâm nạp dữ liệu PGN / Lichess / Chess.com
+│   ├── login/                       # Trang đăng nhập
 │   ├── players/                     # Thư viện hồ sơ kỳ thủ & chi tiết Workspace
-│   ├── settings/                    # Cài đặt người dùng
-│   ├── layout.tsx                   # Layout dùng chung & theme provider
+│   ├── register/                    # Trang đăng ký tài khoản
+│   ├── settings/                    # Cài đặt người dùng & khóa API
+│   ├── layout.tsx                   # Layout gốc & providers
 │   └── page.tsx                     # Landing Page chính thức
 ├── components/                      # Thư viện React Components dùng chung
-│   ├── ai/                          # Chat UI trợ lý AI
-│   ├── analysis/                    # Bảng cây khai cuộc & Lichess Masters Explorer
-│   ├── chess/                       # Bàn cờ, hiển thị nước đi, thanh đánh giá Stockfish
-│   ├── profile/                     # Lưới cấu trúc Tốt, hồ sơ phong cách kỳ thủ
-│   └── workspace/                   # Container quản lý trạng thái Workspace hợp nhất
+│   ├── ai/                          # Chat UI & Floating AI Widget đa hồ sơ
+│   ├── analysis/                    # Bảng cây khai cuộc, Matchup Tree & Lichess Masters
+│   ├── chess/                       # Bàn cờ tương tác, cây nước đi, thanh đánh giá Stockfish
+│   ├── profile/                     # Lưới 14 cấu trúc Tốt & thống kê hồ sơ kỳ thủ
+│   └── workspace/                   # Container quản lý không gian làm việc hợp nhất
 ├── data/                            # Dữ liệu phục vụ hệ thống & kiểm thử
 │   ├── lichess_openings.json        # 3.865 biến thể ECO tra cứu khai cuộc
 │   └── sample.pgn                   # Dữ liệu ván đấu mẫu phục vụ bộ kiểm thử tự động
 ├── lib/                             # Thư viện tiện ích Client & Core Types
-│   ├── api/                         # HTTP Client kết nối backend API
-│   ├── auth/                        # Lichess PKCE OAuth helper
-│   ├── chess/                       # MoveTree, MatchupTreeBuilder, ký hiệu cờ
+│   ├── api/                         # HTTP Client & TypeScript interfaces kết nối backend
+│   ├── auth/                        # Lichess PKCE OAuth & điều hướng xác thực
+│   ├── chess/                       # MoveTree, MatchupTreeBuilder, chuẩn hóa ký hiệu cờ
 │   ├── stockfish/                   # Web Worker controller & PV formatter
-│   ├── stores/                      # Zustand workspace state store
-│   └── supabase/                    # Supabase browser client
+│   ├── stores/                      # ProfileWorkspaceProvider state store (React Context)
+│   └── supabase/                    # Supabase SSR & browser client
 ├── public/                          # Tài nguyên tĩnh phía máy khách
 │   ├── favicon.ico                  # Favicon website
 │   ├── logo.png                     # Logo chính thức ChessLook
 │   └── stockfish/stockfish.js       # Tệp thực thi động cơ Stockfish Client
 ├── src/                             # Lõi thuật toán cờ vua độc lập (Python)
-│   ├── ai_assistant/                # Gemini client, context builder & local expert
-│   ├── analysis/                    # Bayesian confidence, 5 pawn structures
-│   ├── opening_tree.py              # EPD tree builder
+│   ├── ai_assistant/                # Gemini client, context, briefing, intent router, verifier & local expert
+│   ├── analysis/                    # Bayesian confidence (K=6.0) & 14 pawn structures
+│   ├── game_fetcher.py              # Đồng bộ ván đấu từ Lichess & Chess.com API
+│   ├── lichess_oauth.py             # Tiện ích xác thực OAuth2 PKCE Lichess
+│   ├── opening_tree.py              # EPD tree builder & representative line finder
 │   ├── pgn_parser.py                # Bộ phân tích PGN & ECO trie matcher
-│   ├── player_profile.py            # Tổng hợp hồ sơ phong cách & cấu trúc Tốt
-│   └── statistics.py                # Thống kê hiệu suất & điểm số
+│   ├── player_profile.py            # Tổng hợp Repertoire khai cuộc & hồ sơ kỳ thủ
+│   ├── statistics.py                # Thống kê hiệu suất & điểm số theo màu quân
+│   ├── strategy.py                  # Đề xuất chuẩn bị trận đấu & khai thác điểm yếu
+│   └── utils.py                     # Chuẩn hóa FEN/EPD & tiện ích xử lý kết quả ván cờ
 ├── supabase/                        # Hạ tầng Cơ sở dữ liệu Supabase
 │   ├── migrations/                  # Các bản cập nhật schema SQL tuần tự
 │   │   ├── 20260916000001_initial_schema.sql
 │   │   ├── 20261026000002_cleanup_unused_schema.sql
 │   │   └── 20261027000001_create_ai_chat_sessions.sql
 │   └── seed.sql                     # Dữ liệu hạt giống khởi tạo cho môi trường dev
-├── test/                            # Bộ kiểm thử Frontend
-│   └── moveTree.test.js             # Kiểm thử đơn vị cây nước đi & biến thể (45/45 tests)
-├── tests/                           # Bộ kiểm thử Backend Pytest
+├── test/                            # Bộ kiểm thử Frontend (Node.js)
+│   ├── moveTree.test.js             # Kiểm thử cây nước đi & biến thể (45/45 tests)
+│   └── middlewareRedirect.test.js   # Kiểm thử bảo vệ route & Guest Mode (28/28 tests)
+├── tests/                           # Bộ kiểm thử Backend Pytest (88/88 tests)
 │   ├── api/test_routes.py           # Kiểm thử tích hợp toàn bộ API routes
-│   └── test_*.py                    # 12 bộ kiểm thử thuật toán cờ vua (100/100 tests)
+│   └── test_*.py                    # 13 tệp kiểm thử đơn vị thuật toán cờ vua & AI
 ├── vercel.json                      # Cấu hình định tuyến Serverless & Cron trên Vercel
 ├── pytest.ini                       # Cấu hình môi trường pytest
 ├── requirements.txt                 # Toàn bộ dependencies Python cho backend
@@ -156,8 +173,11 @@ source .venv/bin/activate
 # 2. Cài đặt các thư viện cần thiết
 pip install -r requirements.txt
 
-# 3. Khởi chạy toàn bộ 100 bài kiểm thử backend
+# 3. Chạy bộ kiểm thử backend (88/88 tests)
 pytest
+
+# 4. Khởi chạy máy chủ FastAPI cục bộ tại cổng 8000
+npm run api
 ```
 
 ### 3. Thiết lập Môi trường Frontend (Next.js)
@@ -165,10 +185,11 @@ pytest
 # 1. Cài đặt các gói npm
 npm install
 
-# 2. Chạy bộ kiểm thử tự động Frontend (45/45 tests)
+# 2. Chạy các bộ kiểm thử Frontend
 npm test
+node test/middlewareRedirect.test.js
 
-# 3. Khởi chạy máy chủ phát triển
+# 3. Khởi chạy máy chủ phát triển Next.js
 npm run dev
 ```
 Mở trình duyệt tại: `http://localhost:3000`.
@@ -179,21 +200,17 @@ Mở trình duyệt tại: `http://localhost:3000`.
 
 ### Bước 1: Khởi tạo Cơ sở Dữ liệu Supabase
 1. Đăng ký/đăng nhập tài khoản tại [supabase.com](https://supabase.com) và tạo một **Project** mới.
-2. Mở mục **SQL Editor** trong thanh menu bên trái, chạy tuần tự các tệp migration:
+2. Mở mục **SQL Editor**, chạy tuần tự các tệp migration:
    - `supabase/migrations/20260916000001_initial_schema.sql`
    - `supabase/migrations/20261026000002_cleanup_unused_schema.sql`
    - `supabase/migrations/20261027000001_create_ai_chat_sessions.sql`
    *(Tùy chọn: chạy thêm `supabase/seed.sql` nếu muốn nạp kỳ thủ mẫu để trải nghiệm)*.
-3. Mở **Project Settings** > **API**:
-   - Sao chép **Project URL**.
-   - Sao chép **Project API Key (anon / public)**.
-   - Sao chép **Project API Key (service_role / secret)**.
+3. Mở **Project Settings** > **API** để lấy **Project URL**, **anon key** và **service_role key**.
 
 ### Bước 2: Triển khai Ứng dụng lên Vercel
-1. Đăng nhập [vercel.com](https://vercel.com) và chọn **Add New...** > **Project**.
-2. Kết nối tới kho lưu trữ GitHub của bạn.
-3. Thiết lập Framework: `Next.js`, Root Directory: `./`.
-4. Mở mục **Environment Variables** và cấu hình các biến môi trường sau:
+1. Đăng nhập [vercel.com](https://vercel.com), chọn **Add New...** > **Project** và kết nối kho lưu trữ GitHub.
+2. Thiết lập Framework: `Next.js`, Root Directory: `./`.
+3. Cấu hình các biến môi trường trong mục **Environment Variables**:
 
 | Tên Biến Môi Trường | Giá Trị Ví Dụ | Giải Thích |
 |---|---|---|
@@ -202,30 +219,31 @@ Mở trình duyệt tại: `http://localhost:3000`.
 | `SUPABASE_SERVICE_ROLE_KEY` | `eyJhbGciOi...` | Khóa bí mật backend Supabase |
 | `GEMINI_API_KEY` | `AIzaSy...` | Khóa Google AI Studio (tùy chọn, có Local Expert dự phòng) |
 | `NEXT_PUBLIC_LICHESS_CLIENT_ID` | `chess-player-analyzer-v2` | Định danh OAuth PKCE Lichess |
+| `CRON_SECRET` | `my-cron-secret` | Khóa bảo vệ endpoint dọn dẹp dữ liệu khách (tùy chọn) |
 
-5. Nhấn **Deploy**. Vercel sẽ tự động build ứng dụng Next.js và đóng gói backend Python FastAPI serverless tại `/api/*`.
+4. Nhấn **Deploy**. Vercel sẽ tự động build ứng dụng Next.js và đóng gói backend Python FastAPI serverless tại `/api/*`.
 
 ### Bước 3: Kiểm tra Sau Triển khai
-1. Truy cập đường dẫn: `https://<ten-du-an>.vercel.app/api/health`. Phản hồi trả về:
+1. Truy cập `https://<ten-du-an>.vercel.app/api/health`. Phản hồi trả về:
    ```json
    {
      "status": "healthy",
-     "app": "Chess Player Analyzer V2",
+     "app": "ChessLook",
      "version": "2.0.0"
    }
    ```
-2. Mở trang `/import` để tải thử một tệp PGN hoặc kéo ván đấu từ Lichess/Chess.com.
+2. Mở trang `/import` để tải thử một tệp PGN hoặc đồng bộ ván đấu từ Lichess/Chess.com.
 3. Mở trang `/analyze` để xác nhận Stockfish Web Worker khởi tạo thành công trên trình duyệt.
 
 ---
 
 ## 🧪 Kết Quả Đánh Giá & Kiểm Thử Hệ Thống (Verification Suite)
 
-- **Backend Pytest Suite**: **100/100 tests passed (100%)**
-  - Đánh giá độ chính xác thuật toán Bayesian Shrinkage, phân loại cấu trúc Tốt, băm chuyển vị thế cờ, tích hợp API Lichess/Chess.com và toàn bộ endpoints REST API.
-- **Frontend Move Tree Suite**: **45/45 tests passed (100%)**
-  - Đánh giá khả năng phân nhánh biến thể nhiều tầng, hoán đổi biến thể chính - phụ (Promote line), xuất chuẩn PGN và chuyển đổi ply nước cờ.
-- **Next.js Production Build**: **16/16 routes compiled successfully** (0 lỗi TypeScript, 0 lỗi linting).
+- **Backend Pytest Suite**: **88/88 tests passed (100%)**
+  - Kiểm chứng mô hình Bayesian Shrinkage ($K = 6.0$, ngưỡng 5 cấp độ $\pm 6\%$ / $\pm 10\%$), nhận diện 14 cấu trúc Tốt & đồng bộ ply 1-based, gom nhóm hoán vị EPD, bộ kiểm chứng nước đi AI, tích hợp Lichess/Chess.com và các REST API endpoints.
+- **Frontend Node Test Suites**: **73/73 tests passed (100%)**
+  - `test/moveTree.test.js` (**45/45**): Phân nhánh biến thể nhiều tầng, hoán đổi biến chính - phụ (Promote line), xuất PGN và đồng bộ ply nước cờ.
+  - `test/middlewareRedirect.test.js` (**28/28**): Kiểm thử bảo vệ route đăng nhập và chế độ khách (Guest Mode).
 
 ---
 

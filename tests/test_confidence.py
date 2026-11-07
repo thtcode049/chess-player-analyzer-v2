@@ -214,3 +214,24 @@ def test_match_prep_excludes_unreliable_rare_sample_as_main_weapon():
     # Khi user cầm White (đối thủ cầm Black), vũ khí mạnh nhất của đối thủ phải là Caro-Kann chứ không phải Englund Gambit
     assert prep["strongest_opening"]["name"] == "Caro-Kann"
     assert prep["weakest_opening"]["name"] == "King's Indian"
+
+
+def test_potential_thresholds_and_unified_prior_strength():
+    """
+    11. Potential tier covers moderate delta (+6% to <10%) with N>=2, blocks N=1 flukes,
+        and Repertoire uses unified K=6.0 matching Pawn Structures.
+    """
+    assert assess_performance(games_count=1, delta_vs_baseline=7.1) == ASSESSMENT_NEUTRAL
+    assert assess_performance(games_count=9, delta_vs_baseline=9.0) == ASSESSMENT_POTENTIAL_STRENGTH
+    assert assess_performance(games_count=9, delta_vs_baseline=-9.0) == ASSESSMENT_POTENTIAL_WEAKNESS
+    assert assess_performance(games_count=4, delta_vs_baseline=5.0) == ASSESSMENT_NEUTRAL
+
+    six_qgd = (
+        [{"opening": "Queen's Gambit Declined", "player_color": "white", "result": "1-0"}] * 4
+        + [{"opening": "Queen's Gambit Declined", "player_color": "white", "result": "0-1"}] * 2
+    )
+    rep = analyze_opening_repertoire(six_qgd, baseline_score=50.0)
+    qgd = rep["all_openings"][0]
+    assert qgd["adjusted_score_pct"] == 58.3
+    assert qgd["delta_vs_baseline"] == 8.3
+    assert qgd["assessment"] == ASSESSMENT_POTENTIAL_STRENGTH

@@ -7,6 +7,21 @@ khi không có API Key của Gemini hoặc khi mạng Internet gián đoạn.
 """
 
 from typing import Dict, Any, List, Optional
+from src.analysis.confidence import (
+    assess_performance,
+    rank_strongest_items,
+    rank_weakest_items,
+    ASSESSMENT_CONFIRMED_STRENGTH,
+    ASSESSMENT_POTENTIAL_STRENGTH,
+    ASSESSMENT_CONFIRMED_WEAKNESS,
+    ASSESSMENT_POTENTIAL_WEAKNESS,
+)
+
+
+def _resolve_assessment(item: Dict[str, Any]) -> str:
+    return item.get("assessment") or assess_performance(
+        item.get("games_count", 0), item.get("delta_vs_baseline", 0.0)
+    )
 
 
 def generate_local_expert_response(
@@ -45,7 +60,7 @@ def generate_local_expert_response(
     # =========================================================================
     # 1. TRẢ LỜI VỀ CẤU TRÚC TỐT (PAWN STRUCTURES)
     # =========================================================================
-    if any(k in p for k in ["cấu trúc", "tốt", "structure", "pawn", "carlsbad", "isolani", "hanging", "mar del plata"]):
+    if any(k in p for k in ["cấu trúc", "tốt", "structure", "pawn", "carlsbad", "isolani", "iqp", "hanging", "hedgehog", "stonewall", "scheveningen", "boleslavsky", "maroczy", "french", "mar del plata"]):
         lines = [f"### 🧬 Phân tích Chuyên sâu về Cấu trúc Tốt của **{selected_player}**\n"]
         if not structs:
             lines.append("Chưa phát hiện cấu trúc Tốt đặc trưng nào nổi bật trong các ván đấu đã phân tích.")
@@ -60,30 +75,42 @@ def generate_local_expert_response(
 
         if specific_match:
             s = specific_match
+            typ_move = s.get("typical_formation_move") or s.get("typical_move", "N/A")
+            assess = _resolve_assessment(s)
             lines.append(f"#### 📌 Cấu trúc mục tiêu: **{s['name']}**")
             lines.append(f"- **Số ván xuất hiện**: {s['games_count']} ván ({s['wins']} Thắng / {s['draws']} Hòa / {s['losses']} Thua)")
             lines.append(f"- **Điểm số thực tế**: **{s.get('score_pct', 0)}%**")
             lines.append(f"- **Điểm số hiệu chỉnh Bayesian**: **{s.get('adjusted_score_pct', 0)}%** (Độ lệch: `{s.get('delta_vs_baseline', 0):+}%` so với phong độ gốc {score_pct}%)")
             lines.append(f"- **Đánh giá độ tin cậy**: `{s.get('assessment_badge', 'N/A')}`")
-            lines.append(f"- **Thời điểm hình thành đặc trưng**: Khoảng nước **{s.get('typical_move', 'N/A')}**")
-            
-            if s.get("delta_vs_baseline", 0) < -5.0:
+            lines.append(f"- **Thời điểm hình thành đặc trưng**: Khoảng nước **{typ_move}**")
+
+            if assess == ASSESSMENT_CONFIRMED_WEAKNESS:
                 if mode == "self":
-                    lines.append(f"\n💡 **Khuyến nghị cải thiện**: Đây là **lỗ hổng cần khắc phục**. Bạn/học viên thường xử lý lúng túng ở cấu trúc *{s['name']}*. Cần xem lại các ván thua để học cách điều động quân hợp lý hơn.")
+                    lines.append(f"\n💡 **Khuyến nghị cải thiện**: Đây là **điểm yếu đã xác thực**. Bạn/học viên thường xử lý lúng túng ở cấu trúc *{s['name']}*. Cần xem lại các ván thua để học cách điều động quân hợp lý hơn.")
                 else:
-                    lines.append(f"\n💡 **Lời khuyên tác chiến**: Đây là **điểm yếu đã xác nhận** của đối thủ. Hãy chủ động dẫn dắt thế trận về cấu trúc *{s['name']}* để ép đối thủ rơi vào thế cờ họ xử lý kém.")
-            elif s.get("delta_vs_baseline", 0) > 5.0:
+                    lines.append(f"\n💡 **Lời khuyên tác chiến**: Đây là **điểm yếu đã xác thực** của đối thủ. Hãy chủ động dẫn dắt thế trận về cấu trúc *{s['name']}* để ép đối thủ rơi vào thế cờ họ xử lý kém.")
+            elif assess == ASSESSMENT_POTENTIAL_WEAKNESS:
                 if mode == "self":
-                    lines.append(f"\n🟢 **Thế mạnh sở trường**: Bạn/học viên xử lý cấu trúc *{s['name']}* rất thành thạo và đạt điểm số vượt trội. Hãy tiếp tục phát huy!")
+                    lines.append(f"\n💡 **Khuyến nghị cải thiện**: Đây là **điểm yếu tiềm năng**. Bạn/học viên có dấu hiệu xử lý chưa tốt ở cấu trúc *{s['name']}*, nên lưu ý ôn tập thêm.")
                 else:
-                    lines.append(f"\n⚠️ **Cảnh báo**: Đây là **thế mạnh sở trường** của đối thủ. Họ xử lý cấu trúc *{s['name']}* rất thành thạo, bạn nên tránh tạo ra cấu trúc này.")
+                    lines.append(f"\n💡 **Lời khuyên tác chiến**: Đây là **điểm yếu tiềm năng** của đối thủ ở cấu trúc *{s['name']}*, có thể cân nhắc khai thác.")
+            elif assess == ASSESSMENT_CONFIRMED_STRENGTH:
+                if mode == "self":
+                    lines.append(f"\n🟢 **Thế mạnh sở trường**: Đây là **điểm mạnh đã xác thực**. Bạn/học viên xử lý cấu trúc *{s['name']}* rất thành thạo và đạt điểm số vượt trội. Hãy tiếp tục phát huy!")
+                else:
+                    lines.append(f"\n⚠️ **Cảnh báo**: Đây là **điểm mạnh đã xác thực** của đối thủ. Họ xử lý cấu trúc *{s['name']}* rất thành thạo, bạn nên tránh tạo ra cấu trúc này.")
+            elif assess == ASSESSMENT_POTENTIAL_STRENGTH:
+                if mode == "self":
+                    lines.append(f"\n🌱 **Điểm mạnh tiềm năng**: Bạn/học viên đang có hiệu suất tích cực ở cấu trúc *{s['name']}*. Hãy tiếp tục tích lũy thêm ván đấu để củng cố sở trường này.")
+                else:
+                    lines.append(f"\n⚠️ **Lưu ý**: Đây là **điểm mạnh tiềm năng** của đối thủ ở cấu trúc *{s['name']}*, bạn nên thận trọng khi định hình thế trận này.")
             else:
                 lines.append(f"\nℹ️ **Nhận định**: Kỳ thủ thi đấu ở mức ổn định trung bình trên cấu trúc này.")
             return "\n".join(lines)
 
         # Tổng quan thế mạnh & điểm yếu cấu trúc
-        strong_structs = [s for s in structs if s.get("delta_vs_baseline", 0) > 0]
-        weak_structs = [s for s in structs if s.get("delta_vs_baseline", 0) < 0]
+        strong_structs = [s for s in rank_strongest_items(structs) if _resolve_assessment(s) in (ASSESSMENT_CONFIRMED_STRENGTH, ASSESSMENT_POTENTIAL_STRENGTH)]
+        weak_structs = [s for s in rank_weakest_items(structs) if _resolve_assessment(s) in (ASSESSMENT_CONFIRMED_WEAKNESS, ASSESSMENT_POTENTIAL_WEAKNESS)]
 
         lines.append("Dựa trên phân tích toán học và kiểm định Bayesian Shrinkage:\n")
         
@@ -94,11 +121,12 @@ def generate_local_expert_response(
             lines.append(f"  - Đánh giá: `{top_s.get('assessment_badge', 'N/A')}`.")
         
         if weak_structs:
-            worst_s = sorted(weak_structs, key=lambda x: x.get("adjusted_score_pct", 50))[0]
+            worst_s = weak_structs[0]
+            worst_typ_move = worst_s.get("typical_formation_move") or worst_s.get("typical_move", "N/A")
             badge_title = "Cấu trúc cần rèn luyện nhất" if mode == "self" else "Cấu trúc xử lý kém nhất (TỬ HUYỆT)"
             lines.append(f"\n🔴 **{badge_title}**: **{worst_s['name']}**")
             lines.append(f"  - Chỉ đạt **{worst_s.get('score_pct', 0)}% score** ({worst_s.get('adjusted_score_pct', 0)}% sau hiệu chỉnh, Delta: `{worst_s.get('delta_vs_baseline', 0)}%`) trên {worst_s['games_count']} ván.")
-            lines.append(f"  - Đánh giá: `{worst_s.get('assessment_badge', 'N/A')}` (Nước hình thành: ~nước {worst_s.get('typical_move', 'N/A')}).")
+            lines.append(f"  - Đánh giá: `{worst_s.get('assessment_badge', 'N/A')}` (Nước hình thành: ~nước {worst_typ_move}).")
             if mode == "self":
                 lines.append(f"  - 📚 **Lộ trình khắc phục**: Cần luyện tập các bài học định vị Tốt và kiểm soát ô tiền đồn trong cấu trúc **{worst_s['name']}**.")
             else:
@@ -193,16 +221,16 @@ def generate_local_expert_response(
                 lines.append(f"1. ♟ **Lệch hiệu suất màu quân**: Đối thủ thi đấu **kém hơn khi cầm TRẮNG** ({w_score}% so với {b_score}% khi cầm Đen).")
 
         # 2. Điểm yếu cấu trúc Tốt
-        weak_structs = [s for s in structs if s.get("delta_vs_baseline", 0) < 0]
+        weak_structs = [s for s in rank_weakest_items(structs) if _resolve_assessment(s) in (ASSESSMENT_CONFIRMED_WEAKNESS, ASSESSMENT_POTENTIAL_WEAKNESS)]
         if weak_structs:
-            worst_s = sorted(weak_structs, key=lambda x: x.get("adjusted_score_pct", 50))[0]
+            worst_s = weak_structs[0]
             lines.append(f"2. 🧬 **Tử huyệt Cấu trúc Tốt**: Cấu trúc **{worst_s['name']}** (Score: **{worst_s.get('score_pct', 0)}%**, Độ tin cậy: **{worst_s.get('adjusted_score_pct', 0)}%**, Đánh giá: `{worst_s.get('assessment_badge', 'N/A')}`).")
 
         # 3. Điểm yếu khai cuộc
         all_rep = w_rep + b_rep
-        weak_openings = [o for o in all_rep if o.get("delta_vs_baseline", 0) < 0 and o.get("games_count", 0) >= 2]
+        weak_openings = [o for o in rank_weakest_items(all_rep) if _resolve_assessment(o) in (ASSESSMENT_CONFIRMED_WEAKNESS, ASSESSMENT_POTENTIAL_WEAKNESS)]
         if weak_openings:
-            worst_op = sorted(weak_openings, key=lambda x: x.get("adjusted_score_pct", 50))[0]
+            worst_op = weak_openings[0]
             lines.append(f"3. 📚 **Khai cuộc dễ tổn thương nhất**: **{worst_op['name']}** (Score: **{worst_op.get('score_pct', 0)}%**, Độ tin cậy: **{worst_op.get('adjusted_score_pct', 0)}%**, Thua: {worst_op.get('losses', 0)}/{worst_op.get('games_count', 0)} ván).")
 
         return "\n".join(lines)

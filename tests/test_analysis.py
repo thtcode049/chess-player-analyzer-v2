@@ -208,3 +208,8 @@ def test_analyze_structural_performance():
     assert g_info["formation_move"] >= 8
     assert g_info["white"] == "Player A"
 
+    replay_board = chess.Board()
+    for san in game_iqp_moves[: g_info["formation_ply"]]:
+        replay_board.push_san(san)
+    assert replay_board.fen() == g_info["formation_fen"]
+

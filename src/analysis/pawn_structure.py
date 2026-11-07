@@ -324,8 +324,8 @@ def detect_all_pawn_structures(board: chess.Board, ply: int = 20) -> List[Dict[s
             })
 
     # 6. Symmetrical Center (Trung tâm đối xứng)
-    # Điều kiện đối xứng: chỉ xét từ nước 8 trở đi (ply >= 14), trung tâm không rỗng và các hàng tốt phản chiếu chính xác
-    if ply >= 14 and not is_open and not is_closed:
+    # Điều kiện đối xứng: chỉ xét từ nước 8 trở đi (ply >= 15), trung tâm không rỗng và các hàng tốt phản chiếu chính xác
+    if ply >= 15 and not is_open and not is_closed:
         w_d = [sq for sq in pawn_map["white"] if chess.square_file(sq) == 3]
         b_d = [sq for sq in pawn_map["black"] if chess.square_file(sq) == 3]
         w_e = [sq for sq in pawn_map["white"] if chess.square_file(sq) == 4]
@@ -550,7 +550,7 @@ def analyze_structural_performance(
 ) -> Dict[str, Any]:
     """
     Phân tích hiệu suất thi đấu của đối thủ theo từng dạng Cấu trúc Tốt.
-    Quét từ nước 8 đến hết nước 20 (ply 14 -> max_move_window * 2) để đảm bảo hình cờ đã ổn định
+    Quét từ nước 8 đến hết nước 20 (ply 15 -> max_move_window * 2) để đảm bảo hình cờ đã ổn định
     vào giai đoạn trung cuộc, tránh bắt nhầm các nước đổi quân tạm thời trong khai cuộc.
     Mỗi ván đấu được đếm tối đa 1 LẦN cho mỗi cấu trúc mà ván đó đi qua.
     Hỗ trợ song song cả Nhóm A (Nền tảng & Trung tâm) và Nhóm B (Chiến lược kinh điển).
@@ -561,7 +561,7 @@ def analyze_structural_performance(
     total_wins = 0
     total_draws = 0
 
-    min_ply_window = max(0, (min_move_window - 1) * 2)
+    min_ply_window = max(1, (min_move_window - 1) * 2 + 1)
     max_ply_window = max_move_window * 2
 
     for g_idx, game in enumerate(filtered_games):
@@ -581,7 +581,7 @@ def analyze_structural_performance(
         board = chess.Board()
         seen_in_game = set()
 
-        for ply, san in enumerate(moves):
+        for ply, san in enumerate(moves, start=1):
             if ply > max_ply_window:
                 break
 
@@ -591,7 +591,7 @@ def analyze_structural_performance(
             except Exception:
                 break
 
-            move_number = (ply // 2) + 1
+            move_number = ((ply - 1) // 2) + 1
 
             # Chỉ xét cấu trúc Tốt xuất hiện trong cửa sổ phân tích định hình trung cuộc
             if ply >= min_ply_window:
@@ -710,7 +710,7 @@ def analyze_structural_performance(
         ranked_weakest = rank_weakest_items(result_list)
         if ranked_weakest:
             candidate = ranked_weakest[0]
-            if candidate.get("assessment") in [ASSESSMENT_CONFIRMED_WEAKNESS, ASSESSMENT_POTENTIAL_WEAKNESS] or candidate.get("delta_vs_baseline", 0.0) <= -5.0:
+            if candidate.get("assessment") in [ASSESSMENT_CONFIRMED_WEAKNESS, ASSESSMENT_POTENTIAL_WEAKNESS]:
                 target_structure = candidate
             elif candidate.get("games_count", 0) >= 1:
                 target_structure = candidate

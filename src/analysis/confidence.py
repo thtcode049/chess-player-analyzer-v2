@@ -10,10 +10,10 @@ Nguyên tắc:
 3. Performance Delta: Tính độ chênh lệch giữa Adjusted Score và Baseline Score.
 4. Categorical Assessment: Phân loại 5 cấp độ:
    - CONFIRMED_STRENGTH (Mẫu đủ lớn >= 5 và Delta >= +10%)
-   - POTENTIAL_STRENGTH (Mẫu nhỏ < 5 nhưng Delta >= +10%)
+   - POTENTIAL_STRENGTH (Chưa đạt mức xác thực nhưng mẫu >= 2 và Delta >= +6%)
    - CONFIRMED_WEAKNESS (Mẫu đủ lớn >= 5 và Delta <= -10%)
-   - POTENTIAL_WEAKNESS (Mẫu nhỏ < 5 nhưng Delta <= -10%)
-   - NEUTRAL (Trong phạm vi bình thường so với baseline)
+   - POTENTIAL_WEAKNESS (Chưa đạt mức xác thực nhưng mẫu >= 2 và Delta <= -6%)
+   - NEUTRAL (Trong phạm vi bình thường |Delta| < 6% hoặc mẫu < 2)
 """
 
 from typing import List, Dict, Any, Optional
@@ -21,10 +21,13 @@ from typing import List, Dict, Any, Optional
 # ==============================================================================
 # CONFIGURATION CONSTANTS
 # ==============================================================================
-DEFAULT_PRIOR_STRENGTH: float = 6.0       # Trọng số shrinkage kéo về baseline
-MIN_CONFIRMED_SAMPLE: int = 5             # Số ván tối thiểu để xác nhận (Confirmed)
-DELTA_STRENGTH_THRESHOLD: float = 10.0    # Ngưỡng vượt trội (+10% so với baseline)
-DELTA_WEAKNESS_THRESHOLD: float = -10.0   # Ngưỡng sụt giảm (-10% so với baseline)
+DEFAULT_PRIOR_STRENGTH: float = 6.0         # Trọng số shrinkage kéo về baseline (K = 6.0)
+MIN_CONFIRMED_SAMPLE: int = 5               # Số ván tối thiểu để xác thực (Confirmed)
+MIN_POTENTIAL_SAMPLE: int = 2               # Số ván tối thiểu để xét tiềm năng (Potential)
+DELTA_STRENGTH_THRESHOLD: float = 10.0      # Ngưỡng điểm mạnh xác thực (+10% so với baseline)
+DELTA_WEAKNESS_THRESHOLD: float = -10.0     # Ngưỡng điểm yếu xác thực (-10% so với baseline)
+DELTA_POTENTIAL_STRENGTH: float = 6.0       # Ngưỡng điểm mạnh tiềm năng (+6% so với baseline)
+DELTA_POTENTIAL_WEAKNESS: float = -6.0      # Ngưỡng điểm yếu tiềm năng (-6% so với baseline)
 
 # Categorical Assessments
 ASSESSMENT_CONFIRMED_STRENGTH = "CONFIRMED_STRENGTH"
@@ -94,16 +97,19 @@ def assess_performance(
     delta_vs_baseline: float,
     min_confirmed: int = MIN_CONFIRMED_SAMPLE,
     delta_strength: float = DELTA_STRENGTH_THRESHOLD,
-    delta_weakness: float = DELTA_WEAKNESS_THRESHOLD
+    delta_weakness: float = DELTA_WEAKNESS_THRESHOLD,
+    min_potential: int = MIN_POTENTIAL_SAMPLE,
+    delta_potential_strength: float = DELTA_POTENTIAL_STRENGTH,
+    delta_potential_weakness: float = DELTA_POTENTIAL_WEAKNESS,
 ) -> str:
     """Phân loại đánh giá hiệu suất dựa trên kích thước mẫu và Performance Delta."""
-    if delta_vs_baseline >= delta_strength:
-        if games_count >= min_confirmed:
-            return ASSESSMENT_CONFIRMED_STRENGTH
+    if games_count >= min_confirmed and delta_vs_baseline >= delta_strength:
+        return ASSESSMENT_CONFIRMED_STRENGTH
+    if games_count >= min_potential and delta_vs_baseline >= delta_potential_strength:
         return ASSESSMENT_POTENTIAL_STRENGTH
-    elif delta_vs_baseline <= delta_weakness:
-        if games_count >= min_confirmed:
-            return ASSESSMENT_CONFIRMED_WEAKNESS
+    if games_count >= min_confirmed and delta_vs_baseline <= delta_weakness:
+        return ASSESSMENT_CONFIRMED_WEAKNESS
+    if games_count >= min_potential and delta_vs_baseline <= delta_potential_weakness:
         return ASSESSMENT_POTENTIAL_WEAKNESS
     return ASSESSMENT_NEUTRAL
 
@@ -127,7 +133,7 @@ def format_assessment_label(assessment: str, lang: str = "vi") -> Dict[str, str]
             "icon": "🟢"
         },
         ASSESSMENT_POTENTIAL_STRENGTH: {
-            "label": "Điểm mạnh Tiềm năng (Mẫu nhỏ)",
+            "label": "Điểm mạnh Tiềm năng",
             "badge": "▲ Điểm mạnh Tiềm năng",
             "color": "#10B981",
             "icon": "🌱"
@@ -139,7 +145,7 @@ def format_assessment_label(assessment: str, lang: str = "vi") -> Dict[str, str]
             "icon": "🔴"
         },
         ASSESSMENT_POTENTIAL_WEAKNESS: {
-            "label": "Điểm yếu Tiềm năng (Mẫu nhỏ)",
+            "label": "Điểm yếu Tiềm năng",
             "badge": "▽ Điểm yếu Tiềm năng",
             "color": "#F59E0B",
             "icon": "🌾"

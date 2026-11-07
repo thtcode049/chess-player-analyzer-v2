@@ -95,17 +95,29 @@ async function resolveAuthHeadersUncached(): Promise<Record<string, string>> {
       console.warn("Could not get supabase session for API headers:", e);
     }
 
-    // Guest Mode Session: lấy hoặc tạo unique guest session ID lưu trong sessionStorage
+    // Guest Mode Session: chỉ đọc/khởi tạo phiên khách khi đang ở chế độ khách hoặc trong trang bảo vệ
     try {
-      let guestId = sessionStorage.getItem("chess_guest_session_id");
-      if (!guestId) {
-        guestId = "guest_" + (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36));
-        sessionStorage.setItem("chess_guest_session_id", guestId);
+      const { getGuestSessionId, isGuestModeActive, enterGuestMode } = await import("@/lib/auth/guest");
+      const pathname = window.location?.pathname || "/";
+      const isPublicNonGuestRoute =
+        pathname === "/" ||
+        pathname.startsWith("/login") ||
+        pathname.startsWith("/register") ||
+        pathname.startsWith("/auth");
+
+      let guestId = getGuestSessionId();
+      if (!guestId && (isGuestModeActive() || !isPublicNonGuestRoute)) {
+        guestId = enterGuestMode();
       }
-      headers["X-Guest-Session-Id"] = guestId;
-      if (typeof document !== "undefined") {
-        document.cookie = `chess_guest_mode=true; path=/; max-age=86400; SameSite=Lax`;
-        document.cookie = `chess_guest_session_id=${encodeURIComponent(guestId)}; path=/; max-age=86400; SameSite=Lax`;
+      if (guestId) {
+        try {
+          sessionStorage.setItem("chess_guest_session_id", guestId);
+        } catch {}
+        headers["X-Guest-Session-Id"] = guestId;
+        if (typeof document !== "undefined") {
+          document.cookie = `chess_guest_mode=true; path=/; max-age=86400; SameSite=Lax`;
+          document.cookie = `chess_guest_session_id=${encodeURIComponent(guestId)}; path=/; max-age=86400; SameSite=Lax`;
+        }
       }
     } catch {
       // In case sessionStorage is blocked by browser privacy settings
@@ -616,9 +628,10 @@ export const apiClient = {
   },
 
   async getAiBriefing(runId: string, perspectiveMode: "self" | "opponent" = "self"): Promise<StrategicBriefing> {
+    const authHeaders = await getAuthHeaders();
     const res = await fetch(`${API_BASE}/api/ai/briefing`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ run_id: runId, perspective_mode: perspectiveMode }),
     });
     return handleResponse<StrategicBriefing>(res);
@@ -644,9 +657,10 @@ export const apiClient = {
     }
   ) {
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch(`${API_BASE}/api/ai/chat-stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify(data),
       });
 

@@ -303,10 +303,29 @@ class DBService:
             return None
 
     @staticmethod
-    def delete_player(player_id: str, user_id: Optional[str] = None) -> bool:
-        """Cascade delete a player and associated datasets, games, and analysis_runs."""
+    def delete_player(
+        player_id: str,
+        user_id: Optional[str] = None,
+        guest_session_id: Optional[str] = None
+    ) -> bool:
+        """Cascade delete a player and associated datasets, games, and analysis_runs after ownership check."""
         try:
             sb = get_supabase()
+            # 0. Verify ownership BEFORE deleting related records
+            existing_res = sb.table("players").select("id,user_id,notes").eq("id", player_id).execute()
+            if not existing_res.data:
+                return False
+            existing = existing_res.data[0]
+            owner_id = existing.get("user_id")
+            notes = existing.get("notes") or ""
+
+            if user_id:
+                if owner_id != user_id:
+                    return False
+            elif guest_session_id:
+                if owner_id != GUEST_SYSTEM_USER_ID or not notes.startswith(f"guest:{guest_session_id}"):
+                    return False
+
             # 1. Delete associated analysis_runs
             try:
                 sb.table("analysis_runs").delete().eq("player_id", player_id).execute()
@@ -327,6 +346,8 @@ class DBService:
             q = sb.table("players").delete().eq("id", player_id)
             if user_id:
                 q = q.eq("user_id", user_id)
+            elif guest_session_id:
+                q = q.eq("user_id", GUEST_SYSTEM_USER_ID)
             res = q.execute()
             return bool(res.data)
         except Exception as e:

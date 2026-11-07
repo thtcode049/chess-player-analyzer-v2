@@ -234,11 +234,13 @@ def test_prepare_gemini_payload_config():
 
 
 def test_available_models_config():
-    from src.ai_assistant.gemini_client import AVAILABLE_MODELS, GEMINI_MODELS
+    from src.ai_assistant.gemini_client import AVAILABLE_MODELS, DEFAULT_GEMINI_MODEL, GEMINI_MODELS
+    assert "gemini-3.5-flash-lite" in AVAILABLE_MODELS
     assert "gemini-3.8-flash" in AVAILABLE_MODELS
+    assert "gemini-3.7-flash" in AVAILABLE_MODELS
     assert "gemini-3.5-flash" in AVAILABLE_MODELS
-    assert "gemini-3.1-flash-lite" in AVAILABLE_MODELS
-    assert GEMINI_MODELS[0] == "gemini-3.8-flash"
-    assert GEMINI_MODELS[1] == "gemini-3.5-flash"
-    assert GEMINI_MODELS[2] == "gemini-3.1-flash-lite"
+    assert "gemini-flash-latest" in AVAILABLE_MODELS
+    assert GEMINI_MODELS[0] == DEFAULT_GEMINI_MODEL == "gemini-3.5-flash-lite"
+    assert GEMINI_MODELS[1] == "gemini-3.8-flash"
+    assert GEMINI_MODELS[2] == "gemini-3.7-flash"
 

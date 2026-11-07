@@ -4,6 +4,7 @@ Player Route Handlers
 from fastapi import APIRouter, HTTPException, Query, Header
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
+import os
 import uuid
 import logging
 
@@ -249,6 +250,28 @@ def create_player(
         is_guest=True
     )
     return BaseResponse(success=True, message="Player created in guest session", data=response_data)
+
+
+@router.get("/cleanup-expired-guests")
+@router.post("/cleanup-expired-guests")
+def cleanup_expired_guests(
+    max_age_hours: int = 24,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Automated or manual cron job to delete guest players, datasets, and games older than max_age_hours.
+    Secured by optional CRON_SECRET header in production environments.
+    """
+    cron_secret = os.environ.get("CRON_SECRET", "").strip()
+    if cron_secret and authorization != f"Bearer {cron_secret}":
+        raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing cron secret")
+
+    deleted = DBService.cleanup_expired_guest_data(max_age_hours=max_age_hours)
+    return {
+        "success": True,
+        "deleted_count": deleted,
+        "message": f"Đã dọn dẹp {deleted} hồ sơ khách hết hạn sau {max_age_hours} giờ"
+    }
 
 
 @router.get("/{player_id}", response_model=BaseResponse[PlayerResponse])
@@ -719,7 +742,7 @@ def delete_player(
         if "runs" in session and player_id in session["runs"]:
             del session["runs"][player_id]
         try:
-            if DBService.delete_player(player_id):
+            if x_guest_session_id and DBService.delete_player(player_id, guest_session_id=x_guest_session_id):
                 deleted = True
         except Exception:
             pass
@@ -770,26 +793,4 @@ def claim_guest_data_endpoint(
         message=f"Đã chuyển đổi thành công {claimed} hồ sơ kỳ thủ vào tài khoản của bạn",
         data={"claimed": claimed}
     )
-
-
-@router.get("/cleanup-expired-guests")
-@router.post("/cleanup-expired-guests")
-def cleanup_expired_guests(
-    max_age_hours: int = 24,
-    authorization: Optional[str] = Header(None)
-):
-    """
-    Automated or manual cron job to delete guest players, datasets, and games older than max_age_hours.
-    Secured by optional CRON_SECRET header in production environments.
-    """
-    cron_secret = os.environ.get("CRON_SECRET", "").strip()
-    if cron_secret and authorization != f"Bearer {cron_secret}":
-        raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing cron secret")
-
-    deleted = DBService.cleanup_expired_guest_data(max_age_hours=max_age_hours)
-    return {
-        "success": True,
-        "deleted_count": deleted,
-        "message": f"Đã dọn dẹp {deleted} hồ sơ khách hết hạn sau {max_age_hours} giờ"
-    }
 

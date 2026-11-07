@@ -101,7 +101,6 @@ chess-player-analyzer-v2/
 │   ├── login/                       # Trang đăng nhập
 │   ├── players/                     # Thư viện hồ sơ kỳ thủ & chi tiết Workspace
 │   ├── register/                    # Trang đăng ký tài khoản
-│   ├── settings/                    # Cài đặt người dùng & khóa API
 │   ├── layout.tsx                   # Layout gốc & providers
 │   └── page.tsx                     # Landing Page chính thức
 ├── components/                      # Thư viện React Components dùng chung

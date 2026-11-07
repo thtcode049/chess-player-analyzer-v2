@@ -78,7 +78,7 @@ console.log("MIDDLEWARE ROUTE GUARD VERIFICATION SUITE");
 console.log("==================================================");
 
 // Case 1: Unauthenticated & Non-guest accessing protected routes
-const protectedRoutes = ["/dashboard", "/analyze", "/ai-coach", "/players", "/players/123", "/import", "/settings"];
+const protectedRoutes = ["/dashboard", "/analyze", "/ai-coach", "/players", "/players/123", "/import"];
 for (const route of protectedRoutes) {
   const req = new MockNextRequest(route, {});
   const res = runMiddlewareLogic(req, null);

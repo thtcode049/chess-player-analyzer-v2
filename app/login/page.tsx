@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Lock, Mail, ArrowRight, Loader2, User } from "lucide-react";
-import { enterGuestMode, exitGuestMode } from "@/lib/auth/guest";
+import { enterGuestMode, exitGuestMode, getGuestSessionId } from "@/lib/auth/guest";
 
 function LoginContent() {
   const router = useRouter();
@@ -42,16 +42,18 @@ function LoginContent() {
       }
 
       // Check and claim any guest session data into newly authenticated account
+      const { apiClient } = await import("@/lib/api/client");
       try {
-        const guestId = sessionStorage.getItem("chess_guest_session_id");
+        apiClient.clearAuthCache();
+        const guestId = getGuestSessionId();
         if (guestId) {
-          const { apiClient } = await import("@/lib/api/client");
           await apiClient.claimGuestData(guestId);
         }
       } catch (e) {
         console.warn("Could not claim guest session on login:", e);
       } finally {
         exitGuestMode();
+        apiClient.clearAuthCache();
       }
 
       window.location.href = "/dashboard";

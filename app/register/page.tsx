@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UserPlus, Mail, Lock, User, ArrowRight, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
-import { exitGuestMode } from "@/lib/auth/guest";
+import { exitGuestMode, getGuestSessionId } from "@/lib/auth/guest";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -43,11 +43,17 @@ export default function RegisterPage() {
       const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
 
+      const emailRedirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/auth/callback?next=/dashboard`
+          : undefined;
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
         options: {
           data: { display_name: displayName.trim() },
+          ...(emailRedirectTo ? { emailRedirectTo } : {}),
         },
       });
 
@@ -57,27 +63,30 @@ export default function RegisterPage() {
 
       setSuccessEmail(cleanEmail);
 
-      // Check and claim any guest session data into newly registered account
-      try {
-        const guestId = sessionStorage.getItem("chess_guest_session_id");
-        if (guestId && data.user?.id) {
-          const { apiClient } = await import("@/lib/api/client");
-          await apiClient.claimGuestData(guestId);
-          exitGuestMode();
-        }
-      } catch (e) {
-        console.warn("Could not claim guest session on register:", e);
-      }
-
       if (data.session) {
-        // Trường hợp Supabase tắt Confirm Email: đăng nhập và chuyển hướng ngay
+        // Trường hợp Supabase tắt Confirm Email: thu hồi dữ liệu khách, xóa cookie khách & đăng nhập ngay
+        const { apiClient } = await import("@/lib/api/client");
+        try {
+          apiClient.clearAuthCache();
+          const guestId = getGuestSessionId();
+          if (guestId && data.user?.id) {
+            await apiClient.claimGuestData(guestId);
+          }
+        } catch (e) {
+          console.warn("Could not claim guest session on register:", e);
+        } finally {
+          exitGuestMode();
+          apiClient.clearAuthCache();
+        }
+
         setImmediateLogin(true);
         setSuccess(true);
         setTimeout(() => {
           window.location.href = "/dashboard";
         }, 1200);
       } else {
-        // Trường hợp Supabase bật Confirm Email: bắt buộc kiểm tra email để kích hoạt
+        // Trường hợp Supabase bật Confirm Email: giữ nguyên cookie chess_guest_session_id
+        // để khi người dùng nhấn link xác nhận email, Navbar tự động thu hồi dữ liệu và xóa cookie khách
         setImmediateLogin(false);
         setSuccess(true);
       }

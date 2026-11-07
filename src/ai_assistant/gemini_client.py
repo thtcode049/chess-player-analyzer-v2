@@ -17,16 +17,19 @@ logger = logging.getLogger(__name__)
 from src.ai_assistant.config import get_server_gemini_api_key
 from src.ai_assistant.local_expert import generate_local_expert_response
 
-# Danh sách Model hiển thị cho người dùng lựa chọn (Đã xác minh hoạt động 100%)
+# Danh sách Model hiển thị & failover theo thế hệ mới nhất trên Google Generative Language API
 AVAILABLE_MODELS = {
+    "gemini-3.5-flash-lite": "Gemini 3.5 Flash Lite 🚀 (Mặc định - Phản hồi tức thì & Siêu tốc)",
     "gemini-3.8-flash": "Gemini 3.8 Flash ⚡ (Thế hệ mới nhất - Phân tích toàn diện)",
-    "gemini-3.5-flash": "Gemini 3.5 Flash 🧠 (Suy luận chuyên sâu)",
-    "gemini-3.1-flash-lite": "Gemini 3.1 Flash Lite 🚀 (Phản hồi tức thì & Siêu tốc)",
-    "gemini-3.5-flash-lite": "Gemini 3.5 Flash Lite (Dự phòng tốc độ cao)",
-    "gemini-3.6-flash": "Gemini 3.6 Flash (Dự phòng mở rộng)",
+    "gemini-3.7-flash": "Gemini 3.7 Flash 🧠 (Suy luận chuyên sâu thế hệ mới)",
+    "gemini-3.6-flash": "Gemini 3.6 Flash (Dự phòng tốc độ & độ chính xác cao)",
+    "gemini-3.5-flash": "Gemini 3.5 Flash (Dự phòng ổn định)",
+    "gemini-flash-lite-latest": "Gemini Flash-Lite Latest (Bí danh tự động cập nhật tốc độ cao)",
+    "gemini-flash-latest": "Gemini Flash Latest (Bí danh tự động cập nhật của Google)",
 }
 
 GEMINI_MODELS = list(AVAILABLE_MODELS.keys())
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 SYSTEM_INSTRUCTION = """Bạn là Trợ lí AI Phân tích Cờ vua (Chess AI Assistant) thông minh, sâu sắc, khách quan, trung thực và chuyên nghiệp.
 
@@ -200,7 +203,7 @@ def stream_gemini_response(
     failover thông minh và báo lỗi minh bạch khi cần chuyển sang chế độ dự phòng.
     """
     clean_key = (api_key if api_key is not None else get_server_gemini_api_key()).strip()
-    target_model = model if model in GEMINI_MODELS else "gemini-3.5-flash-lite"
+    target_model = model if model in GEMINI_MODELS else DEFAULT_GEMINI_MODEL
 
     # Nếu không có API Key máy chủ, tự động báo lỗi và dùng Local Expert Engine stream
     if not clean_key:
@@ -231,8 +234,9 @@ def stream_gemini_response(
     last_error_reason = ""
 
     for m in models_to_try:
-        # Thử với thinkingBudget=0 trước, nếu 400 Bad Request thì thử lại không thinkingConfig
-        for try_thinking in [True, False]:
+        # Dòng flash-lite không nhận thinkingConfig (sẽ trả HTTP 400), bỏ qua lượt thử thừa để phản hồi tức thì
+        thinking_attempts = [False] if "lite" in m else [True, False]
+        for try_thinking in thinking_attempts:
             payload = _prepare_gemini_payload(prompt, context, chat_history, include_thinking_config=try_thinking)
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:streamGenerateContent?alt=sse&key={clean_key}"
             try:
@@ -333,7 +337,7 @@ def call_gemini_api(
     Tối ưu: 8192 max tokens, timeout 15s, failover an toàn.
     """
     clean_key = (api_key if api_key is not None else get_server_gemini_api_key()).strip()
-    target_model = model if model in GEMINI_MODELS else "gemini-3.5-flash-lite"
+    target_model = model if model in GEMINI_MODELS else DEFAULT_GEMINI_MODEL
 
     if not clean_key:
         notice = _format_fallback_notice("Chưa cấu hình GEMINI_API_KEY trong file .env")
@@ -355,7 +359,8 @@ def call_gemini_api(
 
     last_error_reason = ""
     for m in models_to_try:
-        for try_thinking in [True, False]:
+        thinking_attempts = [False] if "lite" in m else [True, False]
+        for try_thinking in thinking_attempts:
             payload = _prepare_gemini_payload(prompt, context, chat_history, include_thinking_config=try_thinking)
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={clean_key}"
             try:

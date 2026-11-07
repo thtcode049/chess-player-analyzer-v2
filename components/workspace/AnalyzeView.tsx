@@ -1438,18 +1438,56 @@ export function AnalyzeContent() {
     }
   }, [queryGameIdx, selectedStructure, allStructureGamesPool, handleLoadStructureGame]);
 
-  // Handle Custom PGN Input
+  // Handle Custom PGN / FEN Input
   const handleLoadCustomPgn = () => {
-    if (!inputPgn.trim()) return;
+    const raw = inputPgn.trim();
+    if (!raw) return;
+
+    // 1. Hỗ trợ nạp trực tiếp chuỗi FEN thuần (6 phần chuẩn hoặc 4 phần EPD)
+    if (!raw.includes("[") && !raw.includes("\n")) {
+      const fenParts = raw.split(/\s+/);
+      if (fenParts.length >= 4 && fenParts.length <= 6 && fenParts[0].includes("/")) {
+        const candidateFen =
+          fenParts.length === 4
+            ? `${fenParts.join(" ")} 0 1`
+            : fenParts.length === 5
+              ? `${fenParts.join(" ")} 1`
+              : fenParts.join(" ");
+        try {
+          const fenChess = new Chess(candidateFen);
+          const validFen = fenChess.fen();
+          setMoves([]);
+          setCurrentPly(0);
+          setCurrentFen(validFen);
+          setMoveTree(createMoveTreeFromMoves([], validFen));
+          setGameInfo(null);
+          setShowPgnInput(false);
+          setInputPgn("");
+          return;
+        } catch {
+          // Không phải FEN hợp lệ, tiếp tục thử phân tích dưới dạng PGN
+        }
+      }
+    }
+
+    // 2. Phân tích biên bản PGN (hỗ trợ cả PGN xuất phát từ thế cờ tùy chỉnh [FEN "..."])
     try {
       const chess = new Chess();
-      chess.loadPgn(inputPgn);
+      chess.loadPgn(raw);
       const history = chess.history();
       const hdr = chess.header();
+      const initialFen = hdr.FEN
+        ? new Chess(hdr.FEN).fen()
+        : "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+      if (history.length === 0 && !hdr.FEN && !hdr.White && !hdr.Black) {
+        throw new Error("Empty or invalid PGN/FEN");
+      }
+
       setMoves(history);
       setCurrentPly(0);
-      setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-      setMoveTree(createMoveTreeFromMoves(history));
+      setCurrentFen(initialFen);
+      setMoveTree(createMoveTreeFromMoves(history, initialFen));
       if (hdr.White || hdr.Black) {
         setGameInfo({
           id: `pgn-${Date.now()}`,
@@ -1471,7 +1509,7 @@ export function AnalyzeContent() {
       setShowPgnInput(false);
       setInputPgn("");
     } catch (err) {
-      alert("PGN không hợp lệ. Vui lòng kiểm tra lại định dạng.");
+      alert("PGN hoặc FEN không hợp lệ. Vui lòng kiểm tra lại định dạng.");
     }
   };
 

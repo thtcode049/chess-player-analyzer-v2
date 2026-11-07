@@ -65,7 +65,7 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // 3. Protected system routes (/dashboard, /analyze, /ai-coach, /players, /import, /settings, etc.)
+  // 3. Protected system routes (/dashboard, /analyze, /ai-coach, /players, /import, etc.)
   // When not logged in AND not in guest mode, redirect directly to home page (/)
   if (!user && !isGuest) {
     const homeUrl = request.nextUrl.clone();

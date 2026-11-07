@@ -15,9 +15,53 @@ function setCookie(name: string, value: string, maxAge: number) {
   document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Lax`;
 }
 
+function getCookieValue(name: string): string | null {
+  if (typeof document === "undefined" || !document.cookie) return null;
+  const cookies = document.cookie.split(";");
+  for (const raw of cookies) {
+    const eqIdx = raw.indexOf("=");
+    const key = (eqIdx > -1 ? raw.slice(0, eqIdx) : raw).trim();
+    if (key === name) {
+      const val = eqIdx > -1 ? raw.slice(eqIdx + 1).trim() : "";
+      if (!val) return null;
+      try {
+        return decodeURIComponent(val);
+      } catch {
+        return val;
+      }
+    }
+  }
+  return null;
+}
+
 function removeCookie(name: string) {
   if (typeof document === "undefined") return;
-  document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
+  document.cookie = `${name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    document.cookie = `${name}=; path=/; domain=${window.location.hostname}; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+  }
+}
+
+/**
+ * Returns the current guest session ID from sessionStorage, falling back to
+ * the browser cookie (e.g. when opening an email confirmation or OAuth callback in a new tab).
+ */
+export function getGuestSessionId(): string | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const stored = sessionStorage.getItem(GUEST_STORAGE_KEY);
+    if (stored && stored.trim()) {
+      return stored.trim();
+    }
+  } catch {}
+
+  const cookieGuestId = getCookieValue(GUEST_SESSION_COOKIE_NAME);
+  if (cookieGuestId && cookieGuestId.trim()) {
+    return cookieGuestId.trim();
+  }
+
+  return null;
 }
 
 /**
@@ -53,7 +97,7 @@ export function enterGuestMode(): string {
 }
 
 /**
- * Clears guest mode session and cookies (used during logout or account claiming).
+ * Clears guest mode session and cookies thoroughly (used during login, account claiming, or logout).
  */
 export function exitGuestMode(): void {
   if (typeof window === "undefined") return;
@@ -61,6 +105,12 @@ export function exitGuestMode(): void {
   try {
     sessionStorage.removeItem(GUEST_STORAGE_KEY);
     sessionStorage.removeItem(GUEST_CREATED_KEY);
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const key = sessionStorage.key(i);
+      if (key && key.startsWith("chess_guest_")) {
+        sessionStorage.removeItem(key);
+      }
+    }
     delete (window as any).__CHESSLOOK_WORKSPACE_SNAPSHOT__;
   } catch {}
 
@@ -74,14 +124,9 @@ export function exitGuestMode(): void {
 export function isGuestModeActive(): boolean {
   if (typeof window === "undefined") return false;
 
-  try {
-    const hasStorage = Boolean(sessionStorage.getItem(GUEST_STORAGE_KEY));
-    if (hasStorage) return true;
-  } catch {}
-
-  if (typeof document !== "undefined") {
-    return document.cookie.includes(`${GUEST_COOKIE_NAME}=true`);
+  if (getGuestSessionId()) {
+    return true;
   }
 
-  return false;
+  return getCookieValue(GUEST_COOKIE_NAME) === "true";
 }

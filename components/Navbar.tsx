@@ -8,7 +8,6 @@ import {
   Brain,
   UploadCloud,
   Swords,
-  Settings,
   LogOut,
   LogIn,
   UserPlus,
@@ -25,7 +24,7 @@ import {
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { apiClient } from "@/lib/api/client";
-import { exitGuestMode } from "@/lib/auth/guest";
+import { exitGuestMode, getGuestSessionId, isGuestModeActive } from "@/lib/auth/guest";
 import ChessLookLogo from "@/components/ChessLookLogo";
 import { useProfileWorkspaceStore, ColorRole } from "@/lib/stores/profileWorkspaceStore";
 
@@ -62,6 +61,7 @@ export default function Navbar() {
   const [switcherSearch, setSwitcherSearch] = useState("");
   const [switcherMode, setSwitcherMode] = useState<"single" | "multi">("single");
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const claimingGuestRef = useRef(false);
 
   const {
     players,
@@ -93,20 +93,32 @@ export default function Navbar() {
 
     setMobileMenuOpen(false);
 
-    const checkAndClaimGuest = async (userId: string) => {
-      if (typeof window === "undefined") return;
-      const guestId = sessionStorage.getItem("chess_guest_session_id");
-      if (guestId) {
-        try {
+    const checkAndClaimGuest = async (_userId: string) => {
+      if (typeof window === "undefined" || claimingGuestRef.current) return;
+      const guestId = getGuestSessionId();
+      const guestActive = Boolean(guestId) || isGuestModeActive();
+      if (!guestActive) return;
+
+      claimingGuestRef.current = true;
+      let shouldRefreshPlayers = false;
+      try {
+        apiClient.clearAuthCache();
+        if (guestId) {
           const res = await apiClient.claimGuestData(guestId);
           if (res && res.claimed > 0) {
-            sessionStorage.removeItem("chess_guest_session_id");
-            sessionStorage.removeItem("chess_guest_created_at");
-            await refreshPlayersList();
+            shouldRefreshPlayers = true;
           }
-        } catch (e) {
-          console.warn("Could not claim guest session data:", e);
         }
+      } catch (e) {
+        console.warn("Could not claim guest session data:", e);
+      } finally {
+        exitGuestMode();
+        apiClient.clearAuthCache();
+        claimingGuestRef.current = false;
+      }
+
+      if (shouldRefreshPlayers) {
+        await refreshPlayersList();
       }
     };
 
@@ -202,8 +214,6 @@ export default function Navbar() {
 
       localStorage.removeItem("lichess_token");
       localStorage.removeItem("lichess_username");
-      localStorage.removeItem("setting_lichess_user");
-      localStorage.removeItem("setting_chesscom_user");
 
       // Clear session storage and guest cookies
       exitGuestMode();
@@ -886,18 +896,6 @@ export default function Navbar() {
             >
               <UploadCloud className="w-4 h-4 text-emerald-500 shrink-0" />
               <span>+ Nạp Ván Đấu</span>
-            </a>
-
-            <a
-              href="/settings"
-              onClick={(e) => {
-                e.preventDefault();
-                handleExternalNav("/settings");
-              }}
-              className="flex items-center gap-2.5 px-3 py-2 rounded text-xs font-semibold text-foreground hover:bg-muted/60 cursor-pointer"
-            >
-              <Settings className="w-4 h-4 text-slate-500 shrink-0" />
-              <span>Cài đặt</span>
             </a>
           </div>
 

@@ -293,8 +293,9 @@ async def import_pgn_file(
             except Exception as save_err:
                 logger.warning(f"[Import PGN] Could not persist analysis run: {save_err}")
 
-            session.setdefault("runs", {})[run_id] = run_res
-            session.setdefault("runs", {})[actual_player_id] = run_res
+            if not effective_user_id:
+                session.setdefault("runs", {})[run_id] = run_res
+                session.setdefault("runs", {})[actual_player_id] = run_res
 
             logger.info(f"[Import PGN] Auto-analyzed {len(all_combined_games)} games for {final_player_name}, run_id={run_id}")
         except Exception as an_err:
@@ -540,8 +541,9 @@ async def import_lichess(
             except Exception as save_err:
                 logger.warning(f"[Import Lichess] Could not persist analysis run: {save_err}")
 
-            session.setdefault("runs", {})[run_id] = run_res
-            session.setdefault("runs", {})[target_player_id] = run_res
+            if not effective_user_id:
+                session.setdefault("runs", {})[run_id] = run_res
+                session.setdefault("runs", {})[target_player_id] = run_res
         except Exception as an_err:
             logger.warning(f"[Import Lichess] Auto-analysis error: {an_err}")
 
@@ -783,8 +785,9 @@ async def import_chesscom(
             except Exception as save_err:
                 logger.warning(f"[Import Chess.com] Could not persist analysis run: {save_err}")
 
-            session.setdefault("runs", {})[run_id] = run_res
-            session.setdefault("runs", {})[target_player_id] = run_res
+            if not effective_user_id:
+                session.setdefault("runs", {})[run_id] = run_res
+                session.setdefault("runs", {})[target_player_id] = run_res
         except Exception as an_err:
             logger.warning(f"[Import Chess.com] Auto-analysis error: {an_err}")
 

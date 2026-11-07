@@ -148,6 +148,8 @@ export default function AiCoachView() {
   activeSessionIdRef.current = activeSessionId;
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
 
   // Search and editing state
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -615,8 +617,8 @@ export default function AiCoachView() {
         const nextList = [...prevSessions];
         nextList[targetIdx] = updatedSession;
 
-        // If this is the first prompt in a draft session, persist to Supabase
-        if (isFirstPrompt) {
+        // If this is the first prompt in a draft session, persist to Supabase (authenticated users only)
+        if (isFirstPrompt && currentUserRef.current?.id) {
           apiClient
             .createAiChatSession({
               id: updatedSession.id,
@@ -638,6 +640,7 @@ export default function AiCoachView() {
 
   // Handler: Persist session to Supabase once streaming completes (avoids 100+ PUT spam)
   const handlePersistActiveSession = useCallback(() => {
+    if (!currentUserRef.current?.id) return;
     const currentActiveId = activeSessionIdRef.current;
     const session = sessionsRef.current.find((s) => s.id === currentActiveId);
     if (!session || session.isDraft) return;
@@ -731,7 +734,9 @@ export default function AiCoachView() {
       prev.map((s) => {
         if (s.id === sessionId) {
           const nextPinned = !s.pinned;
-          apiClient.updateAiChatSession(s.id, { pinned: nextPinned }).catch(() => {});
+          if (currentUserRef.current?.id) {
+            apiClient.updateAiChatSession(s.id, { pinned: nextPinned }).catch(() => {});
+          }
           return { ...s, pinned: nextPinned };
         }
         return s;
@@ -746,7 +751,9 @@ export default function AiCoachView() {
       setSessions((prev) =>
         prev.map((s) => {
           if (s.id === sessionId) {
-            apiClient.updateAiChatSession(s.id, { title: trimmed }).catch(() => {});
+            if (currentUserRef.current?.id) {
+              apiClient.updateAiChatSession(s.id, { title: trimmed }).catch(() => {});
+            }
             return { ...s, title: trimmed, updatedAt: Date.now() };
           }
           return s;
@@ -760,7 +767,9 @@ export default function AiCoachView() {
   // Handler: Delete a chat session
   const handleDeleteSession = (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
-    apiClient.deleteAiChatSession(sessionId).catch(() => {});
+    if (currentUserRef.current?.id) {
+      apiClient.deleteAiChatSession(sessionId).catch(() => {});
+    }
 
     setSessions((prev) => {
       const remaining = prev.filter((s) => s.id !== sessionId);
@@ -809,7 +818,9 @@ export default function AiCoachView() {
       setSessions((prev) =>
         prev.map((s) => (s.id === activeSession.id ? { ...s, playerIds: nextPids } : s))
       );
-      apiClient.updateAiChatSession(activeSession.id, { player_ids: nextPids }).catch(() => {});
+      if (currentUserRef.current?.id) {
+        apiClient.updateAiChatSession(activeSession.id, { player_ids: nextPids }).catch(() => {});
+      }
     }
   };
 
@@ -824,7 +835,9 @@ export default function AiCoachView() {
       setSessions((prev) =>
         prev.map((s) => (s.id === activeSession.id ? { ...s, playerIds: nextPids } : s))
       );
-      apiClient.updateAiChatSession(activeSession.id, { player_ids: nextPids }).catch(() => {});
+      if (currentUserRef.current?.id) {
+        apiClient.updateAiChatSession(activeSession.id, { player_ids: nextPids }).catch(() => {});
+      }
     }
   };
 

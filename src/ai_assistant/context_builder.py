@@ -379,7 +379,7 @@ def build_opponent_ai_context(
         ctx_parts.append("\n## IV. CẤU TRÚC TỐT NỔI BẬT")
         for s in structs[:6]:
             ctx_parts.append(
-                f"- **{s.get('name', 'N/A')}**: {s.get('games_count', 0)} ván | Score: {s.get('score_pct', 0)}% | Hình thành quanh nước: {s.get('typical_move', 'N/A')}"
+                f"- **{s.get('name', 'N/A')}**: {s.get('games_count', 0)} ván | Score: {s.get('score_pct', 0)}% | Hình thành quanh nước: {s.get('typical_formation_move', s.get('typical_move', 'N/A'))}"
             )
 
     # 7. TOÀN BỘ CƠ SỞ DỮ LIỆU BIÊN BẢN VÁN ĐẤU (PGN GAMES ARCHIVE)

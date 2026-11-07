@@ -27,7 +27,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ai", tags=["AI Assistant"])
 
 
-def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], str, List[Dict[str, Any]]]:
+def _resolve_run_snapshot(
+    run_id: str,
+    x_user_id: Optional[str] = None,
+    x_guest_session_id: Optional[str] = None
+) -> Tuple[Dict[str, Any], Dict[str, Any], str, List[Dict[str, Any]]]:
     """
     Resolves (stats, deep_profile, player_name, games) from RAM cache, DB analysis_runs,
     or on-demand player games analysis.
@@ -40,7 +44,11 @@ def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], 
         games = cached.get("games") or []
         if not games and cached.get("player_id"):
             try:
-                games, _ = _resolve_games_for_player(cached["player_id"])
+                games, _ = _resolve_games_for_player(
+                    cached["player_id"],
+                    x_user_id=x_user_id,
+                    x_guest_session_id=x_guest_session_id
+                )
             except Exception:
                 games = []
         return cached["stats_raw"], cached["deep_profile_raw"], cached.get("player_name", "Kỳ thủ"), games
@@ -56,41 +64,54 @@ def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], 
         player_name = "Kỳ thủ"
         games: List[Dict[str, Any]] = []
         try:
-            games, _ = _resolve_games_for_player(player_id)
+            games, resolved_name = _resolve_games_for_player(
+                player_id,
+                x_user_id=x_user_id,
+                x_guest_session_id=x_guest_session_id
+            )
+            if resolved_name and resolved_name != "Player":
+                player_name = resolved_name
         except Exception:
             games = []
 
-        try:
-            for p in DBService.get_all_players():
-                if p.get("id") == player_id:
-                    player_name = p.get("canonical_name", "Kỳ thủ")
-                    break
-        except Exception as e:
-            logger.warning(f"Error fetching player name: {e}")
+        if player_name == "Kỳ thủ":
+            try:
+                db_player = DBService.get_player(player_id)
+                if db_player and db_player.get("canonical_name"):
+                    player_name = db_player["canonical_name"]
+            except Exception as e:
+                logger.warning(f"Error fetching player name: {e}")
 
-        total_games = int(db_run.get("games_analyzed_count") or len(games) or 0)
-        win_rate = float(db_run.get("overall_win_rate") or 50.0)
-        overall_score = float(db_run.get("overall_score") or 50.0)
-        white_score = float(db_run.get("white_score") or 50.0)
-        black_score = float(db_run.get("black_score") or 50.0)
-        wins = int(round(total_games * (win_rate / 100.0)))
+        if games:
+            from src.stats import calculate_game_stats
+            stats = calculate_game_stats(games)
+        else:
+            total_games = int(db_run.get("games_analyzed_count") or 0)
+            win_rate = float(db_run.get("overall_win_rate") or 50.0)
+            overall_score = float(db_run.get("overall_score") or 50.0)
+            white_score = float(db_run.get("white_score") or 50.0)
+            black_score = float(db_run.get("black_score") or 50.0)
+            wins = int(round(total_games * (win_rate / 100.0)))
+            draw_rate = max(0.0, min(100.0 - win_rate, round((overall_score - win_rate) * 2.0, 1)))
+            draws = max(0, int(round(total_games * (draw_rate / 100.0))))
+            losses = max(0, total_games - wins - draws)
+            stats = {
+                "total_games": total_games,
+                "score_percentage": overall_score,
+                "win_rate": win_rate,
+                "draw_rate": draw_rate,
+                "loss_rate": max(0.0, round(100.0 - win_rate - draw_rate, 1)),
+                "wins": wins,
+                "draws": draws,
+                "losses": losses,
+                "white_games": int(round(total_games / 2)),
+                "black_games": max(0, total_games - int(round(total_games / 2))),
+                "white_score_percentage": white_score,
+                "black_score_percentage": black_score,
+            }
+
         repertoire = db_run.get("repertoire_summary") or {}
         pawn_structures = db_run.get("pawn_structures_summary") or {}
-
-        stats = {
-            "total_games": total_games,
-            "score_percentage": overall_score,
-            "win_rate": win_rate,
-            "draw_rate": 0.0,
-            "loss_rate": max(0.0, round(100.0 - win_rate, 1)),
-            "wins": wins,
-            "draws": 0,
-            "losses": max(0, total_games - wins),
-            "white_games": int(round(total_games / 2)),
-            "black_games": max(0, total_games - int(round(total_games / 2))),
-            "white_score_percentage": white_score,
-            "black_score_percentage": black_score,
-        }
 
         deep_profile = {
             "repertoire": repertoire,
@@ -116,7 +137,11 @@ def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], 
     # 3. Fallback: try resolving games for player and running complete analysis
     if re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", clean_id, re.I):
         try:
-            games, player_name = _resolve_games_for_player(clean_id)
+            games, player_name = _resolve_games_for_player(
+                clean_id,
+                x_user_id=x_user_id,
+                x_guest_session_id=x_guest_session_id
+            )
             if games:
                 run_res = AnalysisService.run_complete_analysis(
                     games=games,
@@ -140,22 +165,31 @@ def _resolve_run_snapshot(run_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], 
 
 
 @router.post("/briefing", response_model=BaseResponse[BriefingResponse])
-async def generate_briefing(req: BriefingRequest):
+async def generate_briefing(
+    req: BriefingRequest,
+    x_user_id: Optional[str] = Header(None),
+    x_guest_session_id: Optional[str] = Header(None)
+):
     """
     Generates a proactive strategic briefing (Self or Opponent view) based on an analysis run.
     """
-    stats, deep_profile, player_name, _ = _resolve_run_snapshot(req.run_id)
+    stats, deep_profile, player_name, _ = _resolve_run_snapshot(
+        req.run_id,
+        x_user_id=x_user_id,
+        x_guest_session_id=x_guest_session_id
+    )
+    effective_mode = "opponent" if req.perspective_mode == "opponent" else "self"
 
     briefing_text, suggested_q = AIService.generate_briefing(
         player_name=player_name,
         stats=stats,
         deep_profile=deep_profile,
-        perspective_mode=req.perspective_mode
+        perspective_mode=effective_mode
     )
 
     data = BriefingResponse(
         run_id=req.run_id,
-        perspective_mode=req.perspective_mode,
+        perspective_mode=effective_mode,
         strategic_briefing=briefing_text,
         suggested_questions=suggested_q
     )
@@ -163,7 +197,11 @@ async def generate_briefing(req: BriefingRequest):
 
 
 @router.post("/chat-stream")
-async def chat_with_ai_coach(req: ChatRequest):
+async def chat_with_ai_coach(
+    req: ChatRequest,
+    x_user_id: Optional[str] = Header(None),
+    x_guest_session_id: Optional[str] = Header(None)
+):
     """
     Server-Sent Events (SSE) streaming endpoint for real-time tactical chess coaching.
     """
@@ -178,7 +216,11 @@ async def chat_with_ai_coach(req: ChatRequest):
         primary_stats = None
         primary_profile = None
         for pid in target_ids:
-            p_stats, p_deep_profile, p_name, p_games = _resolve_run_snapshot(pid)
+            p_stats, p_deep_profile, p_name, p_games = _resolve_run_snapshot(
+                pid,
+                x_user_id=x_user_id,
+                x_guest_session_id=x_guest_session_id
+            )
             names.append(p_name)
             if primary_stats is None:
                 primary_stats = p_stats
@@ -199,14 +241,18 @@ async def chat_with_ai_coach(req: ChatRequest):
         context = (
             f"=== CHẾ ĐỘ PHÂN TÍCH ĐA HỒ SƠ (MULTI-PROFILE MATCHUP) ===\n"
             f"Người dùng đang chọn cùng lúc {len(names)} hồ sơ kỳ thủ ({combined_player_name}) để đối chiếu, so sánh phong cách, khai cuộc và chiến thuật đối đầu.\n\n"
-            + "\n\n" + ("=" * 40) + "\n\n".join(contexts)
+            + ("\n\n" + "=" * 40 + "\n\n").join(contexts)
         )
         stats = primary_stats
         deep_profile = primary_profile
         player_name = combined_player_name
     else:
         target_id = target_ids[0] if target_ids else (req.player_id or req.run_id)
-        stats, deep_profile, player_name, games = _resolve_run_snapshot(target_id)
+        stats, deep_profile, player_name, games = _resolve_run_snapshot(
+            target_id,
+            x_user_id=x_user_id,
+            x_guest_session_id=x_guest_session_id
+        )
         context = AIService.build_prompt_context(
             player_name=player_name,
             stats=stats,
@@ -219,6 +265,7 @@ async def chat_with_ai_coach(req: ChatRequest):
         )
 
     history_dicts = [{"role": m.role, "content": m.content} for m in req.history]
+    effective_perspective = "opponent" if req.perspective_mode == "opponent" else "self"
 
     def event_generator():
         try:
@@ -228,7 +275,7 @@ async def chat_with_ai_coach(req: ChatRequest):
                 stats=stats,
                 deep_profile=deep_profile,
                 chat_history=history_dicts,
-                perspective_mode=req.perspective_mode or "neutral",
+                perspective_mode=effective_perspective,
                 player_name=player_name,
                 current_fen=req.current_fen,
                 engine_eval=req.engine_eval,

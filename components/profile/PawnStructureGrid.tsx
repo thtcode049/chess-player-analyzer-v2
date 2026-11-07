@@ -230,17 +230,40 @@ export default function PawnStructureGrid({
         <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] font-semibold text-muted-foreground">Độ tin cậy:</span>
-            <span
-              className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                item.confidence === "high"
+            {(() => {
+              const conf = item.confidence;
+              const confLevel =
+                typeof conf === "object" && conf !== null
+                  ? String(conf.level || "low").toLowerCase()
+                  : typeof conf === "string"
+                  ? conf.toLowerCase()
+                  : "low";
+              const confLabel =
+                typeof conf === "object" && conf !== null
+                  ? conf.label || (confLevel === "high" ? "Cao" : confLevel === "medium" ? "Trung bình" : "Thấp")
+                  : typeof conf === "string"
+                  ? conf === "high"
+                    ? "Cao"
+                    : conf === "medium"
+                    ? "Trung bình"
+                    : conf === "low"
+                    ? "Thấp"
+                    : conf
+                  : "N/A";
+
+              const badgeColor =
+                confLevel === "high"
                   ? "bg-emerald-50 text-emerald-800"
-                  : item.confidence === "medium"
+                  : confLevel === "medium"
                   ? "bg-amber-50 text-amber-800"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {item.confidence || "N/A"}
-            </span>
+                  : "bg-muted text-muted-foreground";
+
+              return (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${badgeColor}`}>
+                  {confLabel}
+                </span>
+              );
+            })()}
           </div>
 
           <div className="flex items-center gap-2">

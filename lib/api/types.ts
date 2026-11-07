@@ -183,7 +183,14 @@ export interface PawnStructureItem {
   score_pct: number;
   adjusted_score_pct?: number;
   delta_vs_baseline?: number;
-  confidence?: string;
+  confidence?:
+    | string
+    | {
+        level?: string;
+        label?: string;
+        color?: string;
+        sample_size?: number;
+      };
   assessment_badge?: string;
   assessment_color?: string;
   games?: PawnStructureGame[];

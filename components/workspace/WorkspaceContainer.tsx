@@ -74,10 +74,48 @@ export default function WorkspaceContainer({
 
     if (initialView === "hub") {
       openHub();
-    } else if (initialView === "workspace" || targetPlayerId) {
+      if (typeof window !== "undefined" && window.location.pathname === "/dashboard") {
+        window.history.replaceState(null, "", "/players");
+      }
+    } else {
       closeHub();
     }
-  }, [targetPlayerId, initialTab, initialView]);
+  }, [targetPlayerId, initialTab, initialView, openHub, closeHub, selectSingleProfile, setActiveTab, activePlayerId, activeTab]);
+
+  // Synchronize browser Back / Forward history navigation across workspace tabs
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window === "undefined") return;
+      const pathname = window.location.pathname;
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlPlayerId = searchParams.get("playerId") || undefined;
+      const view = searchParams.get("view");
+
+      if (pathname === "/players" || view === "hub") {
+        openHub();
+      } else if (pathname === "/dashboard") {
+        closeHub();
+        setActiveTab("profile");
+        if (urlPlayerId) {
+          selectSingleProfile(urlPlayerId, "profile");
+        }
+      } else if (pathname === "/analyze") {
+        closeHub();
+        setActiveTab("board");
+        if (urlPlayerId) {
+          selectSingleProfile(urlPlayerId, "board");
+        }
+      } else if (pathname === "/ai-coach") {
+        closeHub();
+        setActiveTab("ai");
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [openHub, closeHub, setActiveTab, selectSingleProfile]);
 
   return (
     <SafeChessboardDnDProvider>

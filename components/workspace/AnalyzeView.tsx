@@ -2106,7 +2106,16 @@ export function AnalyzeContent() {
           isSandboxMode={workspaceStore.activeMode === "sandbox"}
           isMultiMode={workspaceStore.activeMode === "multi"}
           multiProfiles={workspaceStore.multiProfiles}
-          onEditMatchup={() => workspaceStore.openHub()}
+          onEditMatchup={() => {
+            workspaceStore.openHub();
+            if (typeof window !== "undefined") {
+              const currentFull = window.location.pathname + window.location.search;
+              if (currentFull !== "/players") {
+                window.history.pushState(null, "", "/players");
+                window.dispatchEvent(new PopStateEvent("popstate"));
+              }
+            }
+          }}
         />
       </div>
     </>
@@ -2308,7 +2317,16 @@ export function AnalyzeContent() {
                     isSandboxMode={workspaceStore.activeMode === "sandbox"}
                     isMultiMode={workspaceStore.activeMode === "multi"}
                     multiProfiles={workspaceStore.multiProfiles}
-                    onEditMatchup={() => workspaceStore.openHub()}
+                    onEditMatchup={() => {
+                      workspaceStore.openHub();
+                      if (typeof window !== "undefined") {
+                        const currentFull = window.location.pathname + window.location.search;
+                        if (currentFull !== "/players") {
+                          window.history.pushState(null, "", "/players");
+                          window.dispatchEvent(new PopStateEvent("popstate"));
+                        }
+                      }
+                    }}
                   />
                 </div>
               </div>

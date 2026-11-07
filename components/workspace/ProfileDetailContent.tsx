@@ -182,6 +182,18 @@ export default function ProfileDetailContent({
     players,
   } = useProfileWorkspaceStore();
 
+  const handleOpenHub = () => {
+    openHub();
+    if (typeof window !== "undefined") {
+      const targetPath = "/players";
+      const currentFull = window.location.pathname + window.location.search;
+      if (currentFull !== targetPath) {
+        window.history.pushState(null, "", targetPath);
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      }
+    }
+  };
+
   const player = activePlayer;
   const games = activePlayerGames;
   const analysisRun = activePlayerRun;
@@ -618,7 +630,7 @@ export default function ProfileDetailContent({
           </Link>
           <button
             type="button"
-            onClick={openHub}
+            onClick={handleOpenHub}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded bg-card border border-border/80 text-muted-foreground hover:text-foreground text-xs font-semibold transition cursor-pointer"
           >
             <FolderOpen className="w-4 h-4" />
@@ -644,7 +656,7 @@ export default function ProfileDetailContent({
         <div className="flex flex-wrap items-center justify-center gap-2.5">
           <button
             type="button"
-            onClick={openHub}
+            onClick={handleOpenHub}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition cursor-pointer"
           >
             <FolderOpen className="w-4 h-4" />

@@ -103,6 +103,30 @@ export default function ProfileHub() {
     [multiProfiles]
   );
 
+  const handleSelectSingleProfile = (playerId: string) => {
+    selectSingleProfile(playerId, "profile");
+    if (typeof window !== "undefined") {
+      const targetPath = `/dashboard?playerId=${encodeURIComponent(playerId)}`;
+      const currentFull = window.location.pathname + window.location.search;
+      if (currentFull !== targetPath) {
+        window.history.pushState(null, "", targetPath);
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      }
+    }
+  };
+
+  const handleOpenMatchupBoard = async () => {
+    await openMatchupBoard();
+    if (typeof window !== "undefined") {
+      const targetPath = "/analyze";
+      const currentFull = window.location.pathname + window.location.search;
+      if (currentFull !== targetPath) {
+        window.history.pushState(null, "", targetPath);
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      }
+    }
+  };
+
   // Handlers for Create
   const handleOpenCreate = () => {
     setCreateName("");
@@ -366,7 +390,7 @@ export default function ProfileHub() {
                 key={player.id}
                 onClick={() => {
                   if (hubMode === "single") {
-                    selectSingleProfile(player.id, "profile");
+                    handleSelectSingleProfile(player.id);
                   }
                 }}
                 className={`group relative flex flex-col justify-between p-4 rounded-surface bg-card shadow-xs transition-colors ${
@@ -566,7 +590,7 @@ export default function ProfileHub() {
               <button
                 type="button"
                 disabled={isMatchupLoading}
-                onClick={openMatchupBoard}
+                onClick={handleOpenMatchupBoard}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded text-xs font-bold transition ${
                   isMatchupLoading
                     ? "bg-emerald-600/80 text-white cursor-wait"

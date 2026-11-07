@@ -33,21 +33,33 @@ export default function MobileBottomNav() {
   const handleNav = (tab: "hub" | "profile" | "board" | "ai") => {
     if (tab === "hub") {
       openHub();
+      const targetPath = "/players";
       if (!isWorkspace) {
-        window.location.href = "/players";
-      } else if (typeof window !== "undefined" && window.location.pathname !== "/players" && window.location.pathname !== "/dashboard") {
-        window.history.pushState(null, "", "/dashboard");
-        window.dispatchEvent(new PopStateEvent("popstate"));
+        window.location.href = targetPath;
+      } else if (typeof window !== "undefined") {
+        const currentFull = window.location.pathname + window.location.search;
+        if (currentFull !== targetPath) {
+          window.history.pushState(null, "", targetPath);
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        }
       }
     } else {
       setActiveTab(tab);
       closeHub();
-      const targetPath = tab === "profile" ? "/dashboard" : tab === "board" ? "/analyze" : "/ai-coach";
+      const querySuffix =
+        activeMode === "single" && activePlayerId
+          ? `?playerId=${encodeURIComponent(activePlayerId)}`
+          : "";
+      const basePath = tab === "profile" ? "/dashboard" : tab === "board" ? "/analyze" : "/ai-coach";
+      const targetPath = `${basePath}${querySuffix}`;
       if (!isWorkspace) {
         window.location.href = targetPath;
-      } else if (typeof window !== "undefined" && window.location.pathname !== targetPath) {
-        window.history.pushState(null, "", targetPath);
-        window.dispatchEvent(new PopStateEvent("popstate"));
+      } else if (typeof window !== "undefined") {
+        const currentFull = window.location.pathname + window.location.search;
+        if (currentFull !== targetPath) {
+          window.history.pushState(null, "", targetPath);
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        }
       }
     }
   };

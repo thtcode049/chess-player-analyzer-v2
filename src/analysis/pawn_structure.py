@@ -816,6 +816,10 @@ def detect_all_pawn_structures(board: chess.Board, ply: int = 20) -> List[Dict[s
     A, B, C, D, E, F, G, H = range(8)
     detected: List[Dict[str, Any]] = []
 
+    # Triệt tiêu nhận diện nhầm ở cờ tàn khi số tốt bị tiêu hao gần hết (tối thiểu 4 tốt mỗi bên)
+    if len(w_pawns) < 4 or len(b_pawns) < 4:
+        return detected
+
     # =========================================================================
     # FAMILY ONE: d4 and ...d5 (Chapters 1 - 7)
     # =========================================================================
@@ -1695,7 +1699,7 @@ def analyze_structural_performance(
     baseline_score: Optional[float] = None,
     prior_strength: float = DEFAULT_PRIOR_STRENGTH,
     lang: str = "vi",
-    min_move_window: int = 4,
+    min_move_window: int = 3,
     max_move_window: int = 16,
     min_persistence_plies: int = 3,
 ) -> Dict[str, Any]:

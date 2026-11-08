@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { 
@@ -407,11 +407,18 @@ function ImportContent() {
     return () => window.removeEventListener("storage", syncLichessToken);
   }, [userId]);
 
+  // Guard against duplicate OAuth processing
+  const hasProcessedOAuthRef = useRef<boolean>(false);
+
   // Handle Lichess OAuth redirect callback (fallback for direct callbacks)
   useEffect(() => {
     const code = searchParams.get("code");
     const state = searchParams.get("state");
     if (code && typeof window !== "undefined") {
+      const existingToken = sessionStorage.getItem("lichess_token") || localStorage.getItem("lichess_token");
+      if (hasProcessedOAuthRef.current) return;
+      hasProcessedOAuthRef.current = true;
+
       const savedVerifier = sessionStorage.getItem("lichess_oauth_verifier") || localStorage.getItem("lichess_oauth_verifier");
       const savedState = sessionStorage.getItem("lichess_oauth_state") || localStorage.getItem("lichess_oauth_state");
 
@@ -455,7 +462,13 @@ function ImportContent() {
             }
           })
           .catch((err) => {
-            setError(err.message || "Lỗi khi trao đổi mã xác thực với Lichess.");
+            const currentToken = sessionStorage.getItem("lichess_token") || localStorage.getItem("lichess_token");
+            const errMsg = String(err?.message || "");
+            if (currentToken && (errMsg.includes("consumed") || errMsg.includes("invalid_grant"))) {
+              setActiveTab("lichess");
+              return;
+            }
+            setError(errMsg || "Lỗi khi trao đổi mã xác thực với Lichess.");
           })
           .finally(() => {
             setIsVerifyingLichess(false);

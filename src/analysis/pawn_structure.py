@@ -852,36 +852,34 @@ def detect_all_pawn_structures(board: chess.Board, ply: int = 20) -> List[Dict[s
             "Đen giữ tốt cô lập d5 (hai cột c, e trống tốt Đen; Trắng không còn tốt d, tranh chấp ô phong tỏa d4).",
         ))
 
-    # Ch. 2: Hanging Pawns (bao gồm c4+d4 chính tắc và tiền đề c3+d4 sau Bxc3 bxc3 trong sách trang 38-40)
+    # Ch. 2: Hanging Pawns (Chuẩn Flores Rios trang 38: c4+d4 trên hàng 4 vs e6/e7/e5, không còn tốt b, e)
     w_hanging = (
         w_single(chess.D4)
-        and (w_single(chess.C4) or w_single(chess.C3))
+        and w_single(chess.C4)
         and w_empty(B)
         and w_empty(E)
         and b_empty(C)
         and b_empty(D)
-        and (chess.E6 in b_pawns or chess.E7 in b_pawns)
+        and (chess.E6 in b_pawns or chess.E7 in b_pawns or chess.E5 in b_pawns)
     )
     b_hanging = (
         b_single(chess.D5)
-        and (b_single(chess.C5) or b_single(chess.C6))
+        and b_single(chess.C5)
         and b_empty(B)
         and b_empty(E)
         and w_empty(C)
         and w_empty(D)
-        and (chess.E3 in w_pawns or chess.E2 in w_pawns)
+        and (chess.E3 in w_pawns or chess.E2 in w_pawns or chess.E4 in w_pawns)
     )
     if w_hanging:
-        c_sq = "c4" if chess.C4 in w_pawns else "c3"
         detected.append(_make_detected(
-            "Hanging_Pawns", "Hanging Pawns", "family_1", "Ch. 2", "white", f"{c_sq}/d4",
-            f"Trắng sở hữu cặp tốt treo {c_sq}+d4 không có tốt đồng minh ở cột b, e và phơi mình trên hai cột nửa mở c, d.",
+            "Hanging_Pawns", "Hanging Pawns", "family_1", "Ch. 2", "white", "c4/d4",
+            "Trắng sở hữu cặp tốt treo c4+d4 trên hàng 4 không có tốt đồng minh ở cột b, e và phơi mình trên hai cột nửa mở c, d.",
         ))
     elif b_hanging:
-        c_sq = "c5" if chess.C5 in b_pawns else "c6"
         detected.append(_make_detected(
-            "Hanging_Pawns", "Hanging Pawns", "family_1", "Ch. 2", "black", f"{c_sq}/d5",
-            f"Đen sở hữu cặp tốt treo {c_sq}+d5 không có tốt đồng minh ở cột b, e và phơi mình trên hai cột nửa mở c, d.",
+            "Hanging_Pawns", "Hanging Pawns", "family_1", "Ch. 2", "black", "c5/d5",
+            "Đen sở hữu cặp tốt treo c5+d5 trên hàng 5 không có tốt đồng minh ở cột b, e và phơi mình trên hai cột nửa mở c, d.",
         ))
 
     # Ch. 3: Caro-Kann Formation (...dxe4: một bên giữ d4 không tốt e, bên kia giữ c6+e6/e7 không tốt d)
@@ -954,13 +952,13 @@ def detect_all_pawn_structures(board: chess.Board, ply: int = 20) -> List[Dict[s
             "Đen kiểm soát d5 với cột c nửa mở, Trắng giữ c2/c3+e2/e3 không còn tốt d (Slav Formation đảo màu).",
         ))
 
-    # Ch. 5: The Carlsbad Formation (Chuẩn QGD Exchange + biến a7-b6-c7 trang 88 + Đảo màu Caro-Kann Exchange)
+    # Ch. 5: The Carlsbad Formation (Chuẩn QGD Exchange Flores Rios Ch. 5: Trắng d4+e3 cột c mở vs Đen c6+d5 cột e mở)
     std_carlsbad = (
         w_single(chess.D4)
         and (chess.E3 in w_pawns or chess.E2 in w_pawns)
         and (chess.E4 not in w_pawns)
         and (chess.E5 not in w_pawns)
-        and (w_empty(C) or (w_single(chess.C3) and w_empty(B)))
+        and w_empty(C)
         and (chess.F4 not in w_pawns)
         and b_single(chess.D5)
         and b_empty(E)
@@ -968,32 +966,10 @@ def detect_all_pawn_structures(board: chess.Board, ply: int = 20) -> List[Dict[s
         and b_has(F)
         and (chess.F5 not in b_pawns)
     )
-    rev_carlsbad = (
-        w_single(chess.D4)
-        and w_empty(E)
-        and (
-            w_single(chess.C3)
-            or (w_single(chess.C2) and w_single(chess.B3) and chess.A2 in w_pawns)
-            or (w_single(chess.C2) and w_has(B))
-        )
-        and w_has(F)
-        and (chess.F4 not in w_pawns)
-        and b_single(chess.D5)
-        and b_empty(C)
-        and (chess.E6 in b_pawns or chess.E7 in b_pawns)
-        and (chess.E4 not in b_pawns)
-        and b_has(F)
-        and (chess.F5 not in b_pawns)
-    )
     if std_carlsbad:
         detected.append(_make_detected(
             "Carlsbad_Formation", "The Carlsbad Formation", "family_1", "Ch. 5", "white", "d4/e3 vs c6/d5",
-            "Cấu trúc Carlsbad chuẩn: Trắng giữ xích d4+e3 (cột c nửa mở), Đen giữ d5+c6/b6 (cột e nửa mở).",
-        ))
-    elif rev_carlsbad:
-        detected.append(_make_detected(
-            "Carlsbad_Formation", "The Carlsbad Formation", "family_1", "Ch. 5", "black", "c3/d4 vs d5/e6",
-            "Cấu trúc Carlsbad đảo màu: Trắng giữ c3+d4 (cột e nửa mở), Đen giữ d5+e6 (cột c nửa mở).",
+            "Cấu trúc Carlsbad chuẩn Flores Rios: Trắng giữ xích d4+e3 (cột c nửa mở), Đen giữ d5+c6/b6 (cột e nửa mở).",
         ))
 
     # Ch. 6: Stonewall (Tốt e bắt buộc đã dâng lên e6/e3 tạo lỗ hổng tĩnh e5/e4 và không bị khóa thành xích Pháp)
@@ -1110,6 +1086,8 @@ def detect_all_pawn_structures(board: chess.Board, ply: int = 20) -> List[Dict[s
     std_najdorf_2 = (
         w_single(chess.E4)
         and w_empty(D)
+        and (chess.C4 not in w_pawns)
+        and (chess.C5 not in w_pawns)
         and b_single(chess.D6)
         and b_single(chess.E5)
         and b_empty(C)
@@ -1717,8 +1695,8 @@ def analyze_structural_performance(
     baseline_score: Optional[float] = None,
     prior_strength: float = DEFAULT_PRIOR_STRENGTH,
     lang: str = "vi",
-    min_move_window: int = 8,
-    max_move_window: int = 25,
+    min_move_window: int = 4,
+    max_move_window: int = 16,
     min_persistence_plies: int = 3,
 ) -> Dict[str, Any]:
     """
@@ -1853,21 +1831,12 @@ def analyze_structural_performance(
                             "formation_ply": ply,
                             "formation_fen": board.fen(),
                             "evidence": st.get("evidence", ""),
-                        } if ply >= min_ply_window else None,
+                        },
                     }
                 else:
                     entry = active_streaks[st_name]
                     entry["total_streak"] += 1
                     if ply >= min_ply_window:
-                        if entry["snap"] is None:
-                            if ply > max_ply_window:
-                                continue
-                            entry["snap"] = {
-                                "formation_move": move_number,
-                                "formation_ply": ply,
-                                "formation_fen": board.fen(),
-                                "evidence": st.get("evidence", ""),
-                            }
                         entry["window_streak"] += 1
 
                 entry = active_streaks.get(st_name)

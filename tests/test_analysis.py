@@ -392,3 +392,79 @@ def test_intent_router_pawn_structure_answer():
     assert "Kế hoạch Chiến lược Chuẩn Đại Kiện tướng" in answer
     assert "Kế hoạch hành động tiêu biểu của bên Trắng" in answer
     assert "Kế hoạch tác chiến tiêu biểu của bên Đen" in answer
+
+
+def test_hanging_pawns_strict_c4_d4_and_no_c3_trade_false_positive():
+    """
+    Kiểm tra triệt tiêu bắt nhầm Hanging Pawns khi chỉ có c3+d4 sau đổi quân cờ tàn (như ván shukla513 vs vpbuonngu),
+    và khẳng định nhận diện chuẩn xác khi cặp tốt treo nằm trên c4+d4 (rank 4).
+    """
+    # 1. Thế cờ nước 24 của shukla513 (bxc3 tạo c3+d4): KHÔNG ĐƯỢC NHẬN DIỆN LÀ HANGING PAWNS
+    board_shukla_move24 = chess.Board()
+    board_shukla_move24.clear()
+    for sq in [chess.A3, chess.C3, chess.D4, chess.F2, chess.G3, chess.H3]:
+        board_shukla_move24.set_piece_at(sq, chess.Piece(chess.PAWN, chess.WHITE))
+    for sq in [chess.A6, chess.B5, chess.E6, chess.F7, chess.G7, chess.H6]:
+        board_shukla_move24.set_piece_at(sq, chess.Piece(chess.PAWN, chess.BLACK))
+    board_shukla_move24.set_piece_at(chess.E1, chess.Piece(chess.KING, chess.WHITE))
+    board_shukla_move24.set_piece_at(chess.E8, chess.Piece(chess.KING, chess.BLACK))
+
+    det_shukla = detect_all_pawn_structures(board_shukla_move24)
+    assert not any(s["structure"] == "Hanging_Pawns" for s in det_shukla), "False positive: c3+d4 must NOT be classified as Hanging Pawns"
+
+    # 2. Cặp tốt treo chuẩn trên c4+d4: BẮT BUỘC NHẬN DIỆN CHÍNH XÁC
+    board_hanging_true = chess.Board("r1bq1rk1/pp3ppp/2n1pn2/8/2PP4/2N2N2/P4PPP/R1BQ1RK1 w - - 0 10")
+    det_true = detect_all_pawn_structures(board_hanging_true)
+    assert any(s["structure"] == "Hanging_Pawns" for s in det_true), "True Hanging Pawns (c4+d4) must be detected"
+
+
+def test_carlsbad_strict_no_caro_kann_exchange_false_positive():
+    """
+    Kiểm tra triệt tiêu nhận diện nhầm Carlsbad Formation ở khai cuộc Đổi Caro-Kann (như ván kanario4738 vs vpbuonngu),
+    và khẳng định nhận diện chuẩn xác cho Gambit Hậu đổi (QGD Exchange) ở nước 5.
+    """
+    # 1. Khai cuộc Đổi Caro-Kann (1. e4 c6 2. d4 d5 3. exd5 cxd5 4. Bd3 Nf6 5. c3 Nc6 ... 8... e6):
+    # Trắng có c3+d4, Đen có d5+e6 -> KHÔNG ĐƯỢC NHẬN DIỆN LÀ CARLSBAD (Flores Rios Ch. 5)
+    board_caro_exchange = chess.Board()
+    board_caro_exchange.clear()
+    for sq in [chess.A2, chess.B2, chess.C3, chess.D4, chess.F2, chess.G2, chess.H2]:
+        board_caro_exchange.set_piece_at(sq, chess.Piece(chess.PAWN, chess.WHITE))
+    for sq in [chess.A7, chess.B7, chess.D5, chess.E6, chess.F7, chess.G7, chess.H7]:
+        board_caro_exchange.set_piece_at(sq, chess.Piece(chess.PAWN, chess.BLACK))
+    board_caro_exchange.set_piece_at(chess.E1, chess.Piece(chess.KING, chess.WHITE))
+    board_caro_exchange.set_piece_at(chess.E8, chess.Piece(chess.KING, chess.BLACK))
+
+    det_caro = detect_all_pawn_structures(board_caro_exchange)
+    assert not any(s["structure"] == "Carlsbad_Formation" for s in det_caro), "False positive: Caro-Kann Exchange must NOT be classified as Carlsbad"
+
+    # 2. Chuẩn Gambit Hậu đổi (QGD Exchange - White d4+e3, Black c6+d5): BẮT BUỘC NHẬN DIỆN CHÍNH XÁC
+    board_qgd_carlsbad = chess.Board("r1bq1rk1/pp1nbppp/2p1pn2/3p4/2PP4/2N1PN2/PPQ2PPP/R1B1KB1R w KQ - 0 7")
+    det_carlsbad = detect_all_pawn_structures(board_qgd_carlsbad)
+    # After cxd5 exd5
+    board_carlsbad_open_c = chess.Board("r1bq1rk1/pp1nbppp/2p2n2/3p4/3P4/2N1PN2/PPQ2PPP/R1B1KB1R w KQ - 0 8")
+    det_open_c = detect_all_pawn_structures(board_carlsbad_open_c)
+    assert any(s["structure"] == "Carlsbad_Formation" for s in det_open_c), "True Carlsbad (White d4+e3 vs Black c6+d5) must be detected"
+
+
+def test_accurate_formation_timing_and_ply():
+    """
+    Kiểm tra thời điểm hình thành (formation_move, formation_ply) được ghi nhận chính xác
+    ngay từ nước đầu tiên cấu trúc xuất hiện trong ván đấu thực tế.
+    """
+    # Ván QGD Exchange hình thành Carlsbad ở nước 5 (ply 10: 5... c6)
+    carlsbad_game = {
+        "white": "PlayerA",
+        "black": "PlayerB",
+        "player_color": "white",
+        "result": "1-0",
+        "moves": [
+            "d4", "d5", "c4", "e6", "Nc3", "Nf6", "cxd5", "exd5", "Bg5", "c6",
+            "e3", "Be7", "Bd3", "O-O", "Nf3", "Re8"
+        ]
+    }
+    res = analyze_structural_performance([carlsbad_game])
+    carlsbad = next((s for s in res["structures"] if s["structure_key"] == "Carlsbad_Formation"), None)
+    assert carlsbad is not None
+    assert carlsbad["typical_formation_move"] == 5
+    assert carlsbad["games"][0]["formation_move"] == 5
+    assert carlsbad["games"][0]["formation_ply"] == 10

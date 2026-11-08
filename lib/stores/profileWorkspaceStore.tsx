@@ -75,6 +75,7 @@ interface ProfileWorkspaceContextType {
   failedProfileIds: Record<string, string>;
   loadProfileData: (playerId: string, forceRefresh?: boolean) => Promise<CachedProfileData | null>;
   refreshProfileData: (playerId: string) => Promise<void>;
+  invalidateProfileData: (playerId: string) => void;
   retryLoadProfile: (playerId: string) => Promise<CachedProfileData | null>;
   seedProfileData: (profile: CachedProfileData) => void;
 
@@ -169,8 +170,37 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
   const singleTreeCacheRef = useRef<Map<string, OpeningTreeNode>>(new Map());
   const inFlightTreeRef = useRef<Map<string, Promise<OpeningTreeNode | null>>>(new Map());
 
+  const invalidateProfileData = useCallback((playerId: string) => {
+    if (!playerId) return;
+    delete cachedProfilesRef.current[playerId];
+    delete failedProfileIdsRef.current[playerId];
+    inFlightProfileLoadsRef.current.delete(playerId);
+    setCachedProfiles((prev) => {
+      if (!prev[playerId]) return prev;
+      const next = { ...prev };
+      delete next[playerId];
+      return next;
+    });
+    setFailedProfileIds((prev) => {
+      if (!prev[playerId]) return prev;
+      const next = { ...prev };
+      delete next[playerId];
+      return next;
+    });
+  }, []);
+
   const seedProfileData = useCallback((profile: CachedProfileData) => {
     if (!profile?.player?.id) return;
+    // Safety guard: do not poison cache if the seeded profile contains only partial sample games
+    const existing = cachedProfilesRef.current[profile.player.id];
+    if (existing && existing.games.length > profile.games.length) {
+      return;
+    }
+    const declaredTotal = profile.player.total_games || 0;
+    if (declaredTotal > profile.games.length) {
+      // Partial sample data should not be stored as full cached profile
+      return;
+    }
     cachedProfilesRef.current = {
       ...cachedProfilesRef.current,
       [profile.player.id]: profile,
@@ -344,20 +374,29 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
     async (playerId: string, forceRefresh = false): Promise<CachedProfileData | null> => {
       if (!playerId) return null;
 
-      // Check in-memory cache first
-      if (!forceRefresh && cachedProfilesRef.current[playerId]) {
+      // Deduplicate concurrent requests for the same playerId:
+      // If a load for this player is already in flight, reuse it to avoid duplicate network fetches
+      const existingLoad = inFlightProfileLoadsRef.current.get(playerId);
+      if (existingLoad && !forceRefresh) {
+        return existingLoad;
+      }
+
+      // If forceRefresh, clear cached entry immediately
+      if (forceRefresh) {
+        delete cachedProfilesRef.current[playerId];
+        setCachedProfiles((prev) => {
+          if (!prev[playerId]) return prev;
+          const next = { ...prev };
+          delete next[playerId];
+          return next;
+        });
+      } else if (cachedProfilesRef.current[playerId]) {
         return cachedProfilesRef.current[playerId];
       }
 
       // If previously failed and not forcing refresh, avoid infinite retry loop
       if (!forceRefresh && failedProfileIdsRef.current[playerId]) {
         return null;
-      }
-
-      // Deduplicate concurrent requests for the same playerId
-      const existingLoad = inFlightProfileLoadsRef.current.get(playerId);
-      if (!forceRefresh && existingLoad) {
-        return existingLoad;
       }
 
       setLoadingProfileId(playerId);
@@ -813,6 +852,7 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
       failedProfileIds,
       loadProfileData,
       refreshProfileData,
+      invalidateProfileData,
       retryLoadProfile,
       seedProfileData,
 
@@ -872,6 +912,7 @@ export function ProfileWorkspaceProvider({ children }: { children: React.ReactNo
       failedProfileIds,
       loadProfileData,
       refreshProfileData,
+      invalidateProfileData,
       retryLoadProfile,
       seedProfileData,
       activeMode,

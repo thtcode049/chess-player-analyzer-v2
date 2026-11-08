@@ -293,7 +293,7 @@ function ImportContent() {
   const paramPlayerId = searchParams.get("playerId") || "";
   const paramPlayerName = searchParams.get("playerName") || "";
 
-  const { selectSingleProfile, refreshPlayersList, seedProfileData } = useProfileWorkspaceStore();
+  const { selectSingleProfile, refreshPlayersList, invalidateProfileData, loadProfileData } = useProfileWorkspaceStore();
 
   const [activeTab, setActiveTab] = useState<"pgn" | "lichess" | "chesscom">("lichess");
   const [userId, setUserId] = useState<string | null>(null);
@@ -701,21 +701,8 @@ function ImportContent() {
       setResult(res);
 
       if (res?.player_id) {
-        seedProfileData({
-          player: {
-            id: res.player_id,
-            user_id: activeUserId || "guest",
-            canonical_name: res.primary_player || focusPlayer || "Kỳ thủ",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            total_games: (res.imported_count || 0) + (res.skipped_count || 0),
-            is_guest: !activeUserId,
-            expires_at: !activeUserId ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
-          },
-          games: res.sample_games || [],
-          run: null,
-          loadedAt: Date.now(),
-        });
+        invalidateProfileData(res.player_id);
+        loadProfileData(res.player_id, true).catch(() => {});
       }
 
       refreshPlayersList().catch(() => {});
@@ -802,21 +789,8 @@ function ImportContent() {
       setResult(res);
 
       if (res?.player_id) {
-        seedProfileData({
-          player: {
-            id: res.player_id,
-            user_id: activeUserId || "guest",
-            canonical_name: res.primary_player || lichessUsername.trim(),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            total_games: (res.imported_count || 0) + (res.skipped_count || 0),
-            is_guest: !activeUserId,
-            expires_at: !activeUserId ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
-          },
-          games: res.sample_games || [],
-          run: null,
-          loadedAt: Date.now(),
-        });
+        invalidateProfileData(res.player_id);
+        loadProfileData(res.player_id, true).catch(() => {});
       }
 
       refreshPlayersList().catch(() => {});
@@ -900,21 +874,8 @@ function ImportContent() {
       setResult(res);
 
       if (res?.player_id) {
-        seedProfileData({
-          player: {
-            id: res.player_id,
-            user_id: activeUserId || "guest",
-            canonical_name: res.primary_player || chesscomUsername.trim(),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            total_games: (res.imported_count || 0) + (res.skipped_count || 0),
-            is_guest: !activeUserId,
-            expires_at: !activeUserId ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
-          },
-          games: res.sample_games || [],
-          run: null,
-          loadedAt: Date.now(),
-        });
+        invalidateProfileData(res.player_id);
+        loadProfileData(res.player_id, true).catch(() => {});
       }
 
       refreshPlayersList().catch(() => {});

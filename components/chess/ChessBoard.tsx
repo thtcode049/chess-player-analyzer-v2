@@ -140,15 +140,59 @@ export default function ChessBoard({
   onBoardWidthChange,
   fitParentHeight = false,
 }: ChessBoardProps) {
-  const [game, setGame] = useState(() => tryCreateChess(initialFen));
-  const [currentPositionFen, setCurrentPositionFen] = useState<string>(
-    () => normalizeFen(initialFen) || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  const cleanInitial = useMemo(
+    () => normalizeFen(initialFen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"),
+    [initialFen]
   );
+
+  const historyFens = useMemo(() => {
+    const playable = checkPlayable(cleanInitial);
+    if (!playable) return [cleanInitial];
+
+    const newGame = new Chess();
+    if (cleanInitial && cleanInitial !== "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
+      try {
+        newGame.load(cleanInitial);
+      } catch {}
+    }
+    const fens = [newGame.fen()];
+    if (moves && moves.length > 0) {
+      for (const m of moves) {
+        try {
+          newGame.move(m);
+          fens.push(newGame.fen());
+        } catch {
+          break;
+        }
+      }
+    }
+    return fens;
+  }, [cleanInitial, moves]);
+
+  const [internalPly, setInternalPly] = useState(0);
+
+  // When externalPly is passed, it takes precedence; otherwise use internalPly
+  const currentPly = useMemo(() => {
+    const requested = typeof externalPly === "number" ? externalPly : internalPly;
+    return Math.max(0, Math.min(requested, Math.max(0, historyFens.length - 1)));
+  }, [externalPly, internalPly, historyFens.length]);
+
+  const currentPositionFen = useMemo(() => {
+    return historyFens[currentPly] || cleanInitial;
+  }, [historyFens, currentPly, cleanInitial]);
+
   const isPlayable = useMemo(() => checkPlayable(currentPositionFen), [currentPositionFen]);
+
+  const game = useMemo(() => {
+    if (!isPlayable) return tryCreateChess(cleanInitial);
+    try {
+      return new Chess(currentPositionFen);
+    } catch {
+      return tryCreateChess(cleanInitial);
+    }
+  }, [currentPositionFen, isPlayable, cleanInitial]);
+
   const [boardOrientation, setBoardOrientation] = useState<"white" | "black">(orientation);
-  const [currentPly, setCurrentPly] = useState(0);
-  const [historyFens, setHistoryFens] = useState<string[]>([normalizeFen(initialFen)]);
-  const lastProcessedMoves = useRef<string>("");
   const rootRef = useRef<HTMLDivElement>(null);
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const hasPlayersBar = Boolean(playersInfo);
@@ -277,116 +321,24 @@ export default function ChessBoard({
   // Navigate to specific ply cleanly (called once per navigation)
   const jumpToPly = useCallback(
     (targetPly: number) => {
-      if (targetPly < 0 || targetPly >= historyFens.length) return;
-      const targetFen = historyFens[targetPly];
-      const playable = checkPlayable(targetFen);
-      if (playable) {
-        try {
-          setGame(new Chess(targetFen));
-        } catch {}
-      }
-      setCurrentPositionFen(targetFen);
-      setCurrentPly(targetPly);
-
-      if (isEngineEnabled && playable) {
-        evaluateFen(targetFen, 20);
-      } else if (!playable) {
-        stop();
-      }
+      const clamped = Math.max(0, Math.min(targetPly, Math.max(0, historyFens.length - 1)));
+      setInternalPly(clamped);
+      const targetFen = historyFens[clamped] || cleanInitial;
       if (onPositionChange) {
-        onPositionChange(targetFen, targetPly);
+        onPositionChange(targetFen, clamped);
       }
     },
-    [historyFens, isEngineEnabled, evaluateFen, stop, onPositionChange]
+    [historyFens, cleanInitial, onPositionChange]
   );
 
-  // Stop or restart evaluation ONLY when isEngineEnabled toggles
+  // Trigger Stockfish WASM evaluation when currentPositionFen changes or engine enabled toggles
   useEffect(() => {
     if (!isEngineEnabled || !isPlayable) {
       stop();
     } else {
-      const activeFen = historyFens[currentPly] || currentPositionFen;
-      if (checkPlayable(activeFen)) {
-        evaluateFen(activeFen, 20);
-      }
+      evaluateFen(currentPositionFen, 20);
     }
-  }, [isEngineEnabled, isPlayable]);
-
-  // Reset or initialize if external moves or initialFen prop changes
-  useEffect(() => {
-    const cleanInitial = normalizeFen(initialFen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-    const movesKey = `${cleanInitial}__${moves.join(" ")}`;
-    if (movesKey === lastProcessedMoves.current) {
-      return;
-    }
-    lastProcessedMoves.current = movesKey;
-
-    const playable = checkPlayable(cleanInitial);
-    if (!playable) {
-      // Non-playable board (e.g. bare pawn skeleton without kings)
-      setHistoryFens([cleanInitial]);
-      setCurrentPositionFen(cleanInitial);
-      setCurrentPly(0);
-      stop();
-      if (onPositionChange) {
-        onPositionChange(cleanInitial, 0);
-      }
-      return;
-    }
-
-    const newGame = new Chess();
-    if (cleanInitial && cleanInitial !== "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
-      try {
-        newGame.load(cleanInitial);
-      } catch {}
-    }
-    const fens = [newGame.fen()];
-
-    if (moves && moves.length > 0) {
-      for (const m of moves) {
-        try {
-          newGame.move(m);
-          fens.push(newGame.fen());
-        } catch {
-          break;
-        }
-      }
-    }
-
-    setHistoryFens(fens);
-
-    // Determine starting ply: prioritize externalPly if valid, otherwise end of game
-    const targetPly =
-      typeof externalPly === "number" && externalPly >= 0 && externalPly < fens.length
-        ? externalPly
-        : fens.length - 1;
-
-    const targetFen = fens[targetPly];
-    try {
-      setGame(new Chess(targetFen));
-    } catch {}
-    setCurrentPositionFen(targetFen);
-    setCurrentPly(targetPly);
-
-    if (isEngineEnabled) {
-      evaluateFen(targetFen, 20);
-    }
-    if (onPositionChange) {
-      onPositionChange(targetFen, targetPly);
-    }
-  }, [moves, initialFen]);
-
-  // Synchronize with externalPly changes (e.g. from MoveHistory click or parent)
-  useEffect(() => {
-    if (
-      typeof externalPly === "number" &&
-      externalPly !== currentPly &&
-      externalPly >= 0 &&
-      externalPly < historyFens.length
-    ) {
-      jumpToPly(externalPly);
-    }
-  }, [externalPly, currentPly, historyFens.length, jumpToPly]);
+  }, [currentPositionFen, isEngineEnabled, isPlayable, evaluateFen, stop]);
 
   const handleFirst = useCallback(() => jumpToPly(0), [jumpToPly]);
   const handlePrev = useCallback(() => jumpToPly(Math.max(0, currentPly - 1)), [jumpToPly, currentPly]);
@@ -447,21 +399,14 @@ export default function ChessBoard({
         const result = gameCopy.move(move);
         if (result) {
           const newFen = gameCopy.fen();
-          setGame(gameCopy);
-          setCurrentPositionFen(newFen);
           const nextPly = currentPly + 1;
-          const newFens = historyFens.slice(0, currentPly + 1);
-          newFens.push(newFen);
-          setHistoryFens(newFens);
-          setCurrentPly(nextPly);
-
-          // Track in lastProcessedMoves so the moves useEffect won't duplicate
           const updatedMoves = [...moves.slice(0, currentPly), result.san];
-          lastProcessedMoves.current = `${initialFen}__${updatedMoves.join(" ")}`;
 
-          if (isEngineEnabled) {
-            evaluateFen(newFen, 20);
-          }
+          setInternalPly(nextPly);
+          setMoveFrom(null);
+          setOptionSquares({});
+          setRightClickedSquares({});
+          setCustomArrows([]);
 
           // Update move list and notify parent
           if (onMakeMove) {
@@ -481,7 +426,7 @@ export default function ChessBoard({
       }
       return false;
     },
-    [isPlayable, currentPositionFen, currentPly, historyFens, moves, initialFen, isEngineEnabled, evaluateFen, onPositionChange, onMovesChange, onMakeMove]
+    [isPlayable, currentPositionFen, currentPly, moves, onMakeMove, onMovesChange, onPositionChange]
   );
 
   // Calculate legal move visual styles (dots for moves, rings for captures)

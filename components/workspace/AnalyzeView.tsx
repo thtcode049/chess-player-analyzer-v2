@@ -838,48 +838,77 @@ export function AnalyzeContent() {
   const handleLoadStructureGame = useCallback((structGame: PawnStructureGame, indexInStruct: number) => {
     setActiveStructureGameIdx(indexInStruct);
 
-    const gameKey = `${structGame.id || structGame.game_index || indexInStruct}`;
-    if (loadedStructureGameKeyRef.current === gameKey && moves.length > 0) {
-      return;
-    }
-
     // Find the full Game object
     let fullGame: Game | undefined;
     const allGamesPool = playerGames.length > 0 ? playerGames : (workspaceStore.activePlayerGames || []);
     if (structGame.id) {
       fullGame = allGamesPool.find((pg) => pg.id === structGame.id);
     }
-    if (!fullGame && structGame.game_index !== undefined && allGamesPool[structGame.game_index]) {
-      fullGame = allGamesPool[structGame.game_index];
-    }
-    if (!fullGame) {
+    if (!fullGame && structGame.white && structGame.black) {
       fullGame = allGamesPool.find((pg) =>
         isPlayerNameMatch(pg.white_player, structGame.white) &&
         isPlayerNameMatch(pg.black_player, structGame.black) &&
-        pg.result === structGame.result
+        (structGame.result ? pg.result === structGame.result : true)
       );
+      if (!fullGame) {
+        fullGame = allGamesPool.find((pg) =>
+          isPlayerNameMatch(pg.white_player, structGame.white) &&
+          isPlayerNameMatch(pg.black_player, structGame.black)
+        );
+      }
+    }
+    if (!fullGame && structGame.game_index !== undefined && allGamesPool[structGame.game_index]) {
+      const candidate = allGamesPool[structGame.game_index];
+      if (
+        (!structGame.white || isPlayerNameMatch(candidate.white_player, structGame.white)) &&
+        (!structGame.black || isPlayerNameMatch(candidate.black_player, structGame.black))
+      ) {
+        fullGame = candidate;
+      }
+    }
+
+    const gameKey = `${fullGame?.id || structGame.id || `${structGame.white}_${structGame.black}_${structGame.game_index ?? indexInStruct}`}`;
+
+    const formMove = structGame.formation_move || 10;
+    const targetPly = structGame.formation_ply !== undefined
+      ? structGame.formation_ply
+      : Math.max(0, (formMove - 1) * 2);
+
+    if (fullGame && loadedStructureGameKeyRef.current === gameKey && moves.length > 0) {
+      // Same game already loaded: jump directly to the structure formation move
+      const clampedPly = Math.min(targetPly, moves.length);
+      const chess = new Chess();
+      for (let i = 0; i < clampedPly; i++) {
+        try {
+          chess.move(moves[i]);
+        } catch {
+          break;
+        }
+      }
+      setCurrentPly(clampedPly);
+      setCurrentFen(chess.fen());
+      setMoveTree((prevTree) => {
+        if (clampedPly === 0) return { ...prevTree, activeNodeId: null };
+        const activeP = getActivePath(prevTree);
+        if (clampedPly > 0 && clampedPly <= activeP.length) {
+          return { ...prevTree, activeNodeId: activeP[clampedPly - 1].id };
+        }
+        return prevTree;
+      });
+      return;
     }
 
     const applyGameMoves = (targetGame: Game) => {
       loadedStructureGameKeyRef.current = gameKey;
       setGameInfo(targetGame);
       if (targetGame.moves_san) {
-        const rawTokens = targetGame.moves_san.split(" ");
-        const parsedMoves = rawTokens
-          .map((t) => t.replace(/^\d+\.+/, "").trim())
-          .filter((t) => t && !["1-0", "0-1", "1/2-1/2", "*"].includes(t));
-
-        setMoves(parsedMoves);
-        setMoveTree(createMoveTreeFromMoves(parsedMoves));
+        const parsedMoves = parseSanMoves(targetGame.moves_san);
 
         // Jump to the formation move of the structure
         const chess = new Chess();
-        const formMove = structGame.formation_move || 10;
-        const targetPly = structGame.formation_ply !== undefined
-          ? Math.min(structGame.formation_ply, parsedMoves.length)
-          : Math.min(Math.max(0, (formMove - 1) * 2), parsedMoves.length);
+        const clampedPly = Math.min(targetPly, parsedMoves.length);
 
-        for (let i = 0; i < targetPly; i++) {
+        for (let i = 0; i < clampedPly; i++) {
           try {
             chess.move(parsedMoves[i]);
           } catch {
@@ -887,7 +916,9 @@ export function AnalyzeContent() {
           }
         }
 
-        setCurrentPly(targetPly);
+        setMoves(parsedMoves);
+        setMoveTree(createMoveTreeFromMoves(parsedMoves, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", clampedPly));
+        setCurrentPly(clampedPly);
         setCurrentFen(chess.fen());
       }
 
@@ -924,7 +955,7 @@ export function AnalyzeContent() {
         }).catch((err) => console.warn("Could not fetch full structure game:", err));
       }
     }
-  }, [playerGames, workspaceStore.activePlayerGames, moves.length, currentPlayerObj?.canonical_name]);
+  }, [playerGames, workspaceStore.activePlayerGames, moves, currentPlayerObj?.canonical_name]);
 
   // Switch Structure in Explorer Mode
   const handleSelectStructure = useCallback((struct: PawnStructureItem, targetGameIdx?: number, targetGame?: any) => {
@@ -1129,6 +1160,20 @@ export function AnalyzeContent() {
       }
     }
   }, [queryStructure, queryGameIdx, availableStructures, selectedStructure, handleSelectStructure, structureDismissed]);
+
+  // When playerGames finishes loading and structure explorer is active with 0 moves, load the target structure game
+  useEffect(() => {
+    if (selectedStructure && moves.length === 0 && playerGames.length > 0) {
+      const targetIdx = activeStructureGameIdx ?? (queryGameIdx ? parseInt(queryGameIdx, 10) : 0);
+      const structGames = selectedStructure.games || [];
+      if (structGames.length > 0) {
+        const g = structGames.find((tg) => tg.game_index === targetIdx) || structGames[targetIdx] || structGames[0];
+        if (g) {
+          handleLoadStructureGame(g, g.game_index ?? targetIdx);
+        }
+      }
+    }
+  }, [selectedStructure, moves.length, playerGames, activeStructureGameIdx, queryGameIdx, handleLoadStructureGame]);
 
   // Handle Player Switch
   const handlePlayerChange = (newPlayerId: string) => {
@@ -1949,6 +1994,7 @@ export function AnalyzeContent() {
     <>
       <div className="relative flex justify-center w-full">
         <ChessBoard
+          key={`board-${gameInfo?.id || activeStructureGameIdx || selectedOpening || "default"}`}
           initialFen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
           moves={moves}
           currentPly={currentPly}
@@ -2790,9 +2836,15 @@ export function AnalyzeContent() {
                           <div className="mt-0.5">{resBadge}</div>
                         </td>
                         <td className="px-3.5 py-2 text-center">
-                          <span className="font-mono text-xs px-2 py-0.5 rounded-tag bg-secondary text-foreground tabular-nums">
-                            Nước {g.formation_move || "?"}
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleLoadStructureGame(g, g.game_index ?? idx)}
+                            title={`Xem hình cờ tại nước hình thành (Nước ${g.formation_move || "?"})`}
+                            className="group inline-flex items-center gap-1 font-mono text-xs px-2.5 py-1 rounded-tag bg-secondary text-foreground hover:bg-emerald-600 hover:text-white transition cursor-pointer border border-border/40 hover:border-emerald-600 tabular-nums shadow-xs"
+                          >
+                            <span>Nước {g.formation_move || "?"}</span>
+                            <Compass className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                          </button>
                         </td>
                         <td className="px-3.5 py-2 text-right">
                           <button

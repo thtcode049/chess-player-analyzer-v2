@@ -55,14 +55,17 @@ export function findParentOfNode(rootNodes: MoveNode[], targetId: string): MoveN
 
 /**
  * Builds a MoveTree from an array of SAN moves (e.g. from PGN or initial load).
+ * Optionally sets activeNodeId to the node at activePly (0 = starting position).
  */
 export function createMoveTreeFromMoves(
   moves: string[] = [],
-  startFen: string = DEFAULT_START_FEN
+  startFen: string = DEFAULT_START_FEN,
+  activePly?: number
 ): MoveTreeState {
   const rootNodes: MoveNode[] = [];
   let parent: MoveNode | null = null;
   let lastNode: MoveNode | null = null;
+  let targetActiveNode: MoveNode | null = null;
 
   try {
     const chess = new Chess(startFen);
@@ -90,14 +93,28 @@ export function createMoveTreeFromMoves(
       }
       parent = node;
       lastNode = node;
+      if (activePly !== undefined && ply === activePly) {
+        targetActiveNode = node;
+      }
     }
   } catch (err) {
     console.warn("Failed to create MoveTree from moves:", err);
   }
 
+  const determinedActiveId =
+    activePly === 0
+      ? null
+      : targetActiveNode
+      ? targetActiveNode.id
+      : activePly !== undefined
+      ? null
+      : lastNode
+      ? lastNode.id
+      : null;
+
   return {
     rootNodes,
-    activeNodeId: lastNode ? lastNode.id : null,
+    activeNodeId: determinedActiveId,
     startFen,
   };
 }

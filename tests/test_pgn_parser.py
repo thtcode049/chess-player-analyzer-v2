@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from src.pgn_parser import (
     parse_pgn,
+    normalize_result,
     _parse_elo,
     extract_players,
     detect_primary_player,
@@ -134,6 +135,13 @@ def test_auto_clean_aborted_games_filter():
 [Result "0-1"]
 
 1. d4 d5 2. c4 e6 0-1
+
+[Event "Unfinished Ongoing Game (4 plies with result '*')"]
+[White "Player1"]
+[Black "Player6"]
+[Result "*"]
+
+1. e4 c5 2. Nf3 d6 *
 """
     stream = io.StringIO(mixed_pgn)
     games = parse_pgn(stream)
@@ -246,3 +254,17 @@ def test_lichess_openings_inference():
 
 
 
+
+
+def test_normalize_result():
+    assert normalize_result("1-0") == "1-0"
+    assert normalize_result("0-1") == "0-1"
+    assert normalize_result("1/2-1/2") == "1/2-1/2"
+    assert normalize_result("1/2") == "1/2-1/2"
+    assert normalize_result("1/2:1/2") == "1/2-1/2"
+    assert normalize_result("0.5-0.5") == "1/2-1/2"
+    assert normalize_result("½-½") == "1/2-1/2"
+    # Games without outcome
+    assert normalize_result("*") is None
+    assert normalize_result("") is None
+    assert normalize_result("?") is None

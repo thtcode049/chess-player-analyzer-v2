@@ -17,6 +17,7 @@ Tổ chức thành 5 Họ cấu trúc (Family One -> Family Five, Chương 1-21)
 import re
 from typing import List, Dict, Any, Optional, Tuple
 import chess
+from src.utils import determine_game_outcome
 
 from src.analysis.confidence import (
     enrich_performance_item,
@@ -415,7 +416,7 @@ CANONICAL_PAWN_SKELETONS: Dict[str, Dict[str, Any]] = {
         "fen": "8/pp3ppp/2p1p3/8/3P4/4P3/PP3PPP/8 w - - 0 1",
         "white_pawns": ["a2", "b2", "d4", "e3", "f2", "g2", "h2"],
         "black_pawns": ["a7", "b7", "c6", "e6", "f7", "g7", "h7"],
-        "description": "Trắng có d4+e3 (mất Tốt c); Đen có c6+e6 (mất Tốt d). Tương tự Caro-Kann nhưng Trắng giữ cột c mở và có thể đẩy c2-c4 chiếm không gian cánh Hậu; Đen tìm cách đột phá ...c5 hoặc ...e5.",
+        "description": "Trắng kiểm soát trung tâm với d4 và cặp tốt e3/e4 (cột c nửa mở sau khi Đen đổi ...dxc4); Đen giữ bộ khung phòng ngự vững chắc c6+e6 (cột d nửa mở). Kế hoạch của Trắng là tấn công cánh Vua (h4-h5, e4-e5), chiếm tiền đồn c5/e5 hoặc dâng tốt cánh Hậu b2-b4-b5 kìm hãm đối thủ; Đen tìm cách đột phá giải phóng trung tâm bằng ...c6-c5 hoặc ...e6-e5.",
         "aliases": ["slav formation", "slav", "cau truc slav", "cấu trúc slav"],
     },
     "Carlsbad_Formation": {
@@ -916,7 +917,7 @@ def detect_all_pawn_structures(board: chess.Board, ply: int = 20) -> List[Dict[s
             "Đen chiếm trung tâm với tốt d5 (cột e nửa mở cho Đen), Trắng lập bộ khung c3+e3/e2 (Caro-Kann đảo màu).",
         ))
 
-    # Ch. 4: Slav Formation (...dxc4: một bên giữ d4 không tốt c, bên kia giữ c6+e6/e7 không tốt d)
+    # Ch. 4: Slav Formation (...dxc4: Trắng giữ d4 không tốt c, Đen giữ c6+e6/e7 không tốt d)
     w_slav = (
         w_single(chess.D4)
         and w_empty(C)
@@ -931,29 +932,10 @@ def detect_all_pawn_structures(board: chess.Board, ply: int = 20) -> List[Dict[s
         and b_single(chess.C6)
         and (chess.E6 in b_pawns or chess.E7 in b_pawns)
     )
-    b_slav = (
-        b_single(chess.D5)
-        and b_empty(C)
-        and (
-            chess.E7 in b_pawns
-            or chess.E6 in b_pawns
-            or chess.E5 in b_pawns
-            or chess.E4 in b_pawns
-        )
-        and (b_has(A) or b_has(B))
-        and w_empty(D)
-        and (w_single(chess.C3) or w_single(chess.C2))
-        and (chess.E2 in w_pawns or chess.E3 in w_pawns)
-    )
     if w_slav:
         detected.append(_make_detected(
             "Slav_Formation", "Slav Formation", "family_1", "Ch. 4", "white", "d4/e3 vs c6/e6",
             "Trắng kiểm soát d4 với cột c nửa mở sau đổi tốt cánh Hậu, Đen giữ bộ khung rắn chắc c6+e6/e7 (cột d nửa mở).",
-        ))
-    elif b_slav:
-        detected.append(_make_detected(
-            "Slav_Formation", "Slav Formation", "family_1", "Ch. 4", "black", "c3/e3 vs d5/e6",
-            "Đen kiểm soát d5 với cột c nửa mở, Trắng giữ c2/c3+e2/e3 không còn tốt d (Slav Formation đảo màu).",
         ))
 
     # Ch. 5: The Carlsbad Formation (Chuẩn QGD Exchange Flores Rios Ch. 5: Trắng d4+e3 cột c mở vs Đen c6+d5 cột e mở)
@@ -1705,7 +1687,7 @@ def analyze_structural_performance(
 ) -> Dict[str, Any]:
     """
     Phân tích hiệu suất thi đấu theo 28 Cấu trúc Tốt chuẩn Flores Rios.
-    - Quét trong cửa sổ định hình trung cuộc từ nước min_move_window (8) đến max_move_window (25).
+    - Quét ply ((min_move_window - 1) * 2 + 1) đến (max_move_window * 2). Mặc định là ply 5–32; xác minh thêm đến ply 34.
     - Áp dụng Bộ lọc Độ bền Cấu trúc (Persistence Filter >= min_persistence_plies liên tiếp)
       để triệt tiêu hoàn toàn hiện tượng bắt nhầm 1-2 ply ăn đổi tốt dở dang giữa chừng.
     - Tích hợp Bayesian Shrinkage & Statistical Confidence Framework.
@@ -1782,11 +1764,11 @@ def analyze_structural_performance(
     for g_idx, game in enumerate(filtered_games):
         moves = game.get("moves", [])
         player_color = game.get("player_color", "white")
-        result = game.get("result", "*")
+        result = game.get("result", "")
 
-        is_win = (player_color == "white" and result == "1-0") or (player_color == "black" and result == "0-1")
-        is_draw = (result == "1/2-1/2")
-        is_loss = (player_color == "white" and result == "0-1") or (player_color == "black" and result == "1-0")
+        is_win, is_draw, is_loss = determine_game_outcome(player_color, result)
+
+
 
         if is_win:
             total_wins += 1

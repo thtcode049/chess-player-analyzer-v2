@@ -6,6 +6,7 @@ giúp người chơi chuẩn bị trước trận đấu đối đầu với m�
 """
 
 from typing import List, Dict, Any
+from src.utils import determine_game_outcome
 
 
 def analyze_opponent_responses(
@@ -26,7 +27,7 @@ def analyze_opponent_responses(
         if (moves is None or len(moves) == 0) and game.get("moves_san"):
             import re
             tokens = str(game["moves_san"]).split()
-            moves = [re.sub(r"^\d+\.+", "", t).strip() for t in tokens if re.sub(r"^\d+\.+", "", t).strip() not in ["1-0", "0-1", "1/2-1/2", "*"]]
+            moves = [re.sub(r"^\d+\.+", "", t).strip() for t in tokens if re.sub(r"^\d+\.+", "", t).strip() not in ["1-0", "0-1", "1/2-1/2"]]
         elif moves is None:
             moves = []
 
@@ -36,14 +37,8 @@ def analyze_opponent_responses(
         first_move = moves[0]
         resp_move = moves[1] if len(moves) >= 2 else "Unknown"
         opening_name = game.get("opening") or game.get("opening_name") or "Unknown Opening"
-        result = game.get("result", "*")
-
-        if result == "1/2-1/2":
-            is_win, is_draw, is_loss = False, True, False
-        elif (target_player_color == "white" and result == "1-0") or (target_player_color == "black" and result == "0-1"):
-            is_win, is_draw, is_loss = True, False, False
-        else:
-            is_win, is_draw, is_loss = False, False, True
+        result = game.get("result", "")
+        is_win, is_draw, is_loss = determine_game_outcome(target_player_color, result)
 
         if first_move not in first_move_groups:
             first_move_groups[first_move] = {

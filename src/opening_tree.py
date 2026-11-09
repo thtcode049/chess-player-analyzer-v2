@@ -55,7 +55,7 @@ def build_opening_tree(
 
     for game in games_to_process:
         player_color = game.get("player_color", "white")
-        result = game.get("result", "*")
+        result = game.get("result", "")
         moves = game.get("moves")
         if (moves is None or len(moves) == 0) and game.get("moves_san"):
             import re
@@ -63,7 +63,7 @@ def build_opening_tree(
             clean_moves = []
             for t in tokens:
                 clean = re.sub(r"^\d+\.+", "", t).strip()
-                if clean and clean not in ["1-0", "0-1", "1/2-1/2", "*"]:
+                if clean and clean not in ["1-0", "0-1", "1/2-1/2"]:
                     clean_moves.append(clean)
             moves = clean_moves
         elif moves is None:

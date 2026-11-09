@@ -78,7 +78,7 @@ def calculate_game_stats(filtered_games: List[Dict[str, Any]]) -> Dict[str, Any]
 
     for g in filtered_games:
         color = g.get("player_color", "white")
-        result = g.get("result", "*")
+        result = g.get("result", "")
 
         is_win, is_draw, is_loss = determine_game_outcome(color, result)
 

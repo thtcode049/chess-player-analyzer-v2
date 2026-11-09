@@ -72,7 +72,7 @@ def analyze_opening_repertoire(
             opening_name = "Unknown Opening"
 
         player_color = game.get("player_color", "white")
-        result = game.get("result", "*")
+        result = game.get("result", "")
 
         is_win, is_draw, is_loss = determine_game_outcome(player_color, result)
         if is_win:

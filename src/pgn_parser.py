@@ -192,7 +192,7 @@ def parse_single_game(game: chess.pgn.Game) -> Dict[str, Any]:
         "time_control": raw_time_control,
         "white": headers.get("White", "Unknown White").strip(),
         "black": headers.get("Black", "Unknown Black").strip(),
-        "result": headers.get("Result", "*"),
+        "result": normalize_result(headers.get("Result", "*")) or "*",
         "white_elo": _parse_elo(headers.get("WhiteElo", "0")),
         "black_elo": _parse_elo(headers.get("BlackElo", "0")),
         "eco": eco,
@@ -200,6 +200,20 @@ def parse_single_game(game: chess.pgn.Game) -> Dict[str, Any]:
         "moves": moves,
         "ply_count": len(moves),
     }
+
+
+def normalize_result(result_str: str) -> Optional[str]:
+    """
+    Chuẩn hóa kết quả ván cờ theo chuẩn FIDE.
+    Chỉ chấp nhận các ván đã kết thúc ngã ngũ hợp lệ: '1-0', '0-1', '1/2-1/2'.
+    Trả về None nếu ván chưa kết thúc ('*'), bị hủy không đấu hoặc thiếu kết quả.
+    """
+    res = str(result_str).strip().replace(" ", "")
+    if res in ["1-0", "0-1"]:
+        return res
+    if res in ["1/2-1/2", "1/2", "0.5-0.5", "½-½", "1/2:1/2"]:
+        return "1/2-1/2"
+    return None
 
 
 def _parse_elo(elo_str: str) -> int:
@@ -264,7 +278,8 @@ def _read_games_from_stream(stream) -> List[Dict[str, Any]]:
                 break
             parsed_game = parse_single_game(game)
             # Tự động loại bỏ các ván bị hủy / ván rỗng (dưới 2 nước đi)
-            if len(parsed_game.get("moves", [])) >= 2:
+            # Chỉ nhận ván có >= 2 nước đi VÀ có kết quả ngã ngũ hợp lệ (loại bỏ ván dở dang '*')
+            if len(parsed_game.get("moves", [])) >= 2 and parsed_game.get("result") in ["1-0", "0-1", "1/2-1/2"]:
                 games.append(parsed_game)
         except Exception:
             continue

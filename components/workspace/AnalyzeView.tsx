@@ -1751,14 +1751,47 @@ export function AnalyzeContent() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-xs px-2 py-1.5 bg-card border border-border/50 rounded">
-                  <span className="text-muted-foreground">Kết quả:</span>
-                  <div className="flex items-center gap-2 font-mono text-[11px] font-bold">
-                    <span className="text-emerald-600">+{openingStats.wins} T</span>
-                    <span className="text-amber-600">={openingStats.draws} H</span>
-                    <span className="text-rose-600">-{openingStats.losses} B</span>
-                  </div>
-                </div>
+                {(() => {
+                  const opTotal = openingStats.total || (openingStats.wins + openingStats.draws + openingStats.losses) || 1;
+                  const opWinPct = (openingStats.wins / opTotal) * 100;
+                  const opDrawPct = (openingStats.draws / opTotal) * 100;
+                  const opLossPct = (openingStats.losses / opTotal) * 100;
+
+                  return (
+                    <div className="space-y-1.5 p-2 bg-card border border-border/50 rounded">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground font-medium">Tỉ lệ W/D/L</span>
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono">
+                          <span className="text-emerald-600 font-semibold">{openingStats.wins}W</span>
+                          <span className="text-muted-foreground">{openingStats.draws}D</span>
+                          <span className="text-rose-600 font-semibold">{openingStats.losses}L</span>
+                        </div>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full overflow-hidden flex bg-muted/60">
+                        <div
+                          className="bg-emerald-500 h-full transition-all duration-300"
+                          style={{ width: `${opWinPct}%` }}
+                          title={`Thắng: ${openingStats.wins} (${opWinPct.toFixed(1)}%)`}
+                        />
+                        <div
+                          className="bg-slate-400 h-full transition-all duration-300"
+                          style={{ width: `${opDrawPct}%` }}
+                          title={`Hòa: ${openingStats.draws} (${opDrawPct.toFixed(1)}%)`}
+                        />
+                        <div
+                          className="bg-rose-500 h-full transition-all duration-300"
+                          style={{ width: `${opLossPct}%` }}
+                          title={`Thua: ${openingStats.losses} (${opLossPct.toFixed(1)}%)`}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[9px] text-muted-foreground font-mono leading-none">
+                        <span className="text-emerald-600 font-semibold">{opWinPct.toFixed(0)}%</span>
+                        <span>{opDrawPct.toFixed(0)}%</span>
+                        <span className="text-rose-600 font-semibold">{opLossPct.toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -1870,6 +1903,52 @@ export function AnalyzeContent() {
                     </span>
                   </div>
                 </div>
+
+                {/* Tỉ lệ W/D/L cho Cấu trúc tốt */}
+                {(() => {
+                  const stWins = selectedStructure.wins ?? 0;
+                  const stDraws = selectedStructure.draws ?? 0;
+                  const stLosses = selectedStructure.losses ?? 0;
+                  const stTotal = selectedStructure.games?.length || selectedStructure.games_count || (stWins + stDraws + stLosses) || 1;
+                  const stWinPct = (stWins / stTotal) * 100;
+                  const stDrawPct = (stDraws / stTotal) * 100;
+                  const stLossPct = (stLosses / stTotal) * 100;
+
+                  return (
+                    <div className="space-y-1.5 p-2 bg-card border border-border/50 rounded">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground font-medium">Tỉ lệ W/D/L</span>
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono">
+                          <span className="text-emerald-600 font-semibold">{stWins}W</span>
+                          <span className="text-muted-foreground">{stDraws}D</span>
+                          <span className="text-rose-600 font-semibold">{stLosses}L</span>
+                        </div>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full overflow-hidden flex bg-muted/60">
+                        <div
+                          className="bg-emerald-500 h-full transition-all duration-300"
+                          style={{ width: `${stWinPct}%` }}
+                          title={`Thắng: ${stWins} (${stWinPct.toFixed(1)}%)`}
+                        />
+                        <div
+                          className="bg-slate-400 h-full transition-all duration-300"
+                          style={{ width: `${stDrawPct}%` }}
+                          title={`Hòa: ${stDraws} (${stDrawPct.toFixed(1)}%)`}
+                        />
+                        <div
+                          className="bg-rose-500 h-full transition-all duration-300"
+                          style={{ width: `${stLossPct}%` }}
+                          title={`Thua: ${stLosses} (${stLossPct.toFixed(1)}%)`}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[9px] text-muted-foreground font-mono leading-none">
+                        <span className="text-emerald-600 font-semibold">{stWinPct.toFixed(0)}%</span>
+                        <span>{stDrawPct.toFixed(0)}%</span>
+                        <span className="text-rose-600 font-semibold">{stLossPct.toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="text-[11px] text-muted-foreground px-2 py-1 bg-card border border-border/40 rounded">
                   Nước hình thành: ~<b>{selectedStructure.typical_formation_move || 12}</b>

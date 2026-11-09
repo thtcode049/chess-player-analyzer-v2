@@ -565,7 +565,11 @@ class DBService:
         import re
         analysis_games = []
 
+        from src.pgn_parser import normalize_result
         for g in db_games:
+            norm_res = normalize_result(g.get("result", ""))
+            if not norm_res:
+                continue
             white = g.get("white_player", "White")
             black = g.get("black_player", "Black")
             color = determine_player_color(player_name, white, black)
@@ -576,7 +580,7 @@ class DBService:
                 clean_moves = []
                 for t in tokens:
                     clean = re.sub(r"^\d+\.+", "", t).strip()
-                    if clean and clean not in ["1-0", "0-1", "1/2-1/2", "*"]:
+                    if clean and clean not in ["1-0", "0-1", "1/2-1/2"]:
                         clean_moves.append(clean)
             elif isinstance(moves_raw, list):
                 clean_moves = moves_raw
@@ -589,7 +593,7 @@ class DBService:
                 "black": black,
                 "white_elo": g.get("white_elo") or 0,
                 "black_elo": g.get("black_elo") or 0,
-                "result": g.get("result", "*"),
+                "result": norm_res,
                 "eco": g.get("eco", "A00"),
                 "opening": g.get("opening_name", ""),
                 "moves": clean_moves,

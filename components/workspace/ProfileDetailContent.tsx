@@ -1317,7 +1317,7 @@ export default function ProfileDetailContent({
                       <tr>
                         <th className="px-3.5 py-2.5">Hệ thống Khai cuộc</th>
                         <th className="px-2 py-2.5 w-16 text-center">Số ván</th>
-                        <th className="px-3 py-2.5 w-48">Tỷ lệ Kết quả</th>
+                        <th className="px-3 py-2.5 w-48">Tỉ lệ W/D/L</th>
                         <th className="px-2.5 py-2.5 w-20 text-right">Điểm thực</th>
                         <th className="px-2.5 py-2.5 w-24 text-right">Độ lệch (Δ)</th>
                         <th className="px-3 py-2.5 w-36">Đánh giá Hiệu suất</th>

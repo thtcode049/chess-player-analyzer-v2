@@ -101,3 +101,7 @@ thesis_report/
 
 # 12. Unused legacy assets
 assets/
+
+# Test directories
+test/
+tests/

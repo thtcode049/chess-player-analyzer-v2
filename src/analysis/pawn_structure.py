@@ -18,15 +18,8 @@ import re
 from typing import List, Dict, Any, Optional, Tuple
 import chess
 from src.utils import determine_game_outcome
+from src.statistics import calculate_score_percentage
 
-from src.analysis.confidence import (
-    enrich_performance_item,
-    rank_weakest_items,
-    format_confidence_label,
-    ASSESSMENT_CONFIRMED_WEAKNESS,
-    ASSESSMENT_POTENTIAL_WEAKNESS,
-    DEFAULT_PRIOR_STRENGTH,
-)
 
 
 FLORES_RIOS_GROUPS: Dict[str, Dict[str, Any]] = {
@@ -1678,9 +1671,6 @@ def detect_pawn_structure(board: chess.Board, ply: int = 20) -> Dict[str, Any]:
 def analyze_structural_performance(
     filtered_games: List[Dict[str, Any]],
     move_evaluations: Optional[List[Dict[str, Any]]] = None,
-    baseline_score: Optional[float] = None,
-    prior_strength: float = DEFAULT_PRIOR_STRENGTH,
-    lang: str = "vi",
     min_move_window: int = 3,
     max_move_window: int = 16,
     min_persistence_plies: int = 3,
@@ -1690,12 +1680,8 @@ def analyze_structural_performance(
     - Quét ply ((min_move_window - 1) * 2 + 1) đến (max_move_window * 2). Mặc định là ply 5–32; xác minh thêm đến ply 34.
     - Áp dụng Bộ lọc Độ bền Cấu trúc (Persistence Filter >= min_persistence_plies liên tiếp)
       để triệt tiêu hoàn toàn hiện tượng bắt nhầm 1-2 ply ăn đổi tốt dở dang giữa chừng.
-    - Tích hợp Bayesian Shrinkage & Statistical Confidence Framework.
     """
     struct_stats: Dict[str, Dict[str, Any]] = {}
-    total_games = len(filtered_games)
-    total_wins = 0
-    total_draws = 0
 
     min_ply_window = max(1, (min_move_window - 1) * 2 + 1)
     max_ply_window = max_move_window * 2
@@ -1767,13 +1753,6 @@ def analyze_structural_performance(
         result = game.get("result", "")
 
         is_win, is_draw, is_loss = determine_game_outcome(player_color, result)
-
-
-
-        if is_win:
-            total_wins += 1
-        elif is_draw:
-            total_draws += 1
 
         board = chess.Board()
         seen_in_game = set()
@@ -1848,11 +1827,6 @@ def analyze_structural_performance(
                         player_color, result, is_win, is_draw, is_loss,
                     )
 
-    if baseline_score is None:
-        effective_baseline = round(((total_wins + 0.5 * total_draws) / total_games) * 100, 1) if total_games > 0 else 50.0
-    else:
-        effective_baseline = round(float(baseline_score), 1)
-
     if move_evaluations:
         for ev in move_evaluations:
             fen = ev.get("fen_before", "")
@@ -1872,10 +1846,9 @@ def analyze_structural_performance(
     for name, data in struct_stats.items():
         g_count = data["games_count"]
         w, d, l = data["wins"], data["draws"], data["losses"]
-        score_pct = round(((w + 0.5 * d) / g_count) * 100, 1) if g_count > 0 else 0.0
+        score_pct = calculate_score_percentage(w, d, g_count)
         cpls = data["cpls"]
         avg_acpl = round(sum(cpls) / len(cpls), 1) if cpls else 0.0
-        conf = format_confidence_label(g_count, lang=lang)
 
         formation_moves = data["formation_moves"]
         typical_move = round(sum(formation_moves) / len(formation_moves)) if formation_moves else 12
@@ -1894,29 +1867,13 @@ def analyze_structural_performance(
             "losses": l,
             "score_pct": score_pct,
             "avg_acpl": avg_acpl,
-            "confidence": conf,
             "typical_formation_move": typical_move,
             "games": data["games"],
         }
-        enriched_struct = enrich_performance_item(
-            struct_item, effective_baseline, prior_strength=prior_strength, lang=lang
-        )
-        result_list.append(enriched_struct)
+        result_list.append(struct_item)
 
     result_list.sort(key=lambda x: (-x["games_count"], x.get("group_order", 99), x["name"]))
 
-    target_structure = None
-    if result_list:
-        ranked_weakest = rank_weakest_items(result_list)
-        if ranked_weakest:
-            candidate = ranked_weakest[0]
-            if candidate.get("assessment") in [ASSESSMENT_CONFIRMED_WEAKNESS, ASSESSMENT_POTENTIAL_WEAKNESS]:
-                target_structure = candidate
-            elif candidate.get("games_count", 0) >= 1:
-                target_structure = candidate
-
     return {
         "structures": result_list,
-        "target_structure": target_structure,
-        "overall_baseline": effective_baseline,
     }

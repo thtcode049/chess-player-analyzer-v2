@@ -1,6 +1,6 @@
 # ♟️ Chess Player Analyzer (ChessLook)
 
-> **Nền tảng Phân tích Dữ liệu Kỳ thủ, Cây Khai cuộc, Cấu trúc Tốt Bayesian & Trợ lý AI Chiến lược Cờ vua Hiện đại**  
+> **Nền tảng Phân tích Dữ liệu Kỳ thủ, Cây Khai cuộc, Cấu trúc Tốt & Trợ lý AI Chiến lược Cờ vua Hiện đại**
 > *Production-Oriented Web Application for Chess Player Scouting, Repertoire Analysis, and AI Strategic Coaching.*
 
 [![Next.js](https://img.shields.io/badge/Next.js-14%20App%20Router-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -29,10 +29,7 @@
    - Tệp PGN tải lên được phân tích trực tiếp trên RAM (`ImportService.parse_pgn_bytes`), không lưu tệp thô vào Storage Bucket.
 4. **Hệ Thống Thuật Toán Cờ Vua Cốt Lõi Đồng Bộ (`src/`)**:
    - **Cây khai cuộc EPD (`src/opening_tree.py`)**: Gom nhóm thế cờ an toàn hoán vị (Transposition-Safe EPD Aggregation), lọc theo màu quân và trích xuất dòng biến đại diện.
-   - **Đánh giá độ tin cậy Bayesian Shrinkage thống nhất (`src/analysis/confidence.py`)**: Áp dụng mô hình Empirical Bayes với trọng số tiên nghiệm đồng nhất **$K = 6.0$** cho cả **Danh mục Khai cuộc** và **Cấu trúc Tốt**, phân loại 5 cấp độ nhất quán:
-     - `CONFIRMED_STRENGTH` / `CONFIRMED_WEAKNESS` (*★ Điểm mạnh / ⚠️ Điểm yếu Xác thực*): $N \ge 5$ ván và $|\Delta| \ge 10.0\%$.
-     - `POTENTIAL_STRENGTH` / `POTENTIAL_WEAKNESS` (*▲ Điểm mạnh / ▽ Điểm yếu Tiềm năng*): Chưa đạt mức xác thực nhưng $N \ge 2$ ván và $|\Delta| \ge 6.0\%$.
-     - `NEUTRAL` (*● Trung tính*): $|\Delta| < 6.0\%$ hoặc mẫu đơn lẻ $N < 2$.
+   - **Thống kê quan sát**: Trình bày số ván, thắng, hòa, thua và tỷ lệ điểm theo từng khai cuộc hoặc cấu trúc Tốt. Tỷ lệ điểm tính bằng số ván thắng cộng nửa số ván hòa, chia cho tổng số ván của nhóm.
    - **Nhận diện 28 cấu trúc Tốt trung cuộc chuẩn Grandmaster (`src/analysis/pawn_structure.py`)**: Hệ thống nhận diện cấu trúc Tốt được xây dựng theo chuẩn mực kinh điển ***Chess Structures: A Grandmaster Guide*** của Đại kiện tướng Mauricio Flores Rios. Quét trong cửa sổ trung cuộc định hình từ nước 8 đến hết nước 20 (`ply 15 -> 40`), tích hợp **Bộ lọc độ bền (Persistence Filter $\ge 3$ plies liên tiếp)** nhằm triệt tiêu hoàn toàn nhiễu từ các nước ăn đổi quân tạm thời (transient captures). Phân loại chuẩn mực thành 6 nhóm:
      - **Family One – d4 and ...d5 (Chương 1–7)**: *The Isolani*, *Hanging Pawns*, *Caro-Kann Formation*, *Slav Formation*, *The Carlsbad Formation*, *Stonewall*, *Grünfeld Centre*.
      - **Family Two – Open Sicilian (Chương 8–11)**: *Najdorf Type I*, *Najdorf Type II*, *The Hedgehog*, *The Maroczy*.
@@ -43,7 +40,7 @@
      - *Kế hoạch chiến lược (Actionable GM Plans)*: Cung cấp kế hoạch hành động chi tiết cho cả hai bên Cầm Trắng ⚪ và Cầm Đen ⚫ tương ứng với từng cấu trúc (mục tiêu tấn công, đột phá tốt, kiểm soát ô trọng yếu, phương án chuyển hóa tàn cuộc).
    - **Tra cứu khai cuộc chuẩn quốc tế (`src/pgn_parser.py`)**: Cây Trie tiền tố 3.865 biến thể ECO chuẩn Lichess (`data/lichess_openings.json`).
 5. **Trợ Lý AI Chiến Lược Chống Ảo Giác (AI Coach)**:
-   - Kết hợp chuỗi mô hình **Google Gemini Flash** với bộ định tuyến ý định (`intent_router.py`), trích xuất dữ kiện thế cờ tất định (`position_facts.py`), bộ kiểm chứng nước đi hợp lệ (`verifier.py`) và hệ thống chuyên gia ngoại tuyến (**Local Expert** trong `local_expert.py`) đồng bộ trực tiếp với nhãn Bayesian.
+   - Kết hợp chuỗi mô hình **Google Gemini Flash** với bộ định tuyến ý định (`intent_router.py`), trích xuất dữ kiện thế cờ tất định (`position_facts.py`), bộ kiểm chứng nước đi hợp lệ (`verifier.py`) và hệ thống chuyên gia ngoại tuyến (**Local Expert** trong `local_expert.py`) dùng cùng thống kê quan sát và biên bản có tham chiếu. Máy chủ điền số liệu và liên kết ván từ các mã nguồn đã cấp cho câu trả lời.
    - Lưu trữ lịch sử hội thoại đa phiên (`ai_chat_sessions`) trực tiếp trên Supabase.
 6. **Xác Thực Linh Hoạt & Chế Độ Khách (Auth & Guest Mode)**:
    - Bảo vệ route qua Middleware (tự động điều hướng về trang chủ khi chưa đăng nhập), hỗ trợ đăng nhập/đăng ký Supabase, liên kết OAuth PKCE Lichess và chế độ khách tự động dọn dẹp sau 24 giờ qua Vercel Cron.
@@ -65,8 +62,8 @@
   └── FastAPI Application (/api/*)
         ├── api.routes (imports, players, games, analyses, ai) & /api/cron/cleanup-guests
         ├── src.opening_tree (Transposition-Safe EPD Trie & Representative Line Finder)
-        ├── src.player_profile & src.strategy (Repertoire Analytics & Match Preparation, K=6.0)
-        ├── src.analysis.confidence (Empirical Bayesian Shrinkage K=6.0, 5-Tier Assessment)
+        ├── src.player_profile & src.strategy (Repertoire and Opening Response Statistics)
+        ├── src.statistics (Observed Results by Color)
         ├── src.analysis.pawn_structure (28 Canonical Pawn Structures - Flores Rios, Ply 15-40, Persistence Filter >= 3 Plies)
         ├── src.pgn_parser & src.game_fetcher (Trie 3.865 ECO Variants, Lichess/Chess.com Fetcher)
         └── src.ai_assistant (Gemini Streaming + Intent Router + Position Verifier + Local Expert)
@@ -130,14 +127,14 @@ chess-player-analyzer-v2/
 │   └── stockfish/stockfish.js       # Tệp thực thi động cơ Stockfish Client
 ├── src/                             # Lõi thuật toán cờ vua độc lập (Python)
 │   ├── ai_assistant/                # Gemini client, context, briefing, intent router, verifier & local expert
-│   ├── analysis/                    # Bayesian confidence (K=6.0) & 28 pawn structures (Flores Rios)
+│   ├── analysis/                    # 28 pawn structures (Flores Rios)
 │   ├── game_fetcher.py              # Đồng bộ ván đấu từ Lichess & Chess.com API
 │   ├── lichess_oauth.py             # Tiện ích xác thực OAuth2 PKCE Lichess
 │   ├── opening_tree.py              # EPD tree builder & representative line finder
 │   ├── pgn_parser.py                # Bộ phân tích PGN & ECO trie matcher
 │   ├── player_profile.py            # Tổng hợp Repertoire khai cuộc & hồ sơ kỳ thủ
 │   ├── statistics.py                # Thống kê hiệu suất & điểm số theo màu quân
-│   ├── strategy.py                  # Đề xuất chuẩn bị trận đấu & khai thác điểm yếu
+│   ├── strategy.py                  # Thống kê phản ứng khai cuộc
 │   └── utils.py                     # Chuẩn hóa FEN/EPD & tiện ích xử lý kết quả ván cờ
 ├── supabase/                        # Hạ tầng Cơ sở dữ liệu Supabase
 │   ├── migrations/                  # Các bản cập nhật schema SQL tuần tự
@@ -243,12 +240,8 @@ Mở trình duyệt tại: `http://localhost:3000`.
 
 ## 🧪 Kết Quả Đánh Giá & Kiểm Thử Hệ Thống (Verification Suite)
 
-- **Backend Pytest Suite**: **95/95 tests passed (100%)**
-  - Kiểm chứng mô hình Bayesian Shrinkage ($K = 6.0$, ngưỡng 5 cấp độ $\pm 6\%$ / $\pm 10\%$), nhận diện 28 cấu trúc Tốt chuẩn Flores Rios (5 Families + 1 Miscellaneous) & bộ lọc độ bền $\ge 3$ plies, gom nhóm hoán vị EPD, bộ kiểm chứng nước đi AI, tích hợp Lichess/Chess.com và các REST API endpoints.
-  - Kiểm thử thực tế trên 53 ván cờ mẫu của các Đại kiện tướng quốc tế (GM Games) trích xuất trực tiếp từ sách Flores Rios đạt tỷ lệ nhận diện chính xác 100% (53/53 ván đấu).
-- **Frontend Node Test Suites**: **73/73 tests passed (100%)**
-  - `test/moveTree.test.js` (**45/45**): Phân nhánh biến thể nhiều tầng, hoán đổi biến chính - phụ (Promote line), xuất PGN và đồng bộ ply nước cờ.
-  - `test/middlewareRedirect.test.js` (**28/28**): Kiểm thử bảo vệ route đăng nhập và chế độ khách (Guest Mode).
+- Chạy `python -m pytest -q` để kiểm tra hồi quy thống kê, snapshot, briefing và nguồn dẫn của AI.
+- Chạy `npm run typecheck` và `npm run build` để kiểm tra giao diện.
 
 ---
 

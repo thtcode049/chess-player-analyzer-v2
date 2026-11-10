@@ -177,22 +177,10 @@ export interface PawnStructureItem {
   };
   typical_formation_move?: number;
   games_count: number;
-  wins: number;
-  draws: number;
-  losses: number;
-  score_pct: number;
-  adjusted_score_pct?: number;
-  delta_vs_baseline?: number;
-  confidence?:
-    | string
-    | {
-        level?: string;
-        label?: string;
-        color?: string;
-        sample_size?: number;
-      };
-  assessment_badge?: string;
-  assessment_color?: string;
+  wins?: number;
+  draws?: number;
+  losses?: number;
+  score_pct?: number;
   games?: PawnStructureGame[];
 }
 
@@ -203,10 +191,6 @@ export interface OpeningRepertoireItem {
   draws?: number;
   losses?: number;
   score_pct?: number;
-  adjusted_score_pct?: number;
-  delta_vs_baseline?: number;
-  assessment_badge?: string;
-  assessment_color?: string;
   win_pct?: number;
   draw_pct?: number;
   loss_pct?: number;

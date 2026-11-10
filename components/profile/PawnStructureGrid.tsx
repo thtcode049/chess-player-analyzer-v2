@@ -150,23 +150,18 @@ export default function PawnStructureGrid({
                   <th className="px-2 py-2.5 w-16 text-center">Số ván</th>
                   <th className="px-3 py-2.5 w-48">Tỉ lệ W/D/L</th>
                   <th className="px-2.5 py-2.5 w-20 text-right">Điểm thực</th>
-                  <th className="px-2.5 py-2.5 w-24 text-right">Độ lệch (Δ)</th>
-                  <th className="px-3 py-2.5 w-36">Đánh giá Hiệu suất</th>
                   <th className="px-3 py-2.5 w-36 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
                 {sec.items.map((item, idx) => {
-                  const count = item.games?.length || item.games_count || (item.wins + item.draws + item.losses) || 0;
+                  const count = item.games_count ?? item.games?.length ?? 0;
                   const total = count || 1;
-                  const winPct = (item.wins / total) * 100;
-                  const drawPct = (item.draws / total) * 100;
-                  const lossPct = (item.losses / total) * 100;
-                  const score = item.score_pct ?? ((item.wins + item.draws * 0.5) / total * 100);
-                  const delta = item.delta_vs_baseline ?? 0;
-                  const isPositive = delta > 0;
-                  const deltaStr = isPositive ? `+${delta.toFixed(1)}%` : `${delta.toFixed(1)}%`;
-                  const badgeColor = item.assessment_color || (isPositive ? "#047857" : delta < 0 ? "#be123c" : "#64748b");
+                  const winPct = ((item.wins ?? 0) / total) * 100;
+                  const drawPct = ((item.draws ?? 0) / total) * 100;
+                  const lossPct = ((item.losses ?? 0) / total) * 100;
+                  const score = item.score_pct;
+                  const hasResults = item.wins != null && item.draws != null && item.losses != null;
                   const hasGames = item.games && item.games.length > 0;
 
                   return (
@@ -183,7 +178,7 @@ export default function PawnStructureGrid({
                           <PawnStructureInfoBadge structureName={item.name} />
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5">
-                          Hình thành ~nước {item.typical_formation_move ?? 12}
+                          {item.typical_formation_move != null ? `Hình thành khoảng nước ${item.typical_formation_move}` : "Chưa ghi nhận nước hình thành"}
                         </div>
                       </td>
 
@@ -194,7 +189,7 @@ export default function PawnStructureGrid({
 
                       {/* Tỉ lệ W/D/L */}
                       <td className="px-3 py-2.5">
-                        <div className="space-y-1">
+                        {hasResults ? <div className="space-y-1">
                           <div className="w-full h-1.5 rounded-full overflow-hidden flex bg-slate-200">
                             <div
                               className="bg-emerald-500 h-full"
@@ -217,39 +212,12 @@ export default function PawnStructureGrid({
                             <span>{drawPct.toFixed(0)}%</span>
                             <span className="text-rose-700 font-semibold">{lossPct.toFixed(0)}%</span>
                           </div>
-                        </div>
+                        </div> : "—"}
                       </td>
 
                       {/* Điểm thực */}
                       <td className="px-2.5 py-2.5 text-right font-mono font-bold text-foreground">
-                        {score.toFixed(1)}%
-                      </td>
-
-                      {/* Độ lệch (Δ) */}
-                      <td
-                        className={`px-2.5 py-2.5 text-right font-mono font-bold ${
-                          isPositive
-                            ? "text-emerald-700"
-                            : delta < 0
-                            ? "text-rose-700"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {deltaStr}
-                      </td>
-
-                      {/* Đánh giá Hiệu suất */}
-                      <td className="px-3 py-2.5">
-                        <span
-                          className="assessment-tag inline-block whitespace-nowrap border"
-                          style={{
-                            backgroundColor: `${badgeColor}20`,
-                            color: `color-mix(in srgb, ${badgeColor} 45%, #0f172a)`,
-                            borderColor: `${badgeColor}55`,
-                          }}
-                        >
-                          {item.assessment_badge || "Bình thường"}
-                        </span>
+                        {score == null ? "—" : score.toFixed(1) + "%"}
                       </td>
 
                       {/* Thao tác */}
@@ -309,16 +277,6 @@ export default function PawnStructureGrid({
                   <span className="text-xs font-bold text-primary uppercase tracking-wider">
                     {activeModalStructure.group_title || "Chuẩn Flores Rios"}
                   </span>
-                  <span
-                    className="assessment-tag border"
-                    style={{
-                      backgroundColor: `${activeModalStructure.assessment_color ?? "#94A3B8"}18`,
-                      color: `color-mix(in srgb, ${activeModalStructure.assessment_color ?? "#64748b"} 45%, #0f172a)`,
-                      borderColor: `${activeModalStructure.assessment_color ?? "#94A3B8"}55`,
-                    }}
-                  >
-                    {activeModalStructure.assessment_badge || "Bình thường"}
-                  </span>
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
                   <h3 className="text-lg font-bold text-foreground">
@@ -327,10 +285,13 @@ export default function PawnStructureGrid({
                   <PawnStructureInfoBadge structureName={activeModalStructure.name} />
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Tổng cộng <b>{activeModalStructure.games?.length || activeModalStructure.games_count}</b> ván đấu thực tế • Hình thành quanh nước {activeModalStructure.typical_formation_move || 12}
+                  <b>{activeModalStructure.games_count}</b> ván đấu
+                  {activeModalStructure.score_pct != null && ` · ${activeModalStructure.score_pct.toFixed(1)}% điểm`}
+                  {activeModalStructure.typical_formation_move != null && ` · Hình thành khoảng nước ${activeModalStructure.typical_formation_move}`}
                 </p>
                 {(() => {
-                  const mTotal = activeModalStructure.games?.length || activeModalStructure.games_count || (activeModalStructure.wins + activeModalStructure.draws + activeModalStructure.losses) || 1;
+                  if (activeModalStructure.wins == null || activeModalStructure.draws == null || activeModalStructure.losses == null) return null;
+                  const mTotal = activeModalStructure.games_count || 1;
                   const mW = (activeModalStructure.wins / mTotal) * 100;
                   const mD = (activeModalStructure.draws / mTotal) * 100;
                   const mL = (activeModalStructure.losses / mTotal) * 100;

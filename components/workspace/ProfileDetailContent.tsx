@@ -785,7 +785,7 @@ export default function ProfileDetailContent({
                 Tỷ lệ thắng
               </span>
               <span className="text-base sm:text-2xl font-extrabold text-emerald-500">
-                {analysisRun?.overall_win_rate ? `${analysisRun.overall_win_rate.toFixed(1)}%` : "0.0%"}
+                {analysisRun?.overall_win_rate != null ? `${analysisRun.overall_win_rate.toFixed(1)}%` : "—"}
               </span>
             </div>
             <div>
@@ -793,7 +793,7 @@ export default function ProfileDetailContent({
                 Điểm chung
               </span>
               <span className="text-base sm:text-2xl font-extrabold text-primary">
-                {analysisRun?.overall_score ? `${analysisRun.overall_score.toFixed(1)}%` : "N/A"}
+                {analysisRun?.overall_score != null ? `${analysisRun.overall_score.toFixed(1)}%` : "N/A"}
               </span>
             </div>
           </div>
@@ -1209,13 +1209,13 @@ export default function ProfileDetailContent({
                   <div className="divide-y divide-border/40 mt-1">
                     {(() => {
                       const structs = analysisRun.pawn_structures_summary.structures.slice(0, 5);
-                      const maxStCount = Math.max(...structs.map((st: any) => st.games?.length || st.games_count || 1), 1);
+                      const maxStCount = Math.max(...structs.map((st: any) => st.games_count ?? st.games?.length ?? 1), 1);
 
                       return structs.map((st: any, idx: number) => {
-                        const count = st.games?.length || st.games_count || 0;
-                        const score = st.adjusted_score_pct ?? st.score_pct ?? 50;
+                        const count = st.games_count ?? st.games?.length ?? 0;
+                        const score = st.score_pct;
                         const barWidth = Math.max((count / maxStCount) * 100, 15);
-                        const color = st.assessment_color ?? "#10B981";
+                        const color = "#10B981";
 
                         return (
                           <div key={st.structure_key || idx} className="py-2.5 px-1 space-y-1.5 hover:bg-muted/30 transition">
@@ -1224,16 +1224,6 @@ export default function ProfileDetailContent({
                                 <span className="font-bold text-xs text-foreground truncate">
                                   {st.name}
                                 </span>
-                                <span
-                                  className="assessment-tag border shrink-0 whitespace-nowrap"
-                                  style={{
-                                    backgroundColor: `${color}18`,
-                                    color: `color-mix(in srgb, ${color} 45%, #0f172a)`,
-                                    borderColor: `${color}55`,
-                                  }}
-                                >
-                                  {st.assessment_badge || "Cấu trúc"}
-                                </span>
                               </div>
 
                               <div className="text-right shrink-0 flex items-center gap-2">
@@ -1241,7 +1231,7 @@ export default function ProfileDetailContent({
                                   {count} ván
                                 </span>
                                 <span className="font-mono font-semibold text-xs text-foreground bg-muted px-1.5 py-0.5 rounded-tag">
-                                  {score.toFixed(1)}% điểm
+                                  {score == null ? "—" : `${score.toFixed(1)}% điểm`}
                                 </span>
                               </div>
                             </div>
@@ -1254,7 +1244,7 @@ export default function ProfileDetailContent({
                                   backgroundColor: color,
                                 }}
                                 className="h-full rounded-full transition-all duration-500"
-                                title={`${st.name}: ${count} ván (${score.toFixed(1)}% điểm)`}
+                                title={`${st.name}: ${count} ván (${score == null ? "chưa có tỷ lệ điểm" : score.toFixed(1) + "% điểm"})`}
                               />
                             </div>
                           </div>
@@ -1304,7 +1294,7 @@ export default function ProfileDetailContent({
                   Đánh Giá Hiệu Suất Khai Cuộc
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Phân tích hiệu suất thực tế và mức độ ổn định so với điểm cơ sở.
+                  Kết quả quan sát trong các ván thuộc từng hệ thống khai cuộc.
                 </p>
               </div>
             </div>
@@ -1319,16 +1309,10 @@ export default function ProfileDetailContent({
                         <th className="px-2 py-2.5 w-16 text-center">Số ván</th>
                         <th className="px-3 py-2.5 w-48">Tỉ lệ W/D/L</th>
                         <th className="px-2.5 py-2.5 w-20 text-right">Điểm thực</th>
-                        <th className="px-2.5 py-2.5 w-24 text-right">Độ lệch (Δ)</th>
-                        <th className="px-3 py-2.5 w-36">Đánh giá Hiệu suất</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/40">
                       {analysisRun.repertoire_summary.all_openings.map((op: any, idx: number) => {
-                        const delta = op.delta_vs_baseline || 0;
-                        const isPositive = delta > 0;
-                        const badgeColor = op.assessment_color || (isPositive ? "#047857" : delta < 0 ? "#be123c" : "#64748b");
-
                         return (
                           <tr
                             key={idx}
@@ -1369,33 +1353,14 @@ export default function ProfileDetailContent({
                                   />
                                 </div>
                                 <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-                                  <span className="text-emerald-700 font-semibold">{op.win_pct?.toFixed(0)}%</span>
-                                  <span>{op.draw_pct?.toFixed(0)}%</span>
-                                  <span className="text-rose-700 font-semibold">{op.loss_pct?.toFixed(0)}%</span>
+                                  <span className="text-emerald-700 font-semibold">{op.win_pct == null ? "—" : op.win_pct.toFixed(0) + "%"}</span>
+                                  <span>{op.draw_pct == null ? "—" : op.draw_pct.toFixed(0) + "%"}</span>
+                                  <span className="text-rose-700 font-semibold">{op.loss_pct == null ? "—" : op.loss_pct.toFixed(0) + "%"}</span>
                                 </div>
                               </div>
                             </td>
                             <td className="px-2.5 py-2 text-right font-mono font-bold text-foreground">
-                              {op.raw_score_pct?.toFixed(1) || op.score_pct?.toFixed(1)}%
-                            </td>
-                            <td
-                              className={`px-2.5 py-2 text-right font-mono font-bold ${
-                                isPositive ? "text-emerald-700" : delta < 0 ? "text-rose-700" : "text-muted-foreground"
-                              }`}
-                            >
-                              {isPositive ? `+${delta.toFixed(1)}%` : `${delta.toFixed(1)}%`}
-                            </td>
-                            <td className="px-3 py-2">
-                              <span
-                                className="assessment-tag inline-block whitespace-nowrap border"
-                                style={{
-                                  backgroundColor: `${badgeColor}20`,
-                                  color: `color-mix(in srgb, ${badgeColor} 45%, #0f172a)`,
-                                  borderColor: `${badgeColor}55`,
-                                }}
-                              >
-                                {op.assessment_badge || op.assessment_label || op.assessment || "Trung bình"}
-                              </span>
+                              {op.score_pct == null ? "—" : `${op.score_pct.toFixed(1)}%`}
                             </td>
                           </tr>
                         );
@@ -1423,7 +1388,7 @@ export default function ProfileDetailContent({
             </h3>
             <p className="text-xs text-muted-foreground">
               Phân loại thế trận Tốt kinh điển (IQP, Carlsbad, Tốt treo, Pháp, Nhím, Trung tâm mở) và
-              đo lường độ chênh lệch điểm số thực tế.
+              tổng hợp kết quả của các ván thuộc từng cấu trúc.
             </p>
           </div>
 

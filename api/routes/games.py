@@ -2,12 +2,12 @@
 Game Detail Route Handlers
 """
 from fastapi import APIRouter, HTTPException
-from typing import List
 
 from api.schemas.common import BaseResponse
 from api.schemas.games import GameDetailResponse
 from api.routes.players import GAMES_STORE
 from api.services.db_service import DBService
+from api.services.import_service import ImportService
 
 router = APIRouter(prefix="/api/games", tags=["Games"])
 
@@ -31,19 +31,13 @@ def get_game_detail(game_id: str):
         found_game = DBService.get_game(game_id)
 
     if not found_game:
-        # Provide fallback demo game if testing standalone
-        found_game = {
-            "id": game_id,
-            "dataset_id": "demo_dataset",
-            "white_player": "Grandmaster A",
-            "black_player": "Grandmaster B",
-            "result": "1-0",
-            "eco": "B90",
-            "opening_name": "Sicilian Defense: Najdorf",
-            "moves_san": "1.e4 c5 2.Nf3 d6 3.d4 cxd4 4.Nxd4 Nf6 5.Nc3 a6",
-            "ply_count": 10,
-            "raw_headers": {}
-        }
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    if isinstance(found_game.get("moves"), list):
+        normalized = ImportService.normalize_game_for_db(
+            found_game, dataset_id=found_game.get("dataset_id") or "ds_default",
+        )
+        found_game = {**found_game, **normalized}
 
     response_data = GameDetailResponse(
         id=found_game["id"],

@@ -18,7 +18,8 @@ class AIService:
         player_name: str,
         stats: Dict[str, Any],
         deep_profile: Dict[str, Any],
-        perspective_mode: str = "self"
+        perspective_mode: str = "self",
+        games: Optional[List[Dict[str, Any]]] = None,
     ) -> Tuple[str, List[str]]:
         """
         Generates proactive executive strategic briefing and 1-click follow-up prompts.
@@ -28,7 +29,8 @@ class AIService:
             deep_profile=deep_profile,
             stats=stats,
             selected_player=player_name,
-            mode=perspective_mode
+            mode=perspective_mode,
+            games=games,
         )
         questions = get_followup_prompts(
             mode=perspective_mode
@@ -44,7 +46,10 @@ class AIService:
         engine_eval: Optional[Dict[str, Any]] = None,
         selected_game: Optional[Dict[str, Any]] = None,
         is_board_open: bool = True,
-        games: Optional[List[Dict[str, Any]]] = None
+        games: Optional[List[Dict[str, Any]]] = None,
+        question: str = "",
+        sources: Optional[Dict[str, str]] = None,
+        source_prefix: str = "",
     ) -> str:
         """
         Creates structured Ground Truth text to prevent LLM hallucinations,
@@ -58,7 +63,10 @@ class AIService:
             engine_eval=engine_eval,
             selected_game=selected_game,
             is_board_open=is_board_open,
-            games=games
+            games=games,
+            question=question,
+            sources=sources,
+            source_prefix=source_prefix,
         )
 
     @staticmethod
@@ -72,6 +80,7 @@ class AIService:
         player_name: str = "Kỳ thủ",
         current_fen: Optional[str] = None,
         engine_eval: Optional[Dict[str, Any]] = None,
+        fallback_response: Optional[str] = None,
     ) -> Generator[str, None, None]:
         """
         Streams response chunks from Gemini API with fallback to Local Expert.
@@ -80,7 +89,7 @@ class AIService:
         # 1. Check deterministic response for pawn structures / pawn skeletons
         try:
             from src.ai_assistant.intent_router import IntentRouter
-            direct_pawn_ans = IntentRouter.try_answer_pawn_structure(
+            direct_pawn_ans = None if fallback_response else IntentRouter.try_answer_pawn_structure(
                 prompt=prompt,
                 deep_profile=deep_profile,
                 selected_player=player_name,
@@ -136,7 +145,8 @@ class AIService:
                 deep_profile=deep_profile,
                 stats=stats,
                 selected_player=player_name,
-                mode=perspective_mode
+                mode=perspective_mode,
+                fallback_response=fallback_response,
             ):
                 if chunk:
                     yielded_any = True
@@ -146,26 +156,26 @@ class AIService:
                 offline_res = (
                     "> ⚠️ **Thông báo hệ thống:** Không nhận được phản hồi từ Google Gemini AI.\n"
                     "> Hệ thống tạm thời chuyển sang **Chế độ Chuyên gia Cục bộ Dự phòng (Offline Fallback)** dựa trên số liệu phân tích của kỳ thủ:\n\n---\n\n"
-                    + generate_local_expert_response(
+                    + (fallback_response or generate_local_expert_response(
                         prompt=prompt,
                         deep_profile=deep_profile or {},
                         stats=stats or {},
                         selected_player=player_name,
                         mode=perspective_mode
-                    )
+                    ))
                 )
                 yield offline_res
         except Exception as e:
             offline_res = (
                 f"> ⚠️ **Thông báo hệ thống:** Gặp sự cố kết nối tới dịch vụ AI ({type(e).__name__}: {str(e)[:80]}).\n"
                 "> Hệ thống tạm thời chuyển sang **Chế độ Chuyên gia Cục bộ Dự phòng (Offline Fallback)** dựa trên số liệu phân tích của kỳ thủ:\n\n---\n\n"
-                + generate_local_expert_response(
+                + (fallback_response or generate_local_expert_response(
                     prompt=prompt,
                     deep_profile=deep_profile or {},
                     stats=stats or {},
                     selected_player=player_name,
                     mode=perspective_mode
-                )
+                ))
             )
             yield offline_res
 

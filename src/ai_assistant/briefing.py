@@ -1,157 +1,83 @@
-"""
-AI Strategic Briefing Module
-----------------------------
-Tự động tổng hợp dữ liệu thực nghiệm (Profile, Repertoire, Structures)
-thành Bản Tóm tắt Suy luận Chiến lược Mở đầu (Executive Strategic Briefing)
-theo 2 góc nhìn: Bản thân / Học viên (Self / Coaching) hoặc Đối thủ (Opponent Scouting).
-"""
+"""Generate descriptive briefings from the analysis snapshot."""
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlencode
 
-from typing import Dict, Any, List, Optional
-from src.strategy import rank_strongest_items, rank_weakest_items
+
+def format_game_reference(game: Dict[str, Any], label: str) -> str:
+    game_id = game.get("id")
+    if game_id:
+        return f"[{label}](/analyze?{urlencode({'gameId': game_id})})"
+    return f"{label} ({game.get('white', 'Trắng')} – {game.get('black', 'Đen')})"
+
+
+def format_group_stats(item: Dict[str, Any]) -> str:
+    parts = []
+    if item.get("games_count") is not None:
+        parts.append(f"{item['games_count']} ván")
+    if all(item.get(key) is not None for key in ("wins", "draws", "losses")):
+        parts.append(f"{item['wins']} thắng, {item['draws']} hòa, {item['losses']} thua")
+    if item.get("score_pct") is not None and item.get("games_count") != 0:
+        parts.append(f"{item['score_pct']}% điểm")
+    return " · ".join(parts) or "Chưa có thống kê"
+
+
+def format_profile_stats(stats: Dict[str, Any]) -> List[str]:
+    overall = {**stats, "games_count": stats.get("total_games"), "score_pct": stats.get("score_percentage")}
+    lines = [f"- **Tổng quan:** {format_group_stats(overall)}"]
+    for color, label in (("white", "Cầm Trắng"), ("black", "Cầm Đen")):
+        count = stats.get(f"{color}_games")
+        if count == 0:
+            lines.append(f"- **{label}:** 0 ván")
+        elif count is None:
+            lines.append(f"- **{label}:** Chưa có số ván theo màu quân.")
+        else:
+            by_color = {key: stats.get(f"{color}_{key}") for key in ("wins", "draws", "losses")}
+            by_color.update(games_count=count, score_pct=stats.get(f"{color}_score_percentage"))
+            lines.append(f"- **{label}:** {format_group_stats(by_color)}")
+    return lines
 
 
 def generate_initial_strategic_briefing(
     deep_profile: Optional[Dict[str, Any]],
     stats: Optional[Dict[str, Any]],
     selected_player: str = "Kỳ thủ",
-    mode: str = "self"
+    mode: str = "self",
+    games: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
-    """
-    Sinh Bản Đánh giá Chiến lược Mở đầu cho Trợ lí AI dựa trên dữ liệu thực nghiệm.
-    mode: 'self' (Bản thân / Học viên) hoặc 'opponent' (Đối thủ sắp gặp).
-    """
-    if not deep_profile or not stats:
-        return (
-            f"👋 Xin chào! Tôi là Trợ lí AI Cờ vua.\n\n"
-            f"Hiện tại chưa có đủ dữ liệu phân tích ván đấu của **{selected_player}**. "
-            f"Vui lòng nạp ván đấu tại trang **Nạp Ván đấu** để tôi có thể cung cấp bản phân tích chiến lược chuyên sâu!"
-        )
+    if not stats or stats.get("total_games") == 0:
+        return f"Chưa có dữ liệu ván đấu đã phân tích của **{selected_player}**."
 
-    total_games = stats.get("total_games", 0)
-    score_pct = stats.get("score_percentage", 50.0)
-    w_score = stats.get("white_score_percentage", 50.0)
-    b_score = stats.get("black_score_percentage", 50.0)
+    title = "Chuẩn bị đối đầu" if mode == "opponent" else "Tổng quan hồ sơ"
+    lines = [f"### {title} · {selected_player}", "", *format_profile_stats(stats)]
+    repertoire = (deep_profile or {}).get("repertoire", {})
+    structures = (deep_profile or {}).get("structures", {}).get("structures", [])
 
-    repertoire = deep_profile.get("repertoire", {})
-    all_openings = repertoire.get("all_openings", [])
-    eligible_openings = [op for op in all_openings if op.get("games_count", 0) >= 1]
+    openings = repertoire.get("all_openings", [])
+    def describe(item: Dict[str, Any], indices: List[int]) -> str:
+        summary = f"- **{item['name']}** · {format_group_stats(item)}"
+        if games:
+            references = [format_game_reference(games[index], f"Ván {index + 1}")
+                          for index in indices[:2] if isinstance(index, int) and 0 <= index < len(games)]
+            if references:
+                summary += f" · Xem {', '.join(references)}"
+        return summary
 
-    ranked_strong = rank_strongest_items(eligible_openings)
-    ranked_weak = rank_weakest_items(eligible_openings)
-
-    strongest_op = ranked_strong[0] if ranked_strong else None
-    weakest_op = ranked_weak[0] if ranked_weak else None
-
-    # Pawn structures
-    structs = deep_profile.get("structures", {}).get("structures", [])
-    strong_structs = sorted([s for s in structs if s.get("delta_vs_baseline", 0) > 0], key=lambda x: x.get("adjusted_score_pct", 50), reverse=True)
-    weak_structs = sorted([s for s in structs if s.get("delta_vs_baseline", 0) < 0], key=lambda x: x.get("adjusted_score_pct", 50))
-    top_struct = strong_structs[0] if strong_structs else (structs[0] if structs else None)
-    worst_struct = weak_structs[0] if weak_structs else None
-
-    lines = []
-
-    if mode == "self":
-        # =====================================================================
-        # GÓC NHÌN: BẢN THÂN / HỌC VIÊN (SELF-IMPROVEMENT & COACHING)
-        # =====================================================================
-        lines.append(f"### 📋 HỒ SƠ ĐÁNH GIÁ & LỘ TRÌNH RÈN LUYỆN: **{selected_player.upper()}**")
-        lines.append(f"*🎯 Góc nhìn: 👤 Tự đánh giá & Huấn luyện nâng cao trình độ*\n")
-        lines.append(
-            f"Chào bạn! Tôi đã phân tích toàn bộ **{total_games} ván đấu** của bạn/học viên. "
-            f"Hiệu suất tổng thể đạt **{score_pct}%** (⚪ Cầm Trắng: **{w_score}%** | ⚫ Cầm Đen: **{b_score}%**). "
-            f"Dưới đây là các phát hiện quan trọng nhất từ dữ liệu thực nghiệm:\n"
-        )
-        lines.append("---\n")
-
-        # 1. Repertoire
-        lines.append("#### 1. ♟️ Hệ thống Khai cuộc (Repertoire Analysis)")
-        if strongest_op:
-            lines.append(
-                f"- 🟢 **Vũ khí sở trường (Cần phát huy):** **{strongest_op['name']}**\n"
-                f"  - Đạt **{strongest_op['score_pct']}%** điểm ({strongest_op.get('adjusted_score_pct', strongest_op['score_pct'])}% Bayesian, "
-                f"Delta: `+{strongest_op.get('delta_vs_baseline', 0)}%`) trên {strongest_op['games_count']} ván.\n"
-                f"  - 💡 *Đề xuất:* Đây là biến khai cuộc bạn xử lý tự tin nhất. Hãy tiếp tục phát huy và nghiên cứu sâu thêm các nhánh biến phụ để tạo bất ngờ."
-            )
-        if weakest_op:
-            lines.append(
-                f"- 🔴 **Lỗ hổng Repertoire (Cần khắc phục ngay):** **{weakest_op['name']}**\n"
-                f"  - Chỉ đạt **{weakest_op['score_pct']}%** điểm ({weakest_op.get('adjusted_score_pct', weakest_op['score_pct'])}% Bayesian, "
-                f"Delta: `{weakest_op.get('delta_vs_baseline', 0)}%`) trên {weakest_op['games_count']} ván.\n"
-                f"  - ⚠️ *Khuyến nghị:* Đây là nơi rò rỉ điểm số nhiều nhất. Bạn nên xem xét bổ sung phương án phòng thủ mới hoặc tạm thời chuyển sang biến khai cuộc khác an toàn hơn."
-            )
-        lines.append("")
-
-        # 2. Cấu trúc Tốt
-        lines.append("#### 2. 🧬 Khả năng Xử lý Cấu trúc Tốt (Pawn Structures)")
-        if top_struct:
-            lines.append(f"- 🟢 **Cấu trúc chơi thành thạo:** **{top_struct['name']}** (Score: **{top_struct.get('score_pct', 0)}%**, Delta: `+{top_struct.get('delta_vs_baseline', 0)}%`).")
-        if worst_struct:
-            lines.append(
-                f"- 🔴 **Cấu trúc xử lý lúng túng nhất:** **{worst_struct['name']}** (Score: **{worst_struct.get('score_pct', 0)}%**, Delta: `{worst_struct.get('delta_vs_baseline', 0)}%`).\n"
-                f"  - 💡 *Bài học:* Cần xem lại các ván đấu có cấu trúc này để học cách điều động Mã và kiểm soát các ô yếu điểm (outposts)."
-            )
-        else:
-            lines.append("- Chưa phát hiện cấu trúc Tốt nào có độ lệch tiêu cực đáng kể.")
-
-    else:
-        # =====================================================================
-        # GÓC NHÌN: ĐỐI THỦ SẮP GẶP (OPPONENT SCOUTING & MATCH PREP)
-        # =====================================================================
-        lines.append(f"### 🎯 KẾ HOẠCH TÁC CHIẾN & DO THÁM ĐỐI THỦ: **{selected_player.upper()}**")
-        lines.append(f"*⚔️ Góc nhìn: 🎯 Chuẩn bị Trận đấu & Khai thác Tử huyệt*\n")
-        lines.append(
-            f"Chào bạn! Dưới đây là hồ sơ trinh sát chiến thuật đối đầu với kỳ thủ **{selected_player}** "
-            f"dựa trên phân tích **{total_games} ván đấu** của đối thủ (Hiệu suất gốc: **{score_pct}%** | "
-            f"Trắng: **{w_score}%**, Đen: **{b_score}%**):\n"
-        )
-        lines.append("---\n")
-
-        # 1. Khai cuộc
-        lines.append("#### 1. ⚔️ Khai cuộc: Tránh Đòn mạnh & Ép vào Tử huyệt")
-        if strongest_op:
-            lines.append(
-                f"- 🛡️ **Đòn mạnh nhất của đối thủ (CẦN TRÁNH HOẶC CHUẨN BỊ KỸ):** **{strongest_op['name']}**\n"
-                f"  - Hiệu suất đối thủ: **{strongest_op['score_pct']}%** ({strongest_op.get('adjusted_score_pct', strongest_op['score_pct'])}% Bayesian, Delta: `+{strongest_op.get('delta_vs_baseline', 0)}%`).\n"
-                f"  - ⚠️ *Cảnh báo:* Đối thủ thi đấu cực kỳ sắc bén ở biến cờ này. Trừ khi bạn đã chuẩn bị phương án bẫy đặc biệt, hãy chủ động né tránh biến chính này."
-            )
-        if weakest_op:
-            lines.append(
-                f"- 🎯 **Tử huyệt khai cuộc (NÊN CHỦ ĐỘNG ÉP VÀO):** **{weakest_op['name']}**\n"
-                f"  - Hiệu suất đối thủ: Chỉ **{weakest_op['score_pct']}%** ({weakest_op.get('adjusted_score_pct', weakest_op['score_pct'])}% Bayesian, Delta: `{weakest_op.get('delta_vs_baseline', 0)}%`).\n"
-                f"  - 💡 *Chiến lược:* Hãy chuẩn bị kỹ lưỡng nhánh cờ này để đưa đối thủ vào thế trận họ xử lý thiếu tự tin nhất."
-            )
-        lines.append("")
-
-        # 2. Cấu trúc Tốt
-        lines.append("#### 2. 🧬 Khai thác Điểm yếu Cấu trúc Tốt")
-        if worst_struct:
-            lines.append(
-                f"- 🎯 **Cấu trúc đối thủ xử lý lúng túng nhất:** **{worst_struct['name']}** "
-                f"(Score đối thủ chỉ đạt **{worst_struct.get('score_pct', 0)}%**, Delta: `{worst_struct.get('delta_vs_baseline', 0)}%`).\n"
-                f"  - 👉 *Kế hoạch:* Hãy chủ động đổi Tốt hoặc tạo sức ép định hình cấu trúc này trên bàn cờ."
-            )
-        if top_struct:
-            lines.append(f"- ⚠️ **Cấu trúc sở trường của đối thủ:** **{top_struct['name']}** (Nên tránh tạo điều kiện cho đối thủ xây dựng cấu trúc này).")
-
-    lines.append("\n---")
-    lines.append("💡 *Hãy đặt câu hỏi bên dưới hoặc chọn một trong các gợi ý đào sâu nhanh để tiếp tục!*")
+    if openings:
+        lines.extend(["", "**Khai cuộc trong tập ván đã phân tích**"])
+        lines.extend(describe(item, item.get("game_indices", [])) for item in openings[:3])
+    if structures:
+        lines.extend(["", "**Cấu trúc Tốt đã ghi nhận**"])
+        lines.extend(describe(item, [game.get("game_index") for game in item.get("games", [])])
+                     for item in structures[:3])
+        lines.append("Một ván có thể xuất hiện trong nhiều nhóm cấu trúc Tốt.")
+    if openings or structures:
+        lines.extend(["", "Mở danh sách ván của nhóm để xem lại các thế cờ và diễn biến cụ thể."])
     return "\n".join(lines)
 
 
 def get_followup_prompts(mode: str = "self") -> List[str]:
-    """Trả về danh sách câu hỏi gợi ý đào sâu nhanh theo góc nhìn."""
-    if mode == "self":
-        return [
-            "🛠️ Làm sao để vá lỗ hổng ở khai cuộc yếu nhất?",
-            "📚 Lập giáo án rèn luyện 2 tuần để khắc phục điểm yếu",
-            "🧬 Hướng dẫn cách xử lý cấu trúc Tốt kém nhất",
-            "🛡️ Khuyến nghị chiến lược mở rộng Repertoire khai cuộc",
-        ]
-    else:
-        return [
-            "⚔️ Gợi ý các nước đi khắc chế đòn mạnh nhất của đối thủ",
-            "🎯 Kế hoạch chi tiết để ép đối thủ vào tử huyệt khai cuộc",
-            "🧬 Cách tạo sức ép và hướng đối thủ vào cấu trúc Tốt bất lợi",
-            "🛡️ Nên chọn khai cuộc gì khi tôi cầm Trắng / cầm Đen đấu với họ?",
-        ]
+    return [
+        "Khai cuộc nào xuất hiện nhiều nhất khi cầm Trắng và khi cầm Đen?",
+        "Những cấu trúc Tốt nào đã xuất hiện? Cho mình xem các ván liên quan.",
+        "Gợi ý ván để chuẩn bị đối đầu." if mode == "opponent" else "Gợi ý ván để xem lại và luyện tập.",
+    ]

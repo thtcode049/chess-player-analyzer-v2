@@ -65,15 +65,6 @@ body {
   body .font-extrabold,
   body .font-black { font-weight: 700; }
 
-  /* Small rounded status tags for strength, neutral, and weakness labels. */
-  body .assessment-tag {
-    border-radius: 9999px;
-    padding: 2px 7px;
-    font-size: 11px;
-    line-height: 1.2;
-    font-weight: 500;
-  }
-
   /* One predictable type scale for chess data tables. */
   body .data-table {
     font-size: 13px;
@@ -95,7 +86,7 @@ body {
     font-weight: 500;
     font-variant-numeric: tabular-nums;
   }
-  body .data-table .rounded-tag:not(.assessment-tag) {
+  body .data-table .rounded-tag {
     padding: 2px 6px;
     font-size: 12px;
     line-height: 1.2;

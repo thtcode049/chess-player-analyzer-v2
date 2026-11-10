@@ -7,6 +7,7 @@ from typing import Dict, Any, Tuple, Optional, List
 import json
 import uuid
 import logging
+import re
 
 from api.schemas.common import BaseResponse
 from api.schemas.ai import (
@@ -20,7 +21,7 @@ from api.schemas.ai import (
 from api.services.ai_service import AIService
 from api.services.db_service import DBService
 from api.routes.analyses import RUN_SNAPSHOTS_CACHE, _resolve_games_for_player
-from api.services.analysis_service import AnalysisService
+from api.services.analysis_service import AnalysisService, observed_profile, observed_snapshot_stats
 
 logger = logging.getLogger(__name__)
 
@@ -40,21 +41,13 @@ def _resolve_run_snapshot(
 
     # 1. Check in-memory cache
     cached = RUN_SNAPSHOTS_CACHE.get(run_id) or RUN_SNAPSHOTS_CACHE.get(clean_id)
-    if cached and cached.get("stats_raw") and cached.get("deep_profile_raw"):
-        games = cached.get("games") or []
-        if not games and cached.get("player_id"):
-            try:
-                games, _ = _resolve_games_for_player(
-                    cached["player_id"],
-                    x_user_id=x_user_id,
-                    x_guest_session_id=x_guest_session_id
-                )
-            except Exception:
-                games = []
-        return cached["stats_raw"], cached["deep_profile_raw"], cached.get("player_name", "Kỳ thủ"), games
+    if cached and "repertoire_summary" in cached:
+        profile = observed_profile(cached)
+        stats = observed_snapshot_stats(cached, profile["repertoire"])
+        if cached.get("snapshot_version") == 2:
+            return stats, profile, cached.get("player_name", "Kỳ thủ"), cached["games"]
 
     # 2. Query Supabase analysis_runs table
-    import re
     db_run = None
     if re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", clean_id, re.I):
         db_run = DBService.get_analysis_run(clean_id) or DBService.get_latest_analysis_run_for_player(clean_id)
@@ -62,77 +55,31 @@ def _resolve_run_snapshot(
     if db_run:
         player_id = db_run.get("player_id") or clean_id
         player_name = "Kỳ thủ"
-        games: List[Dict[str, Any]] = []
-        try:
-            games, resolved_name = _resolve_games_for_player(
-                player_id,
-                x_user_id=x_user_id,
-                x_guest_session_id=x_guest_session_id
-            )
-            if resolved_name and resolved_name != "Player":
-                player_name = resolved_name
-        except Exception:
-            games = []
-
-        if player_name == "Kỳ thủ":
+        games = []
+        profile = observed_profile(db_run)
+        stats = observed_snapshot_stats(db_run, profile["repertoire"])
+        metadata = (db_run.get("repertoire_summary") or {}).get("_snapshot") or {}
+        game_ids = metadata.get("game_ids", [])
+        if metadata.get("version") == 2 and game_ids and all(game_ids):
             try:
-                db_player = DBService.get_player(player_id)
-                if db_player and db_player.get("canonical_name"):
-                    player_name = db_player["canonical_name"]
-            except Exception as e:
-                logger.warning(f"Error fetching player name: {e}")
+                available, player_name = _resolve_games_for_player(
+                    player_id, x_user_id=x_user_id, x_guest_session_id=x_guest_session_id,
+                )
+                by_id = {game.get("id"): game for game in available}
+                if len(game_ids) == stats.get("total_games") and all(game_id in by_id for game_id in game_ids):
+                    games = [by_id[game_id] for game_id in game_ids]
+            except Exception as exc:
+                logger.warning("Could not resolve snapshot games: %s", exc)
+        if player_name in ("Kỳ thủ", "Player"):
+            try:
+                player = DBService.get_player(player_id) or {}
+                player_name = player.get("canonical_name") or "Kỳ thủ"
+            except Exception as exc:
+                logger.warning("Could not resolve player name: %s", exc)
+        return stats, profile, player_name, games
 
-        if games:
-            from src.stats import calculate_game_stats
-            stats = calculate_game_stats(games)
-        else:
-            total_games = int(db_run.get("games_analyzed_count") or 0)
-            win_rate = float(db_run.get("overall_win_rate") or 50.0)
-            overall_score = float(db_run.get("overall_score") or 50.0)
-            white_score = float(db_run.get("white_score") or 50.0)
-            black_score = float(db_run.get("black_score") or 50.0)
-            wins = int(round(total_games * (win_rate / 100.0)))
-            draw_rate = max(0.0, min(100.0 - win_rate, round((overall_score - win_rate) * 2.0, 1)))
-            draws = max(0, int(round(total_games * (draw_rate / 100.0))))
-            losses = max(0, total_games - wins - draws)
-            stats = {
-                "total_games": total_games,
-                "score_percentage": overall_score,
-                "win_rate": win_rate,
-                "draw_rate": draw_rate,
-                "loss_rate": max(0.0, round(100.0 - win_rate - draw_rate, 1)),
-                "wins": wins,
-                "draws": draws,
-                "losses": losses,
-                "white_games": int(round(total_games / 2)),
-                "black_games": max(0, total_games - int(round(total_games / 2))),
-                "white_score_percentage": white_score,
-                "black_score_percentage": black_score,
-            }
-
-        repertoire = db_run.get("repertoire_summary") or {}
-        pawn_structures = db_run.get("pawn_structures_summary") or {}
-
-        deep_profile = {
-            "repertoire": repertoire,
-            "structures": pawn_structures,
-        }
-
-        # Cache in memory for subsequent requests
-        snapshot = {
-            "stats_raw": stats,
-            "deep_profile_raw": deep_profile,
-            "player_name": player_name,
-            "player_id": player_id,
-            "run_id": db_run.get("id", run_id),
-            "games": games
-        }
-        RUN_SNAPSHOTS_CACHE[run_id] = snapshot
-        RUN_SNAPSHOTS_CACHE[clean_id] = snapshot
-        if db_run.get("id"):
-            RUN_SNAPSHOTS_CACHE[db_run["id"]] = snapshot
-
-        return stats, deep_profile, player_name, games
+    if cached and "repertoire_summary" in cached:
+        return stats, profile, cached.get("player_name", "Kỳ thủ"), []
 
     # 3. Fallback: try resolving games for player and running complete analysis
     if re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", clean_id, re.I):
@@ -151,7 +98,6 @@ def _resolve_run_snapshot(
                 )
                 run_res["player_name"] = player_name
                 run_res["player_id"] = clean_id
-                run_res["games"] = games
                 RUN_SNAPSHOTS_CACHE[run_id] = run_res
                 RUN_SNAPSHOTS_CACHE[clean_id] = run_res
                 return run_res.get("stats_raw", {}), run_res.get("deep_profile_raw", {}), player_name, games
@@ -159,7 +105,7 @@ def _resolve_run_snapshot(
             logger.warning(f"Error on-demand analyzing games for player {clean_id}: {e}")
 
     # 4. Final default empty state if no player or games exist
-    stats = {"total_games": 0, "score_percentage": 50.0, "win_rate": 50.0}
+    stats = {"total_games": 0}
     deep_profile = {"repertoire": {}, "structures": {}}
     return stats, deep_profile, "Player", []
 
@@ -173,7 +119,7 @@ async def generate_briefing(
     """
     Generates a proactive strategic briefing (Self or Opponent view) based on an analysis run.
     """
-    stats, deep_profile, player_name, _ = _resolve_run_snapshot(
+    stats, deep_profile, player_name, games = _resolve_run_snapshot(
         req.run_id,
         x_user_id=x_user_id,
         x_guest_session_id=x_guest_session_id
@@ -184,7 +130,8 @@ async def generate_briefing(
         player_name=player_name,
         stats=stats,
         deep_profile=deep_profile,
-        perspective_mode=effective_mode
+        perspective_mode=effective_mode,
+        games=games,
     )
 
     data = BriefingResponse(
@@ -194,6 +141,32 @@ async def generate_briefing(
         suggested_questions=suggested_q
     )
     return BaseResponse(success=True, data=data)
+
+EVIDENCE_REFERENCE = re.compile(r"\{\{((?:P[0-9]+)?[GS][0-9]+)\}\}")
+PARTIAL_REFERENCE = re.compile(r"\{(?:\{[A-Z0-9]*\}?)?$")
+
+
+def _render_evidence_stream(chunks, sources):
+    """Resolve only references supplied for this request, including split stream chunks."""
+    pending = ""
+
+    def render(text):
+        return EVIDENCE_REFERENCE.sub(
+            lambda match: sources.get(match[1], "[Nguồn chưa xác minh]"), text,
+        )
+
+    for chunk in chunks:
+        text = pending + chunk
+        partial = PARTIAL_REFERENCE.search(text)
+        if partial:
+            pending = partial[0]
+            text = text[:partial.start()]
+        else:
+            pending = ""
+        if text:
+            yield render(text)
+    if pending:
+        yield "[Nguồn chưa xác minh]"
 
 
 @router.post("/chat-stream")
@@ -209,22 +182,25 @@ async def chat_with_ai_coach(
     if not target_ids and req.player_id and req.player_id != "general":
         target_ids = [req.player_id]
 
+    sources: Dict[str, str] = {}
+    fallback_response = None
+    effective_perspective = "opponent" if req.perspective_mode == "opponent" else "self"
     if len(target_ids) > 1:
         # Multi-profile mode: Resolve snapshots and build composite ground truth context
         contexts = []
+        summaries = []
         names = []
-        primary_stats = None
-        primary_profile = None
-        for pid in target_ids:
+        for index, pid in enumerate(target_ids, 1):
             p_stats, p_deep_profile, p_name, p_games = _resolve_run_snapshot(
                 pid,
                 x_user_id=x_user_id,
                 x_guest_session_id=x_guest_session_id
             )
             names.append(p_name)
-            if primary_stats is None:
-                primary_stats = p_stats
-                primary_profile = p_deep_profile
+            summary, _ = AIService.generate_briefing(
+                p_name, p_stats, p_deep_profile, effective_perspective, games=p_games,
+            )
+            summaries.append(summary)
             p_context = AIService.build_prompt_context(
                 player_name=p_name,
                 stats=p_stats,
@@ -233,7 +209,10 @@ async def chat_with_ai_coach(
                 engine_eval=req.engine_eval,
                 selected_game=req.selected_game,
                 is_board_open=req.is_board_open if req.is_board_open is not None else True,
-                games=p_games
+                games=p_games,
+                question=req.message,
+                sources=sources,
+                source_prefix=f"P{index}",
             )
             contexts.append(f"### DỮ LIỆU HỒ SƠ KỲ THỦ: {p_name}\n{p_context}")
 
@@ -243,11 +222,14 @@ async def chat_with_ai_coach(
             f"Người dùng đang chọn cùng lúc {len(names)} hồ sơ kỳ thủ ({combined_player_name}) để đối chiếu, so sánh phong cách, khai cuộc và chiến thuật đối đầu.\n\n"
             + ("\n\n" + "=" * 40 + "\n\n").join(contexts)
         )
-        stats = primary_stats
-        deep_profile = primary_profile
+        fallback_response = "\n\n".join(summaries)
+        stats = None
+        deep_profile = None
         player_name = combined_player_name
     else:
-        target_id = target_ids[0] if target_ids else (req.player_id or req.run_id)
+        target_id = req.run_id
+        if target_id in ("", "general", "run-general", "default_run", "multi"):
+            target_id = target_ids[0] if target_ids else "general"
         stats, deep_profile, player_name, games = _resolve_run_snapshot(
             target_id,
             x_user_id=x_user_id,
@@ -261,15 +243,16 @@ async def chat_with_ai_coach(
             engine_eval=req.engine_eval,
             selected_game=req.selected_game,
             is_board_open=req.is_board_open if req.is_board_open is not None else True,
-            games=games
+            games=games,
+            question=req.message,
+            sources=sources,
         )
 
     history_dicts = [{"role": m.role, "content": m.content} for m in req.history]
-    effective_perspective = "opponent" if req.perspective_mode == "opponent" else "self"
 
     def event_generator():
         try:
-            for chunk in AIService.stream_chat_response(
+            chunks = AIService.stream_chat_response(
                 prompt=req.message,
                 context=context,
                 stats=stats,
@@ -279,7 +262,9 @@ async def chat_with_ai_coach(
                 player_name=player_name,
                 current_fen=req.current_fen,
                 engine_eval=req.engine_eval,
-            ):
+                fallback_response=fallback_response,
+            )
+            for chunk in _render_evidence_stream(chunks, sources):
                 payload = json.dumps({"chunk": chunk})
                 yield f"data: {payload}\n\n"
             yield "data: [DONE]\n\n"

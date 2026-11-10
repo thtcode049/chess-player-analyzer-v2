@@ -75,9 +75,9 @@ VALUES (
     'All Lichess Blitz Games',
     '{"source": "lichess", "color": "all"}'::jsonb,
     1,
-    100.00, 100.00, 100.00, 0.00,
-    '{"most_played": [{"name": "Sicilian Defense", "eco": "B90", "games_count": 1, "score_pct": 100.0}]}'::jsonb,
-    '{"structures": [{"name": "Open Sicilian", "games_count": 1, "score_pct": 100.0, "delta_vs_baseline": 0.0}]}'::jsonb,
+    100.00, 100.00, 100.00, NULL,
+    '{"most_played": [{"name": "Sicilian Defense", "eco": "B90", "games_count": 1, "wins": 1, "draws": 0, "losses": 0, "score_pct": 100.0}]}'::jsonb,
+    '{"structures": [{"name": "Open Sicilian", "games_count": 1, "score_pct": 100.0}]}'::jsonb,
     '{"san": "root", "games_count": 1, "continuations": [{"san": "e4", "games_count": 1, "usage_pct": 100.0, "win_pct": 100.0}]}'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;

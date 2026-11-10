@@ -13,6 +13,7 @@ Chức năng:
 import re
 from typing import Optional, Dict, Any, Tuple, List
 import chess
+from src.ai_assistant.briefing import format_group_stats
 from src.analysis.pawn_structure import (
     find_canonical_pawn_skeleton,
     STRATEGIC_PLANS,
@@ -102,16 +103,13 @@ def format_canonical_pawn_structure_markdown(
     lines.append("\n---")
     lines.append(f"\n#### 📊 Thống kê thực chiến của **{selected_player}**:")
     if player_struct:
-        w = player_struct.get("wins", 0)
-        d = player_struct.get("draws", 0)
-        l = player_struct.get("losses", 0)
-        cnt = player_struct.get("games_count", 0)
-        score = player_struct.get("score_pct", 0)
-        bayes = player_struct.get("adjusted_score_pct", score)
-        badge = player_struct.get("assessment_badge", "Trung tính")
-        lines.append(f"- **Số ván thực chiến:** **{cnt} ván** ({w} thắng / {d} hòa / {l} thua)")
-        lines.append(f"- **Điểm hiệu suất:** **{score}%** (Điểm Bayes: **{bayes}%**)")
-        lines.append(f"- **Đánh giá hệ thống:** `{badge}`")
+        lines.append(f"- {format_group_stats(player_struct)}")
+        example = next(
+            (game for game in player_struct.get("games", []) if game.get("formation_fen")),
+            None,
+        )
+        if example:
+            lines.append(f"- **Thế cờ ghi nhận:** `{example['formation_fen']}`")
     else:
         lines.append(f"- Chưa phát hiện ván đấu thực chiến nào ở cấu trúc này trong tập dữ liệu của kỳ thủ.")
 

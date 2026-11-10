@@ -41,6 +41,9 @@ VAI TRÒ VÀ NHIỆM VỤ:
    - Dữ liệu tổng hợp: Danh mục khai cuộc (Repertoire), cấu trúc Tốt (Pawn structures), tỷ lệ thắng/hòa/thua thực tế và kho ván đấu PGN.
 
 3. QUY TẮC PHÂN TÍCH CỐT LÕI:
+   - Khi nêu thống kê hồ sơ, chép nguyên mã nguồn dạng {{S1}} hoặc {{P1S1}} trong ngữ cảnh để hệ thống điền số liệu. Dùng mã {{G1}} hoặc {{P1G1}} được cung cấp để dẫn ván. Chỉ dùng mã có trong dữ liệu của đúng kỳ thủ.
+   - Phân biệt số liệu quan sát với nhận định và đề xuất. Kết quả chung cuộc không đủ để xác định chất lượng xử lý khai cuộc hoặc cấu trúc Tốt. Khi đề xuất một giả thuyết, dẫn ván, nước hoặc thế cờ thực tế và nói rõ phần còn thiếu để đối chiếu.
+   - Không suy rộng từ phần biên bản được cung cấp sang mọi ván. Không suy đoán số liệu còn thiếu hoặc lấy kết luận từ lịch sử hội thoại làm bằng chứng. Dùng ngữ cảnh hiện tại khi có khác biệt.
    - KHI NGƯỜI DÙNG HỎI PHÂN TÍCH TOÀN BỘ VÁN CỜ (hoặc hỏi về diễn biến, kết quả, bước ngoặt của ván đang chọn):
      Bạn PHẢI phân tích TOÀN BỘ DIỄN BIẾN VÁN ĐẤU theo trình tự từ Khai cuộc -> Trung cuộc -> Tàn cuộc dựa trên chuỗi nước đi PGN của ván đó!
      + Nêu rõ hai bên chơi khai cuộc gì, các nước đầu diễn ra thế nào.
@@ -196,7 +199,8 @@ def stream_gemini_response(
     fen_map_white: Optional[Dict[str, Any]] = None,
     fen_map_black: Optional[Dict[str, Any]] = None,
     selected_player: str = "Kỳ thủ",
-    mode: str = "self"
+    mode: str = "self",
+    fallback_response: Optional[str] = None,
 ) -> Generator[str, None, None]:
     """
     Generator phản hồi dạng Stream (chữ chạy từng từ mượt mà như ChatGPT / Gemini).
@@ -209,7 +213,7 @@ def stream_gemini_response(
     # Nếu không có API Key máy chủ, tự động báo lỗi và dùng Local Expert Engine stream
     if not clean_key:
         notice = _format_fallback_notice("Chưa cấu hình GEMINI_API_KEY trong file .env")
-        fallback_text = notice + generate_local_expert_response(
+        fallback_text = notice + (fallback_response or generate_local_expert_response(
             prompt=prompt,
             deep_profile=deep_profile,
             stats=stats,
@@ -217,7 +221,7 @@ def stream_gemini_response(
             fen_map_black=fen_map_black,
             selected_player=selected_player,
             mode=mode
-        )
+        ))
         words = fallback_text.split(" ")
         for i in range(0, len(words), 3):
             chunk = " ".join(words[i:i+3]) + " "
@@ -305,7 +309,7 @@ def stream_gemini_response(
     # Nếu tất cả các model cloud đều lỗi và chưa stream được chữ nào, thông báo lỗi trước và fallback sang local expert
     if not streamed_anything:
         fallback_notice = _format_fallback_notice(last_error_reason or "Máy chủ AI Cloud không phản hồi")
-        fallback_text = fallback_notice + generate_local_expert_response(
+        fallback_text = fallback_notice + (fallback_response or generate_local_expert_response(
             prompt=prompt,
             deep_profile=deep_profile,
             stats=stats,
@@ -313,7 +317,7 @@ def stream_gemini_response(
             fen_map_black=fen_map_black,
             selected_player=selected_player,
             mode=mode
-        )
+        ))
         words = fallback_text.split(" ")
         for i in range(0, len(words), 3):
             chunk = " ".join(words[i:i+3]) + " "

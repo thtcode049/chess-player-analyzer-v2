@@ -1,5 +1,5 @@
 """
-Analysis Route Handlers (Snapshots, Bayesian Profile, Opening Tree)
+Analysis Route Handlers (Snapshots, Descriptive Statistics, Opening Tree)
 """
 from fastapi import APIRouter, HTTPException, Query, Body, Header
 from typing import Optional, Dict, Any, List
@@ -14,12 +14,13 @@ from api.schemas.analyses import (
     OpeningTreeNodeResponse,
     OpeningContinuation
 )
-from api.services.analysis_service import AnalysisService
+from api.services.analysis_service import AnalysisService, observed_profile
 from api.services.import_service import ImportService
 from api.services.db_service import DBService, GUEST_SYSTEM_USER_ID
 from api.routes.players import PLAYERS_STORE, GAMES_STORE, get_guest_session
 from api.services.lichess_masters_service import LichessMastersService
 from src.opening_tree import build_opening_tree
+from src.pgn_parser import filter_games_by_player
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/analysis", tags=["Analysis"])
@@ -118,7 +119,7 @@ def create_analysis_run(
     x_guest_session_id: Optional[str] = Header(None)
 ):
     """
-    Executes core analysis pipeline (Statistics, Bayes, Tree, Pawn Structures, Style).
+    Executes core analysis pipeline (Statistics, Tree, Pawn Structures, Style).
     Returns persistent analytical snapshot.
     """
     try:
@@ -128,9 +129,9 @@ def create_analysis_run(
         # If raw PGN is supplied directly, parse it on the fly
         if req.raw_pgn_text:
             parsed_games, detected_player, _ = ImportService.parse_pgn_bytes(req.raw_pgn_text.encode("utf-8"))
-            games = parsed_games
             if detected_player:
                 player_name = detected_player
+                games = filter_games_by_player(parsed_games, player_name)
         elif req.player_id:
             # Luôn xóa cache cũ khi POST tạo run mới — đảm bảo Stockfish chạy lại
             RUN_SNAPSHOTS_CACHE.pop(req.player_id, None)
@@ -183,9 +184,9 @@ def create_analysis_run(
 
         response_data = AnalysisRunResponse(
             id=run_id,
-            player_id=req.player_id,
+            player_id=req.player_id or "player",
             run_label=run_res["run_label"],
-            scope_filter=req.scope_filter or {},
+            scope_filter=run_res["scope_filter"],
             games_analyzed_count=run_res["games_analyzed_count"],
             overall_win_rate=run_res["overall_win_rate"],
             overall_score=run_res["overall_score"],
@@ -327,18 +328,19 @@ def get_analysis_run(
 
         cached = RUN_SNAPSHOTS_CACHE[run_id]
 
+    profile = observed_profile(cached)
     response_data = AnalysisRunResponse(
         id=cached.get("id") or cached.get("run_id") or run_id,
-        player_id=cached.get("player_id", "player"),
+        player_id=cached.get("player_id") or "player",
         run_label=cached.get("run_label", "Analytical Snapshot"),
-        scope_filter={},
+        scope_filter=cached.get("scope_filter") or {},
         games_analyzed_count=cached["games_analyzed_count"],
         overall_win_rate=cached["overall_win_rate"],
         overall_score=cached["overall_score"],
         white_score=cached["white_score"],
         black_score=cached["black_score"],
-        repertoire_summary=cached["repertoire_summary"],
-        pawn_structures_summary=cached.get("pawn_structures_summary") or {},
+        repertoire_summary=profile["repertoire"],
+        pawn_structures_summary=profile["structures"],
         opening_tree_snapshot=cached["opening_tree_snapshot"],
         status="completed"
     )

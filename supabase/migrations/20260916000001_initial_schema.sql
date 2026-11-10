@@ -86,14 +86,14 @@ CREATE TABLE IF NOT EXISTS public.analysis_runs (
     scope_filter JSONB DEFAULT '{}'::jsonb NOT NULL,
     games_analyzed_count INT NOT NULL,
     
-    -- Core Mathematical & Bayesian Metrics
+    -- Observed Result Metrics
     overall_win_rate NUMERIC(5, 2),
     overall_score NUMERIC(5, 2),
     white_score NUMERIC(5, 2),
     black_score NUMERIC(5, 2),
     
     -- Compact High-Density JSONB Snapshots
-    repertoire_summary JSONB,           -- Most played, best, and worst openings with Bayes score
+    repertoire_summary JSONB,           -- Observed results grouped by opening and color
     pawn_structures_summary JSONB,      -- Carlsbad, Isolani, Hedgehog performance
     opening_tree_snapshot JSONB,        -- Root continuations tree for interactive drill-down
     

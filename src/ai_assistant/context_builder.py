@@ -7,10 +7,13 @@ và Opening Tree (các nhánh thế cờ đã dựng ở bàn cờ phân tích) 
 chuẩn xác (Ground Truth) phục vụ cho LLM.
 """
 
-from typing import Dict, Any, List, Optional
-import chess
-from src.analysis.pawn_structure import CANONICAL_PAWN_SKELETONS, get_canonical_pawn_skeleton
 import re
+from typing import Any, Dict, Iterable, List, Optional
+
+import chess
+
+from src.ai_assistant.briefing import format_game_reference, format_group_stats, format_profile_stats
+from src.analysis.pawn_structure import CANONICAL_PAWN_SKELETONS
 
 
 def format_pv_to_san(fen: str, pv_moves: List[str]) -> str:
@@ -143,18 +146,28 @@ def format_moves_san(moves: Any) -> str:
     return " ".join(parts)
 
 
-def format_games_pgn_for_context(games: Optional[List[Dict[str, Any]]], max_games: int = 15) -> str:
-    """
-    Định dạng toàn bộ biên bản ván đấu (PGN) của kỳ thủ thành văn bản có cấu trúc
-    để nạp vào Context cho Trợ lí AI phân tích trực tiếp.
-    Mặc định giới hạn 15 ván tiêu biểu để tránh làm loãng ngữ cảnh và gây ảo tưởng cho LLM.
-    """
+def format_games_pgn_for_context(
+    games: Optional[List[Dict[str, Any]]],
+    max_games: int = 15,
+    *,
+    game_indices: Optional[List[int]] = None,
+    sources: Optional[Dict[str, str]] = None,
+    source_prefix: str = "",
+) -> str:
+    """Provide a bounded set of games with references to their snapshot positions."""
     if not games:
-        return "Chưa có biên bản ván đấu PGN chi tiết."
+        return "Chưa có biên bản ván đấu PGN chi tiết thuộc lượt phân tích này."
 
+    indices = game_indices if game_indices is not None else list(range(min(len(games), max_games)))
     lines = []
-    lines.append(f"### Tổng hợp {min(len(games), max_games)} ván đấu PGN thực tế của kỳ thủ:")
-    for idx, g in enumerate(games[:max_games], 1):
+    lines.append(f"Biên bản được cung cấp: {len(indices)}/{len(games)} ván của lượt phân tích.")
+    for index in indices:
+        g = games[index]
+        idx = index + 1
+        source = f"{source_prefix}G{idx}"
+        if sources is not None:
+            label = f"Ván {idx}" if not source_prefix else f"Hồ sơ {source_prefix[1:]} · Ván {idx}"
+            sources[source] = format_game_reference(g, label)
         white = g.get("white") or g.get("white_player") or "Trắng"
         black = g.get("black") or g.get("black_player") or "Đen"
         w_elo = g.get("white_elo") or ""
@@ -172,7 +185,7 @@ def format_games_pgn_for_context(games: Optional[List[Dict[str, Any]]], max_game
 
         w_str = f"{white} ({w_elo})" if w_elo else white
         b_str = f"{black} ({b_elo})" if b_elo else black
-        lines.append(f"\n#### [Ván {idx}] ⚪ {w_str} vs ⚫ {b_str}")
+        lines.append(f"\n#### {{{{{source}}}}} · {w_str} – {b_str}")
         meta_items = [f"**Kết quả**: {res}", f"**Khai cuộc**: {eco} {opening}".strip(), f"**Ngày**: {date}"]
         if event and event not in ["?", "Unknown Event"]:
             meta_items.append(f"**Giải**: {event}")
@@ -201,7 +214,10 @@ def build_opponent_ai_context(
     current_fen: Optional[str] = None,
     engine_eval: Optional[Dict[str, Any]] = None,
     selected_game: Optional[Dict[str, Any]] = None,
-    games: Optional[List[Dict[str, Any]]] = None
+    games: Optional[List[Dict[str, Any]]] = None,
+    question: str = "",
+    sources: Optional[Dict[str, str]] = None,
+    source_prefix: str = "",
 ) -> str:
     """
     Chuyển đổi toàn bộ dữ liệu thống kê khách quan từ Profile, Cây Khai cuộc,
@@ -216,7 +232,7 @@ def build_opponent_ai_context(
 
     ctx_parts = []
     ctx_parts.append(f"# BÁO CÁO DỮ LIỆU THỰC NGHIỆM KỲ THỦ: {selected_player.upper()}")
-    ctx_parts.append("*(Nguồn dữ liệu thực nghiệm: 100% trích xuất từ ván đấu thực tế & bàn cờ phân tích)*\n")
+    ctx_parts.append("*(Thống kê quan sát từ lượt phân tích và dữ liệu bàn cờ được cung cấp)*\n")
 
     # 1. VÁN ĐẤU ĐANG ĐƯỢC CHỌN ĐỂ PHÂN TÍCH TRÊN GIAO DIỆN
     if selected_game:
@@ -339,60 +355,87 @@ def build_opponent_ai_context(
         ctx_parts.append("- **Quy tắc**: Bạn KHÔNG cần bình luận về thế cờ hay điểm số Stockfish nếu người dùng chỉ hỏi về ván đấu hoặc lý thuyết. NẾU người dùng hỏi về một thế cờ cụ thể hoặc bạn thấy cần thiết phải mở bàn cờ để minh họa một hình cờ, hãy viết mã `[OPEN_BOARD]` hoặc `[OPEN_BOARD: <chuỗi FEN>]` trong câu trả lời để hệ thống tự động mở bàn cờ cho người dùng.")
         ctx_parts.append("")
 
-    # 3. Thống kê cơ bản
-    ctx_parts.append("## I. THỐNG KÊ TỔNG QUAN")
-    ctx_parts.append(f"- **Tổng số ván đấu đã phân tích**: {stats.get('total_games', len(games or []))} ván")
-    ctx_parts.append(f"- **Kết quả chung**: {stats.get('wins', 0)} Thắng ({stats.get('win_rate', 0)}%), {stats.get('draws', 0)} Hòa ({stats.get('draw_rate', 0)}%), {stats.get('losses', 0)} Thua ({stats.get('loss_rate', 0)}%)")
-    ctx_parts.append(f"- **Tỷ lệ điểm (Score %)**: {stats.get('score_percentage', 0)}%")
-    ctx_parts.append(f"- **Khi cầm quân TRẮNG**: {stats.get('white_games', 0)} ván, Score: {stats.get('white_score_percentage', 0)}%")
-    ctx_parts.append(f"- **Khi cầm quân ĐEN**: {stats.get('black_games', 0)} ván, Score: {stats.get('black_score_percentage', 0)}%")
-    if stats.get("white_elo"):
-        ctx_parts.append(f"- **Elo trung bình**: ~{stats.get('white_elo', 0)}")
+    rep = deep_profile.get("repertoire", {})
+    structs = deep_profile.get("structures", {}).get("structures", [])
+    query = question.casefold().strip()
 
-    # 4. Cây Khai cuộc & Phản ứng nước đi (nếu có)
+    def asked_about(item: Dict[str, Any]) -> bool:
+        name = str(item.get("name") or "").casefold()
+        return bool(name and name in query)
+
+    preferred_indices = {
+        index
+        for item in rep.get("all_openings", [])
+        if asked_about(item)
+        for index in item.get("game_indices", [])
+    }
+    for structure in structs:
+        if asked_about(structure):
+            preferred_indices.update(game.get("game_index") for game in structure.get("games", []))
+    indices = sorted(range(len(games or [])), key=lambda index: index not in preferred_indices)[:15]
+    provided_indices = set(indices)
+    stat_index = 0
+
+    def observed(text: str, evidence_indices: Iterable[int] = ()) -> str:
+        nonlocal stat_index
+        stat_index += 1
+        key = f"{source_prefix}S{stat_index}"
+        if sources is not None:
+            sources[key] = text
+        references = [
+            "{{" + f"{source_prefix}G{index + 1}" + "}}"
+            for index in evidence_indices if index in provided_indices
+        ]
+        suffix = f" · Ván tham chiếu: {', '.join(references[:3])}" if references else ""
+        return f"{{{{{key}}}}} {text}{suffix}"
+
+    ctx_parts.append("## I. THỐNG KÊ TỔNG QUAN")
+    if stats:
+        ctx_parts.extend(
+            "- " + observed(f"**{selected_player}** · {line.removeprefix('- ')}")
+            for line in format_profile_stats(stats)
+        )
+    else:
+        ctx_parts.append("Chưa có thống kê hồ sơ.")
+
     if fen_map_white or fen_map_black:
         ctx_parts.append("\n## II. CÂY KHAI CUỘC (OPENING TREE)")
-        tree_summary = summarize_opening_tree(fen_map_white, fen_map_black)
-        ctx_parts.append(tree_summary)
+        ctx_parts.append(summarize_opening_tree(fen_map_white, fen_map_black))
 
-    # 5. Danh mục Khai cuộc Chi tiết (Repertoire)
-    rep = deep_profile.get("repertoire", {})
-    w_rep = rep.get("white_repertoire", [])
-    b_rep = rep.get("black_repertoire", [])
-    if w_rep or b_rep:
-        ctx_parts.append("\n## III. KHAI CUỘC THƯỜNG GẶP (REPERTOIRE)")
-        if w_rep:
-            ctx_parts.append("### Cầm TRẮNG:")
-            for item in w_rep[:6]:
-                ctx_parts.append(
-                    f"- **{item.get('name', 'N/A')}**: {item.get('games_count', 0)} ván ({item.get('wins', 0)}T/{item.get('draws', 0)}H/{item.get('losses', 0)}B) | Score: {item.get('score_pct', 0)}%"
-                )
-        if b_rep:
-            ctx_parts.append("### Cầm ĐEN:")
-            for item in b_rep[:6]:
-                ctx_parts.append(
-                    f"- **{item.get('name', 'N/A')}**: {item.get('games_count', 0)} ván ({item.get('wins', 0)}T/{item.get('draws', 0)}H/{item.get('losses', 0)}B) | Score: {item.get('score_pct', 0)}%"
-                )
+    ctx_parts.append("\n## III. KHAI CUỘC THEO MÀU QUÂN")
+    for key, label in (("white_repertoire", "Cầm Trắng"), ("black_repertoire", "Cầm Đen")):
+        items = rep.get(key, [])
+        if items:
+            ctx_parts.append(f"### {label}")
+            for item in sorted(items, key=lambda entry: not asked_about(entry))[:6]:
+                text = f"**{selected_player} · {label} · {item['name']}** · {format_group_stats(item)}"
+                ctx_parts.append("- " + observed(text, item.get("game_indices", [])))
 
-    # 6. Cấu trúc Tốt & Bảng hình thái chuẩn 28 cấu trúc GM Flores Rios
-    structs = deep_profile.get("structures", {}).get("structures", [])
-    ctx_parts.append("\n## IV. CẤU TRÚC TỐT & BẢNG HÌNH THÁI CHUẨN (CANONICAL PAWN SKELETONS)")
+    ctx_parts.append("\n## IV. CẤU TRÚC TỐT")
     if structs:
-        ctx_parts.append("### Cấu trúc kỳ thủ từng thi đấu thực tế:")
-        for s in structs[:6]:
-            sk = get_canonical_pawn_skeleton(s.get("structure", ""))
-            fen_str = f" | FEN: `{sk['fen']}`" if sk else ""
-            ctx_parts.append(
-                f"- **{s.get('name', 'N/A')}**: {s.get('games_count', 0)} ván | Score: {s.get('score_pct', 0)}% | Nước hình thành: {s.get('typical_formation_move', s.get('typical_move', 'N/A'))}{fen_str}"
-            )
+        ctx_parts.append("Một ván có thể xuất hiện trong nhiều nhóm cấu trúc Tốt.")
+        for item in sorted(structs, key=lambda entry: not asked_about(entry))[:6]:
+            text = f"**{selected_player} · {item['name']}** · {format_group_stats(item)}"
+            move = item.get("typical_formation_move")
+            if move is not None:
+                text += f" · Hình thành khoảng nước {move}"
+            members = [game for game in item.get("games", []) if game.get("game_index") in provided_indices]
+            ctx_parts.append("- " + observed(text, [game["game_index"] for game in members]))
+            for game in members[:2]:
+                if game.get("formation_fen"):
+                    source = "{{" + f"{source_prefix}G{game['game_index'] + 1}" + "}}"
+                    ctx_parts.append(f"  - {source} · nước {game.get('formation_move')} · FEN {game['formation_fen']}")
+
     ctx_parts.append("\n### Bảng Tra cứu 28 Hình thái Cấu trúc Tốt Chuẩn (Flores Rios Ground Truth):")
     for k, data in CANONICAL_PAWN_SKELETONS.items():
         ctx_parts.append(f"- **{data['name']}** ({data['vietnamese_name']}) [{data['chapter']}]: `{data['fen']}`")
 
-    # 7. TOÀN BỘ CƠ SỞ DỮ LIỆU BIÊN BẢN VÁN ĐẤU (PGN GAMES ARCHIVE)
-    if games:
-        ctx_parts.append("\n## V. TOÀN BỘ BIÊN BẢN VÁN ĐẤU THỰC TẾ (PGN GAMES ARCHIVE)")
-        ctx_parts.append(format_games_pgn_for_context(games))
+    ctx_parts.append("\n## V. BIÊN BẢN ĐƯỢC CUNG CẤP CHO CÂU HỎI")
+    if games and len(indices) < len(games):
+        ctx_parts.append("Ưu tiên ván thuộc nhóm được nhắc trong câu hỏi, sau đó lấy theo thứ tự của lượt phân tích.")
+    ctx_parts.append(format_games_pgn_for_context(
+        games, game_indices=indices, sources=sources, source_prefix=source_prefix,
+    ))
 
     return "\n".join(ctx_parts)
 

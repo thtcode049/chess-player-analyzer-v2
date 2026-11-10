@@ -104,4 +104,5 @@ assets/
 
 # Test directories
 test/
-tests/
+tests/*
+!tests/test_observed_analysis.py

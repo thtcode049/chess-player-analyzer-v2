@@ -203,18 +203,21 @@ class DBService:
     @staticmethod
     def bulk_insert_games(games: List[Dict[str, Any]], dataset_id: str) -> int:
         """
-        Insert a batch of normalized game dicts. Returns count inserted.
+        Insert normalized games, attach saved IDs and return the count inserted.
         Games must have dataset_id field set.
         Guarantees that only valid schema columns are sent to Supabase.
         """
         if not games:
             return 0
 
+        from uuid import uuid4
+
         sb = get_supabase()
         records = []
         for g in games:
             # Defensive column whitelist to prevent PostgREST PGRST204 errors
             rec = {k: v for k, v in g.items() if k in DBService.VALID_GAME_COLUMNS}
+            rec["id"] = str(uuid4())
             rec["dataset_id"] = dataset_id
             # Convert datetime to ISO string if needed
             if rec.get("played_at") and hasattr(rec["played_at"], "isoformat"):
@@ -233,7 +236,11 @@ class DBService:
             batch = records[i:i + batch_size]
             try:
                 res = sb.table("games").insert(batch).execute()
-                inserted += len(res.data) if res.data else 0
+                saved_ids = {row["id"] for row in (res.data or []) if row.get("id")}
+                inserted += len(saved_ids)
+                for game, record in zip(games[i:i + batch_size], batch):
+                    if record["id"] in saved_ids:
+                        game["id"] = record["id"]
             except Exception as e:
                 logger.error(f"[DBService.bulk_insert_games] Batch insert failed ({i}..{i+len(batch)}): {e}")
         return inserted
@@ -620,7 +627,14 @@ class DBService:
             "overall_score": float(run_res.get("overall_score", 0.0)) if run_res.get("overall_score") is not None else None,
             "white_score": float(run_res.get("white_score", 0.0)) if run_res.get("white_score") is not None else None,
             "black_score": float(run_res.get("black_score", 0.0)) if run_res.get("black_score") is not None else None,
-            "repertoire_summary": run_res.get("repertoire_summary", {}),
+            "repertoire_summary": {
+                **run_res.get("repertoire_summary", {}),
+                "_snapshot": {
+                    "version": 2,
+                    "stats": run_res.get("stats_raw", {}),
+                    "game_ids": [game.get("id") for game in run_res.get("games", [])],
+                },
+            },
             "pawn_structures_summary": run_res.get("pawn_structures_summary", {}),
             "opening_tree_snapshot": run_res.get("opening_tree_snapshot", {})
         }

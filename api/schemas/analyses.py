@@ -40,7 +40,7 @@ class AnalysisRunResponse(BaseModel):
     scope_filter: Dict[str, Any]
     games_analyzed_count: int
     
-    # Mathematical & Bayesian metrics
+    # Observed result statistics
     overall_win_rate: Optional[float] = None
     overall_score: Optional[float] = None
     white_score: Optional[float] = None

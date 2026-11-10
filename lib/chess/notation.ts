@@ -178,7 +178,11 @@ export function convertUciToSan(fen: string, uciMove: string): string {
  */
 export function sanitizeAndBoldChessText(text: string, currentFen?: string): string {
   if (!text) return "";
-  let s = text;
+  const gameLinks: string[] = [];
+  let s = text.replace(/\]\((\/analyze\?gameId=[^\s)]+)\)/g, (_match, href: string) => {
+    gameLinks.push(href);
+    return `](___GAME_LINK_${gameLinks.length - 1}___)`;
+  });
 
   // 1. Remove open board and internal tags
   s = s.replace(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/gi, "");
@@ -331,6 +335,6 @@ export function sanitizeAndBoldChessText(text: string, currentFen?: string): str
     return "`" + codeBlocks[Number(idx)] + "`";
   });
 
-  return result.trim();
+  return result.replace(/___GAME_LINK_(\d+)___/g, (match, index) => gameLinks[Number(index)] ?? match).trim();
 }
 

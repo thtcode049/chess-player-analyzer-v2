@@ -38,7 +38,7 @@ from api.routes.ai import router as ai_router
 
 app = FastAPI(
     title="ChessLook API",
-    description="ChessLook - High-Performance Chess Data Analytics, Transposition-Safe Opening Trees, Prior-Based Score Shrinkage & Strategic AI Assistant.",
+    description="ChessLook - High-Performance Chess Data Analytics, Transposition-Safe Opening Trees, Observed Game Statistics & Evidence-Grounded AI Assistant.",
     version="2.0.0",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json"

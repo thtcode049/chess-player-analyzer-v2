@@ -6,20 +6,8 @@ tự động (Rule-Based Insights) hỗ trợ người chơi nhận diện phong
 """
 
 from typing import List, Dict, Any, Optional
+from src.statistics import calculate_rate, calculate_score_percentage
 from src.utils import determine_game_outcome
-
-
-from src.analysis.confidence import (
-    calculate_adjusted_score,
-    calculate_delta,
-    assess_performance,
-    get_sample_confidence,
-    format_assessment_label,
-    enrich_performance_item,
-    rank_strongest_items,
-    rank_weakest_items,
-    DEFAULT_PRIOR_STRENGTH
-)
 
 
 def get_opening_label(game: Dict[str, Any]) -> str:
@@ -47,25 +35,14 @@ _get_opening_label = get_opening_label
 
 def analyze_opening_repertoire(
     filtered_games: List[Dict[str, Any]],
-    min_sample: int = 2,
-    baseline_score: Optional[float] = None,
-    prior_strength: float = DEFAULT_PRIOR_STRENGTH,
-    lang: str = "vi"
 ) -> Dict[str, Any]:
-    """
-    Phân tích Repertoire khai cuộc của đối thủ có tích hợp Bayesian Shrinkage & Statistical Confidence.
-    Bổ sung adjusted_score_pct, delta_vs_baseline, assessment và Opening Accuracy vào từng opening.
-    """
+    """Summarize observed results by opening and by player color."""
     openings_map: Dict[str, Dict[str, Any]] = {}
     white_map: Dict[str, Dict[str, Any]] = {}
     black_map: Dict[str, Dict[str, Any]] = {}
 
     total_games = len(filtered_games)
-    total_wins = 0
-    total_draws = 0
-    total_losses = 0
-
-    for game in filtered_games:
+    for game_index, game in enumerate(filtered_games):
         raw_op = game.get("opening") or game.get("opening_name") or "Unknown Opening"
         opening_name = str(raw_op).strip()
         if not opening_name:
@@ -75,18 +52,12 @@ def analyze_opening_repertoire(
         result = game.get("result", "")
 
         is_win, is_draw, is_loss = determine_game_outcome(player_color, result)
-        if is_win:
-            total_wins += 1
-        elif is_draw:
-            total_draws += 1
-        elif is_loss:
-            total_losses += 1
 
-        def _update_stats(target_dict: dict, op_name: str, g_item: dict):
+        def _update_stats(target_dict: dict, op_name: str):
             if op_name not in target_dict:
-                target_dict[op_name] = {"games": 0, "wins": 0, "draws": 0, "losses": 0, "games_list": []}
+                target_dict[op_name] = {"games": 0, "wins": 0, "draws": 0, "losses": 0, "game_indices": []}
             target_dict[op_name]["games"] += 1
-            target_dict[op_name]["games_list"].append(g_item)
+            target_dict[op_name]["game_indices"].append(game_index)
             if is_win:
                 target_dict[op_name]["wins"] += 1
             elif is_draw:
@@ -94,17 +65,11 @@ def analyze_opening_repertoire(
             elif is_loss:
                 target_dict[op_name]["losses"] += 1
 
-        _update_stats(openings_map, opening_name, game)
+        _update_stats(openings_map, opening_name)
         if player_color == "white":
-            _update_stats(white_map, opening_name, game)
+            _update_stats(white_map, opening_name)
         else:
-            _update_stats(black_map, opening_name, game)
-
-    # Tính Overall Player Baseline Score (mặc định 50% nếu chưa có dữ liệu)
-    if baseline_score is None:
-        effective_baseline = round(((total_wins + 0.5 * total_draws) / total_games) * 100, 1) if total_games > 0 else 50.0
-    else:
-        effective_baseline = round(float(baseline_score), 1)
+            _update_stats(black_map, opening_name)
 
     def _finalize_list(target_dict: dict, denominator: int) -> List[Dict[str, Any]]:
         result_list = []
@@ -113,13 +78,12 @@ def analyze_opening_repertoire(
             w = data["wins"]
             d = data["draws"]
             l = data["losses"]
-            g_list = data.get("games_list", [])
 
             usage_pct = round((g_count / denominator) * 100, 1) if denominator > 0 else 0.0
-            score_pct = round(((w + 0.5 * d) / g_count) * 100, 1) if g_count > 0 else 0.0
-            win_pct = round((w / g_count) * 100, 1) if g_count > 0 else 0.0
-            draw_pct = round((d / g_count) * 100, 1) if g_count > 0 else 0.0
-            loss_pct = round((l / g_count) * 100, 1) if g_count > 0 else 0.0
+            score_pct = calculate_score_percentage(w, d, g_count)
+            win_pct = calculate_rate(w, g_count)
+            draw_pct = calculate_rate(d, g_count)
+            loss_pct = calculate_rate(l, g_count)
 
             item = {
                 "name": name,
@@ -132,10 +96,9 @@ def analyze_opening_repertoire(
                 "wins": w,
                 "draws": d,
                 "losses": l,
+                "game_indices": data["game_indices"],
             }
-            # Bổ sung Bayesian Shrinkage & Statistical Assessment cho Score
-            enriched_item = enrich_performance_item(item, effective_baseline, prior_strength=prior_strength, lang=lang)
-            result_list.append(enriched_item)
+            result_list.append(item)
 
         return result_list
 
@@ -144,20 +107,11 @@ def analyze_opening_repertoire(
     black_repertoire = _finalize_list(black_map, sum(1 for g in filtered_games if g.get("player_color") == "black"))
 
     most_played = sorted(all_openings, key=lambda x: x["games_count"], reverse=True)
-    eligible = [op for op in all_openings if op["games_count"] >= min_sample]
-
-    # Xếp hạng Strongest / Weakest có tính đến Bayesian Shrinkage & Statistical Confidence
-    best_scoring = rank_strongest_items(eligible)
-    worst_scoring = rank_weakest_items(eligible)
-
     return {
         "all_openings": most_played,
         "most_played": most_played[:5],
-        "best_scoring": best_scoring[:5],
-        "worst_scoring": worst_scoring[:5],
         "white_repertoire": sorted(white_repertoire, key=lambda x: x["games_count"], reverse=True),
         "black_repertoire": sorted(black_repertoire, key=lambda x: x["games_count"], reverse=True),
-        "overall_baseline": effective_baseline
     }
 
 
@@ -213,24 +167,17 @@ def generate_player_insights(
                 "text": f"Khi đối phương đi 1.e4, kỳ thủ này thường đáp trả bằng 1...{top_e4_resp[0]} ({pct_resp}% số ván)."
             })
 
-    # 3. Color Performance Bias
-    w_score = stats.get("white_score_percentage", 0.0)
-    b_score = stats.get("black_score_percentage", 0.0)
-    if stats.get("white_games", 0) >= 1 and stats.get("black_games", 0) >= 1:
-        if w_score - b_score >= 10.0:
-            insights.append({
-                "type": "stat",
-                "icon": "📊",
-                "title": "Chênh lệch hiệu suất màu quân",
-                "text": f"Đối thủ thi đấu vượt trội khi cầm Trắng ({w_score}%) so với khi cầm Đen ({b_score}%)."
-            })
-        elif b_score - w_score >= 10.0:
-            insights.append({
-                "type": "stat",
-                "icon": "📊",
-                "title": "Chênh lệch hiệu suất màu quân",
-                "text": f"Đối thủ thi đấu vượt trội khi cầm Đen ({b_score}%) so với khi cầm Trắng ({w_score}%)."
-            })
+    # Describe observed scores only when both colors are represented.
+    if stats.get("white_games") and stats.get("black_games"):
+        insights.append({
+            "type": "stat",
+            "icon": "📊",
+            "title": "Kết quả theo màu quân",
+            "text": (
+                f"Trắng đạt {stats['white_score_percentage']}% điểm qua {stats['white_games']} ván. "
+                f"Đen đạt {stats['black_score_percentage']}% điểm qua {stats['black_games']} ván."
+            ),
+        })
 
     # 4. Favorite Opening System
     most_played = repertoire_data.get("most_played", [])
@@ -242,18 +189,6 @@ def generate_player_insights(
             "title": "Khai cuộc chơi nhiều nhất",
             "text": f"Hệ thống khai cuộc '{fav['name']}' xuất hiện nhiều nhất với {fav['games_count']} ván (Điểm số: {fav['score_pct']}%)."
         })
-
-    # 5. Best Scoring Weapon
-    best_scoring = repertoire_data.get("best_scoring", [])
-    if best_scoring:
-        best = best_scoring[0]
-        if best["games_count"] >= 1:
-            insights.append({
-                "type": "repertoire",
-                "icon": "⚔️",
-                "title": "Vũ khí đạt điểm số cao nhất",
-                "text": f"Khai cuộc '{best['name']}' đem lại hiệu suất cao nhất: {best['score_pct']}% trong {best['games_count']} ván."
-            })
 
     return insights
 
@@ -269,9 +204,8 @@ def generate_deep_opponent_profile(
     """
     from src.analysis.pawn_structure import analyze_structural_performance
 
-    baseline = stats.get("score_percentage", 50.0) if stats else 50.0
-    repertoire_data = analyze_opening_repertoire(filtered_games, baseline_score=baseline)
-    structures_data = analyze_structural_performance(filtered_games, baseline_score=baseline)
+    repertoire_data = analyze_opening_repertoire(filtered_games)
+    structures_data = analyze_structural_performance(filtered_games, move_evaluations=move_evaluations)
     rule_insights = generate_player_insights(filtered_games, stats, repertoire_data, {})
 
     return {

@@ -1712,22 +1712,6 @@ export function AnalyzeContent() {
 
           {/* Scrollable Body */}
           <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3.5">
-            {currentOpeningItem?.assessment_badge && (
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-muted-foreground">Đánh giá hồ sơ:</span>
-                <span
-                  className="assessment-tag border"
-                  style={{
-                    backgroundColor: `${currentOpeningItem.assessment_color ?? "#94A3B8"}18`,
-                    color: `color-mix(in srgb, ${currentOpeningItem.assessment_color ?? "#64748b"} 45%, #0f172a)`,
-                    borderColor: `${currentOpeningItem.assessment_color ?? "#94A3B8"}55`,
-                  }}
-                >
-                  {currentOpeningItem.assessment_badge}
-                </span>
-              </div>
-            )}
-
             {/* Stats */}
             {isProfileDataLoading && playerGames.length === 0 ? (
               <div className="text-xs text-muted-foreground flex items-center gap-2 py-2">
@@ -1742,10 +1726,12 @@ export function AnalyzeContent() {
                     <span className="font-bold text-sm text-foreground font-mono">{matchingOpeningGames.length}</span>
                   </div>
                   <div>
-                    <span className="text-[11px] text-muted-foreground block">Điểm Bayes</span>
+                    <span className="text-[11px] text-muted-foreground block">Điểm thực</span>
                     <span className="font-bold text-sm text-emerald-700 font-mono">
-                      {currentOpeningItem?.adjusted_score_pct !== undefined
-                        ? `${currentOpeningItem.adjusted_score_pct.toFixed(1)}%`
+                      {currentOpeningItem?.score_pct !== undefined
+                        ? `${currentOpeningItem.score_pct.toFixed(1)}%`
+                        : openingStats.total > 0
+                        ? `${(((openingStats.wins + openingStats.draws * 0.5) / openingStats.total) * 100).toFixed(1)}%`
                         : "--"}
                     </span>
                   </div>
@@ -1832,22 +1818,6 @@ export function AnalyzeContent() {
 
           {/* Scrollable Body */}
           <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3.5">
-            {selectedStructure?.assessment_badge && (
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-muted-foreground">Đánh giá hồ sơ:</span>
-                <span
-                  className="assessment-tag border"
-                  style={{
-                    backgroundColor: `${selectedStructure.assessment_color ?? "#94A3B8"}18`,
-                    color: `color-mix(in srgb, ${selectedStructure.assessment_color ?? "#64748b"} 45%, #0f172a)`,
-                    borderColor: `${selectedStructure.assessment_color ?? "#94A3B8"}55`,
-                  }}
-                >
-                  {selectedStructure.assessment_badge}
-                </span>
-              </div>
-            )}
-
             {/* Stats */}
             {isProfileDataLoading ? (
               <div className="text-xs text-muted-foreground flex items-center gap-2 py-2">
@@ -1864,9 +1834,11 @@ export function AnalyzeContent() {
                     </span>
                   </div>
                   <div>
-                    <span className="text-[11px] text-muted-foreground block">Điểm Bayes</span>
+                    <span className="text-[11px] text-muted-foreground block">Điểm thực</span>
                     <span className="font-bold text-sm text-emerald-700 font-mono">
-                      {(selectedStructure.adjusted_score_pct ?? selectedStructure.score_pct ?? 0).toFixed(1)}%
+                      {selectedStructure.score_pct != null
+                        ? `${selectedStructure.score_pct.toFixed(1)}%`
+                        : "--"}
                     </span>
                   </div>
                 </div>

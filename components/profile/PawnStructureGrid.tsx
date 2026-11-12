@@ -1,8 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
-import { Layers, X, Play, ExternalLink, Lightbulb, ShieldAlert, Compass } from "lucide-react";
+import React from "react";
 import { PawnStructureItem } from "@/lib/api/types";
 import PawnStructureInfoBadge from "@/components/chess/PawnStructureInfoBadge";
 import { useProfileWorkspaceStore } from "@/lib/stores/profileWorkspaceStore";
@@ -56,8 +54,6 @@ export default function PawnStructureGrid({
   playerId,
 }: PawnStructureGridProps) {
   const { exploreStructure } = useProfileWorkspaceStore();
-  const [activeModalStructure, setActiveModalStructure] = useState<PawnStructureItem | null>(null);
-  const [modalFilter, setModalFilter] = useState<"all" | "wins" | "draws" | "losses">("all");
 
   if (!structures || structures.length === 0) {
     return (
@@ -146,11 +142,10 @@ export default function PawnStructureGrid({
             <table className="data-table w-full text-left text-xs">
               <thead className="bg-muted/50 text-muted-foreground font-bold uppercase tracking-wider border-b border-border/70 text-[11px]">
                 <tr>
-                  <th className="px-3.5 py-2.5">Cấu trúc Tốt</th>
-                  <th className="px-2 py-2.5 w-16 text-center">Số ván</th>
-                  <th className="px-3 py-2.5 w-48">Tỉ lệ W/D/L</th>
-                  <th className="px-2.5 py-2.5 w-20 text-right">Điểm thực</th>
-                  <th className="px-3 py-2.5 w-36 text-right">Thao tác</th>
+                  <th className="px-2.5 py-2.5 sm:px-3.5">Cấu trúc Tốt</th>
+                  <th className="px-2 py-2.5 w-11 sm:w-16 text-center">Số ván</th>
+                  <th className="px-3 py-2.5 w-24 sm:w-48">Tỉ lệ W/D/L</th>
+                  <th className="px-2.5 py-2.5 w-12 sm:w-20 text-right">Điểm</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
@@ -162,19 +157,28 @@ export default function PawnStructureGrid({
                   const lossPct = ((item.losses ?? 0) / total) * 100;
                   const score = item.score_pct;
                   const hasResults = item.wins != null && item.draws != null && item.losses != null;
-                  const hasGames = item.games && item.games.length > 0;
+                  const openStructure = playerId ? () => exploreStructure(item, playerId) : undefined;
 
                   return (
                     <tr
                       key={idx}
-                      className="hover:bg-muted/30 transition select-none group"
+                      onClick={openStructure}
+                      className={`hover:bg-muted/30 transition ${openStructure ? "cursor-pointer" : ""}`}
                     >
                       {/* Cấu trúc Tốt */}
-                      <td className="px-3.5 py-2.5">
+                      <td className="px-2.5 py-2.5 sm:px-3.5">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-foreground text-xs">
-                            {item.name}
-                          </span>
+                          {openStructure ? (
+                            <button
+                              type="button"
+                              aria-label={`Khám phá cấu trúc tốt ${item.name}`}
+                              className="cursor-pointer text-left font-semibold text-foreground text-xs rounded-control focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+                            >
+                              {item.name}
+                            </button>
+                          ) : (
+                            <span className="font-semibold text-foreground text-xs">{item.name}</span>
+                          )}
                           <PawnStructureInfoBadge structureName={item.name} />
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5">
@@ -215,39 +219,9 @@ export default function PawnStructureGrid({
                         </div> : "—"}
                       </td>
 
-                      {/* Điểm thực */}
+                      {/* Điểm */}
                       <td className="px-2.5 py-2.5 text-right font-mono font-bold text-foreground">
                         {score == null ? "—" : score.toFixed(1) + "%"}
-                      </td>
-
-                      {/* Thao tác */}
-                      <td className="px-3 py-2.5 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {hasGames ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveModalStructure(item);
-                                setModalFilter("all");
-                              }}
-                              className="text-[11px] font-medium text-muted-foreground hover:text-foreground transition cursor-pointer"
-                            >
-                              Danh sách ({item.games?.length})
-                            </button>
-                          ) : (
-                            <span className="text-[11px] text-muted-foreground">{count} ván</span>
-                          )}
-
-                          {playerId && (
-                            <button
-                              type="button"
-                              onClick={() => exploreStructure(item, playerId)}
-                              className="text-[11px] font-bold text-emerald-700 hover:underline inline-flex items-center gap-0.5 cursor-pointer"
-                            >
-                              Khám phá →
-                            </button>
-                          )}
-                        </div>
                       </td>
                     </tr>
                   );
@@ -261,220 +235,8 @@ export default function PawnStructureGrid({
   };
 
   return (
-    <>
-      <div className="space-y-6">
-        {groupedSections.map((sec) => renderGroupTable(sec))}
-      </div>
-
-      {/* Modal: View Games & Detailed Strategic Plan */}
-      {activeModalStructure && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
-          <div className="bg-card rounded-surface max-w-3xl w-full p-5 shadow-xl space-y-4 max-h-[85vh] flex flex-col overflow-hidden animate-scale-in">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between gap-4 border-b border-border/40 pb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-primary uppercase tracking-wider">
-                    {activeModalStructure.group_title || "Chuẩn Flores Rios"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <h3 className="text-lg font-bold text-foreground">
-                    {activeModalStructure.name}
-                  </h3>
-                  <PawnStructureInfoBadge structureName={activeModalStructure.name} />
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  <b>{activeModalStructure.games_count}</b> ván đấu
-                  {activeModalStructure.score_pct != null && ` · ${activeModalStructure.score_pct.toFixed(1)}% điểm`}
-                  {activeModalStructure.typical_formation_move != null && ` · Hình thành khoảng nước ${activeModalStructure.typical_formation_move}`}
-                </p>
-                {(() => {
-                  if (activeModalStructure.wins == null || activeModalStructure.draws == null || activeModalStructure.losses == null) return null;
-                  const mTotal = activeModalStructure.games_count || 1;
-                  const mW = (activeModalStructure.wins / mTotal) * 100;
-                  const mD = (activeModalStructure.draws / mTotal) * 100;
-                  const mL = (activeModalStructure.losses / mTotal) * 100;
-
-                  return (
-                    <div className="flex items-center gap-2 mt-1.5 text-xs">
-                      <span className="text-[11px] text-muted-foreground font-medium">Tỉ lệ W/D/L:</span>
-                      <div className="w-28 h-2 rounded-full overflow-hidden flex bg-slate-200">
-                        <div className="bg-emerald-500 h-full" style={{ width: `${mW}%` }} title={`Thắng: ${activeModalStructure.wins} (${mW.toFixed(1)}%)`} />
-                        <div className="bg-slate-400 h-full" style={{ width: `${mD}%` }} title={`Hòa: ${activeModalStructure.draws} (${mD.toFixed(1)}%)`} />
-                        <div className="bg-rose-500 h-full" style={{ width: `${mL}%` }} title={`Thua: ${activeModalStructure.losses} (${mL.toFixed(1)}%)`} />
-                      </div>
-                      <span className="text-[10px] font-mono text-muted-foreground">
-                        <b className="text-emerald-700">{mW.toFixed(0)}%</b> / {mD.toFixed(0)}% / <b className="text-rose-700">{mL.toFixed(0)}%</b>
-                      </span>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              <button
-                onClick={() => setActiveModalStructure(null)}
-                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Strategic Plan Section */}
-            {activeModalStructure.strategic_plan && (
-              <div className="bg-secondary/40 rounded-surface p-3.5 border border-border/40 text-xs space-y-2 shrink-0">
-                <div className="flex items-center gap-1.5 font-bold text-primary text-xs">
-                  <Lightbulb className="w-4 h-4 text-amber-500" />
-                  Kế hoạch Chiến lược Chuẩn (Flores Rios - Chess Structures):
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-1">
-                  <div className="space-y-1">
-                    <span className="font-semibold text-emerald-800 text-[11px] block">
-                      🎯 Kế hoạch bên chủ động / sở hữu (Ideas):
-                    </span>
-                    <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground text-[11px]">
-                      {activeModalStructure.strategic_plan.ideas?.map((idea, i) => (
-                        <li key={i}>{idea}</li>
-                      )) || <li>Chưa có kế hoạch chi tiết</li>}
-                    </ul>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="font-semibold text-rose-800 text-[11px] block">
-                      🛡️ Kế hoạch phản công / đối phó (Counter-Ideas):
-                    </span>
-                    <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground text-[11px]">
-                      {activeModalStructure.strategic_plan.counter_ideas?.map((c_idea, i) => (
-                        <li key={i}>{c_idea}</li>
-                      )) || <li>Chưa có kế hoạch phản công chi tiết</li>}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Games Filter Tabs */}
-            <div className="flex items-center justify-between border-b border-border/40 pb-2">
-              <span className="text-xs font-bold text-foreground">Ván đấu cụ thể ({activeModalStructure.games?.length || 0}):</span>
-              <div className="flex items-center gap-1 text-[11px]">
-                {(["all", "wins", "draws", "losses"] as const).map((filter) => {
-                  const label =
-                    filter === "all"
-                      ? "Tất cả"
-                      : filter === "wins"
-                      ? "Thắng"
-                      : filter === "draws"
-                      ? "Hòa"
-                      : "Thua";
-                  const count =
-                    filter === "all"
-                      ? activeModalStructure.games?.length || 0
-                      : activeModalStructure.games?.filter((g) =>
-                          filter === "wins" ? g.is_win : filter === "draws" ? g.is_draw : g.is_loss
-                        ).length || 0;
-                  return (
-                    <button
-                      key={filter}
-                      onClick={() => setModalFilter(filter)}
-                      className={`px-2 py-0.5 rounded cursor-pointer transition ${
-                        modalFilter === filter
-                          ? "bg-primary text-primary-foreground font-bold"
-                          : "text-muted-foreground hover:bg-secondary"
-                      }`}
-                    >
-                      {label} ({count})
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Games List (Scrollable) */}
-            <div className="overflow-y-auto space-y-2 pr-1 flex-1 min-h-[160px]">
-              {activeModalStructure.games
-                ?.filter((g) => {
-                  if (modalFilter === "wins") return g.is_win;
-                  if (modalFilter === "draws") return g.is_draw;
-                  if (modalFilter === "losses") return g.is_loss;
-                  return true;
-                })
-                .map((game, gIdx) => {
-                  const resultColor = game.is_win
-                    ? "text-emerald-800 font-bold"
-                    : game.is_loss
-                    ? "text-rose-800 font-bold"
-                    : "text-muted-foreground font-semibold";
-                  const resultBadge = game.is_win ? "Thắng" : game.is_loss ? "Thua" : "Hòa";
-
-                  return (
-                    <div
-                      key={gIdx}
-                      className="p-3 bg-secondary/20 hover:bg-secondary/40 border border-border/40 rounded-surface transition flex items-center justify-between text-xs"
-                    >
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-foreground">
-                            {game.white} vs {game.black}
-                          </span>
-                          <span className={`text-[10px] px-1.5 py-0.2 rounded border ${resultColor}`}>
-                            {resultBadge} ({game.result})
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-muted-foreground flex items-center gap-2">
-                          <span>{game.opening}</span>
-                          <span>•</span>
-                          <span>Hình thành nước {game.formation_move}</span>
-                          {game.date && (
-                            <>
-                              <span>•</span>
-                              <span>{game.date}</span>
-                            </>
-                          )}
-                        </div>
-                        {game.evidence && (
-                          <div className="text-[10px] text-muted-foreground/80 italic mt-0.5">
-                            {game.evidence}
-                          </div>
-                        )}
-                      </div>
-
-                      {game.id && (
-                        <Link
-                          href={`/games/${game.id}`}
-                          className="px-2.5 py-1 text-[11px] font-bold text-primary hover:bg-primary/10 rounded transition inline-flex items-center gap-1 shrink-0"
-                        >
-                          <Play className="w-3 h-3" /> Xem ván
-                        </Link>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="border-t border-border/40 pt-3 flex items-center justify-between">
-              {playerId && activeModalStructure && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    exploreStructure(activeModalStructure, playerId);
-                    setActiveModalStructure(null);
-                  }}
-                  className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Compass className="w-3.5 h-3.5" /> Khám phá Cấu trúc trên Bàn cờ
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setActiveModalStructure(null)}
-                className="px-4 py-1.5 bg-secondary hover:bg-secondary/80 text-foreground rounded text-xs font-medium transition cursor-pointer ml-auto"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+    <div className="space-y-6">
+      {groupedSections.map((sec) => renderGroupTable(sec))}
+    </div>
   );
 }

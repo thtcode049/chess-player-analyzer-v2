@@ -31,7 +31,7 @@ import {
   AlertCircle,
   RotateCcw
 } from "lucide-react";
-import { Player, Game, AnalysisRun } from "@/lib/api/types";
+import { Player, Game, AnalysisRun, PawnStructureItem } from "@/lib/api/types";
 import { apiClient } from "@/lib/api/client";
 import { useProfileWorkspaceStore } from "@/lib/stores/profileWorkspaceStore";
 import PawnStructureGrid from "@/components/profile/PawnStructureGrid";
@@ -153,6 +153,129 @@ function getGamePlayerColor(
   return "white";
 }
 
+interface ProfileBreakdownItem {
+  key: string;
+  name: string;
+  eco?: string;
+  count: number;
+  score?: number;
+  wins?: number;
+  draws?: number;
+  losses?: number;
+}
+
+interface ProfileBreakdownCardProps {
+  title: string;
+  icon: React.ReactNode;
+  actionLabel: string;
+  onAction: () => void;
+  emptyMessage: string;
+  items: ProfileBreakdownItem[];
+  totalGames?: number;
+  scoreDecimals?: number;
+}
+
+function ProfileBreakdownCard({
+  title,
+  icon,
+  actionLabel,
+  onAction,
+  emptyMessage,
+  items,
+  totalGames,
+  scoreDecimals = 0,
+}: ProfileBreakdownCardProps) {
+  const maxCount = Math.max(1, ...items.map((item) => item.count));
+
+  return (
+    <div className="bg-card border border-border/70 rounded-surface p-5 sm:p-6 space-y-4">
+      <div className="flex items-center justify-between gap-3 pb-3 border-b border-border/50">
+        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+          {icon}
+          {title}
+        </h3>
+        <button
+          type="button"
+          onClick={onAction}
+          className="text-right text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
+        >
+          {actionLabel}
+        </button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="py-8 text-center text-xs text-muted-foreground">{emptyMessage}</div>
+      ) : (
+        <div className="space-y-3.5">
+          {items.map(({ key, name, eco, count, score, wins, draws, losses }, index) => {
+            const barWidth = Math.max((count / maxCount) * 100, 15);
+            const results = [
+              { label: "Thắng", count: wins, color: "bg-emerald-500" },
+              { label: "Hòa", count: draws, color: "bg-amber-500" },
+              { label: "Thua", count: losses, color: "bg-rose-500" },
+            ];
+            const hasResults = results.some((result) => result.count != null);
+            const scoreColor = score == null
+              ? "bg-muted text-muted-foreground border-transparent"
+              : score >= 50
+                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                : "bg-rose-50 text-rose-800 border-rose-200";
+
+            return (
+              <div key={key} className="space-y-1.5 rounded-control px-2 py-1.5 hover:bg-muted/40 transition-colors">
+                <div className="flex justify-between items-center text-xs gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-5 h-5 rounded-tag bg-secondary text-foreground font-bold text-xs flex items-center justify-center shrink-0">
+                      #{index + 1}
+                    </span>
+                    {eco && (
+                      <span className="font-mono tabular-nums font-bold text-xs px-1.5 py-0.5 rounded-tag bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
+                        {eco}
+                      </span>
+                    )}
+                    <span className="font-semibold text-foreground truncate" title={name}>
+                      {name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 sm:gap-3 shrink-0 whitespace-nowrap">
+                    <span className="text-[11px] text-muted-foreground font-mono tabular-nums font-semibold">
+                      {count} ván{totalGames != null && ` (${((count / (totalGames || 1)) * 100).toFixed(0)}%)`}
+                    </span>
+                    <span className={`text-xs font-bold font-mono tabular-nums px-1.5 py-0.5 rounded-tag border ${scoreColor}`}>
+                      {score == null ? "—" : `${score.toFixed(scoreDecimals)}% điểm`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="w-full bg-muted/60 h-3 rounded-full overflow-hidden p-0.5">
+                  <div
+                    style={{ width: `${barWidth}%` }}
+                    className={`h-full rounded-full overflow-hidden flex transition-all duration-500 ${hasResults ? "" : "bg-muted-foreground/35"}`}
+                    title={hasResults ? undefined : "Chưa có dữ liệu thắng, hòa, thua"}
+                  >
+                    {results.map(({ label, count: resultCount, color }) => {
+                      if (resultCount == null) return null;
+                      const pct = (resultCount / (count || 1)) * 100;
+                      return (
+                        <div
+                          key={label}
+                          style={{ width: `${pct}%` }}
+                          className={`h-full ${color}`}
+                          title={`${label}: ${resultCount} (${pct.toFixed(0)}%)`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProfileDetailContent({
   targetPlayerId,
 }: {
@@ -197,6 +320,7 @@ export default function ProfileDetailContent({
   const player = activePlayer;
   const games = activePlayerGames;
   const analysisRun = activePlayerRun;
+  const pawnStructures: PawnStructureItem[] = analysisRun?.pawn_structures_summary?.structures ?? [];
 
   const effectivePlayerId = targetPlayerId || activePlayerId;
   const profileError = effectivePlayerId ? failedProfileIds[effectivePlayerId] : null;
@@ -1116,169 +1240,37 @@ export default function ProfileDetailContent({
             </div>
           </div>
 
-          {/* Row 2: Top Openings Bar Chart + Pawn Structures Distribution Bar Chart */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Chart 3: Top Openings Breakdown (Horizontal Bar Chart) */}
-            <div className="bg-card border border-border/70 rounded-surface p-5 sm:p-6 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-border/50">
-                <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
-                  <Play className="w-4 h-4 text-emerald-500" />
-                  Khai Cuộc Sử Dụng Nhiều Nhất
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setProfileSubTab("openings")}
-                  className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
-                >
-                  Xem chi tiết khai cuộc →
-                </button>
-              </div>
-
-              {profileChartsData.topOpenings.length === 0 ? (
-                <div className="py-8 text-center text-xs text-muted-foreground">
-                  Chưa có dữ liệu khai cuộc.
-                </div>
-              ) : (
-                <div className="space-y-3.5">
-                  {profileChartsData.topOpenings.map((op, idx) => {
-                    const score = ((op.wins + op.draws * 0.5) / (op.count || 1)) * 100;
-                    const wPct = (op.wins / (op.count || 1)) * 100;
-                    const dPct = (op.draws / (op.count || 1)) * 100;
-                    const lPct = (op.losses / (op.count || 1)) * 100;
-                    const freq = (op.count / (profileChartsData.totalGames || 1)) * 100;
-                    const maxCount = profileChartsData.topOpenings[0]?.count || 1;
-                    const barWidth = Math.max((op.count / maxCount) * 100, 15);
-
-                    return (
-                      <div key={`${op.eco}-${idx}`} className="space-y-1.5 rounded-control px-2 py-1.5 hover:bg-muted/40 transition-colors">
-                        <div className="flex justify-between items-center text-xs gap-2">
-                          <div className="flex items-center gap-2 truncate min-w-0">
-                            <span className="w-5 h-5 rounded-tag bg-secondary text-foreground font-bold text-xs flex items-center justify-center shrink-0">
-                              #{idx + 1}
-                            </span>
-                            <span className="font-mono tabular-nums font-bold text-xs px-1.5 py-0.5 rounded-tag bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
-                              {op.eco}
-                            </span>
-                            <span className="font-semibold text-foreground truncate" title={op.name}>
-                              {op.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            <span className="text-[11px] text-muted-foreground font-mono tabular-nums font-semibold">
-                              {op.count} ván ({freq.toFixed(0)}%)
-                            </span>
-                            <span className={`text-xs font-bold font-mono tabular-nums px-1.5 py-0.5 rounded-tag border ${score >= 50 ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-rose-50 text-rose-800 border-rose-200"}`}>
-                              {score.toFixed(0)}% điểm
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Relative Frequency Bar Container */}
-                        <div className="w-full bg-muted/60 h-3 rounded-full overflow-hidden p-0.5">
-                          <div style={{ width: `${barWidth}%` }} className="h-full rounded-full overflow-hidden flex transition-all duration-500">
-                            <div style={{ width: `${wPct}%` }} className="h-full bg-emerald-500" title={`Thắng: ${op.wins} (${wPct.toFixed(0)}%)`} />
-                            <div style={{ width: `${dPct}%` }} className="h-full bg-amber-500" title={`Hòa: ${op.draws} (${dPct.toFixed(0)}%)`} />
-                            <div style={{ width: `${lPct}%` }} className="h-full bg-rose-500" title={`Thua: ${op.losses} (${lPct.toFixed(0)}%)`} />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Chart 4: Pawn Structures Distribution (Bar Chart) */}
-            <div className="bg-card border border-border/70 rounded-surface p-5 sm:p-6 space-y-4 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-border/50">
-                  <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-emerald-500" />
-                    Phân Bổ Cấu Trúc Tốt Nhận Diện
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setProfileSubTab("structures")}
-                    className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
-                  >
-                    Xem sơ đồ cấu trúc →
-                  </button>
-                </div>
-
-                {analysisRun?.pawn_structures_summary?.structures && analysisRun.pawn_structures_summary.structures.length > 0 ? (
-                  <div className="divide-y divide-border/40 mt-1">
-                    {(() => {
-                      const structs = analysisRun.pawn_structures_summary.structures.slice(0, 5);
-                      const maxStCount = Math.max(...structs.map((st: any) => st.games_count ?? st.games?.length ?? 1), 1);
-
-                      return structs.map((st: any, idx: number) => {
-                        const count = st.games_count ?? st.games?.length ?? 0;
-                        const score = st.score_pct;
-                        const barWidth = Math.max((count / maxStCount) * 100, 15);
-                        const color = "#10B981";
-
-                        return (
-                          <div key={st.structure_key || idx} className="py-2.5 px-1 space-y-1.5 hover:bg-muted/30 transition">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 truncate min-w-0">
-                                <span className="font-bold text-xs text-foreground truncate">
-                                  {st.name}
-                                </span>
-                              </div>
-
-                              <div className="text-right shrink-0 flex items-center gap-2">
-                                <span className="text-[11px] text-muted-foreground font-medium">
-                                  {count} ván
-                                </span>
-                                <span className="font-mono font-semibold text-xs text-foreground bg-muted px-1.5 py-0.5 rounded-tag">
-                                  {score == null ? "—" : `${score.toFixed(1)}% điểm`}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Frequency Bar */}
-                            <div className="w-full bg-muted/60 h-2 rounded-full overflow-hidden">
-                              <div
-                                style={{
-                                  width: `${barWidth}%`,
-                                  backgroundColor: color,
-                                }}
-                                className="h-full rounded-full transition-all duration-500"
-                                title={`${st.name}: ${count} ván (${score == null ? "chưa có tỷ lệ điểm" : score.toFixed(1) + "% điểm"})`}
-                              />
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                ) : (
-                  <div className="py-8 text-center text-xs text-muted-foreground">
-                    Cấu trúc tốt được nhận diện tự động từ các ván đấu khi phân tích khai cuộc.
-                  </div>
-                )}
-              </div>
-
-              {/* Navigation button to analyze board */}
-              <div className="pt-3 border-t border-border/40 flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
-                  Muốn tương tác trực tiếp trên bàn cờ?
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const params = new URLSearchParams();
-                    if (player?.id) params.set("playerId", player.id);
-                    const q = params.toString();
-                    window.open(q ? `/analyze?${q}` : "/analyze", "_blank");
-                  }}
-                  className="px-3.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <Sword className="w-3.5 h-3.5" />
-                  <span>Mở Bàn Cờ & Cây Khai Cuộc</span>
-                </button>
-              </div>
-            </div>
+            <ProfileBreakdownCard
+              title="Khai Cuộc Sử Dụng Nhiều Nhất"
+              icon={<Play className="w-4 h-4 text-emerald-500 shrink-0" />}
+              actionLabel="Xem chi tiết khai cuộc →"
+              onAction={() => setProfileSubTab("openings")}
+              emptyMessage="Chưa có dữ liệu khai cuộc."
+              totalGames={profileChartsData.totalGames}
+              items={profileChartsData.topOpenings.map((opening, index) => ({
+                ...opening,
+                key: `${opening.eco}-${index}`,
+                score: ((opening.wins + opening.draws * 0.5) / (opening.count || 1)) * 100,
+              }))}
+            />
+            <ProfileBreakdownCard
+              title="Phân Bổ Cấu Trúc Tốt Nhận Diện"
+              icon={<Layers className="w-4 h-4 text-emerald-500 shrink-0" />}
+              actionLabel="Xem sơ đồ cấu trúc →"
+              onAction={() => setProfileSubTab("structures")}
+              emptyMessage="Cấu trúc tốt được nhận diện tự động từ các ván đấu khi phân tích khai cuộc."
+              scoreDecimals={1}
+              items={pawnStructures.slice(0, 5).map((structure, index) => ({
+                key: structure.structure_key || `${structure.name}-${index}`,
+                name: structure.name,
+                count: structure.games_count ?? structure.games?.length ?? 0,
+                score: structure.score_pct,
+                wins: structure.wins,
+                draws: structure.draws,
+                losses: structure.losses,
+              }))}
+            />
           </div>
         </div>
       )}
@@ -1308,7 +1300,7 @@ export default function ProfileDetailContent({
                         <th className="px-3.5 py-2.5">Hệ thống Khai cuộc</th>
                         <th className="px-2 py-2.5 w-16 text-center">Số ván</th>
                         <th className="px-3 py-2.5 w-48">Tỉ lệ W/D/L</th>
-                        <th className="px-2.5 py-2.5 w-20 text-right">Điểm thực</th>
+                        <th className="px-2.5 py-2.5 w-20 text-right">Điểm</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/40">
@@ -1393,7 +1385,7 @@ export default function ProfileDetailContent({
           </div>
 
           <PawnStructureGrid
-            structures={analysisRun?.pawn_structures_summary?.structures || []}
+            structures={pawnStructures}
             playerId={player.id}
           />
         </div>

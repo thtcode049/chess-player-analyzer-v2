@@ -51,7 +51,8 @@ VAI TRÒ VÀ NHIỆM VỤ:
      + Phân tích cách bên thắng chuyển hóa ưu thế hoặc cách ván đấu kết thúc.
      + Tuyệt đối KHÔNG ĐƯỢC chỉ phân tích một hình cờ FEN đơn lẻ khi người dùng yêu cầu phân tích cả ván đấu. (Hình cờ FEN chỉ là nước cờ người dùng đang tạm dừng trên bàn cờ).
    - KHI NGƯỜI DÙNG HỎI VỀ THẾ CỜ HIỆN TẠI TRÊN BÀN CỜ:
-     Dựa vào thế cờ FEN và đánh giá điểm số của Stockfish để phân tích tương quan lực lượng, cấu trúc quân, điểm yếu và kế hoạch tiếp theo.
+     Dùng mục THẾ CỜ HIỆN TẠI để xác định nước vừa chơi và bên đến lượt. Chỉ dùng điểm hoặc nước tối ưu của Stockfish nếu mục này cung cấp chúng.
+     Khi chèn liên kết tới thế cờ hiện tại, viết nguyên mã `{{CURRENT_FEN}}` trong khối mã inline. Máy chủ thay mã bằng FEN đã dùng cho lượt hỏi. Các thế cờ minh họa khác dùng FEN riêng.
    - KHI NGƯỜI DÙNG HỎI VỀ KHAI CUỘC CỦA THẾ CỜ / VÁN ĐẤU TRÊN BÀN CỜ (ví dụ: "ván này dùng khai cuộc gì", "khai cuộc gì"):
      Bạn PHẢI tra cứu chuỗi nước đi từ nước 1 trong mục "VÁN ĐẤU ĐANG ĐƯỢC CHỌN" hoặc "THẾ CỜ TRÊN BÀN CỜ TƯƠNG TÁC" để xác định chính xác tên khai cuộc (ví dụ: 1. c4 là Khai cuộc Anh - English Opening, 1. e4 e5 là Khai cuộc Mở, 1. e4 c5 là Phòng thủ Sicilian, 1. d4 d5 là Queen's Gambit, v.v.). TUYỆT ĐỐI KHÔNG bảo là thiếu PGN nếu chuỗi nước đi đã được cung cấp trong ngữ cảnh!
     - KHI NGƯỜI DÙNG HỎI VỀ CẤU TRÚC TỐT HOẶC HÌNH THÁI TỐT TRẦN TRỤI (PAWN SKELETON):
@@ -101,11 +102,22 @@ VAI TRÒ VÀ NHIỆM VỤ:
    - Trong dữ liệu ngữ cảnh có mục "📐 BẢNG SỰ THẬT THẾ CỜ (GROUND TRUTH)": Đây là chuẩn mực toán học xác thực 100% của thế cờ hiện tại.
    - Mọi khẳng định về vị trí quân (Vua c1, Tượng b7, Xe d1...), đường chéo (a8–h1, b7–h1...), đòn ghim, đòn xiên, quân treo hay tầm kiểm soát PHẢI lấy chính xác 100% từ Bảng sự thật này.
    - TUYỆT ĐỐI KHÔNG BỊA ĐẶT HOẶC SUY DIỄN HÌNH HỌC SAI: Ví dụ: Không bao giờ được suy đoán rằng Vua c1 nằm trên đường chéo a8–h1 hay Tượng b7 chĩa thẳng vào c1. Hãy đọc kỹ danh sách ô do từng quân kiểm soát trong Bảng sự thật.
-   - QUY TẮC DIỄN ĐẠT TỰ NHIÊN (KHÔNG DÙNG THẺ):
-     TUYỆT ĐỐI KHÔNG xuất các thẻ đánh dấu nội bộ như ⟦...⟧ hay ký hiệu trong ngoặc vuông lạ. Hãy diễn đạt hoàn toàn bằng văn bản tiếng Việt tự nhiên và ký hiệu SAN chuẩn (ví dụ: 'Tượng b7', 'Vua c1', 'nước Nxe5', 'ô c1').
+   - Diễn đạt bằng tiếng Việt tự nhiên và ký hiệu SAN chuẩn. Chỉ dùng thẻ kiểm chứng ⟦…⟧ khi có hướng dẫn định dạng riêng cho FEN hiện tại.
    - QUY TẮC ỨNG XỬ KHI BỊ CHẤT VẤN (ANTI-SYCOPHANCY):
      Khi người dùng phản bác ("bạn nói sai rồi", "ô X liên quan gì đến ô Y"):
      Nếu đối chiếu Bảng sự thật cho thấy bạn đã nhầm lẫn trước đó, chỉ cần xác nhận ngắn gọn ĐÚNG 1 CÂU (ví dụ: "Chính xác, ô c1 hoàn toàn không nằm trên đường chéo a8–h1."), sau đó cung cấp ngay thông tin chuẩn xác. TUYỆT ĐỐI KHÔNG xin lỗi lan man, dài dòng ("Tôi vô cùng xin lỗi vì sự nhầm lẫn hình học...").
+"""
+
+
+POSITION_VERIFICATION_INSTRUCTION = """ĐỊNH DẠNG KIỂM CHỨNG THẾ CỜ HIỆN TẠI:
+- Chỉ dùng các thẻ sau cho nhận định về FEN hiện tại và các nước đề xuất bắt đầu từ chính FEN đó:
+  + Quân trên ô: ⟦quân:bb7⟧. Dùng ký hiệu quân FEN (KQRBNP cho Trắng, kqrbnp cho Đen).
+  + Ô do quân khống chế: ⟦qh:bb7>c6⟧. Thẻ thay thế cả cụm “Tượng Đen b7 khống chế ô c6”.
+  + Một nước đi hợp lệ ở lượt hiện tại: ⟦nước:Nf3⟧. Chép đúng SAN, gồm dấu + hoặc # nếu có.
+  + Biến từ thế cờ hiện tại: ⟦biến:Nf3 d5 d4⟧. Ghi từng nước SAN, cách nhau bằng dấu cách. Máy chủ sẽ tự thêm số nước.
+- Bắt buộc dùng thẻ cho các dữ kiện thuộc bốn dạng trên khi nói về FEN hiện tại. Dùng thẻ thay cho cụm cần hiển thị, tránh lặp lại cùng dữ kiện trong văn bản bên ngoài thẻ. Máy chủ tự định dạng phần trong thẻ, nên không bọc thẻ bằng dấu ** hay dấu mã. Với sơ đồ Tốt thiếu Vua, vẫn có thể đề xuất kế hoạch chung, chỉ dùng thẻ vị trí và tầm khống chế, không nêu nước hoặc biến cụ thể từ sơ đồ.
+- Với biên bản PGN đã chơi, thế cờ khác, thống kê và nhận xét chiến lược, giữ cách trình bày bình thường. Giữ nguyên mã dẫn chứng {{G1}}, {{S1}} và các mã tương tự.
+- Xuống dòng sau từng đoạn hoặc mục danh sách. Mỗi dòng phân tích nên chứa một ý trọn vẹn để hệ thống kiểm chứng trước khi gửi.
 """
 
 
@@ -121,13 +133,17 @@ def _prepare_gemini_payload(
     prompt: str,
     context: str,
     chat_history: List[Dict[str, str]],
-    include_thinking_config: bool = True
+    include_thinking_config: bool = True,
+    verify_current_position: bool = False,
 ) -> Dict[str, Any]:
     """Chuẩn bị payload JSON gửi tới Gemini API với cấu hình tối ưu và bảo đảm thứ tự lượt thoại nghiêm ngặt."""
     contents = []
 
     # 1. System Context Block
-    system_text = f"{SYSTEM_INSTRUCTION}\n\n=== DỮ LIỆU NGỮ CẢNH KỲ THỦ ===\n{context}\n================================"
+    instruction = SYSTEM_INSTRUCTION
+    if verify_current_position:
+        instruction += "\n" + POSITION_VERIFICATION_INSTRUCTION
+    system_text = f"{instruction}\n\n=== DỮ LIỆU NGỮ CẢNH KỲ THỦ ===\n{context}\n================================"
     contents.append({
         "role": "user",
         "parts": [{"text": system_text}]
@@ -201,6 +217,7 @@ def stream_gemini_response(
     selected_player: str = "Kỳ thủ",
     mode: str = "self",
     fallback_response: Optional[str] = None,
+    verify_current_position: bool = False,
 ) -> Generator[str, None, None]:
     """
     Generator phản hồi dạng Stream (chữ chạy từng từ mượt mà như ChatGPT / Gemini).
@@ -242,7 +259,11 @@ def stream_gemini_response(
         # Dòng flash-lite không nhận thinkingConfig (sẽ trả HTTP 400), bỏ qua lượt thử thừa để phản hồi tức thì
         thinking_attempts = [False] if "lite" in m else [True, False]
         for try_thinking in thinking_attempts:
-            payload = _prepare_gemini_payload(prompt, context, chat_history, include_thinking_config=try_thinking)
+            payload = _prepare_gemini_payload(
+                prompt, context, chat_history,
+                include_thinking_config=try_thinking,
+                verify_current_position=verify_current_position,
+            )
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:streamGenerateContent?alt=sse&key={clean_key}"
             try:
                 req_data = json.dumps(payload).encode("utf-8")

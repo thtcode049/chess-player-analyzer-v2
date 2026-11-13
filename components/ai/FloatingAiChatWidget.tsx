@@ -25,10 +25,11 @@ import { apiClient } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
 import { useProfileWorkspaceStore, ActiveChatHandoffData, MultiProfileAssignment } from "@/lib/stores/profileWorkspaceStore";
 import { Game } from "@/lib/api/types";
-import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
-import { sanitizeAndBoldChessText, convertUciToSan } from "@/lib/chess/notation";
+import { buildChatEngineEvaluation, evaluationForFen, type EngineEvaluation } from "@/lib/stockfish/engineWorker";
+import { moveAtPly, sanitizeAndBoldChessText, START_FEN } from "@/lib/chess/notation";
 
 export interface FloatingAiChatWidgetProps {
+  initialFen?: string;
   currentFen: string;
   currentPly?: number;
   evaluation?: EngineEvaluation | null;
@@ -64,6 +65,7 @@ export function sanitizeChatText(text: string, currentFen?: string): string {
 }
 
 export default function FloatingAiChatWidget({
+  initialFen = START_FEN,
   currentFen,
   currentPly = 0,
   evaluation,
@@ -75,6 +77,7 @@ export default function FloatingAiChatWidget({
   multiProfiles,
 }: FloatingAiChatWidgetProps) {
   const workspaceStore = useProfileWorkspaceStore();
+  const currentEvaluation = evaluationForFen(evaluation, currentFen);
 
   const isMulti = Boolean(isMultiMode || (workspaceStore.activeMode === "multi" && workspaceStore.multiProfiles.length > 0));
   const effectiveMultiProfiles = (multiProfiles && multiProfiles.length > 0) ? multiProfiles : workspaceStore.multiProfiles;
@@ -385,6 +388,8 @@ export default function FloatingAiChatWidget({
               eco: gameInfo.eco || "",
               opening: gameInfo.opening_name || "",
               moves_san: gameInfo.moves_san || moves.join(" "),
+              initial_fen: initialFen,
+              board_moves: moves,
               current_ply: currentPly,
               total_ply: moves.length,
             }
@@ -398,21 +403,13 @@ export default function FloatingAiChatWidget({
                 ? (blackNames ? `${blackNames} (Đen)` : "Đen")
                 : "Đen",
               moves_san: moves.join(" "),
+              initial_fen: initialFen,
+              board_moves: moves,
               current_ply: currentPly,
               total_ply: moves.length,
             }
           : undefined,
-        engine_eval: evaluation
-          ? {
-              score: evaluation.score,
-              scoreType: evaluation.scoreType,
-              bestMove: evaluation.bestMove,
-              bestMoveSan: evaluation.bestMoveSan || (evaluation.bestMove && currentFen ? convertUciToSan(currentFen, evaluation.bestMove) : undefined),
-              depth: evaluation.depth,
-              pv: evaluation.pv,
-              pvs: evaluation.pvs,
-            }
-          : undefined,
+        engine_eval: buildChatEngineEvaluation(currentEvaluation, currentFen),
       },
       {
         onChunk: (chunk) => {
@@ -509,8 +506,8 @@ export default function FloatingAiChatWidget({
 
     const realMessages = messages.map((m) => ({
       role: m.role,
-      content: sanitizeChatText(m.content),
-      fen: m.fen || currentFen,
+      content: m.content,
+      fen: m.fen,
     }));
 
     // 1. Direct Persist to DB or tenancy storage
@@ -598,7 +595,8 @@ export default function FloatingAiChatWidget({
         total_ply: moves.length,
       } as any) : null),
       fen: currentFen,
-      moves: moves,
+      initialFen,
+      moves,
       ply: currentPly,
       playerIds: pids,
     };
@@ -651,20 +649,19 @@ export default function FloatingAiChatWidget({
 
   const currentMoveLabel = useMemo(() => {
     if (currentPly === 0) return "Thế cờ ban đầu";
-    const moveNum = Math.floor((currentPly - 1) / 2) + 1;
-    const isWhite = (currentPly - 1) % 2 === 0;
-    return `Nước ${moveNum} (${isWhite ? "Trắng" : "Đen"})`;
-  }, [currentPly]);
+    const { number, color } = moveAtPly(initialFen, currentPly);
+    return `Nước ${number} (${color === "white" ? "Trắng" : "Đen"})`;
+  }, [initialFen, currentPly]);
 
   const evalSummary = useMemo(() => {
-    if (!evaluation) return null;
-    if (evaluation.isMate) {
-      const mate = evaluation.mateIn ?? evaluation.score;
+    if (!currentEvaluation) return null;
+    if (currentEvaluation.isMate) {
+      const mate = currentEvaluation.mateIn ?? currentEvaluation.score;
       return mate > 0 ? `#M${mate} (Trắng thắng)` : `#M${Math.abs(mate)} (Đen thắng)`;
     }
-    const cp = evaluation.score / 100;
+    const cp = currentEvaluation.score / 100;
     return `${cp > 0 ? "+" : ""}${cp.toFixed(2)}`;
-  }, [evaluation]);
+  }, [currentEvaluation]);
 
   return (
     <>
@@ -980,7 +977,7 @@ export default function FloatingAiChatWidget({
                           <div className="prose prose-xs dark:prose-invert max-w-none break-words text-slate-800 dark:text-slate-200">
                             {m.content ? (
                               <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                                {sanitizeChatText(m.content, currentFen)}
+                                {sanitizeChatText(m.content, m.fen)}
                               </ReactMarkdown>
                             ) : isStreaming && idx === messages.length - 1 ? (
                               <div className="flex items-center gap-1.5 py-1 text-muted-foreground">
@@ -996,7 +993,7 @@ export default function FloatingAiChatWidget({
                           <div className="mt-1 flex items-center justify-end">
                             <button
                               type="button"
-                              onClick={() => handleCopyMessage(sanitizeChatText(m.content, currentFen), idx)}
+                              onClick={() => handleCopyMessage(sanitizeChatText(m.content, m.fen), idx)}
                               title="Sao chép câu trả lời"
                               className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition cursor-pointer p-0.5"
                             >

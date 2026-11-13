@@ -10,6 +10,41 @@
 
 import { Chess } from "chess.js";
 
+export const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+export function replayPositionHistory(initialFen: string, moves: readonly string[]): string[] {
+  const fen = normalizeFen(initialFen || START_FEN);
+  const positions = [fen];
+  try {
+    const board = new Chess(fen);
+    positions[0] = board.fen();
+    for (const san of moves) {
+      if (!board.move(san)) break;
+      positions.push(board.fen());
+    }
+  } catch {
+    // Keep the legal prefix, or the original FEN for diagrams without kings.
+  }
+  return positions;
+}
+
+// ply is the 1-based index of the move just played from initialFen.
+export function moveAtPly(initialFen: string, ply: number) {
+  const [, turn, , , , fullmove] = initialFen.trim().split(/\s+/);
+  const offset = ply - 1 + (turn === "b" ? 1 : 0);
+  return {
+    number: (Number(fullmove) || 1) + Math.floor(offset / 2),
+    color: offset % 2 === 0 ? "white" as const : "black" as const,
+  };
+}
+
+export function parseSanMoves(movesSan?: string | null): string[] {
+  return (movesSan ?? "")
+    .split(/\s+/)
+    .map((token) => token.replace(/^\d+\.+/, ""))
+    .filter((token) => token && !["1-0", "0-1", "1/2-1/2", "*"].includes(token));
+}
+
 export interface NormalizedMove {
   moveNumber: number | null;
   isBlack: boolean;

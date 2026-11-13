@@ -22,6 +22,7 @@ from api.services.ai_service import AIService
 from api.services.db_service import DBService
 from api.routes.analyses import RUN_SNAPSHOTS_CACHE, _resolve_games_for_player
 from api.services.analysis_service import AnalysisService, observed_profile, observed_snapshot_stats
+from src.ai_assistant.context_builder import resolve_chat_position
 
 logger = logging.getLogger(__name__)
 
@@ -142,8 +143,8 @@ async def generate_briefing(
     )
     return BaseResponse(success=True, data=data)
 
-EVIDENCE_REFERENCE = re.compile(r"\{\{((?:P[0-9]+)?[GS][0-9]+)\}\}")
-PARTIAL_REFERENCE = re.compile(r"\{(?:\{[A-Z0-9]*\}?)?$")
+EVIDENCE_REFERENCE = re.compile(r"\{\{((?:P[0-9]+)?[GS][0-9]+|CURRENT_FEN)\}\}")
+PARTIAL_REFERENCE = re.compile(r"\{(?:\{[A-Z0-9_]*\}?)?$")
 
 
 def _render_evidence_stream(chunks, sources):
@@ -185,6 +186,12 @@ async def chat_with_ai_coach(
     sources: Dict[str, str] = {}
     fallback_response = None
     effective_perspective = "opponent" if req.perspective_mode == "opponent" else "self"
+    is_board_open = req.is_board_open is not False
+    current_fen, engine_eval = resolve_chat_position(
+        req.current_fen if is_board_open else None, req.selected_game, req.engine_eval,
+    )
+    if current_fen:
+        sources["CURRENT_FEN"] = current_fen
     if len(target_ids) > 1:
         # Multi-profile mode: Resolve snapshots and build composite ground truth context
         contexts = []
@@ -205,10 +212,10 @@ async def chat_with_ai_coach(
                 player_name=p_name,
                 stats=p_stats,
                 deep_profile=p_deep_profile,
-                current_fen=req.current_fen,
-                engine_eval=req.engine_eval,
+                current_fen=current_fen,
+                engine_eval=engine_eval,
                 selected_game=req.selected_game,
-                is_board_open=req.is_board_open if req.is_board_open is not None else True,
+                is_board_open=is_board_open,
                 games=p_games,
                 question=req.message,
                 sources=sources,
@@ -239,10 +246,10 @@ async def chat_with_ai_coach(
             player_name=player_name,
             stats=stats,
             deep_profile=deep_profile,
-            current_fen=req.current_fen,
-            engine_eval=req.engine_eval,
+            current_fen=current_fen,
+            engine_eval=engine_eval,
             selected_game=req.selected_game,
-            is_board_open=req.is_board_open if req.is_board_open is not None else True,
+            is_board_open=is_board_open,
             games=games,
             question=req.message,
             sources=sources,
@@ -260,8 +267,8 @@ async def chat_with_ai_coach(
                 chat_history=history_dicts,
                 perspective_mode=effective_perspective,
                 player_name=player_name,
-                current_fen=req.current_fen,
-                engine_eval=req.engine_eval,
+                current_fen=current_fen,
+                engine_eval=engine_eval,
                 fallback_response=fallback_response,
             )
             for chunk in _render_evidence_stream(chunks, sources):

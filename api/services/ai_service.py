@@ -5,12 +5,19 @@ Manages LLM Ground Truth Context generation, Proactive Strategic Briefing,
 Google Gemini streaming, and Local Expert offline fallback.
 Directly reuses: src.ai_assistant.*
 """
+import logging
 from typing import Dict, Any, List, Generator, Tuple, Optional
 
 from src.ai_assistant.context_builder import build_player_ai_context
 from src.ai_assistant.briefing import generate_initial_strategic_briefing, get_followup_prompts
 from src.ai_assistant.gemini_client import stream_gemini_response
+from src.ai_assistant.intent_router import IntentRouter
 from src.ai_assistant.local_expert import generate_local_expert_response
+from src.ai_assistant.position_facts import PositionFacts
+from src.ai_assistant.verifier import ChessOutputVerifier
+
+logger = logging.getLogger(__name__)
+
 
 class AIService:
     @staticmethod
@@ -86,9 +93,8 @@ class AIService:
         Streams response chunks from Gemini API with fallback to Local Expert.
         Includes deterministic fact-checking and tag sanitation.
         """
-        # 1. Check deterministic response for pawn structures / pawn skeletons
+        # Check deterministic answers for pawn structures before invoking Gemini.
         try:
-            from src.ai_assistant.intent_router import IntentRouter
             direct_pawn_ans = None if fallback_response else IntentRouter.try_answer_pawn_structure(
                 prompt=prompt,
                 deep_profile=deep_profile,
@@ -103,20 +109,24 @@ class AIService:
         except Exception:
             pass
 
-        # 2. Check deterministic response for pure geometric / factual chess queries
+        # Use the same position for deterministic answers and model output checks.
+        facts = None
         if current_fen:
             try:
-                from src.ai_assistant.position_facts import PositionFacts
-                from src.ai_assistant.intent_router import IntentRouter
                 facts = PositionFacts(current_fen, engine_eval=engine_eval)
+            except ValueError:
+                logger.debug("Ignoring invalid FEN in chat request")
+
+        if facts is not None:
+            try:
                 direct_ans = IntentRouter.try_answer_deterministic(prompt, facts)
                 if direct_ans:
                     words = direct_ans.split(" ")
                     for i in range(0, len(words), 4):
                         yield " ".join(words[i:i+4]) + " "
                     return
-            except Exception as e:
-                pass
+            except Exception:
+                logger.exception("Could not answer the position query deterministically")
 
         history_formatted = []
         if chat_history:
@@ -126,19 +136,9 @@ class AIService:
                     "content": msg.get("content", "")
                 })
 
-        from src.ai_assistant.verifier import clean_chess_tags
-        import chess
-        current_board = None
-        if current_fen:
-            try:
-                current_board = chess.Board(current_fen)
-            except Exception:
-                pass
-
+        board = facts.board if facts is not None else None
         try:
-            # Yield chunks from Gemini streaming client
-            yielded_any = False
-            for chunk in stream_gemini_response(
+            model_chunks = stream_gemini_response(
                 prompt=prompt,
                 context=context,
                 chat_history=history_formatted,
@@ -147,11 +147,14 @@ class AIService:
                 selected_player=player_name,
                 mode=perspective_mode,
                 fallback_response=fallback_response,
-            ):
+                verify_current_position=board is not None,
+            )
+            yielded_any = False
+            for chunk in ChessOutputVerifier.verify_stream(model_chunks, board):
                 if chunk:
                     yielded_any = True
                     yield chunk
-            
+
             if not yielded_any:
                 offline_res = (
                     "> ⚠️ **Thông báo hệ thống:** Không nhận được phản hồi từ Google Gemini AI.\n"

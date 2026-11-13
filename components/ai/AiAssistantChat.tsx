@@ -17,7 +17,8 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { apiClient } from "@/lib/api/client";
-import { isFenString, normalizeFen, sanitizeAndBoldChessText, convertUciToSan } from "@/lib/chess/notation";
+import { isFenString, normalizeFen, parseSanMoves, sanitizeAndBoldChessText } from "@/lib/chess/notation";
+import { buildChatEngineEvaluation, type EngineEvaluation } from "@/lib/stockfish/engineWorker";
 
 export interface Message {
   role: "user" | "assistant";
@@ -32,7 +33,8 @@ interface AiAssistantChatProps {
   playerName?: string;
   gamesCount?: number;
   currentFen?: string;
-  currentEval?: any;
+  currentEval?: EngineEvaluation | null;
+  initialFen?: string;
   selectedGame?: any;
   activeMoves?: string[];
   currentPly?: number;
@@ -117,15 +119,15 @@ const MarkdownRenderer = React.memo(function MarkdownRenderer({
         </strong>
       ),
       code: ({ children }: any) => {
-        const strVal = String(children).trim();
-        if (isFenString(strVal) && onApplyFen) {
+        const fen = String(children).trim();
+        if (fen && isFenString(fen) && onApplyFen) {
           return (
             <button
               type="button"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onApplyFen(normalizeFen(strVal));
+                onApplyFen(normalizeFen(fen));
               }}
               title="Bấm để hiển thị thế cờ này lên bàn cờ"
               className="inline-flex items-center gap-1 px-2 py-0.5 mx-1 rounded-md font-mono text-xs bg-emerald-50 text-emerald-800 font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
@@ -234,6 +236,7 @@ export default function AiAssistantChat({
   gamesCount,
   currentFen,
   currentEval,
+  initialFen,
   selectedGame,
   activeMoves,
   currentPly,
@@ -268,6 +271,7 @@ export default function AiAssistantChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const openedBoardCommand = useRef<string | null>(null);
 
   const handleApplyFen = useCallback(
     (fen: string) => {
@@ -300,13 +304,19 @@ export default function AiAssistantChat({
   // Check if AI requested to open the board via [OPEN_BOARD] or [OPEN_BOARD: <fen>]
   useEffect(() => {
     const lastMsg = messages[messages.length - 1];
-    if (lastMsg && lastMsg.role === "assistant" && lastMsg.content) {
-      const match = lastMsg.content.match(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/i);
-      if (match) {
-        const fen = match[1]?.trim();
-        onOpenBoard?.(fen ? normalizeFen(fen) : undefined);
-      }
+    const match = lastMsg?.role === "assistant"
+      ? lastMsg.content.match(/\[OPEN_BOARD(?::\s*([^\]]+))?\]/i)
+      : null;
+    if (!match) {
+      openedBoardCommand.current = null;
+      return;
     }
+    const command = messages.length + ":" + match[0];
+    if (openedBoardCommand.current === command) return;
+
+    openedBoardCommand.current = command;
+    const fen = match[1]?.trim();
+    onOpenBoard?.(fen ? normalizeFen(fen) : undefined);
   }, [messages, onOpenBoard]);
 
   // Handle external prompt triggers (e.g. "Hỏi AI về thế cờ này")
@@ -328,14 +338,14 @@ export default function AiAssistantChat({
     const text = (textToSend || inputMessage).trim();
     if (!text || isStreaming) return;
 
-    // Snapshot existing messages for AI history context before appending new turn
+    const boardFen = isBoardOpen ? currentFen : undefined;
     const historyForAi = [...messages];
 
     // Atomically append user message AND initial assistant message for streaming
     const newMessages: Message[] = [
       ...messages,
-      { role: "user", content: text, fen: currentFen },
-      { role: "assistant", content: "", fen: currentFen },
+      { role: "user", content: text, fen: boardFen },
+      { role: "assistant", content: "", fen: boardFen },
     ];
     setMessages(newMessages);
     setInputMessage("");
@@ -352,7 +362,7 @@ export default function AiAssistantChat({
         message: text,
         perspective_mode: "neutral",
         history: historyForAi,
-        current_fen: currentFen,
+        current_fen: boardFen,
         is_board_open: isBoardOpen,
         selected_game: (selectedGame || (activeMoves && activeMoves.length > 0)) ? {
           id: selectedGame?.id || "interactive-board-game",
@@ -369,19 +379,15 @@ export default function AiAssistantChat({
           round: (selectedGame?.raw_headers as any)?.Round || selectedGame?.round || "",
           time_control: selectedGame?.time_control || (selectedGame?.raw_headers as any)?.TimeControl || "",
           moves_san: selectedGame?.moves_san || (Array.isArray(selectedGame?.moves) ? selectedGame.moves.join(" ") : (activeMoves ? activeMoves.join(" ") : "")),
+          initial_fen: initialFen ?? selectedGame?.raw_headers?.FEN,
+          board_moves: activeMoves,
           current_ply: currentPly ?? 0,
-          total_ply: (activeMoves && activeMoves.length > 0) ? activeMoves.length : (selectedGame?.moves_san ? selectedGame.moves_san.split(/\s+/).filter(Boolean).length : (Array.isArray(selectedGame?.moves) ? selectedGame.moves.length : 0)),
+          total_ply: activeMoves?.length ?? (selectedGame?.moves_san
+            ? parseSanMoves(selectedGame.moves_san).length
+            : selectedGame?.moves?.length ?? 0),
           raw_headers: selectedGame?.raw_headers || {},
         } : undefined,
-        engine_eval: currentEval ? {
-          score: currentEval.score,
-          scoreType: currentEval.scoreType,
-          bestMove: currentEval.bestMove,
-          bestMoveSan: currentEval.bestMoveSan || (currentEval.bestMove && currentFen ? convertUciToSan(currentFen, currentEval.bestMove) : undefined),
-          depth: currentEval.depth,
-          pv: currentEval.pv,
-          pvs: currentEval.pvs,
-        } : undefined,
+        engine_eval: buildChatEngineEvaluation(currentEval, boardFen),
       },
       {
         onChunk: (chunk) => {
@@ -542,7 +548,7 @@ export default function AiAssistantChat({
                     {isBot ? (
                       <MarkdownRenderer
                         content={msg.content}
-                        currentFen={currentFen}
+                        currentFen={msg.fen}
                         onApplyFen={handleApplyFen}
                       />
                     ) : (

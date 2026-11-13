@@ -27,16 +27,7 @@ export function useStockfish() {
   const evaluateFen = useCallback((fen: string, depth = 20) => {
     if (!engineRef.current) return;
 
-    // Check if evaluation for this exact FEN is already cached (instant 0ms)
-    const cached = engineRef.current.getCachedEvaluation(fen);
-    if (cached) {
-      setEvaluation(cached);
-      if (cached.isCloud || cached.depth >= depth) {
-        setIsThinking(false);
-        return;
-      }
-    }
-
+    setEvaluation(null);
     setIsThinking(true);
 
     // Start evaluation directly to target depth.

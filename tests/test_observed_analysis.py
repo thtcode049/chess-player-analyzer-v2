@@ -317,3 +317,73 @@ def test_chat_verifies_position_before_sending_sse(monkeypatch, board_open, fen,
     assert "gameId=verified" in content and "[OPEN_BOARD]" in content
     assert "đã được lược bỏ" in content
     assert "data: [DONE]" in events
+
+
+@pytest.mark.parametrize("ply, last_move, turn", [
+    (14, "Sau 7...g5 (Đen)", "Trắng"),
+    (15, "Sau 8.Bg3 (Trắng)", "Đen"),
+    (16, "Sau 8...cxd4 (Đen)", "Trắng"),
+])
+def test_chat_uses_one_position_for_ply_engine_and_fen_link(monkeypatch, ply, last_move, turn):
+    import json
+    import chess
+
+    moves = "d4 d5 Nf3 c5 c3 Nc6 Bf4 Nf6 e3 Nh5 Bg5 h6 Bh4 g5 Bg3 cxd4".split()
+    before = chess.Board()
+    for san in moves[:14]:
+        before.push_san(san)
+    target = chess.Board()
+    for san in moves[:ply]:
+        target.push_san(san)
+
+    engine = {"fen": before.fen(), "score": -4, "bestMove": "h4g3", "pv": ["h4g3"]}
+    engine_matches = ply == 14
+
+    def model_response(**kwargs):
+        assert kwargs["current_fen"] == target.fen()
+        assert (kwargs["engine_eval"] == engine) is engine_matches
+        context = kwargs["context"]
+        assert last_move in context
+        assert f"Đến lượt **{turn}" in context
+        assert "Nước 15/16" not in context
+        assert ("Đánh giá Stockfish" in context) is engine_matches
+        if engine_matches:
+            assert "-0.04 Tốt" in context
+            assert "**8. Bg3**" in context
+        yield "Thế cờ: `{{CURRENT"
+        yield "_FEN}}`."
+
+    monkeypatch.setattr(ai.AIService, "stream_chat_response", model_response)
+
+    async def collect():
+        response = await ai.chat_with_ai_coach(ChatRequest(
+            run_id="general", message="Phân tích thế cờ hiện tại",
+            current_fen=before.fen(), engine_eval=engine,
+            selected_game={
+                "moves_san": " ".join(moves),
+                "board_moves": moves,
+                "current_ply": ply,
+                "total_ply": len(moves),
+            },
+        ))
+        return "".join([event async for event in response.body_iterator])
+
+    events = asyncio.run(collect()).splitlines()
+    content = "".join(json.loads(event[6:])["chunk"] for event in events if event.startswith("data: {"))
+    assert f"`{target.fen()}`" in content
+    assert "data: [DONE]" in events
+
+
+def test_chat_labels_moves_from_a_fen_with_black_to_move():
+    from src.ai_assistant.context_builder import resolve_chat_position
+
+    initial = "4k3/8/8/8/8/8/8/4K3 b - - 0 23"
+    selected = {
+        "initial_fen": initial, "board_moves": ["Kd7", "Kd2"],
+        "moves_san": "Kd7 Kd2", "current_ply": 1, "total_ply": 2,
+    }
+    fen, _ = resolve_chat_position(initial, selected, None)
+    context = build_player_ai_context({}, {}, current_fen=fen, selected_game=selected)
+    assert "23... Kd7 24. Kd2" in context
+    assert "Sau 23...Kd7 (Đen)" in context
+    assert "Đến lượt **Trắng" in context

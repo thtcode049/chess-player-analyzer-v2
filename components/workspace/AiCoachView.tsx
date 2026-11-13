@@ -36,18 +36,18 @@ import {
   Clock,
   Calendar,
 } from "lucide-react";
-import { Chess } from "chess.js";
 import Link from "next/link";
 import ChessBoard from "@/components/chess/ChessBoard";
 import AiAssistantChat from "@/components/ai/AiAssistantChat";
 import { apiClient } from "@/lib/api/client";
 import { Player, Game } from "@/lib/api/types";
-import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
-import { isFenString, normalizeFen, isPawnSkeletonFen, convertUciToSan } from "@/lib/chess/notation";
+import { EngineEvaluation, evaluationForFen } from "@/lib/stockfish/engineWorker";
+import {
+  isFenString, normalizeFen, isPawnSkeletonFen, moveAtPly, parseSanMoves,
+  replayPositionHistory, START_FEN,
+} from "@/lib/chess/notation";
 import { useProfileWorkspaceStore } from "@/lib/stores/profileWorkspaceStore";
 import { createClient } from "@/lib/supabase/client";
-
-const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -168,12 +168,24 @@ export default function AiCoachView() {
 
   // Board state
   const [baseFen, setBaseFen] = useState<string>(START_FEN);
-  const [currentFen, setCurrentFen] = useState<string>(START_FEN);
   const [boardOrientation, setBoardOrientation] = useState<"white" | "black">("white");
-  const [currentPly, setCurrentPly] = useState<number>(0);
+  const [requestedPly, setCurrentPly] = useState(0);
   const [activeMoves, setActiveMoves] = useState<string[]>([]);
-  const [currentEval, setCurrentEval] = useState<EngineEvaluation | null>(null);
+  const [engineEvaluation, setEngineEvaluation] = useState<EngineEvaluation | null>(null);
   const [isEngineThinking, setIsEngineThinking] = useState(false);
+  const positionHistory = useMemo(() => replayPositionHistory(baseFen, activeMoves), [baseFen, activeMoves]);
+  const lastPly = positionHistory.length - 1;
+  const currentPly = Math.min(Math.max(0, requestedPly), lastPly);
+  const currentFen = positionHistory[currentPly];
+  const currentEval = evaluationForFen(engineEvaluation, currentFen);
+  const selectedMove = currentPly > 0 ? moveAtPly(baseFen, currentPly) : null;
+  const moveCounter = selectedMove
+    ? `Nước ${selectedMove.number}/${moveAtPly(baseFen, lastPly).number}`
+    : "Ban đầu";
+  const handleEvaluationChange = useCallback((value: EngineEvaluation | null, thinking: boolean) => {
+    setEngineEvaluation(value);
+    setIsEngineThinking(thinking);
+  }, []);
   const [copiedFen, setCopiedFen] = useState(false);
 
   // Move Ribbon refs & state
@@ -210,26 +222,27 @@ export default function AiCoachView() {
     }
   }, [currentPly, activeMoves]);
 
-  const isEvalForCurrentFen = useMemo(() => {
-    if (!currentEval || !currentFen) return false;
-    return normalizeFen(currentEval.fen) === normalizeFen(currentFen);
-  }, [currentEval, currentFen]);
-
   const movePairs = useMemo(() => {
     const pairs: { number: number; white?: string; whitePly?: number; black?: string; blackPly?: number }[] = [];
-    for (let i = 0; i < activeMoves.length; i += 2) {
-      pairs.push({
-        number: Math.floor(i / 2) + 1,
-        white: activeMoves[i],
-        whitePly: i + 1,
-        black: activeMoves[i + 1],
-        blackPly: i + 2 <= activeMoves.length ? i + 2 : undefined,
-      });
+    for (let ply = 1; ply <= lastPly; ply++) {
+      const { number, color } = moveAtPly(baseFen, ply);
+      let pair = pairs[pairs.length - 1];
+      if (!pair || pair.number !== number) {
+        pair = { number };
+        pairs.push(pair);
+      }
+      if (color === "white") {
+        pair.white = activeMoves[ply - 1];
+        pair.whitePly = ply;
+      } else {
+        pair.black = activeMoves[ply - 1];
+        pair.blackPly = ply;
+      }
     }
     return pairs;
-  }, [activeMoves]);
+  }, [baseFen, activeMoves, lastPly]);
 
-  const isWhiteTurn = (currentFen.split(" ")[1] || "w") === "w";
+  const isWhiteTurn = currentFen.split(/\s+/)[1] !== "b";
 
   // Games for board position loading
   const [playerGames, setPlayerGames] = useState<Game[]>([]);
@@ -409,19 +422,12 @@ export default function AiCoachView() {
       setSelectedGameId(handoff.game.id);
     }
 
-    if (handoff.moves && handoff.moves.length > 0) {
-      setActiveMoves(handoff.moves);
-    }
-
-    if (handoff.fen) {
-      const cleanFen = normalizeFen(handoff.fen);
-      setBaseFen(handoff.game ? START_FEN : cleanFen);
-      setCurrentFen(cleanFen);
-    }
-
-    if (typeof handoff.ply === "number") {
-      setCurrentPly(handoff.ply);
-    }
+    const moves = handoff.moves ?? parseSanMoves(handoff.game?.moves_san);
+    setActiveMoves(moves);
+    setBaseFen(normalizeFen(handoff.initialFen ?? handoff.game?.raw_headers?.FEN ??
+      (moves.length ? START_FEN : handoff.fen ?? START_FEN)));
+    setCurrentPly(handoff.ply ?? 0);
+    if (!handoff.game) setSelectedGameId("");
 
     // Always ensure board is open
     setIsBoardOpen(true);
@@ -438,7 +444,7 @@ export default function AiCoachView() {
       const handoffMessages: ChatMessage[] = handoff.messages.map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
-        fen: m.fen || handoff.fen,
+        fen: m.fen,
       }));
 
       const newOrUpdatedSession: ChatSession = {
@@ -846,7 +852,6 @@ export default function AiCoachView() {
     setSelectedGameId(gameId);
     if (!gameId) {
       setBaseFen(START_FEN);
-      setCurrentFen(START_FEN);
       setActiveMoves([]);
       setCurrentPly(0);
       return;
@@ -855,16 +860,9 @@ export default function AiCoachView() {
     const g = playerGames.find((game) => game.id === gameId);
     if (!g) return;
 
-    const rawMoves = g.moves_san || "";
-    const moves = rawMoves
-      .split(" ")
-      .map((m) => m.replace(/^\d+\.+/, "").trim())
-      .filter((m) => m && !["1-0", "0-1", "1/2-1/2", "*"].includes(m));
-
-    setBaseFen(START_FEN);
-    setActiveMoves(moves);
+    setBaseFen(normalizeFen(g.raw_headers?.FEN || START_FEN));
+    setActiveMoves(parseSanMoves(g.moves_san));
     setCurrentPly(0);
-    setCurrentFen(START_FEN);
 
     // Auto set board orientation if selected player is Black
     const firstPName = (activePlayerNames[0] || "").toLowerCase().trim();
@@ -878,26 +876,20 @@ export default function AiCoachView() {
 
   // Handler: Apply FEN to board
   const handleApplyFen = useCallback((fen: string) => {
-    setIsBoardOpen(true);
     const cleanFen = normalizeFen(fen);
-    try {
-      const chess = new Chess(cleanFen);
-      const validatedFen = chess.fen();
-      setBaseFen(validatedFen);
-      setCurrentFen(validatedFen);
-    } catch {
-      if (isFenString(cleanFen)) {
-        setBaseFen(cleanFen);
-        setCurrentFen(cleanFen);
-      } else {
-        console.warn("Invalid FEN provided:", fen);
-        return;
-      }
+    if (!isFenString(cleanFen)) return;
+    setIsBoardOpen(true);
+    const knownPly = cleanFen === currentFen ? currentPly : positionHistory.indexOf(cleanFen);
+    if (knownPly >= 0) {
+      setCurrentPly(knownPly);
+      return;
     }
+
+    setBaseFen(cleanFen);
     setActiveMoves([]);
     setCurrentPly(0);
     setSelectedGameId("");
-  }, []);
+  }, [currentFen, currentPly, positionHistory]);
 
   const isSkeleton = useMemo(() => isPawnSkeletonFen(currentFen), [currentFen]);
   const selectedGame = useMemo(
@@ -941,20 +933,12 @@ export default function AiCoachView() {
       );
       return;
     }
-    const activeColor = currentFen.split(" ")[1] === "w" ? "Trắng" : "Đen";
-    let evalText = "";
-    if (currentEval) {
-      const scoreStr = currentEval.isMate
-        ? `Chiếu bí sau ${currentEval.mateIn ?? currentEval.score} nước`
-        : `${currentEval.score > 0 ? "+" : ""}${(currentEval.score / 100).toFixed(2)} Tốt`;
-      const bestMoveFormatted = currentEval.bestMoveSan || (currentEval.bestMove ? convertUciToSan(currentFen, currentEval.bestMove) : "");
-      const bmText = bestMoveFormatted ? `, nước tối ưu: ${bestMoveFormatted}` : "";
-      evalText = ` (Stockfish chấm: ${scoreStr}${bmText})`;
-    }
-    const moveContext = selectedGame
-      ? ` ở Nước ${currentPly}/${activeMoves.length} trong ván ${selectedGame.white_player || "Trắng"} vs ${selectedGame.black_player || "Đen"}`
-      : "";
-    const prompt = `Phân tích thế cờ hiện tại trên bàn cờ giúp tôi (Lượt đi: ${activeColor}${evalText}${moveContext}). Đánh giá kế hoạch chiến lược và nước đi tiếp theo nên là gì?`;
+    const lastMove = selectedMove
+      ? `sau ${selectedMove.number}${selectedMove.color === "white" ? "." : "..."}${activeMoves[currentPly - 1]}`
+      : "ở vị trí ban đầu";
+    const gameLabel = selectedGame ? ` trong ván ${selectedGame.white_player} vs ${selectedGame.black_player}` : "";
+    const turn = isWhiteTurn ? "Trắng" : "Đen";
+    const prompt = `Phân tích thế cờ ${lastMove}${gameLabel}, đến lượt ${turn}. Đánh giá kế hoạch chiến lược và nước đi tiếp theo nên là gì?`;
     setPendingPrompt(prompt);
   };
 
@@ -1450,7 +1434,7 @@ export default function AiCoachView() {
             <div className="w-full h-9 flex items-center gap-2 pb-1.5 mb-1.5 border-b border-border/60 shrink-0 overflow-hidden">
               {/* Left: Eval Badge (Strict Fixed Width: 70px, zero layout shift) */}
               <div className="w-[70px] h-6 shrink-0 flex items-center justify-center select-none">
-                {isEvalForCurrentFen && currentEval ? (
+                {currentEval ? (
                   <span
                     className={`w-full h-full inline-flex items-center justify-center gap-1 rounded-md text-[11px] font-mono tabular-nums font-bold border transition-colors ${
                       currentEval.isMate
@@ -1519,7 +1503,7 @@ export default function AiCoachView() {
                     {movePairs.map((p) => (
                       <div key={p.number} className="shrink-0 flex items-center text-xs font-mono">
                         <span className="text-[10px] text-muted-foreground/70 font-semibold mr-1 select-none">
-                          {p.number}.
+                          {p.number}{p.white ? "." : "..."}
                         </span>
                         {p.white && (
                           <button
@@ -1565,19 +1549,12 @@ export default function AiCoachView() {
                 moves={activeMoves}
                 currentPly={currentPly}
                 orientation={boardOrientation}
-                onPositionChange={(fen, ply) => {
-                  setCurrentFen(fen);
-                  setCurrentPly(ply);
-                }}
-                onMovesChange={(newMoves, ply, fen) => {
+                onPositionChange={(_, ply) => setCurrentPly(ply)}
+                onMovesChange={(newMoves, ply) => {
                   setActiveMoves(newMoves);
                   setCurrentPly(ply);
-                  setCurrentFen(fen);
                 }}
-                onEvaluationChange={(evalData, thinking) => {
-                  setCurrentEval(evalData);
-                  setIsEngineThinking(thinking);
-                }}
+                onEvaluationChange={handleEvaluationChange}
                 height={540}
                 fitParentHeight={true}
               />
@@ -1606,22 +1583,16 @@ export default function AiCoachView() {
                 </button>
 
                 <span
-                  title={
-                    currentPly === 0
-                      ? "Ban đầu"
-                      : `Nước ${Math.ceil(currentPly / 2)}/${Math.ceil(activeMoves.length / 2)}`
-                  }
+                  title={moveCounter}
                   className="font-mono text-[11px] font-semibold px-2 py-1 text-slate-600 min-w-[65px] text-center"
                 >
-                  {currentPly === 0
-                    ? "Ban đầu"
-                    : `Nước ${Math.ceil(currentPly / 2)}/${Math.ceil(activeMoves.length / 2)}`}
+                  {moveCounter}
                 </span>
 
                 <button
                   type="button"
-                  onClick={() => setCurrentPly(Math.min(activeMoves.length, currentPly + 1))}
-                  disabled={currentPly >= activeMoves.length || isSkeleton}
+                  onClick={() => setCurrentPly(Math.min(lastPly, currentPly + 1))}
+                  disabled={currentPly >= lastPly || isSkeleton}
                   title="Tiến 1 nước (Phím mũi tên Phải / >)"
                   className="h-8 w-9 sm:h-8.5 sm:w-10 rounded-lg flex items-center justify-center border-0 bg-transparent hover:bg-slate-100 text-slate-700 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer active:scale-95"
                 >
@@ -1629,8 +1600,8 @@ export default function AiCoachView() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setCurrentPly(activeMoves.length)}
-                  disabled={currentPly >= activeMoves.length || isSkeleton}
+                  onClick={() => setCurrentPly(lastPly)}
+                  disabled={currentPly >= lastPly || isSkeleton}
                   title="Nước cuối cùng (Phím End)"
                   className="h-8 w-8 sm:h-8.5 sm:w-8.5 rounded-lg flex items-center justify-center border-0 bg-transparent hover:bg-slate-100 text-slate-700 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer active:scale-95"
                 >
@@ -1652,7 +1623,6 @@ export default function AiCoachView() {
                   type="button"
                   onClick={() => {
                     setBaseFen(START_FEN);
-                    setCurrentFen(START_FEN);
                     setActiveMoves([]);
                     setCurrentPly(0);
                     setSelectedGameId("");
@@ -1740,9 +1710,9 @@ export default function AiCoachView() {
                     {isSkeleton
                       ? "Phân tích cấu trúc Tốt ↗"
                       : selectedGame
-                      ? currentPly === 0
-                        ? "Thế cờ đầu ↗"
-                        : `Thế cờ (Nước ${Math.ceil(currentPly / 2)}) ↗`
+                      ? selectedMove
+                        ? `Thế cờ (Nước ${selectedMove.number}) ↗`
+                        : "Thế cờ đầu ↗"
                       : "Gửi thế cờ vào chat ↗"}
                   </span>
                 </button>
@@ -1770,7 +1740,8 @@ export default function AiCoachView() {
               currentFen={currentFen}
               currentEval={currentEval}
               selectedGame={effectiveGame}
-              activeMoves={activeMoves}
+              activeMoves={activeMoves.slice(0, lastPly)}
+              initialFen={baseFen}
               currentPly={currentPly}
               isBoardOpen={isBoardOpen}
               onToggleBoard={() => setIsBoardOpen((prev) => !prev)}

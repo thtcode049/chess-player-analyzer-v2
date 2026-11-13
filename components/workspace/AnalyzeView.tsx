@@ -50,14 +50,7 @@ import {
   findNodeById,
 } from "@/lib/chess/moveTree";
 import { getLichessAuth } from "@/lib/auth/lichess";
-
-function parseSanMoves(movesSan?: string | null): string[] {
-  if (!movesSan) return [];
-  return movesSan
-    .split(/\s+/)
-    .map((t) => t.replace(/^\d+\.+/, "").trim())
-    .filter((t) => t && !["1-0", "0-1", "1/2-1/2", "*"].includes(t));
-}
+import { parseSanMoves, replayPositionHistory } from "@/lib/chess/notation";
 
 function parseOptionalElo(val: unknown): number | undefined {
   const n = Number(val);
@@ -1337,7 +1330,7 @@ export function AnalyzeContent() {
     setMoves(newMoves);
     setCurrentPly(ply);
     setCurrentFen(fen);
-    setMoveTree(createMoveTreeFromMoves(newMoves));
+    setMoveTree(createMoveTreeFromMoves(newMoves, moveTree.startFen, ply));
     checkOpeningTransition(newMoves.slice(0, ply));
   };
 
@@ -1394,7 +1387,7 @@ export function AnalyzeContent() {
         ? (activeP.findIndex((n) => n.id === activeNode.id) + 1)
         : 0;
       const newMoves = activeP.map((n) => n.san);
-      const newFen = activeNode ? activeNode.fen : "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+      const newFen = activeNode?.fen ?? updatedTree.startFen;
 
       setMoves(newMoves);
       setCurrentPly(nextPly);
@@ -1410,7 +1403,7 @@ export function AnalyzeContent() {
     if (ply === 0) {
       setMoveTree((prev) => ({ ...prev, activeNodeId: null }));
       setCurrentPly(0);
-      setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+      setCurrentFen(moveTree.startFen);
       checkOpeningTransition([]);
       return;
     }
@@ -1419,8 +1412,10 @@ export function AnalyzeContent() {
       const targetNode = activeP[ply - 1];
       handleSelectTreeNode(targetNode.id);
     } else {
-      const clamped = Math.max(0, Math.min(moves.length, ply));
+      const positions = replayPositionHistory(moveTree.startFen, moves);
+      const clamped = Math.max(0, Math.min(positions.length - 1, ply));
       setCurrentPly(clamped);
+      setCurrentFen(positions[clamped]);
       checkOpeningTransition(moves.slice(0, clamped));
     }
   }, [moveTree, handleSelectTreeNode, moves, checkOpeningTransition]);
@@ -1967,7 +1962,7 @@ export function AnalyzeContent() {
       <div className="relative flex justify-center w-full">
         <ChessBoard
           key={`board-${gameInfo?.id || activeStructureGameIdx || selectedOpening || "default"}`}
-          initialFen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+          initialFen={moveTree.startFen}
           moves={moves}
           currentPly={currentPly}
           orientation={boardOrientation}
@@ -2884,6 +2879,7 @@ export function AnalyzeContent() {
 
       {/* Floating AI Chat Copilot Widget (Context-aware on Board & Players) */}
       <FloatingAiChatWidget
+        initialFen={moveTree.startFen}
         currentFen={currentFen}
         currentPly={currentPly}
         evaluation={evaluation}

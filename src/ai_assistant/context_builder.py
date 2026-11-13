@@ -13,6 +13,7 @@ from typing import Any, Dict, Iterable, List, Optional
 import chess
 
 from src.ai_assistant.briefing import format_game_reference, format_group_stats, format_profile_stats
+from src.ai_assistant.position_facts import PositionFacts
 from src.analysis.pawn_structure import CANONICAL_PAWN_SKELETONS
 
 
@@ -223,7 +224,14 @@ def build_opponent_ai_context(
     Ván đấu đang chọn (selected_game), Thế cờ bàn cờ tương tác (current_fen) và Toàn bộ ván đấu PGN
     thành ngữ cảnh chuẩn xác (Ground Truth) cho Trợ lí AI.
     """
-    if not deep_profile and not stats and not games and not selected_game:
+    position_facts = None
+    if is_board_open and current_fen:
+        try:
+            position_facts = PositionFacts(current_fen, engine_eval=engine_eval)
+        except ValueError:
+            pass
+
+    if not any((deep_profile, stats, games, selected_game, position_facts)) and is_board_open:
         return "Hiện chưa có dữ liệu phân tích nào được nạp."
 
     deep_profile = deep_profile or {}
@@ -280,11 +288,11 @@ def build_opponent_ai_context(
         )
 
     # 2. THẾ CỜ TRÊN BÀN CỜ TƯƠNG TÁC
-    if is_board_open and current_fen:
+    if position_facts is not None:
+        board = position_facts.board
         ctx_parts.append("## ♟️ THẾ CỜ HIỆN TẠI TRÊN BÀN CỜ TƯƠNG TÁC (BÀN CỜ ĐANG MỞ)")
-        ctx_parts.append(f"- **Chuỗi FEN**: `{current_fen}`")
-        fen_parts = current_fen.split(" ")
-        active_color = "Trắng (White)" if len(fen_parts) > 1 and fen_parts[1] == "w" else "Đen (Black)"
+        ctx_parts.append(f"- **Chuỗi FEN**: `{position_facts.fen}`")
+        active_color = "Trắng (White)" if board.turn == chess.WHITE else "Đen (Black)"
         ctx_parts.append(f"- **Lượt đi**: Đến lượt **{active_color}** đi quân")
         if engine_eval:
             score = engine_eval.get("score")
@@ -306,24 +314,18 @@ def build_opponent_ai_context(
             if not best_move and engine_eval.get("bestMove"):
                 raw_bm = str(engine_eval.get("bestMove")).strip()
                 try:
-                    b_test = chess.Board(current_fen)
-                    m_test = chess.Move.from_uci(raw_bm)
-                    if m_test in b_test.legal_moves:
-                        best_move = b_test.san(m_test)
-                    else:
-                        best_move = raw_bm
-                except Exception:
-                    best_move = raw_bm
+                    move = chess.Move.from_uci(raw_bm)
+                    if move in board.legal_moves:
+                        best_move = board.san(move)
+                except ValueError:
+                    pass
 
             if best_move:
-                try:
-                    b_bm = chess.Board(current_fen)
-                    move_pfx = f"{b_bm.fullmove_number}. " if b_bm.turn == chess.WHITE else f"{b_bm.fullmove_number}... "
-                except Exception:
-                    move_pfx = ""
+                suffix = "." if board.turn == chess.WHITE else "..."
+                move_pfx = f"{board.fullmove_number}{suffix} "
                 ctx_parts.append(f"- **Nước đi tối ưu Stockfish đề xuất**: **{move_pfx}{best_move}** (Ký hiệu SAN chuẩn)")
             if engine_eval.get("pv"):
-                pv_san = format_pv_to_san(current_fen, engine_eval.get("pv")[:8])
+                pv_san = format_pv_to_san(position_facts.fen, engine_eval.get("pv")[:8])
                 if pv_san:
                     ctx_parts.append(f"- **Biến thể dự tính chính (PV line chuẩn SAN)**: {pv_san}")
 
@@ -340,13 +342,7 @@ def build_opponent_ai_context(
                     "để trả lời chính xác tên khai cuộc, biến thể và phân tích kế hoạch. TUYỆT ĐỐI KHÔNG trả lời rằng bạn không có chuỗi nước đi PGN!"
                 )
 
-        # Nạp Bảng sự thật thế cờ (Ground Truth Factsheet) tính toán chính xác 100% bằng python-chess
-        try:
-            from src.ai_assistant.position_facts import PositionFacts
-            facts = PositionFacts(current_fen, engine_eval=engine_eval)
-            ctx_parts.append("\n" + facts.generate_factsheet_markdown())
-        except Exception:
-            pass
+        ctx_parts.append("\n" + position_facts.generate_factsheet_markdown())
         ctx_parts.append("")
     elif not is_board_open:
         ctx_parts.append("## ♟️ TRẠNG THÁI BÀN CỜ TƯƠNG TÁC")

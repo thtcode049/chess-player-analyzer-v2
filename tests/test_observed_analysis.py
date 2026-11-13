@@ -278,3 +278,42 @@ def test_chat_prefers_requested_run_over_latest_player_snapshot(monkeypatch):
         return "".join([event async for event in response.body_iterator])
 
     assert "gameId=requested-run" in asyncio.run(collect())
+
+
+@pytest.mark.parametrize("board_open, fen, should_verify", [
+    (True, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", True),
+    (False, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", False),
+    (True, "bad FEN", False),
+])
+def test_chat_verifies_position_before_sending_sse(monkeypatch, board_open, fen, should_verify):
+    import json
+    from api.services import ai_service
+
+    snapshot = AnalysisService.run_complete_analysis([game("verified")], "Alpha")
+    monkeypatch.setitem(ai.RUN_SNAPSHOTS_CACHE, "verified-run", {**snapshot, "player_name": "Alpha"})
+
+    def model_response(**kwargs):
+        assert kwargs["verify_current_position"] == should_verify
+        assert ("BẢNG SỰ THẬT THẾ CỜ" in kwargs["context"]) == should_verify
+        yield "Nước đề xuất là ⟦nư"
+        yield "ớc:e4⟧.\nNước sai ⟦nước:e5⟧.\nVán minh họa {{"
+        yield "G1}}.\n[OPEN_BOARD]"
+
+    monkeypatch.setattr(ai_service, "stream_gemini_response", model_response)
+
+    async def collect():
+        response = await ai.chat_with_ai_coach(ChatRequest(
+            run_id="verified-run",
+            message="Hãy đánh giá kế hoạch ở thế cờ này",
+            current_fen=fen,
+            is_board_open=board_open,
+        ))
+        return "".join([event async for event in response.body_iterator])
+
+    events = asyncio.run(collect()).splitlines()
+    content = "".join(json.loads(line[6:])["chunk"] for line in events if line.startswith("data: {"))
+    assert ("Nước đề xuất là **e4**." in content) == should_verify
+    assert "Nước sai" not in content and "⟦" not in content
+    assert "gameId=verified" in content and "[OPEN_BOARD]" in content
+    assert "đã được lược bỏ" in content
+    assert "data: [DONE]" in events

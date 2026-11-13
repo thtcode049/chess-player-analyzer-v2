@@ -125,7 +125,7 @@ def test_db_snapshot_reloads_only_the_games_recorded_in_that_run(monkeypatch):
     assert ai._resolve_run_snapshot(run_id)[3] == []
 
 
-def test_context_describes_pgn_subset_and_prioritizes_requested_opening():
+def test_context_includes_all_pgns_and_prioritizes_requested_opening():
     games = [game(str(i)) for i in range(19)] + [game("requested", opening="Caro-Kann")]
     snapshot = AnalysisService.run_complete_analysis(games, "Alpha")
     sources = {}
@@ -133,9 +133,13 @@ def test_context_describes_pgn_subset_and_prioritizes_requested_opening():
         snapshot["deep_profile_raw"], snapshot["stats_raw"],
         games=games, question="Cho tôi ván Caro-Kann", sources=sources,
     )
-    assert "15/20 ván" in context
-    assert "{{G20}}" in context and "gameId=requested" in sources["G20"]
-    assert "{{G19}}" not in context
+    assert "20/20 ván" in context
+    pgn_section = context.split("## V. BIÊN BẢN ĐƯỢC CUNG CẤP CHO CÂU HỎI", 1)[1]
+    assert pgn_section.count("**Biên bản nước đi (PGN)**") == len(games)
+    assert pgn_section.index("{{G20}}") < pgn_section.index("{{G1}}")
+    for index, source_game in enumerate(games, 1):
+        assert f"{{{{G{index}}}}}" in pgn_section
+        assert f"gameId={source_game['id']}" in sources[f"G{index}"]
     assert "Caro-Kann" in " ".join(value for key, value in sources.items() if key.startswith("S"))
 
 

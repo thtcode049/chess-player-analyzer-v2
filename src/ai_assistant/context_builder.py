@@ -148,17 +148,16 @@ def format_moves_san(moves: Any) -> str:
 
 def format_games_pgn_for_context(
     games: Optional[List[Dict[str, Any]]],
-    max_games: int = 15,
     *,
     game_indices: Optional[List[int]] = None,
     sources: Optional[Dict[str, str]] = None,
     source_prefix: str = "",
 ) -> str:
-    """Provide a bounded set of games with references to their snapshot positions."""
+    """Provide all snapshot games with references to their original positions."""
     if not games:
         return "Chưa có biên bản ván đấu PGN chi tiết thuộc lượt phân tích này."
 
-    indices = game_indices if game_indices is not None else list(range(min(len(games), max_games)))
+    indices = game_indices if game_indices is not None else range(len(games))
     lines = []
     lines.append(f"Biên bản được cung cấp: {len(indices)}/{len(games)} ván của lượt phân tích.")
     for index in indices:
@@ -372,7 +371,7 @@ def build_opponent_ai_context(
     for structure in structs:
         if asked_about(structure):
             preferred_indices.update(game.get("game_index") for game in structure.get("games", []))
-    indices = sorted(range(len(games or [])), key=lambda index: index not in preferred_indices)[:15]
+    indices = sorted(range(len(games or [])), key=lambda index: index not in preferred_indices)
     provided_indices = set(indices)
     stat_index = 0
 
@@ -431,8 +430,6 @@ def build_opponent_ai_context(
         ctx_parts.append(f"- **{data['name']}** ({data['vietnamese_name']}) [{data['chapter']}]: `{data['fen']}`")
 
     ctx_parts.append("\n## V. BIÊN BẢN ĐƯỢC CUNG CẤP CHO CÂU HỎI")
-    if games and len(indices) < len(games):
-        ctx_parts.append("Ưu tiên ván thuộc nhóm được nhắc trong câu hỏi, sau đó lấy theo thứ tự của lượt phân tích.")
     ctx_parts.append(format_games_pgn_for_context(
         games, game_indices=indices, sources=sources, source_prefix=source_prefix,
     ))

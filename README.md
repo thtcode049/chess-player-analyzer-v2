@@ -30,7 +30,7 @@
 4. **Hệ Thống Thuật Toán Cờ Vua Cốt Lõi Đồng Bộ (`src/`)**:
    - **Cây khai cuộc EPD (`src/opening_tree.py`)**: Gom nhóm thế cờ an toàn hoán vị (Transposition-Safe EPD Aggregation), lọc theo màu quân và trích xuất dòng biến đại diện.
    - **Thống kê quan sát**: Trình bày số ván, thắng, hòa, thua và tỷ lệ điểm theo từng khai cuộc hoặc cấu trúc Tốt. Tỷ lệ điểm tính bằng số ván thắng cộng nửa số ván hòa, chia cho tổng số ván của nhóm.
-   - **Nhận diện 28 cấu trúc Tốt trung cuộc chuẩn Grandmaster (`src/analysis/pawn_structure.py`)**: Hệ thống nhận diện cấu trúc Tốt được xây dựng theo chuẩn mực kinh điển ***Chess Structures: A Grandmaster Guide*** của Đại kiện tướng Mauricio Flores Rios. Quét trong cửa sổ trung cuộc định hình từ nước 8 đến hết nước 20 (`ply 15 -> 40`), tích hợp **Bộ lọc độ bền (Persistence Filter $\ge 3$ plies liên tiếp)** nhằm triệt tiêu hoàn toàn nhiễu từ các nước ăn đổi quân tạm thời (transient captures). Phân loại chuẩn mực thành 6 nhóm:
+   - **Nhận diện 28 cấu trúc Tốt trung cuộc chuẩn Grandmaster (`src/analysis/pawn_structure.py`)**: Hệ thống nhận diện cấu trúc Tốt được xây dựng theo chuẩn mực kinh điển ***Chess Structures: A Grandmaster Guide*** của Đại kiện tướng Mauricio Flores Rios. Mặc định, hệ thống tính độ bền từ **ply 5 đến ply 32** (từ nước thứ 3 của Trắng đến hết nước thứ 16 của Đen). Ply 33–34 chỉ dùng để kiểm tra cấu trúc đã xuất hiện. Một cấu trúc thường cần xuất hiện trong **ít nhất 3 ply liên tiếp**. Nếu ván kết thúc trước khi đạt ngưỡng này và cấu trúc vẫn tồn tại ở thế cuối, hệ thống có thể ghi nhận với 2 ply liên tiếp. Phân loại chuẩn mực thành 6 nhóm:
      - **Family One – d4 and ...d5 (Chương 1–7)**: *The Isolani*, *Hanging Pawns*, *Caro-Kann Formation*, *Slav Formation*, *The Carlsbad Formation*, *Stonewall*, *Grünfeld Centre*.
      - **Family Two – Open Sicilian (Chương 8–11)**: *Najdorf Type I*, *Najdorf Type II*, *The Hedgehog*, *The Maroczy*.
      - **Family Three – Benoni (Chương 12–13)**: *Asymmetric Benoni*, *Symmetric Benoni*.
@@ -64,7 +64,7 @@
         ├── src.opening_tree (Transposition-Safe EPD Trie & Representative Line Finder)
         ├── src.player_profile & src.strategy (Repertoire and Opening Response Statistics)
         ├── src.statistics (Observed Results by Color)
-        ├── src.analysis.pawn_structure (28 Canonical Pawn Structures - Flores Rios, Ply 15-40, Persistence Filter >= 3 Plies)
+        ├── src.analysis.pawn_structure (28 Canonical Pawn Structures - Flores Rios, Ply 5–32, Verify Through Ply 34, Default Persistence 3 Plies)
         ├── src.pgn_parser & src.game_fetcher (Trie 3.865 ECO Variants, Lichess/Chess.com Fetcher)
         └── src.ai_assistant (Gemini Streaming + Intent Router + Position Verifier + Local Expert)
            │

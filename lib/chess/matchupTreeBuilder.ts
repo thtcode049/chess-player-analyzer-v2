@@ -13,6 +13,7 @@
 
 import { Chess } from "chess.js";
 import { Game, OpeningContinuation, OpeningTreeNode } from "@/lib/api/types";
+import { getGamePlayerColor } from "@/lib/chess/playerColor";
 
 export interface PlayerRoleAssignment {
   playerId: string;
@@ -269,23 +270,15 @@ export function buildMatchupTreeIndex(
 
   for (const item of playerAssignments) {
     const { player, games, role } = item;
-    const pName = player.canonical_name.toLowerCase();
-
     if (role === "white" || role === "both") {
       // Filter games where player played as White
-      const whiteGames = games.filter((g) => {
-        const w = (g.white_player || "").toLowerCase();
-        return w.includes(pName);
-      });
+      const whiteGames = games.filter((game) => getGamePlayerColor(game, player.canonical_name) === "white");
       index.indexWhiteGames(whiteGames, player.canonical_name);
     }
 
     if (role === "black" || role === "both") {
       // Filter games where player played as Black
-      const blackGames = games.filter((g) => {
-        const b = (g.black_player || "").toLowerCase();
-        return b.includes(pName);
-      });
+      const blackGames = games.filter((game) => getGamePlayerColor(game, player.canonical_name) === "black");
       index.indexBlackGames(blackGames, player.canonical_name);
     }
   }
@@ -294,29 +287,6 @@ export function buildMatchupTreeIndex(
 }
 
 const ROOT_EPD = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -";
-
-function normalizeNameForMatch(name?: string | null): string {
-  if (!name) return "";
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[đĐ]/g, "d")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function isPlayerSideMatch(canonicalName: string, sideName?: string | null): boolean {
-  const a = normalizeNameForMatch(canonicalName);
-  const b = normalizeNameForMatch(sideName);
-  if (!a || !b) return false;
-  if (a === b || a.includes(b) || b.includes(a)) return true;
-  const tokensA = a.split(" ").filter((t) => t.length >= 2);
-  const tokensB = b.split(" ").filter((t) => t.length >= 2);
-  const matches = tokensA.filter((t) => tokensB.includes(t));
-  return matches.length >= 2 || (tokensA.length === 1 && matches.length === 1);
-}
 
 /**
  * Computes single-player opening continuations at a specific FEN position directly in memory.
@@ -359,9 +329,8 @@ export function querySinglePlayerTreePosition(
   };
 
   for (const game of games) {
-    const isW = isPlayerSideMatch(playerCanonicalName, game.white_player);
-    const isB = isPlayerSideMatch(playerCanonicalName, game.black_player);
-    const playerColor: "white" | "black" = isB && !isW ? "black" : "white";
+    const playerColor = getGamePlayerColor(game, playerCanonicalName);
+    if (playerColor === null) continue;
 
     if (color === "white" && playerColor !== "white") continue;
     if (color === "black" && playerColor !== "black") continue;
@@ -444,11 +413,7 @@ export function querySinglePlayerTreePosition(
             date: sample.played_at || undefined,
             opening: sample.opening_name || undefined,
             moves_san: sample.moves_san || undefined,
-            player_color:
-              isPlayerSideMatch(playerCanonicalName, sample.black_player) &&
-              !isPlayerSideMatch(playerCanonicalName, sample.white_player)
-                ? "black"
-                : "white",
+            player_color: getGamePlayerColor(sample, playerCanonicalName) ?? undefined,
           }
         : undefined;
 

@@ -12,6 +12,7 @@ from api.schemas.common import BaseResponse, PaginatedResponse
 from api.schemas.players import PlayerCreate, PlayerUpdate, PlayerResponse
 from api.schemas.games import GameResponse
 from api.services.db_service import DBService, GUEST_SYSTEM_USER_ID
+from src.utils import resolve_game_player_color
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/players", tags=["Players"])
@@ -515,10 +516,19 @@ def list_player_games(
             if not games and player_id in GAMES_STORE:
                 games = GAMES_STORE[player_id]
 
-    # Filter by Color
-    filtered = games
-    if color and color.lower() in ["white", "black"]:
-        filtered = [g for g in filtered if str(g.get("player_color", "")).lower() == color.lower()]
+    canonical_name = ""
+    if any(resolve_game_player_color(game) is None for game in games):
+        try:
+            canonical_name = get_player(player_id, x_user_id, x_guest_session_id).data.canonical_name
+        except HTTPException as exc:
+            if exc.status_code != 404:
+                raise
+    filtered = [
+        {**game, "player_color": resolve_game_player_color(game, canonical_name)}
+        for game in games
+    ]
+    if color and color.lower() in ("white", "black"):
+        filtered = [game for game in filtered if game["player_color"] == color.lower()]
 
     # Filter by ECO
     if eco:
@@ -586,6 +596,7 @@ def list_player_games(
                 played_at=played_at,
                 white_player=g.get("white_player") or g.get("white", "White"),
                 black_player=g.get("black_player") or g.get("black", "Black"),
+                player_color=g["player_color"],
                 white_elo=g.get("white_elo"),
                 black_elo=g.get("black_elo"),
                 result=g.get("result", "*"),

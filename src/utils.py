@@ -3,7 +3,42 @@ Utils Module
 Chức năng: Chứa các hàm hỗ trợ chung (xử lý chuỗi, định dạng số liệu, đọc ghi file).
 """
 
-from typing import Tuple
+from typing import Any, Literal, Tuple
+import unicodedata
+
+
+PlayerColor = Literal["white", "black"]
+PLAYER_COLOR_HEADER = "_chesslook_player_color"
+
+
+def exact_player_name(name: str | None) -> str:
+    return unicodedata.normalize("NFC", (name or "").strip())
+
+
+def determine_player_color(player_name: str, white: str, black: str) -> PlayerColor | None:
+    name = exact_player_name(player_name)
+    if not name:
+        return None
+    white_matches = exact_player_name(white) == name
+    black_matches = exact_player_name(black) == name
+    if white_matches == black_matches:
+        return None
+    return "white" if white_matches else "black"
+
+
+def resolve_game_player_color(game: dict[str, Any], player_name: str = "") -> PlayerColor | None:
+    color = game.get("player_color")
+    if color in ("white", "black"):
+        return color
+    headers = game.get("raw_headers") or {}
+    color = headers.get(PLAYER_COLOR_HEADER)
+    if color in ("white", "black"):
+        return color
+    return determine_player_color(
+        player_name,
+        game.get("white_player") or game.get("white", ""),
+        game.get("black_player") or game.get("black", ""),
+    )
 
 
 def format_percentage(value: float) -> str:

@@ -12,6 +12,7 @@ from datetime import datetime
 
 from src.pgn_parser import parse_pgn, detect_primary_player, extract_players, filter_games_by_player
 from src.game_fetcher import fetch_lichess_games, fetch_chesscom_games
+from src.utils import PLAYER_COLOR_HEADER, resolve_game_player_color
 
 class ImportService:
     @staticmethod
@@ -95,7 +96,10 @@ class ImportService:
         """
         Converts a parsed game dict from src.pgn_parser into the exact DB schema format for public.games.
         """
-        headers = raw_game.get("headers", {})
+        headers = dict(raw_game.get("headers") or {})
+        color = resolve_game_player_color(raw_game)
+        if color is not None:
+            headers[PLAYER_COLOR_HEADER] = color
         moves_list = raw_game.get("moves", [])
         
         # Build moves_san string e.g. "1.e4 c5 2.Nf3 d6..."
@@ -108,7 +112,6 @@ class ImportService:
         moves_san_str = " ".join(moves_san_parts) if moves_san_parts else " ".join(moves_list)
 
         # Parse date & time safely
-        headers = raw_game.get("headers", {})
         date_str = str(raw_game.get("date") or headers.get("Date") or headers.get("UTCDate") or "").strip()
         time_str = str(raw_game.get("time") or headers.get("Time") or headers.get("UTCTime") or "").strip()
         played_at = None

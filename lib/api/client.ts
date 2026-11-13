@@ -4,6 +4,7 @@ import {
   AnalysisRun,
   StrategicBriefing,
   ImportSummary,
+  PgnPlayerPreview,
   OpeningTreeNode,
   PaginatedResult,
   LichessMastersResponse,
@@ -260,6 +261,17 @@ export const apiClient = {
       headers: authHeaders,
     });
     return handleResponse<Game>(res);
+  },
+
+  async previewPgnPlayers(file: Blob, signal?: AbortSignal): Promise<PgnPlayerPreview[]> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_BASE}/api/import/pgn-preview`, {
+      method: "POST",
+      body: formData,
+      signal,
+    });
+    return handleResponse<PgnPlayerPreview[]>(res);
   },
 
   async importPgnFile(

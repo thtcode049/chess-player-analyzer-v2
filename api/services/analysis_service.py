@@ -13,6 +13,7 @@ from typing import List, Dict, Any
 from src.statistics import calculate_game_stats, calculate_rate, calculate_score_percentage
 from src.opening_tree import build_opening_tree, get_position_details
 from src.player_profile import generate_deep_opponent_profile
+from src.utils import resolve_game_player_color
 
 GROUP_FIELDS = {
     "name", "games_count", "wins", "draws", "losses", "score_pct",
@@ -105,13 +106,15 @@ class AnalysisService:
         Executes full deterministic analysis pipeline across game collection.
         Returns a dictionary formatted to directly populate public.analysis_runs.
         """
-        # 1. Filter games by color if requested
         color_filter = str(color_filter or "all").lower()
-        if color_filter in ("white", "black"):
-            filtered_games = [g for g in games if str(g.get("player_color", "")).lower() == color_filter]
-        else:
+        if color_filter not in ("white", "black"):
             color_filter = "all"
-            filtered_games = games
+
+        filtered_games = []
+        for game in games:
+            color = resolve_game_player_color(game, player_name)
+            if color is not None and color_filter in ("all", color):
+                filtered_games.append({**game, "player_color": color})
 
         total_games = len(filtered_games)
 

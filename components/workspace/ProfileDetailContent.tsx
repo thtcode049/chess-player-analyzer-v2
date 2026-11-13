@@ -35,6 +35,7 @@ import { Player, Game, AnalysisRun, PawnStructureItem } from "@/lib/api/types";
 import { apiClient } from "@/lib/api/client";
 import { useProfileWorkspaceStore } from "@/lib/stores/profileWorkspaceStore";
 import PawnStructureGrid from "@/components/profile/PawnStructureGrid";
+import { getGamePlayerColor } from "@/lib/chess/playerColor";
 
 function getPlatformInfo(g: Game): { url: string | null; platform: "lichess" | "chesscom" | "other" | null; label: string } {
   const headers = (g.raw_headers as Record<string, any>) || {};
@@ -104,53 +105,6 @@ function formatGameDate(g: Game): string {
   }
 
   return cleaned;
-}
-
-function normalizePlayerName(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function isPlayerNameMatch(nameA?: string | null, nameB?: string | null): boolean {
-  if (!nameA || !nameB) return false;
-  const a = normalizePlayerName(nameA);
-  const b = normalizePlayerName(nameB);
-  if (!a || !b) return false;
-  if (a === b) return true;
-  if (a.includes(b) || b.includes(a)) return true;
-  const tokensA = a.split(" ").filter((t) => t.length >= 2);
-  const tokensB = b.split(" ").filter((t) => t.length >= 2);
-  const matches = tokensA.filter((t) => tokensB.includes(t));
-  return matches.length >= 1;
-}
-
-function getGamePlayerColor(
-  game: Game,
-  canonicalName?: string,
-  primaryName?: string
-): "white" | "black" {
-  const explicitColor = (game as any).player_color;
-  if (explicitColor === "white" || explicitColor === "black") {
-    return explicitColor;
-  }
-  if (primaryName) {
-    const isW = isPlayerNameMatch(primaryName, game.white_player);
-    const isB = isPlayerNameMatch(primaryName, game.black_player);
-    if (isW && !isB) return "white";
-    if (isB && !isW) return "black";
-  }
-  if (canonicalName) {
-    const isW = isPlayerNameMatch(canonicalName, game.white_player);
-    const isB = isPlayerNameMatch(canonicalName, game.black_player);
-    if (isW && !isB) return "white";
-    if (isB && !isW) return "black";
-  }
-  return "white";
 }
 
 interface ProfileBreakdownItem {
@@ -436,35 +390,10 @@ export default function ProfileDetailContent({
   // Filter games
   const safeGames = Array.isArray(games) ? games : [];
 
-  // Auto-detect the primary player username in this dataset (appears in most games)
-  const primaryDatasetPlayer = useMemo(() => {
-    if (!safeGames || safeGames.length === 0) return "";
-    const counts = new Map<string, number>();
-    for (const g of safeGames) {
-      if (g.white_player) {
-        const w = g.white_player.trim();
-        counts.set(w, (counts.get(w) || 0) + 1);
-      }
-      if (g.black_player) {
-        const b = g.black_player.trim();
-        counts.set(b, (counts.get(b) || 0) + 1);
-      }
-    }
-    let topName = "";
-    let topCount = 0;
-    counts.forEach((count, name) => {
-      if (count > topCount) {
-        topCount = count;
-        topName = name;
-      }
-    });
-    return topCount >= Math.max(1, Math.floor(safeGames.length * 0.2)) ? topName : "";
-  }, [safeGames]);
-
   const filteredGames = useMemo(() => {
     return safeGames.filter((g) => {
       if (!g) return false;
-      const color = getGamePlayerColor(g, player?.canonical_name, primaryDatasetPlayer);
+      const color = getGamePlayerColor(g, player?.canonical_name);
       const isPlayerWhite = color === "white";
       const isPlayerBlack = color === "black";
       const wPlayer = (g.white_player || "").toLowerCase();
@@ -474,7 +403,8 @@ export default function ProfileDetailContent({
       if (gameColorFilter === "white" && !isPlayerWhite) return false;
       if (gameColorFilter === "black" && !isPlayerBlack) return false;
 
-      // Result Filter
+      // Result filters are from the identified player's perspective.
+      if (gameResultFilter !== "all" && color === null) return false;
       const res = (g.result || "").trim();
       if (gameResultFilter === "win") {
         if (isPlayerWhite && res !== "1-0") return false;
@@ -503,7 +433,7 @@ export default function ProfileDetailContent({
 
       return true;
     });
-  }, [safeGames, player?.canonical_name, primaryDatasetPlayer, gameColorFilter, gameResultFilter, gameSearchQuery]);
+  }, [safeGames, player?.canonical_name, gameColorFilter, gameResultFilter, gameSearchQuery]);
 
   const totalFiltered = filteredGames.length;
   const totalPages = gamesPerPage === -1 ? 1 : Math.max(1, Math.ceil(totalFiltered / gamesPerPage));
@@ -532,7 +462,8 @@ export default function ProfileDetailContent({
     const openingMap = new Map<string, { name: string; eco: string; count: number; wins: number; draws: number; losses: number }>();
 
     for (const g of safeGames) {
-      const color = getGamePlayerColor(g, player?.canonical_name, primaryDatasetPlayer);
+      const color = getGamePlayerColor(g, player?.canonical_name);
+      if (color === null) continue;
       const isWhite = color === "white";
       const res = (g.result || "").trim();
 
@@ -567,7 +498,8 @@ export default function ProfileDetailContent({
       openingMap.set(key, existing);
     }
 
-    const total = safeGames.length || 1;
+    const totalGames = whiteGames + blackGames;
+    const total = totalGames || 1;
     const winPct = (totalWins / total) * 100;
     const drawPct = (totalDraws / total) * 100;
     const lossPct = (totalLosses / total) * 100;
@@ -593,7 +525,8 @@ export default function ProfileDetailContent({
       .slice(0, 6);
 
     return {
-      totalGames: safeGames.length,
+      totalGames,
+      unresolvedGames: safeGames.length - totalGames,
       totalWins,
       totalDraws,
       totalLosses,
@@ -909,7 +842,7 @@ export default function ProfileDetailContent({
                 Tỷ lệ thắng
               </span>
               <span className="text-base sm:text-2xl font-extrabold text-emerald-500">
-                {analysisRun?.overall_win_rate != null ? `${analysisRun.overall_win_rate.toFixed(1)}%` : "—"}
+                {profileChartsData.totalGames ? `${profileChartsData.winPct.toFixed(1)}%` : "—"}
               </span>
             </div>
             <div>
@@ -917,7 +850,7 @@ export default function ProfileDetailContent({
                 Điểm chung
               </span>
               <span className="text-base sm:text-2xl font-extrabold text-primary">
-                {analysisRun?.overall_score != null ? `${analysisRun.overall_score.toFixed(1)}%` : "N/A"}
+                {profileChartsData.totalGames ? `${profileChartsData.overallScorePct.toFixed(1)}%` : "—"}
               </span>
             </div>
           </div>
@@ -1001,6 +934,13 @@ export default function ProfileDetailContent({
         </button>
       </div>
 
+      {profileChartsData.unresolvedGames > 0 && (
+        <p role="status" className="flex gap-2 rounded-control border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {profileChartsData.unresolvedGames} ván chưa xác định được màu quân và được bỏ qua khi tính thống kê tổng quan. Biên bản có trong Danh sách ván đấu.
+        </p>
+      )}
+
       {/* Sub-Tab 1: Visual Charts & Analytics */}
       {profileSubTab === "overview" && (
         <div className="space-y-6">
@@ -1081,7 +1021,7 @@ export default function ProfileDetailContent({
                   {/* Centered Stats inside Donut */}
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-center select-none pointer-events-none">
                     <span className="text-xl font-bold text-foreground tracking-tight">
-                      {profileChartsData.overallScorePct.toFixed(1)}%
+                      {profileChartsData.totalGames ? `${profileChartsData.overallScorePct.toFixed(1)}%` : "—"}
                     </span>
                     <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                       Điểm số
@@ -1575,7 +1515,7 @@ export default function ProfileDetailContent({
                     </tr>
                   ) : (
                     paginatedGames.map((g, idx) => {
-                      const color = getGamePlayerColor(g, player?.canonical_name, primaryDatasetPlayer);
+                      const color = getGamePlayerColor(g, player?.canonical_name);
                       const isWhite = color === "white";
                       const isBlack = color === "black";
                       const res = (g.result || "").trim();
@@ -1626,6 +1566,11 @@ export default function ProfileDetailContent({
                             >
                               {g.result}
                             </span>
+                            {color === null && (
+                              <span className="mt-1 block font-sans text-[10px] font-normal text-muted-foreground">
+                                Chưa rõ màu quân
+                              </span>
+                            )}
                           </td>
                           <td className="px-3 py-2 text-muted-foreground">
                             <span className="font-mono font-bold text-foreground mr-1.5">{g.eco || "---"}</span>

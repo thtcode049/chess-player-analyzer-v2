@@ -16,12 +16,14 @@ from api.schemas.imports import (
     LichessImportRequest,
     ChesscomImportRequest,
     ImportSummaryResponse,
+    PgnPlayerPreview,
     LichessOAuthTokenRequest,
     LichessVerifyTokenRequest,
     LichessAuthResponse
 )
 from api.services.import_service import ImportService
-from api.services.db_service import DBService, GUEST_SYSTEM_USER_ID, determine_player_color, normalize_name_words, get_game_fingerprint
+from api.services.db_service import DBService, GUEST_SYSTEM_USER_ID, get_game_fingerprint
+from src.utils import determine_player_color, exact_player_name
 from api.routes.players import PLAYERS_STORE, GAMES_STORE, get_guest_session
 
 
@@ -32,6 +34,31 @@ router = APIRouter(prefix="/api/import", tags=["Imports"])
 def _get_user_id_from_header(x_user_id: Optional[str] = Header(None)) -> Optional[str]:
     """Extract user_id passed from frontend via X-User-Id header."""
     return x_user_id
+
+
+@router.post("/pgn-preview", response_model=BaseResponse[List[PgnPlayerPreview]])
+async def preview_pgn_players(
+    file: UploadFile = File(...),
+    max_games: Optional[int] = Form(1000),
+):
+    games, _, _ = ImportService.parse_pgn_bytes(await file.read(), max_games=max_games)
+    counts: dict[str, list[int]] = {}
+    for game in games:
+        white = exact_player_name(game.get("white"))
+        black = exact_player_name(game.get("black"))
+        if white == black:
+            continue
+        for index, name in enumerate((white, black)):
+            if not name or name.casefold() in {"?", "unknown", "unknown white", "unknown black"}:
+                continue
+            counts.setdefault(name, [0, 0])[index] += 1
+
+    players = [
+        PgnPlayerPreview(name=name, gameCount=white + black, whiteCount=white, blackCount=black)
+        for name, (white, black) in counts.items()
+    ]
+    players.sort(key=lambda player: (-player.gameCount, player.name.casefold()))
+    return BaseResponse(success=True, data=players)
 
 
 @router.post("/pgn-file", response_model=BaseResponse[ImportSummaryResponse])
@@ -58,7 +85,7 @@ async def import_pgn_file(
         raw_games, primary_player, total_found = ImportService.parse_pgn_bytes(content, max_games=max_games)
 
         if not raw_games:
-            raise HTTPException(status_code=400, detail="No valid games found in PGN file")
+            raise HTTPException(status_code=400, detail="Tệp PGN không có ván hợp lệ.")
 
         dataset_id = str(uuid.uuid4())
         final_player_name = player_name or primary_player or file.filename or "Unknown Player"
@@ -83,7 +110,31 @@ async def import_pgn_file(
 
             if existing_player:
                 final_player_name = existing_player.get("canonical_name") or final_player_name
-        else:
+
+        # Filter before creating a player, writing games or updating the analysis cache.
+        selected_name = exact_player_name(player_name or final_player_name)
+        names = {selected_name} if selected_name else set()
+        if alias_names:
+            try:
+                aliases = json.loads(alias_names)
+            except json.JSONDecodeError:
+                aliases = alias_names.split(",")
+            if isinstance(aliases, list):
+                names.update(exact_player_name(alias) for alias in aliases if isinstance(alias, str) and alias.strip())
+
+        player_games = []
+        for game in raw_games:
+            white_matches = exact_player_name(game.get("white")) in names
+            black_matches = exact_player_name(game.get("black")) in names
+            if white_matches != black_matches:
+                player_games.append({**game, "player_color": "white" if white_matches else "black"})
+        if not player_games:
+            raise HTTPException(
+                status_code=422,
+                detail="Không có ván hợp lệ xác định được màu quân cho kỳ thủ đã chọn. Hãy chọn lại kỳ thủ hoặc kiểm tra tệp PGN.",
+            )
+
+        if not actual_player_id:
             p_lower = final_player_name.strip().lower()
             if not force_new_player:
                 try:
@@ -117,9 +168,6 @@ async def import_pgn_file(
             if not actual_player_id:
                 actual_player_id = str(uuid.uuid4())
 
-            if not actual_player_id:
-                actual_player_id = str(uuid.uuid4())
-
         # Clean up any duplicate keys for this player name
         if not force_new_player:
             p_lower = final_player_name.strip().lower()
@@ -136,49 +184,6 @@ async def import_pgn_file(
                         del session["players"][pid]
                         if pid in session.get("games", {}):
                             del session["games"][pid]
-
-        # Prepare aliases list for fuzzy/variant matching
-        alias_list = [final_player_name.lower().strip()]
-        if alias_names:
-            try:
-                parsed_aliases = json.loads(alias_names)
-                if isinstance(parsed_aliases, list):
-                    alias_list.extend([str(a).lower().strip() for a in parsed_aliases if a])
-            except Exception:
-                alias_list.extend([a.lower().strip() for a in alias_names.split(",") if a.strip()])
-        alias_set = set(alias_list)
-        p_words = normalize_name_words(final_player_name)
-
-        def matches_target_player(player_str: str) -> bool:
-            if not player_str:
-                return False
-            low = player_str.strip().lower()
-            if any(a in low or low in a for a in alias_set):
-                return True
-            w_words = normalize_name_words(player_str)
-            if p_words and len(w_words & p_words) >= max(2, int(len(p_words) * 0.6)):
-                return True
-            return False
-
-        # Prepare player games with correct player_color, merging all name variants
-        if player_name or alias_names:
-            matched_games = [
-                g for g in raw_games
-                if matches_target_player(g.get("white", "")) or matches_target_player(g.get("black", ""))
-            ]
-            player_games = matched_games if matched_games else raw_games
-        else:
-            player_games = raw_games
-
-        for g in player_games:
-            w_match = matches_target_player(g.get("white", ""))
-            b_match = matches_target_player(g.get("black", ""))
-            if w_match and not b_match:
-                g["player_color"] = "white"
-            elif b_match and not w_match:
-                g["player_color"] = "black"
-            else:
-                g["player_color"] = determine_player_color(final_player_name, g.get("white", ""), g.get("black", ""))
 
         # --- Deduplication Against Existing Player Games ---
         existing_games: List[Dict[str, Any]] = []
@@ -360,6 +365,15 @@ async def import_lichess(
         target_player_id = req.player_id
         u_name = req.username.strip()
         u_lower = u_name.lower()
+        # The source platform supplies the account name used in the PGN.
+        for game in raw_games:
+            game["player_color"] = determine_player_color(
+                u_lower, game.get("white", "").lower(), game.get("black", "").lower(),
+            )
+        raw_games = [game for game in raw_games if game["player_color"] is not None]
+        if not raw_games:
+            raise HTTPException(status_code=422, detail="Không có ván hợp lệ khớp với tài khoản đã chọn.")
+
         player_display_name = u_name
         dataset_id = str(uuid.uuid4())
 
@@ -426,15 +440,6 @@ async def import_lichess(
                         del session["players"][pid]
                         if pid in session.get("games", {}):
                             del session["games"][pid]
-
-        # Tag player color using Lichess username
-        for g in raw_games:
-            if u_lower in g.get("white", "").lower():
-                g["player_color"] = "white"
-            elif u_lower in g.get("black", "").lower():
-                g["player_color"] = "black"
-            else:
-                g["player_color"] = "white"
 
         # --- Deduplication Against Existing Player Games ---
         existing_games: List[Dict[str, Any]] = []
@@ -610,6 +615,15 @@ async def import_chesscom(
         target_player_id = req.player_id
         u_name = req.username.strip()
         u_lower = u_name.lower()
+        # The source platform supplies the account name used in the PGN.
+        for game in raw_games:
+            game["player_color"] = determine_player_color(
+                u_lower, game.get("white", "").lower(), game.get("black", "").lower(),
+            )
+        raw_games = [game for game in raw_games if game["player_color"] is not None]
+        if not raw_games:
+            raise HTTPException(status_code=422, detail="Không có ván hợp lệ khớp với tài khoản đã chọn.")
+
         player_display_name = u_name
         dataset_id = str(uuid.uuid4())
 
@@ -676,15 +690,6 @@ async def import_chesscom(
                         del session["players"][pid]
                         if pid in session.get("games", {}):
                             del session["games"][pid]
-
-        # Tag player color using Chess.com username
-        for g in raw_games:
-            if u_lower in g.get("white", "").lower():
-                g["player_color"] = "white"
-            elif u_lower in g.get("black", "").lower():
-                g["player_color"] = "black"
-            else:
-                g["player_color"] = "white"
 
         # --- Deduplication Against Existing Player Games ---
         existing_games: List[Dict[str, Any]] = []

@@ -34,6 +34,13 @@ export interface Dataset {
   imported_at: string;
 }
 
+export interface PgnPlayerPreview {
+  name: string;
+  gameCount: number;
+  whiteCount: number;
+  blackCount: number;
+}
+
 export interface Game {
   id: string;
   dataset_id: string;
@@ -42,6 +49,7 @@ export interface Game {
   played_at?: string | null;
   white_player: string;
   black_player: string;
+  player_color?: "white" | "black" | null;
   white_elo?: number | null;
   black_elo?: number | null;
   result: string;

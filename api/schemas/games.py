@@ -1,9 +1,11 @@
 """
 Game Pydantic Schemas
 """
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
+from src.utils import PlayerColor
 
 class GameResponse(BaseModel):
     id: str
@@ -13,6 +15,7 @@ class GameResponse(BaseModel):
     played_at: Optional[datetime] = None
     white_player: str
     black_player: str
+    player_color: PlayerColor | None = None
     white_elo: Optional[int] = None
     black_elo: Optional[int] = None
     result: str

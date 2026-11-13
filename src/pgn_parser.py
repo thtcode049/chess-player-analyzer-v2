@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import List, Dict, Any, Union, Tuple, Optional
 import chess.pgn
 
+from src.utils import determine_player_color
+
 logger = logging.getLogger(__name__)
 
 # Cấu trúc Trie và bộ chỉ mục tra cứu từ lichess-org/chess-openings (3,865 biến thể ECO quốc tế)
@@ -313,21 +315,15 @@ def filter_games_by_player(
 ) -> List[Dict[str, Any]]:
     """Lọc danh sách ván đấu của riêng kỳ thủ được chọn."""
     filtered = []
-    player_name_clean = player_name.strip().lower()
-
-    for g in games:
-        w_clean = g.get("white", "").strip().lower()
-        b_clean = g.get("black", "").strip().lower()
-
-        if player_name_clean in w_clean:
-            g_copy = dict(g)
-            g_copy["player_color"] = "white"
-            g_copy["opponent"] = g.get("black", "Unknown Black")
-            filtered.append(g_copy)
-        elif player_name_clean in b_clean:
-            g_copy = dict(g)
-            g_copy["player_color"] = "black"
-            g_copy["opponent"] = g.get("white", "Unknown White")
-            filtered.append(g_copy)
+    for game in games:
+        color = determine_player_color(player_name, game.get("white", ""), game.get("black", ""))
+        if color is None:
+            continue
+        opponent_color = "black" if color == "white" else "white"
+        filtered.append({
+            **game,
+            "player_color": color,
+            "opponent": game.get(opponent_color, f"Unknown {opponent_color.title()}"),
+        })
 
     return filtered

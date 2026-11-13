@@ -100,7 +100,7 @@ def _resolve_run_snapshot(
                 run_res["player_id"] = clean_id
                 RUN_SNAPSHOTS_CACHE[run_id] = run_res
                 RUN_SNAPSHOTS_CACHE[clean_id] = run_res
-                return run_res.get("stats_raw", {}), run_res.get("deep_profile_raw", {}), player_name, games
+                return run_res["stats_raw"], run_res["deep_profile_raw"], player_name, run_res["games"]
         except Exception as e:
             logger.warning(f"Error on-demand analyzing games for player {clean_id}: {e}")
 

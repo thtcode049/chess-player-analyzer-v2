@@ -27,7 +27,7 @@ import {
   X
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
-import { ImportSummary, Player } from "@/lib/api/types";
+import { ImportSummary, PgnPlayerPreview, Player } from "@/lib/api/types";
 import { initiateLichessOAuth, disconnectLichessAuth } from "@/lib/auth/lichess";
 import { useProfileWorkspaceStore } from "@/lib/stores/profileWorkspaceStore";
 
@@ -38,16 +38,6 @@ export interface ImportProgressState {
   stageName: string;
   detail: string;
   elapsedSeconds: number;
-}
-
-export interface DetectedPlayerInfo {
-  name: string;
-  rawNames: string[];
-  rawStats: { name: string; count: number; white: number; black: number }[];
-  gameCount: number;
-  whiteCount: number;
-  blackCount: number;
-  hasMergedVariants: boolean;
 }
 
 export interface DuplicatePromptState {
@@ -140,82 +130,6 @@ function arePlayerNamesSimilar(nameA: string, nameB: string): boolean {
   }
 
   return false;
-}
-
-function nameQualityScore(name: string): number {
-  let score = 0;
-  for (const ch of name) {
-    if ("?~`^".includes(ch)) score += 10;
-  }
-  return score;
-}
-
-function extractPlayersFromPgn(pgnText: string): DetectedPlayerInfo[] {
-  const playerCounts: Record<string, { count: number; white: number; black: number }> = {};
-  const whiteRegex = /\[White\s+["']([^"']+)["']\]/gi;
-  const blackRegex = /\[Black\s+["']([^"']+)["']\]/gi;
-
-  let match;
-  while ((match = whiteRegex.exec(pgnText)) !== null) {
-    const name = match[1].trim();
-    if (name && name !== "?" && name.toLowerCase() !== "unknown") {
-      if (!playerCounts[name]) playerCounts[name] = { count: 0, white: 0, black: 0 };
-      playerCounts[name].count += 1;
-      playerCounts[name].white += 1;
-    }
-  }
-
-  while ((match = blackRegex.exec(pgnText)) !== null) {
-    const name = match[1].trim();
-    if (name && name !== "?" && name.toLowerCase() !== "unknown") {
-      if (!playerCounts[name]) playerCounts[name] = { count: 0, white: 0, black: 0 };
-      playerCounts[name].count += 1;
-      playerCounts[name].black += 1;
-    }
-  }
-
-  const rawList = Object.entries(playerCounts)
-    .map(([name, stats]) => ({
-      name,
-      count: stats.count,
-      white: stats.white,
-      black: stats.black,
-    }))
-    .sort((a, b) => b.count - a.count);
-
-  const clusters: DetectedPlayerInfo[] = [];
-
-  for (const item of rawList) {
-    const matchedCluster = clusters.find((c) =>
-      c.rawNames.some((rn) => arePlayerNamesSimilar(rn, item.name))
-    );
-
-    if (matchedCluster) {
-      matchedCluster.rawNames.push(item.name);
-      matchedCluster.rawStats.push(item);
-      matchedCluster.gameCount += item.count;
-      matchedCluster.whiteCount += item.white;
-      matchedCluster.blackCount += item.black;
-      matchedCluster.hasMergedVariants = true;
-
-      // Select cleanest name: lowest corruption score, tie-break with largest game count
-      if (nameQualityScore(item.name) < nameQualityScore(matchedCluster.name)) {
-        matchedCluster.name = item.name;
-      }
-    } else {
-      clusters.push({
-        name: item.name,
-        rawNames: [item.name],
-        rawStats: [item],
-        gameCount: item.count,
-        whiteCount: item.white,
-        blackCount: item.black,
-        hasMergedVariants: false,
-      });
-    }
-  }
-
-  return clusters.sort((a, b) => b.gameCount - a.gameCount);
 }
 
 // PKCE Helper Functions for Lichess OAuth
@@ -311,8 +225,16 @@ function ImportContent() {
   // PGN Upload states
   const [pgnFile, setPgnFile] = useState<File | null>(null);
   const [pgnText, setPgnText] = useState("");
-  const [detectedPlayers, setDetectedPlayers] = useState<DetectedPlayerInfo[]>([]);
-  const [selectedFocusPlayer, setSelectedFocusPlayer] = useState<string>("");
+  const [pgnPreview, setPgnPreview] = useState<{
+    source: File | string;
+    players: PgnPlayerPreview[];
+    error?: string;
+  } | null>(null);
+  const [selectedFocusPlayer, setSelectedFocusPlayer] = useState("");
+  const pgnSource = pgnFile ?? pgnText.trim();
+  const currentPreview = pgnPreview?.source === pgnSource ? pgnPreview : null;
+  const detectedPlayers = currentPreview?.players ?? [];
+  const isPreviewingPgn = Boolean(pgnSource && !currentPreview);
   const [playerSearchFilter, setPlayerSearchFilter] = useState<string>("");
 
   // Lichess states
@@ -515,39 +437,55 @@ function ImportContent() {
     );
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setPgnFile(file);
-
-      // Auto-extract all players from PGN file
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        if (content) {
-          const detected = extractPlayersFromPgn(content);
-          setDetectedPlayers(detected);
-          if (detected.length > 0) {
-            setSelectedFocusPlayer(detected[0].name);
-          }
-        }
-      };
-      reader.readAsText(file);
+  useEffect(() => {
+    if (!pgnSource) {
+      setPgnPreview(null);
+      setSelectedFocusPlayer("");
+      return;
     }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const file = typeof pgnSource === "string" ? new Blob([pgnSource], { type: "text/plain" }) : pgnSource;
+        const players = await apiClient.previewPgnPlayers(file, controller.signal);
+        if (controller.signal.aborted) return;
+        setPgnPreview({ source: pgnSource, players });
+        setSelectedFocusPlayer((previous) =>
+          players.some((player) => player.name === previous) ? previous : players[0]?.name ?? ""
+        );
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setPgnPreview({
+          source: pgnSource,
+          players: [],
+          error: err instanceof Error ? err.message : "Không thể kiểm tra tệp PGN.",
+        });
+        setSelectedFocusPlayer("");
+      }
+    }, typeof pgnSource === "string" ? 350 : 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [pgnSource]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPgnText("");
+    setPgnFile(file);
+    setPgnPreview(null);
+    setPlayerSearchFilter("");
+    setError(null);
+    setResult(null);
+    e.target.value = "";
   };
 
-  const handlePgnTextChange = (text: string) => {
-    setPgnText(text);
-    if (text.trim().length > 15) {
-      const detected = extractPlayersFromPgn(text);
-      setDetectedPlayers(detected);
-      if (detected.length > 0 && (!selectedFocusPlayer || !detected.some((p) => p.name === selectedFocusPlayer))) {
-        setSelectedFocusPlayer(detected[0].name);
-      }
-    } else if (!pgnFile) {
-      setDetectedPlayers([]);
-      setSelectedFocusPlayer("");
-    }
+  const handlePgnTextChange = (value: string) => {
+    setPgnFile(null);
+    setPgnText(value);
+    setError(null);
+    setResult(null);
   };
 
   const handleTabChange = (tab: "lichess" | "chesscom" | "pgn") => {
@@ -667,21 +605,7 @@ function ImportContent() {
 
     try {
       let res: ImportSummary;
-      const focusPlayer = selectedFocusPlayer ? selectedFocusPlayer.trim() : undefined;
-
-      // Find the cluster matching selectedFocusPlayer to get all raw corrupted/variant names
-      const selectedCluster = detectedPlayers.find(
-        (p) => p.name === selectedFocusPlayer || p.rawNames.includes(selectedFocusPlayer)
-      );
-
-      let aliasNames: string[] | undefined = undefined;
-      if (selectedCluster) {
-        const set = new Set<string>(selectedCluster.rawNames);
-        if (focusPlayer) set.add(focusPlayer);
-        aliasNames = Array.from(set);
-      } else if (focusPlayer) {
-        aliasNames = [focusPlayer];
-      }
+      const focusPlayer = selectedFocusPlayer;
 
       const autoDataset = pgnFile
         ? pgnFile.name.replace(/\.[^/.]+$/, "")
@@ -704,9 +628,9 @@ function ImportContent() {
       }
 
       if (pgnFile) {
-        res = await apiClient.importPgnFile(pgnFile, targetId, 1000, activeUserId || undefined, focusPlayer, aliasNames, forceNewPlayer);
+        res = await apiClient.importPgnFile(pgnFile, targetId, 1000, activeUserId || undefined, focusPlayer, undefined, forceNewPlayer);
       } else if (pgnText.trim()) {
-        res = await apiClient.importPgnText(pgnText, autoDataset, targetId, 1000, activeUserId || undefined, focusPlayer, aliasNames, forceNewPlayer);
+        res = await apiClient.importPgnText(pgnText, autoDataset, targetId, 1000, activeUserId || undefined, focusPlayer, undefined, forceNewPlayer);
       } else {
         throw new Error("Vui lòng tải lên tệp .pgn hoặc dán văn bản PGN.");
       }
@@ -738,7 +662,11 @@ function ImportContent() {
     }
 
     const targetId = selectedPlayerId ? selectedPlayerId : undefined;
-    const candidateName = selectedFocusPlayer?.trim() || (detectedPlayers.length > 0 ? detectedPlayers[0].name : "");
+    const candidateName = selectedFocusPlayer;
+    if (!detectedPlayers.some((player) => player.name === candidateName)) {
+      setError("Hãy chọn kỳ thủ có ít nhất một ván hợp lệ trong PGN.");
+      return;
+    }
 
     // Check duplicate if no specific player profile was pre-selected
     if (!targetId && candidateName) {
@@ -1555,6 +1483,15 @@ function ImportContent() {
                   />
                 </div>
 
+                {isPreviewingPgn && (
+                  <p role="status" className="text-xs text-muted-foreground">Đang kiểm tra các ván hợp lệ trong PGN…</p>
+                )}
+                {currentPreview && detectedPlayers.length === 0 && (
+                  <p role="status" className="text-xs text-amber-800">
+                    {currentPreview.error || "Không có kỳ thủ nào có ván hợp lệ xác định được màu quân trong PGN."}
+                  </p>
+                )}
+
                 {/* Detected Players in PGN */}
                 {detectedPlayers.length > 0 && (
                   <div className="space-y-3 p-4 bg-muted/30 border border-border/60 rounded-md animate-fade-in">
@@ -1566,12 +1503,12 @@ function ImportContent() {
                         </label>
                       </div>
                       <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded self-start sm:self-auto">
-                        Phát hiện {detectedPlayers.length} kỳ thủ trong tệp
+                        {detectedPlayers.length} kỳ thủ có ván hợp lệ
                       </span>
                     </div>
 
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Hệ thống tự động quét danh sách các kỳ thủ trong tệp PGN. Hãy chọn kỳ thủ bạn muốn thiết lập hồ sơ khai cuộc:
+                      Chọn kỳ thủ trong các ván hợp lệ thuộc phạm vi nạp.
                     </p>
 
                     {detectedPlayers.length > 6 && (
@@ -1658,7 +1595,7 @@ function ImportContent() {
 
                 <button
                   type="submit"
-                  disabled={isLoading || (!pgnFile && !pgnText.trim())}
+                  disabled={isLoading || !detectedPlayers.some((player) => player.name === selectedFocusPlayer)}
                   className="w-full py-3 px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded transition-colors flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
                 >
                   {isLoading ? (

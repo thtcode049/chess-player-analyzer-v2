@@ -38,7 +38,8 @@ def calculate_game_stats(filtered_games: List[Dict[str, Any]]) -> Dict[str, Any]
     Returns:
         Dict chứa tất cả các chỉ số thống kê tổng thể và theo màu quân.
     """
-    total_games = len(filtered_games)
+    known_games = [game for game in filtered_games if game.get("player_color") in ("white", "black")]
+    total_games = len(known_games)
     
     if total_games == 0:
         return {
@@ -76,8 +77,8 @@ def calculate_game_stats(filtered_games: List[Dict[str, Any]]) -> Dict[str, Any]
     black_draws = 0
     black_losses = 0
 
-    for g in filtered_games:
-        color = g.get("player_color", "white")
+    for g in known_games:
+        color = g["player_color"]
         result = g.get("result", "")
 
         is_win, is_draw, is_loss = determine_game_outcome(color, result)

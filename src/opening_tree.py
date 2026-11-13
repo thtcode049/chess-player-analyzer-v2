@@ -41,12 +41,12 @@ def build_opening_tree(
     Returns:
         Tuple[TreeNode, Dict[str, TreeNode]]: Nút gốc (Starting Position) và fen_map tra cứu O(1).
     """
-    # Lọc theo màu quân nếu được chỉ định
-    if color and color.lower() in ["white", "black"]:
-        target_color = color.lower()
-        games_to_process = [g for g in filtered_games if str(g.get("player_color", "")).lower() == target_color]
-    else:
-        games_to_process = filtered_games
+    target_color = (color or "all").lower()
+    games_to_process = [
+        game for game in filtered_games
+        if game.get("player_color") in ("white", "black")
+        and (target_color not in ("white", "black") or game["player_color"] == target_color)
+    ]
 
     root_fen = chess.Board().fen()
     root_epd = normalize_fen(root_fen)
@@ -54,7 +54,7 @@ def build_opening_tree(
     fen_map: Dict[str, TreeNode] = {root_fen: root, root_epd: root}
 
     for game in games_to_process:
-        player_color = game.get("player_color", "white")
+        player_color = game["player_color"]
         result = game.get("result", "")
         moves = game.get("moves")
         if (moves is None or len(moves) == 0) and game.get("moves_san"):
@@ -200,7 +200,7 @@ def get_position_details(
                 "time_control": g_obj.get("time_control", ""),
                 "moves": g_obj.get("moves", []),
                 "opening": g_obj.get("opening", ""),
-                "player_color": g_obj.get("player_color", "white"),
+                "player_color": g_obj["player_color"],
             }
 
         continuations_list.append({

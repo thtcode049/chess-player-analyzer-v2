@@ -10,6 +10,8 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
 from supabase import create_client, Client
 
+from src.utils import resolve_game_player_color
+
 logger = logging.getLogger(__name__)
 
 # System Guest Account UUID in Supabase auth.users for persistent serverless guest sessions
@@ -29,38 +31,6 @@ def get_supabase() -> Client:
         _supabase_client = create_client(url, key)
         _supabase_client_key = (url, key)
     return _supabase_client
-
-
-def normalize_name_words(text: str) -> set:
-    import unicodedata
-    import re
-    text = unicodedata.normalize("NFD", text or "")
-    text = "".join(c for c in text if unicodedata.category(c) != "Mn")
-    text = text.replace("đ", "d").replace("Đ", "d")
-    text = re.sub(r"[^a-zA-Z0-9\s]", " ", text).lower()
-    return set(w for w in text.split() if len(w) >= 2)
-
-
-def determine_player_color(player_name: str, white: str, black: str) -> str:
-    p_lower = (player_name or "").strip().lower()
-    w_lower = (white or "").strip().lower()
-    b_lower = (black or "").strip().lower()
-    if p_lower and p_lower in w_lower:
-        return "white"
-    if p_lower and p_lower in b_lower:
-        return "black"
-    p_words = normalize_name_words(player_name)
-    if not p_words:
-        return "white"
-    w_words = normalize_name_words(white)
-    b_words = normalize_name_words(black)
-    w_match = len(w_words & p_words)
-    b_match = len(b_words & p_words)
-    if w_match > b_match and w_match >= 1:
-        return "white"
-    if b_match > w_match and b_match >= 1:
-        return "black"
-    return "white"
 
 
 def get_game_fingerprint(g: Dict[str, Any]) -> str:
@@ -579,7 +549,7 @@ class DBService:
                 continue
             white = g.get("white_player", "White")
             black = g.get("black_player", "Black")
-            color = determine_player_color(player_name, white, black)
+            color = resolve_game_player_color(g, player_name)
 
             moves_raw = g.get("moves_san", "")
             if isinstance(moves_raw, str):

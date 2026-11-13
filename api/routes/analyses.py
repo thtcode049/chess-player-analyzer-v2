@@ -21,6 +21,7 @@ from api.routes.players import PLAYERS_STORE, GAMES_STORE, get_guest_session
 from api.services.lichess_masters_service import LichessMastersService
 from src.opening_tree import build_opening_tree
 from src.pgn_parser import filter_games_by_player
+from src.utils import resolve_game_player_color
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/analysis", tags=["Analysis"])
@@ -103,12 +104,10 @@ def _resolve_games_for_player(
                 GAMES_STORE[player_id] = db_games
                 games = DBService.convert_db_games_to_analysis_games(db_games, player_name)
 
-    # Ensure player_color is populated
-    from api.services.db_service import determine_player_color
-    for g in games:
-        if not g.get("player_color"):
-            g["player_color"] = determine_player_color(player_name, g.get("white", ""), g.get("black", ""))
-
+    games = [
+        {**game, "player_color": resolve_game_player_color(game, player_name)}
+        for game in games
+    ]
     return games, player_name
 
 

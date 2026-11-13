@@ -27,6 +27,13 @@ class ChesscomImportRequest(BaseModel):
     until: Optional[int] = None
     force_new_player: Optional[bool] = False
 
+class PgnPlayerPreview(BaseModel):
+    name: str
+    gameCount: int
+    whiteCount: int
+    blackCount: int
+
+
 class ImportSummaryResponse(BaseModel):
     dataset_id: Optional[str] = None
     player_id: str

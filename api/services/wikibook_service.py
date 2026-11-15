@@ -227,7 +227,7 @@ class WikibookService:
         if not target_moves:
             return None
 
-        cache_key = f"{clean_name.lower()}::{' '.join(target_moves)}"
+        cache_key = f"v2:{clean_name.lower()}::{' '.join(target_moves)}"
         now = time.time()
         cached = _WIKIBOOK_CACHE.get(cache_key)
         if cached and (now - cached[0]) < _CACHE_TTL_SECONDS:
@@ -313,15 +313,17 @@ def _translate_wikibook_to_vi(
         for sec in sections[:3]
     ]
     payload_in = {
-        "title": title,
         "sections": trimmed_sections,
     }
 
     prompt = (
-        "Dịch nội dung lý thuyết khai cuộc cờ vua sau từ tiếng Anh sang tiếng Việt tự nhiên, súc tích, chuẩn thuật ngữ cờ vua Việt Nam "
-        "(ví dụ: Tốt, Mã, Tượng, Xe, Hậu, Vua, nhập thành, trung tâm, ô yếu, phản công, chuyển thế/transposition). "
-        "Giữ nguyên các ký hiệu nước đi đại số (như 1. d4, 2...g6, Nf3, c4, e5) và giữ nguyên cấu trúc JSON đầu vào. "
-        "Không thêm lời giải thích ngoài JSON.\n"
+        "Dịch nội dung giải thích lý thuyết khai cuộc cờ vua sau từ tiếng Anh sang tiếng Việt tự nhiên, súc tích, chuẩn thuật ngữ cờ vua Việt Nam "
+        "(ví dụ: Tốt, Mã, Tượng, Xe, Hậu, Vua, nhập thành, trung tâm, ô yếu, phản công, chuyển thế). "
+        "QUY TẮC BẮT BUỘC:\n"
+        "1. TUYỆT ĐỐI KHÔNG DỊCH tên riêng của các khai cuộc, biến thể, hệ thống, hoặc cấu trúc Tốt — giữ nguyên tiếng Anh gốc "
+        "(ví dụ giữ nguyên: Queen's Gambit, King's Indian Defense, Sicilian Defense, Colle System, Ruy Lopez, Carlsbad Formation, Isolani, Hanging Pawns, Maroczy Bind, Benoni...).\n"
+        "2. Giữ nguyên các ký hiệu nước đi đại số (như 1. d4, 2...Nf6, e2-e4, c4, Nf3) và tiêu đề heading nếu đó là nước đi hoặc tên khai cuộc.\n"
+        "3. Giữ nguyên cấu trúc JSON đầu vào, không thêm lời giải thích ngoài JSON.\n"
         f"Khai cuộc: {opening_name}\n"
         f"Dữ liệu JSON:\n{json.dumps(payload_in, ensure_ascii=False)}"
     )
@@ -375,8 +377,7 @@ def _translate_wikibook_to_vi(
                     "paragraphs": [str(p) for p in vi_paras],
                 })
 
-            vi_title = str(parsed.get("title") or title)
-            return vi_title, vi_sections
+            return title, vi_sections
         except Exception as exc:
             logger.debug(f"[Wikibook] Translation attempt failed on {model}: {exc}")
             continue

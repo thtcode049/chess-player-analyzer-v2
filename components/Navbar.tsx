@@ -598,8 +598,14 @@ export default function Navbar() {
                         onClick={async () => {
                           await openMatchupBoard();
                           setProfileDropdownOpen(false);
-                          if (!isWorkspace) {
-                            window.location.href = "/analyze";
+                          if (!isWorkspace || pathname?.startsWith("/players/")) {
+                            router.push("/analyze");
+                          } else if (typeof window !== "undefined") {
+                            const currentFull = window.location.pathname + window.location.search;
+                            if (currentFull !== "/analyze") {
+                              window.history.pushState(null, "", "/analyze");
+                              window.dispatchEvent(new PopStateEvent("popstate"));
+                            }
                           }
                         }}
                         className={`w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded text-xs font-semibold transition ${
@@ -635,8 +641,14 @@ export default function Navbar() {
                     onClick={() => {
                       openSandboxBoard();
                       setProfileDropdownOpen(false);
-                      if (!isWorkspace) {
-                        window.location.href = "/analyze";
+                      if (!isWorkspace || pathname?.startsWith("/players/")) {
+                        router.push("/analyze");
+                      } else if (typeof window !== "undefined") {
+                        const currentFull = window.location.pathname + window.location.search;
+                        if (currentFull !== "/analyze") {
+                          window.history.pushState(null, "", "/analyze");
+                          window.dispatchEvent(new PopStateEvent("popstate"));
+                        }
                       }
                     }}
                     className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs text-foreground hover:bg-muted transition cursor-pointer"

@@ -9,6 +9,7 @@ import {
   LichessGameDetail,
 } from "@/lib/api/types";
 import { apiClient } from "@/lib/api/client";
+import { getCanonicalOpeningByMoves } from "@/lib/chess/canonicalOpenings";
 import {
   initiateLichessOAuth,
   getLichessAuth,
@@ -38,6 +39,7 @@ import { FigurineMove } from "@/components/chess/FigurineMove";
 interface OpeningTreeTableProps {
   continuations: OpeningContinuation[];
   totalGames?: number;
+  currentSanMoves?: string[];
   onSelectMove: (san: string) => void;
   onLoadGame?: (gameInfo: any) => void;
   currentFen?: string;
@@ -86,10 +88,12 @@ function getEpdKey(fen: string): string {
 
 // In-memory frontend cache for instantaneous Master DB rendering across repeated moves
 const CLIENT_MASTERS_CACHE = new Map<string, MastersCacheEntry>();
+const CLIENT_SAN_OPENING_CACHE = new Map<string, { eco?: string; name?: string } | null>();
 
 export default function OpeningTreeTable({
   continuations = [],
   totalGames = 0,
+  currentSanMoves = [],
   onSelectMove,
   onLoadGame,
   currentFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
@@ -111,6 +115,7 @@ export default function OpeningTreeTable({
   const [masterTopGames, setMasterTopGames] = useState<LichessMasterTopGame[]>([]);
   const [masterTotal, setMasterTotal] = useState<number>(0);
   const [masterOpening, setMasterOpening] = useState<{ eco?: string; name?: string } | null>(null);
+  const [sanOpening, setSanOpening] = useState<{ eco?: string; name?: string } | null>(null);
   const [masterLoading, setMasterLoading] = useState(false);
   const [masterError, setMasterError] = useState<string | null>(null);
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -145,7 +150,7 @@ export default function OpeningTreeTable({
   }, []);
 
   // Fetch Lichess Masters Data for current position
-  const fetchMasterData = (fen: string, force = false) => {
+  const fetchMasterData = (fen: string, force = false, signal?: AbortSignal) => {
     if (!fen) return;
     const cleanFen = fen.trim();
     const cacheKey = getEpdKey(cleanFen);
@@ -179,8 +184,9 @@ export default function OpeningTreeTable({
     setMasterError(null);
 
     apiClient
-      .getLichessMasters(cleanFen, auth.token)
+      .getLichessMasters(cleanFen, auth.token, signal)
       .then((res) => {
+        if (signal?.aborted) return;
         if (res && res.authenticated) {
           setIsAuthorized(true);
         }
@@ -228,19 +234,78 @@ export default function OpeningTreeTable({
         }
       })
       .catch((err) => {
+        if (err?.name === "AbortError" || signal?.aborted) return;
         console.warn("Failed to fetch Lichess Master DB:", err);
         setMasterError(
           "Không thể kết nối đến Lichess Master Explorer. Vui lòng kiểm tra lại mạng."
         );
       })
       .finally(() => {
-        setMasterLoading(false);
+        if (!signal?.aborted) {
+          setMasterLoading(false);
+        }
       });
   };
 
   useEffect(() => {
-    fetchMasterData(currentFen);
-  }, [currentFen]);
+    if (activeTab !== "master") return;
+    const controller = new AbortController();
+    const cacheKey = getEpdKey(currentFen.trim());
+    const hasCache = CLIENT_MASTERS_CACHE.has(cacheKey);
+    const delay = hasCache ? 0 : 180;
+    const timer = window.setTimeout(() => {
+      fetchMasterData(currentFen, false, controller.signal);
+    }, delay);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [currentFen, activeTab]);
+
+  // Resolve opening name by current SAN move sequence (available across Player tab, Master tab & Sandbox mode)
+  const sanMovesKey = currentSanMoves.join(" ");
+  useEffect(() => {
+    if (!sanMovesKey) {
+      setSanOpening(null);
+      return;
+    }
+
+    if (CLIENT_SAN_OPENING_CACHE.has(sanMovesKey)) {
+      setSanOpening(CLIENT_SAN_OPENING_CACHE.get(sanMovesKey) || null);
+      return;
+    }
+
+    // Immediate 0ms local lookup while waiting for full 3,865-ECO backend match
+    const localMatch = getCanonicalOpeningByMoves(currentSanMoves);
+    if (localMatch) {
+      setSanOpening({ eco: localMatch.eco, name: localMatch.name });
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      apiClient
+        .getCanonicalOpening(undefined, currentSanMoves, controller.signal)
+        .then((res) => {
+          if (controller.signal.aborted) return;
+          const resolved =
+            res && (res.name || res.eco)
+              ? { eco: res.eco || "", name: res.name || "" }
+              : localMatch
+              ? { eco: localMatch.eco, name: localMatch.name }
+              : null;
+          CLIENT_SAN_OPENING_CACHE.set(sanMovesKey, resolved);
+          setSanOpening(resolved);
+        })
+        .catch((err) => {
+          if (err?.name === "AbortError" || controller.signal.aborted) return;
+        });
+    }, 60);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [sanMovesKey]);
 
   // Handle clicking on a Master Game row (opens in a new analysis tab like Lichess)
   const handleLoadMasterGame = (game: LichessMasterTopGame) => {
@@ -624,6 +689,23 @@ export default function OpeningTreeTable({
         </div>
       )}
 
+      {/* Unified Current Opening Banner by SAN Move Sequence (all tabs & Sandbox mode) */}
+      {(() => {
+        const displayOpening =
+          activeTab === "master" && masterOpening?.name
+            ? masterOpening
+            : sanOpening || (activeTab === "master" ? masterOpening : null);
+        if (!displayOpening || (!displayOpening.name && !displayOpening.eco)) return null;
+        return (
+          <div className="px-3 py-1.5 bg-emerald-50 border-b border-emerald-200/80 text-[11px] font-bold text-emerald-800 flex items-center gap-1.5 shrink-0 z-20">
+            <BookOpen className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span className="truncate" title={displayOpening.name || ""}>
+              {displayOpening.eco ? `${displayOpening.eco}: ` : ""}{displayOpening.name}
+            </span>
+          </div>
+        );
+      })()}
+
       {/* ============================================================ */}
       {/* TAB 1: CÂY CỦA KÌ THỦ (PLAYER OPENING TREE) */}
       {/* ============================================================ */}
@@ -863,16 +945,6 @@ export default function OpeningTreeTable({
               {/* Subtle top progress bar when updating in background */}
               {masterLoading && (
                 <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500 animate-pulse z-30 pointer-events-none" />
-              )}
-
-              {/* Lichess Opening Name Banner (fixed above scroll container — never overlaps rows) */}
-              {masterOpening && (masterOpening.name || masterOpening.eco) && (
-                <div className="px-3 py-1.5 bg-emerald-50 border-b border-emerald-200/80 text-[11px] font-bold text-emerald-800 flex items-center gap-1.5 shrink-0 z-20">
-                  <BookOpen className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span className="truncate">
-                    {masterOpening.eco ? `${masterOpening.eco}: ` : ""}{masterOpening.name}
-                  </span>
-                </div>
               )}
 
               <div className="flex-1 min-h-0 overflow-y-auto w-full flex flex-col">

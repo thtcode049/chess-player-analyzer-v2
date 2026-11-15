@@ -36,6 +36,7 @@ export interface Dataset {
 
 export interface PgnPlayerPreview {
   name: string;
+  aliases?: string[];
   gameCount: number;
   whiteCount: number;
   blackCount: number;
@@ -264,6 +265,20 @@ export interface LichessMastersResponse {
   is_book?: boolean;
   is_rate_limited?: boolean;
   message?: string;
+}
+
+export interface OpeningWikibookSection {
+  heading: string;
+  paragraphs: string[];
+}
+
+export interface OpeningWikibookInfo {
+  opening_name: string;
+  eco?: string;
+  title: string;
+  page_title: string;
+  page_url: string;
+  sections: OpeningWikibookSection[];
 }
 
 export interface AIChatMessage {

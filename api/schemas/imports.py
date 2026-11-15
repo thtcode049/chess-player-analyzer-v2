@@ -29,6 +29,7 @@ class ChesscomImportRequest(BaseModel):
 
 class PgnPlayerPreview(BaseModel):
     name: str
+    aliases: List[str] = []
     gameCount: int
     whiteCount: int
     blackCount: int

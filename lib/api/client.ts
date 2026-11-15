@@ -11,8 +11,10 @@ import {
   LichessGameDetail,
   LichessMasterMove,
   LichessMasterTopGame,
+  OpeningWikibookInfo,
   AIChatSession,
 } from "./types";
+import { getLichessAuth } from "@/lib/auth/lichess";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -420,23 +422,40 @@ export const apiClient = {
     return handleResponse<OpeningTreeNode>(res);
   },
 
-  async getCanonicalOpening(name?: string, moves?: string[]): Promise<any> {
+  async getCanonicalOpening(name?: string, moves?: string[], signal?: AbortSignal): Promise<any> {
     const authHeaders = await getAuthHeaders();
     const query = new URLSearchParams();
     if (name) query.set("name", name);
     if (moves && moves.length > 0) query.set("moves", moves.join(","));
     const res = await fetch(`${API_BASE}/api/analysis/openings/canonical?${query.toString()}`, {
       headers: authHeaders,
+      signal,
     });
     return handleResponse<any>(res);
   },
 
-  async getLichessMasters(fen: string, token?: string): Promise<LichessMastersResponse> {
-    const localToken =
-      token ||
-      (typeof window !== "undefined"
-        ? localStorage.getItem("lichess_token") || ""
-        : "");
+  async getOpeningWikibook(
+    opening?: string,
+    moves?: string[],
+    signal?: AbortSignal
+  ): Promise<OpeningWikibookInfo | null> {
+    const authHeaders = await getAuthHeaders();
+    const query = new URLSearchParams();
+    if (opening) query.set("opening", opening);
+    if (moves && moves.length > 0) query.set("moves", moves.join(","));
+    const res = await fetch(`${API_BASE}/api/analysis/openings/wikibook?${query.toString()}`, {
+      headers: authHeaders,
+      signal,
+    });
+    return handleResponse<OpeningWikibookInfo | null>(res);
+  },
+
+  async getLichessMasters(
+    fen: string,
+    token?: string,
+    signal?: AbortSignal
+  ): Promise<LichessMastersResponse> {
+    const localToken = token || getLichessAuth().token || "";
 
     if (!localToken || localToken.length < 10) {
       return {
@@ -454,12 +473,13 @@ export const apiClient = {
       // 1. Direct high-speed call from Browser to Lichess Explorer (Zero backend proxy delay)
       const encodedFen = encodeURIComponent(fen.trim());
       const res = await fetch(
-        `https://explorer.lichess.ovh/masters?fen=${encodedFen}&moves=15&topGames=15`,
+        `https://explorer.lichess.org/masters?fen=${encodedFen}&moves=15&topGames=15`,
         {
           headers: {
             Authorization: `Bearer ${localToken}`,
             Accept: "application/json",
           },
+          signal,
         }
       );
 
@@ -545,7 +565,10 @@ export const apiClient = {
           message: undefined,
         };
       }
-    } catch (directErr) {
+    } catch (directErr: any) {
+      if (directErr?.name === "AbortError") {
+        throw directErr;
+      }
       console.warn("Direct Lichess fetch encountered error, attempting fallback via backend proxy:", directErr);
     }
 
@@ -558,9 +581,13 @@ export const apiClient = {
       }
       const res = await fetch(`${API_BASE}/api/analysis/lichess-masters?${query.toString()}`, {
         headers: authHeaders,
+        signal,
       });
       return handleResponse<LichessMastersResponse>(res);
-    } catch (fallbackErr) {
+    } catch (fallbackErr: any) {
+      if (fallbackErr?.name === "AbortError") {
+        throw fallbackErr;
+      }
       console.error("Both direct Lichess and proxy failed:", fallbackErr);
       return {
         authenticated: true,
@@ -575,9 +602,7 @@ export const apiClient = {
   },
 
   async getLichessGame(gameId: string, token?: string): Promise<LichessGameDetail> {
-    const lichessToken =
-      token ||
-      (typeof window !== "undefined" ? localStorage.getItem("lichess_token") || "" : "");
+    const lichessToken = token || getLichessAuth().token || "";
 
     // 1. Direct high-speed fetch from Lichess public export API
     try {

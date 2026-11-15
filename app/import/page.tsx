@@ -53,42 +53,12 @@ function cleanPlayerName(name: string): string {
   let s = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   // Replace Vietnamese đ/Đ
   s = s.replace(/[đĐ]/g, "d");
-  // Remove special characters, accents often corrupted in VIQR/VNI: ~ ` ' ? ^
-  s = s.replace(/[~`'?^]/g, "");
+  // Strip VIQR/VNI punctuation marks while preserving literal ? for strict comparison checks
+  s = s.replace(/[~`'^]/g, "");
   // Replace punctuation and commas with spaces
   s = s.replace(/[,._\-\/\\|+*]/g, " ");
   // Collapse whitespace and lowercase
   return s.toLowerCase().trim().replace(/\s+/g, " ");
-}
-
-function levenshteinDistance(a: string, b: string): number {
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-  const matrix: number[][] = [];
-  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
-  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
-
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
-  }
-  return matrix[b.length][a.length];
-}
-
-function stringSimilarity(a: string, b: string): number {
-  if (a === b) return 1.0;
-  const maxLen = Math.max(a.length, b.length);
-  if (maxLen === 0) return 1.0;
-  return 1 - levenshteinDistance(a, b) / maxLen;
 }
 
 function arePlayerNamesSimilar(nameA: string, nameB: string): boolean {
@@ -97,39 +67,25 @@ function arePlayerNamesSimilar(nameA: string, nameB: string): boolean {
   const cleanB = cleanPlayerName(nameB);
   if (cleanA === cleanB) return true;
 
-  const wordsA = cleanA.split(" ").filter((w) => w.length > 0);
-  const wordsB = cleanB.split(" ").filter((w) => w.length > 0);
+  // Allow matching only when one side carries encoding replacement marks ('?' / '\ufffd')
+  const wordsA = cleanA.split(" ").filter(Boolean);
+  const wordsB = cleanB.split(" ").filter(Boolean);
+  if (wordsA.length === 0 || wordsA.length !== wordsB.length) return false;
 
-  // If both have multiple words:
-  if (wordsA.length >= 2 && wordsB.length >= 2) {
-    // Check first word (often family name e.g. "vu" vs "vu")
-    if (wordsA[0] !== wordsB[0]) {
-      return false;
+  return wordsA.every((wa, i) => {
+    const wb = wordsB[i];
+    if (wa === wb) return true;
+    const hasWild = wa.includes("?") || wa.includes("\ufffd") || wb.includes("?") || wb.includes("\ufffd");
+    if (!hasWild) return false;
+    const stripWild = (w: string) => w.replace(/[?\ufffd]/g, "");
+    const sa = stripWild(wa);
+    const sb = stripWild(wb);
+    if (Math.max(sa.length, sb.length) >= 2 && sa === sb) return true;
+    if (wa.length === wb.length && Math.min(sa.length, sb.length) >= 2) {
+      return Array.from(wa).every((ch, idx) => ch === wb[idx] || ch === "?" || wb[idx] === "?" || ch === "\ufffd" || wb[idx] === "\ufffd");
     }
-    // Check word count difference
-    if (Math.abs(wordsA.length - wordsB.length) > 1) {
-      return false;
-    }
-  }
-
-  // Token set check or overall Levenshtein similarity on cleaned strings
-  const sim = stringSimilarity(cleanA, cleanB);
-  if (sim >= 0.80) return true;
-
-  // Also check if words match closely with prefix (e.g. "th" vs "thi")
-  if (wordsA.length === wordsB.length && wordsA.length >= 3) {
-    let matchedWords = 0;
-    for (let i = 0; i < wordsA.length; i++) {
-      const wa = wordsA[i];
-      const wb = wordsB[i];
-      if (wa === wb || wa.startsWith(wb) || wb.startsWith(wa) || stringSimilarity(wa, wb) >= 0.7) {
-        matchedWords++;
-      }
-    }
-    if (matchedWords >= wordsA.length - 0.5) return true;
-  }
-
-  return false;
+    return false;
+  });
 }
 
 // PKCE Helper Functions for Lichess OAuth
@@ -627,10 +583,16 @@ function ImportContent() {
         } catch {}
       }
 
+      const selectedPlayerObj = detectedPlayers.find((p) => p.name === focusPlayer);
+      const aliasNames =
+        selectedPlayerObj?.aliases && selectedPlayerObj.aliases.length > 1
+          ? selectedPlayerObj.aliases
+          : undefined;
+
       if (pgnFile) {
-        res = await apiClient.importPgnFile(pgnFile, targetId, 1000, activeUserId || undefined, focusPlayer, undefined, forceNewPlayer);
+        res = await apiClient.importPgnFile(pgnFile, targetId, 1000, activeUserId || undefined, focusPlayer, aliasNames, forceNewPlayer);
       } else if (pgnText.trim()) {
-        res = await apiClient.importPgnText(pgnText, autoDataset, targetId, 1000, activeUserId || undefined, focusPlayer, undefined, forceNewPlayer);
+        res = await apiClient.importPgnText(pgnText, autoDataset, targetId, 1000, activeUserId || undefined, focusPlayer, aliasNames, forceNewPlayer);
       } else {
         throw new Error("Vui lòng tải lên tệp .pgn hoặc dán văn bản PGN.");
       }
@@ -1526,9 +1488,18 @@ function ImportContent() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
                       {detectedPlayers
-                        .filter((p) => !playerSearchFilter || p.name.toLowerCase().includes(playerSearchFilter.toLowerCase()))
+                        .filter((p) => {
+                          if (!playerSearchFilter) return true;
+                          const q = playerSearchFilter.toLowerCase();
+                          return (
+                            p.name.toLowerCase().includes(q) ||
+                            (p.aliases || []).some((a) => a.toLowerCase().includes(q))
+                          );
+                        })
                         .map((player) => {
                           const isSelected = selectedFocusPlayer === player.name;
+                          const extraVariantsCount =
+                            player.aliases && player.aliases.length > 1 ? player.aliases.length - 1 : 0;
                           return (
                             <button
                               key={player.name}
@@ -1546,6 +1517,7 @@ function ImportContent() {
                                 </div>
                                 <div className={`text-[10px] ${isSelected ? "text-white/80" : "text-muted-foreground"}`}>
                                   {player.gameCount} ván ({player.whiteCount} Trắng / {player.blackCount} Đen)
+                                  {extraVariantsCount > 0 ? ` · +${extraVariantsCount} biến thể` : ""}
                                 </div>
                               </div>
                               {isSelected ? (
@@ -1558,14 +1530,25 @@ function ImportContent() {
                         })}
                     </div>
 
-                    {selectedFocusPlayer && (
-                      <div className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded p-2.5 flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                        <span>
-                          Đã chọn: <b>{selectedFocusPlayer}</b> — Ván đấu sẽ được gán và phân tích theo góc nhìn kỳ thủ này.
-                        </span>
-                      </div>
-                    )}
+                    {selectedFocusPlayer && (() => {
+                      const activePreview = detectedPlayers.find((p) => p.name === selectedFocusPlayer);
+                      const extraAliases = (activePreview?.aliases || []).filter((a) => a !== selectedFocusPlayer);
+                      return (
+                        <div className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded p-2.5 flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+                          <div className="space-y-0.5">
+                            <div>
+                              Đã chọn: <b>{selectedFocusPlayer}</b> — Ván đấu sẽ được gán và phân tích theo góc nhìn kỳ thủ này.
+                            </div>
+                            {extraAliases.length > 0 && (
+                              <div className="text-[10px] text-emerald-700/90">
+                                Tự động gộp các cách viết khác: {extraAliases.join(" · ")}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 

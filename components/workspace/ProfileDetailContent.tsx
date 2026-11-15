@@ -245,6 +245,7 @@ export default function ProfileDetailContent({
     refreshPlayersList,
     setActiveTab,
     openHub,
+    openSandboxBoard,
     multiProfiles,
     selectedSubProfileId,
     setSelectedSubProfileId,
@@ -728,7 +729,16 @@ export default function ProfileDetailContent({
           </Link>
           <button
             type="button"
-            onClick={() => setActiveTab("board")}
+            onClick={() => {
+              openSandboxBoard();
+              if (typeof window !== "undefined") {
+                const currentFull = window.location.pathname + window.location.search;
+                if (currentFull !== "/analyze") {
+                  window.history.pushState(null, "", "/analyze");
+                  window.dispatchEvent(new PopStateEvent("popstate"));
+                }
+              }
+            }}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-semibold transition cursor-pointer"
           >
             <Swords className="w-4 h-4 text-sky-500" />

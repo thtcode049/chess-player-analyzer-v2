@@ -23,7 +23,7 @@ from api.schemas.imports import (
 )
 from api.services.import_service import ImportService
 from api.services.db_service import DBService, GUEST_SYSTEM_USER_ID, get_game_fingerprint
-from src.utils import determine_player_color, exact_player_name
+from src.utils import cluster_pgn_player_variants, determine_player_color, exact_player_name
 from api.routes.players import PLAYERS_STORE, GAMES_STORE, get_guest_session
 
 
@@ -54,10 +54,9 @@ async def preview_pgn_players(
             counts.setdefault(name, [0, 0])[index] += 1
 
     players = [
-        PgnPlayerPreview(name=name, gameCount=white + black, whiteCount=white, blackCount=black)
-        for name, (white, black) in counts.items()
+        PgnPlayerPreview(**item)
+        for item in cluster_pgn_player_variants(counts)
     ]
-    players.sort(key=lambda player: (-player.gameCount, player.name.casefold()))
     return BaseResponse(success=True, data=players)
 
 

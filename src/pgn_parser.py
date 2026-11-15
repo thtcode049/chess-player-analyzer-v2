@@ -9,6 +9,7 @@ Tự động suy luận tên khai cuộc từ các nước đi nếu file PGN kh
 import io
 import json
 import logging
+import unicodedata
 from pathlib import Path
 from typing import List, Dict, Any, Union, Tuple, Optional
 import chess.pgn
@@ -227,6 +228,17 @@ def _parse_elo(elo_str: str) -> int:
         return 0
 
 
+def _decode_pgn_bytes(raw_bytes: bytes) -> str:
+    """Decode PGN bytes preferring UTF-8 (with BOM strip), then cp1258, then UTF-8 replacement."""
+    for encoding in ("utf-8-sig", "cp1258"):
+        try:
+            decoded = raw_bytes.decode(encoding)
+            return unicodedata.normalize("NFC", decoded) if encoding == "cp1258" else decoded
+        except UnicodeDecodeError:
+            continue
+    return raw_bytes.decode("utf-8", errors="replace")
+
+
 def parse_pgn(
     pgn_source: Union[str, Path, io.StringIO, io.BytesIO, io.TextIOBase]
 ) -> List[Dict[str, Any]]:
@@ -240,27 +252,25 @@ def parse_pgn(
             try:
                 file_path = Path(pgn_source)
                 if file_path.exists() and file_path.is_file():
-                    with open(file_path, encoding="utf-8", errors="replace") as f:
-                        return _read_games_from_stream(f)
+                    return _read_games_from_stream(io.StringIO(_decode_pgn_bytes(file_path.read_bytes())))
             except Exception:
                 pass
-            text_stream = io.StringIO(pgn_source)
+            text_stream = io.StringIO(pgn_source.lstrip("\ufeff"))
             parsed_games = _read_games_from_stream(text_stream)
         else:
             file_path = Path(pgn_source)
             if not file_path.exists():
                 raise FileNotFoundError(f"File PGN không tồn tại: {file_path}")
-            with open(file_path, encoding="utf-8", errors="replace") as f:
-                parsed_games = _read_games_from_stream(f)
+            parsed_games = _read_games_from_stream(io.StringIO(_decode_pgn_bytes(file_path.read_bytes())))
     elif isinstance(pgn_source, bytes):
-        text_stream = io.StringIO(pgn_source.decode("utf-8", errors="replace"))
+        text_stream = io.StringIO(_decode_pgn_bytes(pgn_source))
         parsed_games = _read_games_from_stream(text_stream)
     elif isinstance(pgn_source, io.StringIO) or hasattr(pgn_source, "read"):
         if hasattr(pgn_source, "getvalue") and isinstance(pgn_source.getvalue(), bytes):
-            text_stream = io.StringIO(pgn_source.getvalue().decode("utf-8", errors="replace"))
+            text_stream = io.StringIO(_decode_pgn_bytes(pgn_source.getvalue()))
             parsed_games = _read_games_from_stream(text_stream)
         elif hasattr(pgn_source, "getvalue") and isinstance(pgn_source.getvalue(), str):
-            text_stream = io.StringIO(pgn_source.getvalue())
+            text_stream = io.StringIO(pgn_source.getvalue().lstrip("\ufeff"))
             parsed_games = _read_games_from_stream(text_stream)
         else:
             parsed_games = _read_games_from_stream(pgn_source)

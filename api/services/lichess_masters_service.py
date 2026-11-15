@@ -2,7 +2,7 @@
 Lichess Masters Opening Explorer Service
 -----------------------------------------
 Fetches official master-level game statistics (2.5M+ OTB FIDE master games) directly from
-the Lichess Master Explorer API (https://explorer.lichess.ovh/masters).
+the Lichess Master Explorer API (https://explorer.lichess.org/masters).
 
 Authentication:
 - Fully supports Lichess OAuth 2.0 PKCE Bearer tokens and Personal Access Tokens (PAT).
@@ -64,7 +64,7 @@ class LichessMastersService:
         # 3. Query official Lichess Masters Explorer API
         try:
             encoded_fen = urllib.parse.quote(fen)
-            url = f"https://explorer.lichess.ovh/masters?fen={encoded_fen}&moves=15&topGames=15"
+            url = f"https://explorer.lichess.org/masters?fen={encoded_fen}&moves=15&topGames=15"
             req = urllib.request.Request(
                 url,
                 headers={
@@ -128,11 +128,20 @@ class LichessMastersService:
                             "uci": g.get("uci")
                         })
 
+                    raw_opening = raw_data.get("opening") or None
                     result = {
                         "authenticated": True,
                         "total_games": total_g,
                         "moves": parsed_moves,
                         "top_games": parsed_top_games,
+                        "opening": (
+                            {
+                                "eco": str(raw_opening.get("eco") or ""),
+                                "name": str(raw_opening.get("name") or ""),
+                            }
+                            if isinstance(raw_opening, dict)
+                            else None
+                        ),
                         "is_book": False,
                         "message": None
                     }
@@ -299,7 +308,7 @@ class LichessMastersService:
         except Exception as e_json:
             logger.info(f"JSON export for {clean_id} failed ({e_json}), trying PGN endpoints...")
 
-        # 2. Try Masters PGN endpoint (official OTB master games from explorer.lichess.ovh/masters)
+        # 2. Try Masters PGN endpoint (official OTB master games from explorer.lichess.org/masters)
         pgn_headers = {
             "User-Agent": "ChessPlayerAnalyzer/2.0 (contact: admin@localhost)",
             "Accept": "application/x-chess-pgn",
@@ -308,7 +317,7 @@ class LichessMastersService:
             pgn_headers["Authorization"] = f"Bearer {token}"
 
         try:
-            masters_pgn_url = f"https://explorer.lichess.ovh/masters/pgn/{clean_id}"
+            masters_pgn_url = f"https://explorer.lichess.org/masters/pgn/{clean_id}"
             masters_req = urllib.request.Request(masters_pgn_url, headers=pgn_headers)
             with urllib.request.urlopen(masters_req, timeout=8) as resp:
                 if resp.status == 200:

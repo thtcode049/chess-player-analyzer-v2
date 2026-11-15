@@ -20,7 +20,8 @@ import {
   ShieldAlert,
   Swords,
   RotateCcw,
-  RotateCw
+  RotateCw,
+  ExternalLink
 } from "lucide-react";
 import Link from "next/link";
 import ChessBoard, { BOARD_PLAYERS_BAR_HEIGHT, BoardPlayersInfo } from "@/components/chess/ChessBoard";
@@ -35,7 +36,8 @@ import {
   Player,
   PawnStructureItem,
   PawnStructureGame,
-  OpeningRepertoireItem
+  OpeningRepertoireItem,
+  OpeningWikibookInfo
 } from "@/lib/api/types";
 import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
 import { getCanonicalOpeningByName, getCanonicalOpeningByMoves } from "@/lib/chess/canonicalOpenings";
@@ -330,6 +332,55 @@ function getGamePlayerOutcome(
   return { isWin: false, isDraw: false, isLoss: false, playerColor };
 }
 
+const OPENING_WIKIBOOK_CACHE = new Map<string, OpeningWikibookInfo | null>();
+
+function WdlSummaryBar({ wins, draws, losses }: { wins: number; draws: number; losses: number }) {
+  const total = wins + draws + losses;
+  const denom = Math.max(1, total);
+  const winPct = (wins / denom) * 100;
+  const drawPct = (draws / denom) * 100;
+  const lossPct = (losses / denom) * 100;
+
+  return (
+    <div className="p-2.5 bg-card border border-border/50 rounded space-y-1.5">
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="text-muted-foreground font-medium">Kết quả (T / H / B)</span>
+        <span className="font-mono font-semibold text-foreground">
+          {wins}T · {draws}H · {losses}B
+        </span>
+      </div>
+      {total > 0 ? (
+        <>
+          <div className="w-full h-2 rounded-full overflow-hidden flex bg-slate-200">
+            <div
+              className="bg-emerald-500 h-full transition-all"
+              style={{ width: `${winPct}%` }}
+              title={`Thắng: ${wins} (${winPct.toFixed(1)}%)`}
+            />
+            <div
+              className="bg-slate-400 h-full transition-all"
+              style={{ width: `${drawPct}%` }}
+              title={`Hòa: ${draws} (${drawPct.toFixed(1)}%)`}
+            />
+            <div
+              className="bg-rose-500 h-full transition-all"
+              style={{ width: `${lossPct}%` }}
+              title={`Thua: ${losses} (${lossPct.toFixed(1)}%)`}
+            />
+          </div>
+          <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
+            <span className="text-emerald-700 font-semibold">{winPct.toFixed(0)}% T</span>
+            <span>{drawPct.toFixed(0)}% H</span>
+            <span className="text-rose-700 font-semibold">{lossPct.toFixed(0)}% B</span>
+          </div>
+        </>
+      ) : (
+        <div className="text-[11px] text-muted-foreground">Chưa có dữ liệu kết quả.</div>
+      )}
+    </div>
+  );
+}
+
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 export function AnalyzeContent() {
@@ -349,15 +400,21 @@ export function AnalyzeContent() {
 
   // Player & Run state (unified with ProfileWorkspaceProvider — zero duplicate fetches)
   const players = workspaceStore.players;
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string>(queryPlayerId || workspaceStore.activePlayerId || "");
-  const [activeRunId, setActiveRunId] = useState<string>(queryRunId || queryPlayerId || workspaceStore.activePlayerId || "");
+  const isNonSingleMode = workspaceStore.activeMode === "sandbox" || workspaceStore.activeMode === "multi";
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>(
+    isNonSingleMode ? "" : queryPlayerId || workspaceStore.activePlayerId || ""
+  );
+  const [activeRunId, setActiveRunId] = useState<string>(
+    isNonSingleMode ? "" : queryRunId || queryPlayerId || workspaceStore.activePlayerId || ""
+  );
   const [colorFilter, setColorFilter] = useState<"all" | "white" | "black">("all");
   const [boardOrientation, setBoardOrientation] = useState<"white" | "black">("white");
 
-  const effectivePlayerId =
-    selectedPlayerId ||
-    queryPlayerId ||
-    (workspaceStore.activeMode === "single" ? workspaceStore.activePlayerId || "" : "");
+  const effectivePlayerId = isNonSingleMode
+    ? ""
+    : selectedPlayerId ||
+      queryPlayerId ||
+      (workspaceStore.activeMode === "single" ? workspaceStore.activePlayerId || "" : "");
 
   const cachedProfile = effectivePlayerId ? workspaceStore.cachedProfiles[effectivePlayerId] || null : null;
   const isProfileDataLoading = Boolean(
@@ -420,8 +477,41 @@ export function AnalyzeContent() {
     }
   }, [workspaceStore.activeGameForAnalysis, workspaceStore.activePlayer?.canonical_name, workspaceStore.clearActiveGameForAnalysis]);
 
-  // Synchronize activePlayerId from store or URL
+  const prevModeRef = useRef(workspaceStore.activeMode);
+
+  // Synchronize activePlayerId from store or URL, and clear stale player/explorer state on Sandbox entry
   useIsomorphicLayoutEffect(() => {
+    const prevMode = prevModeRef.current;
+    prevModeRef.current = workspaceStore.activeMode;
+
+    if (workspaceStore.activeMode === "sandbox") {
+      if (selectedPlayerId) setSelectedPlayerId("");
+      if (activeRunId) setActiveRunId("");
+      if (prevMode !== "sandbox") {
+        setSelectedStructure(null);
+        setSelectedOpening(null);
+        setActiveStructureGameIdx(null);
+        setActiveOpeningGameId(null);
+        setOpeningRepresentativeLine([]);
+        setOpeningWikibook(null);
+        setStructureDismissed(false);
+        setOpeningDismissed(false);
+        loadedStructureGameKeyRef.current = null;
+        loadedStructureUrlRef.current = null;
+        loadedOpeningRef.current = null;
+        setColorFilter("all");
+        if (!queryGameId && !queryLichessId && !queryInspectGame && !queryMove) {
+          setMoves([]);
+          setCurrentPly(0);
+          setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+          setMoveTree(createMoveTreeFromMoves([]));
+          setGameInfo(null);
+          setBoardOrientation("white");
+        }
+      }
+      return;
+    }
+
     if (workspaceStore.activeMode === "multi") {
       if (selectedPlayerId) {
         setSelectedPlayerId("");
@@ -434,7 +524,18 @@ export function AnalyzeContent() {
       setSelectedPlayerId(targetPid);
       setActiveRunId(queryRunId || targetPid);
     }
-  }, [workspaceStore.activeMode, workspaceStore.activePlayerId, queryPlayerId, queryRunId, selectedPlayerId]);
+  }, [
+    workspaceStore.activeMode,
+    workspaceStore.activePlayerId,
+    queryPlayerId,
+    queryRunId,
+    selectedPlayerId,
+    activeRunId,
+    queryGameId,
+    queryLichessId,
+    queryInspectGame,
+    queryMove,
+  ]);
 
   // Dynamically synchronized board and panel size measured directly from ChessBoard DOM container
   const [boardSize, setBoardSize] = useState<number>(760);
@@ -458,11 +559,11 @@ export function AnalyzeContent() {
 
   // Unified games, pawn structures, and openings derived directly from workspaceStore cache
   const playerGames = useMemo<Game[]>(
-    () => cachedProfile?.games || workspaceStore.activePlayerGames || [],
-    [cachedProfile?.games, workspaceStore.activePlayerGames]
+    () => (isNonSingleMode ? [] : cachedProfile?.games || workspaceStore.activePlayerGames || []),
+    [isNonSingleMode, cachedProfile?.games, workspaceStore.activePlayerGames]
   );
 
-  const activeRunObj = cachedProfile?.run || workspaceStore.activePlayerRun || null;
+  const activeRunObj = isNonSingleMode ? null : cachedProfile?.run || workspaceStore.activePlayerRun || null;
 
   const availableStructures = useMemo<PawnStructureItem[]>(() => {
     return activeRunObj?.pawn_structures_summary?.structures || [];
@@ -488,6 +589,7 @@ export function AnalyzeContent() {
   const [structureSearch, setStructureSearch] = useState<string>("");
   const [activeStructureGameIdx, setActiveStructureGameIdx] = useState<number | null>(null);
   const loadedStructureGameKeyRef = useRef<string | null>(null);
+  const loadedStructureUrlRef = useRef<string | null>(null);
 
   // Opening Explorer Mode State
   const [selectedOpening, setSelectedOpening] = useState<string | null>(queryOpening || null);
@@ -495,6 +597,8 @@ export function AnalyzeContent() {
   const [openingSearch, setOpeningSearch] = useState<string>("");
   const [activeOpeningGameId, setActiveOpeningGameId] = useState<string | null>(null);
   const [openingRepresentativeLine, setOpeningRepresentativeLine] = useState<string[]>([]);
+  const [openingWikibook, setOpeningWikibook] = useState<OpeningWikibookInfo | null>(null);
+  const [openingWikibookLoading, setOpeningWikibookLoading] = useState<boolean>(false);
   const loadedOpeningRef = React.useRef<string | null>(null);
   const lastGamesCountRef = React.useRef<number>(0);
   const isAutoTransitionRef = React.useRef<boolean>(false);
@@ -507,8 +611,8 @@ export function AnalyzeContent() {
   const [structureDismissed, setStructureDismissed] = useState<boolean>(false);
   const [openingDismissed, setOpeningDismissed] = useState<boolean>(false);
 
-  const isStructureActive = !structureDismissed && Boolean(selectedStructure || queryStructure);
-  const isOpeningActive = !openingDismissed && Boolean(selectedOpening || queryOpening);
+  const isStructureActive = !isNonSingleMode && !structureDismissed && Boolean(selectedStructure || queryStructure);
+  const isOpeningActive = !isNonSingleMode && !openingDismissed && Boolean(selectedOpening || queryOpening);
   const isExplorerMode = Boolean(isStructureActive || isOpeningActive);
 
   // 1. Ensure active profile data is loaded once via shared workspaceStore (deduplicated)
@@ -827,12 +931,13 @@ export function AnalyzeContent() {
   ]);
 
   const currentPlayerObj = useMemo(() => {
+    if (isNonSingleMode) return null;
     return (
       cachedProfile?.player ||
       players.find((p) => p.id === effectivePlayerId) ||
       workspaceStore.activePlayer
     );
-  }, [cachedProfile?.player, players, effectivePlayerId, workspaceStore.activePlayer]);
+  }, [isNonSingleMode, cachedProfile?.player, players, effectivePlayerId, workspaceStore.activePlayer]);
 
   // Load a structure game onto the board and jump to formation move
   const handleLoadStructureGame = useCallback((structGame: PawnStructureGame, indexInStruct: number) => {
@@ -992,6 +1097,7 @@ export function AnalyzeContent() {
     setSelectedStructure(null);
     setActiveStructureGameIdx(null);
     loadedStructureGameKeyRef.current = null;
+    loadedStructureUrlRef.current = null;
     setMoves([]);
     setCurrentPly(0);
     setCurrentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
@@ -1147,19 +1253,29 @@ export function AnalyzeContent() {
     }
   }, [workspaceStore.activeOpeningForAnalysis, handleSelectOpening, workspaceStore.clearActiveOpeningForAnalysis]);
 
+  const selectedStructureNameRef = useRef<string | null>(null);
+  selectedStructureNameRef.current = selectedStructure?.name || null;
+
   // 4. Sync selectedStructure before first paint if queryStructure is in URL
   useIsomorphicLayoutEffect(() => {
-    if (structureDismissed) return;
+    if (structureDismissed || isNonSingleMode) return;
     if (queryStructure && availableStructures.length > 0) {
+      const readyKey = `${queryStructure}::${queryGameIdx || ""}::1`;
+      if (loadedStructureUrlRef.current === readyKey) return;
+
       const matched = availableStructures.find((s) =>
         s.name.toLowerCase().trim() === queryStructure.toLowerCase().trim() ||
         (s.structure_key && s.structure_key.toLowerCase() === queryStructure.toLowerCase().trim())
       );
-      if (matched && (!selectedStructure || selectedStructure.name.toLowerCase() !== matched.name.toLowerCase())) {
-        handleSelectStructure(matched, queryGameIdx ? parseInt(queryGameIdx, 10) : undefined);
+      if (matched) {
+        loadedStructureUrlRef.current = readyKey;
+        const currentSelectedLower = selectedStructureNameRef.current?.toLowerCase();
+        if (currentSelectedLower !== matched.name.toLowerCase()) {
+          handleSelectStructure(matched, queryGameIdx ? parseInt(queryGameIdx, 10) : undefined);
+        }
       }
     }
-  }, [queryStructure, queryGameIdx, availableStructures, selectedStructure, handleSelectStructure, structureDismissed]);
+  }, [queryStructure, queryGameIdx, availableStructures, handleSelectStructure, structureDismissed, isNonSingleMode]);
 
   // When playerGames finishes loading and structure explorer is active with 0 moves, load the target structure game
   useEffect(() => {
@@ -1201,9 +1317,11 @@ export function AnalyzeContent() {
     setSelectedStructure(null);
     setActiveStructureGameIdx(null);
     loadedStructureGameKeyRef.current = null;
+    loadedStructureUrlRef.current = null;
     setSelectedOpening(null);
     setActiveOpeningGameId(null);
     setOpeningRepresentativeLine([]);
+    setOpeningWikibook(null);
     loadedOpeningRef.current = null;
     lastGamesCountRef.current = 0;
   };
@@ -1595,37 +1713,111 @@ export function AnalyzeContent() {
     }
   }, [queryOpening, activeOpeningGamesPoolCount, hasOpeningPlayerName, handleSelectOpening, openingDismissed]);
 
+  // Fetch static WikiBook opening theory once when selecting an opening in Opening Explorer
+  const activeExplorerOpening = isOpeningActive && !isStructureActive ? (selectedOpening || queryOpening || null) : null;
+  const activeOpeningRepKey = openingRepresentativeLine.slice(0, 14).join(" ");
+
+  useEffect(() => {
+    if (!activeExplorerOpening) {
+      setOpeningWikibook(null);
+      setOpeningWikibookLoading(false);
+      return;
+    }
+
+    const cacheKey = `${activeExplorerOpening.trim().toLowerCase()}::${activeOpeningRepKey}`;
+    if (OPENING_WIKIBOOK_CACHE.has(cacheKey)) {
+      setOpeningWikibook(OPENING_WIKIBOOK_CACHE.get(cacheKey) ?? null);
+      setOpeningWikibookLoading(false);
+      return;
+    }
+
+    const canonicalMatch = getCanonicalOpeningByName(activeExplorerOpening);
+    const movesForLookup =
+      openingRepresentativeLine.length > 0
+        ? openingRepresentativeLine
+        : canonicalMatch?.moves || [];
+
+    const controller = new AbortController();
+    setOpeningWikibookLoading(true);
+    apiClient
+      .getOpeningWikibook(activeExplorerOpening, movesForLookup, controller.signal)
+      .then((info) => {
+        if (controller.signal.aborted) return;
+        OPENING_WIKIBOOK_CACHE.set(cacheKey, info);
+        setOpeningWikibook(info);
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError" || controller.signal.aborted) return;
+        setOpeningWikibook(null);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setOpeningWikibookLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [activeExplorerOpening, activeOpeningRepKey, openingRepresentativeLine]);
+
   // Load a single game from the opening games list onto the board
   const handleLoadOpeningGame = (targetGame: Game) => {
     setActiveOpeningGameId(targetGame.id);
-    setGameInfo(targetGame);
 
-    if (targetGame.moves_san) {
-      const parsedMoves = parseSanMoves(targetGame.moves_san);
-      setMoves(parsedMoves);
+    const applyOpeningGame = (resolvedGame: Game) => {
+      setGameInfo(resolvedGame);
 
-      // Determine target ply: formation ply of the opening
-      const chess = new Chess();
-      let targetPly = Math.min(openingRepresentativeLine.length, parsedMoves.length);
-      if (targetPly === 0) {
-        targetPly = Math.min(6, parsedMoves.length);
+      if (resolvedGame.moves_san) {
+        const parsedMoves = parseSanMoves(resolvedGame.moves_san);
+        const chess = new Chess();
+        let targetPly = Math.min(openingRepresentativeLine.length, parsedMoves.length);
+        if (targetPly === 0) {
+          targetPly = Math.min(6, parsedMoves.length);
+        }
+
+        for (let i = 0; i < targetPly; i++) {
+          try {
+            chess.move(parsedMoves[i]);
+          } catch {
+            break;
+          }
+        }
+
+        setMoves(parsedMoves);
+        setMoveTree(
+          createMoveTreeFromMoves(
+            parsedMoves,
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            targetPly
+          )
+        );
+        setCurrentPly(targetPly);
+        setCurrentFen(chess.fen());
       }
 
-      for (let i = 0; i < targetPly; i++) {
-        try {
-          chess.move(parsedMoves[i]);
-        } catch {
-          break;
+      if (resolvedGame.player_color === "black" || resolvedGame.player_color === "white") {
+        setBoardOrientation(resolvedGame.player_color);
+      } else {
+        const refName = currentPlayerObj?.canonical_name || workspaceStore.activePlayer?.canonical_name;
+        if (refName) {
+          const isPlayerBlack =
+            isPlayerNameMatch(refName, resolvedGame.black_player) &&
+            !isPlayerNameMatch(refName, resolvedGame.white_player);
+          setBoardOrientation(isPlayerBlack ? "black" : "white");
         }
       }
+    };
 
-      setCurrentPly(targetPly);
-      setCurrentFen(chess.fen());
-
-      // Adjust board orientation to analyzed player's perspective in this game
-      if (currentPlayerObj?.canonical_name) {
-        const isPlayerBlack = isPlayerNameMatch(currentPlayerObj.canonical_name, targetGame.black_player);
-        setBoardOrientation(isPlayerBlack ? "black" : "white");
+    if (targetGame.moves_san) {
+      applyOpeningGame(targetGame);
+    } else {
+      setGameInfo(targetGame);
+      if (targetGame.id) {
+        apiClient
+          .getGame(targetGame.id)
+          .then((fullGame) => {
+            if (fullGame) applyOpeningGame(fullGame);
+          })
+          .catch((err) => console.warn("Could not fetch full opening game:", err));
       }
     }
   };
@@ -1678,6 +1870,33 @@ export function AnalyzeContent() {
     return availableOpenings.find((op) => op.name.toLowerCase() === selectedOpening.toLowerCase()) || null;
   }, [availableOpenings, selectedOpening]);
 
+  const structureStats = useMemo(() => {
+    if (!selectedStructure) return { wins: 0, draws: 0, losses: 0, total: 0 };
+    if (
+      selectedStructure.wins != null &&
+      selectedStructure.draws != null &&
+      selectedStructure.losses != null
+    ) {
+      return {
+        wins: selectedStructure.wins,
+        draws: selectedStructure.draws,
+        losses: selectedStructure.losses,
+        total: selectedStructure.wins + selectedStructure.draws + selectedStructure.losses,
+      };
+    }
+    let wins = 0;
+    let draws = 0;
+    let losses = 0;
+    (selectedStructure.games || []).forEach((g) => {
+      if (g.is_win) wins++;
+      else if (g.is_draw) draws++;
+      else if (g.is_loss) losses++;
+    });
+    return { wins, draws, losses, total: wins + draws + losses };
+  }, [selectedStructure]);
+
+  const currentSanMoves = useMemo(() => moves.slice(0, currentPly), [moves, currentPly]);
+
   const renderExplorerPanel = (isMobileView = false) => {
     if (!isExplorerMode) return null;
 
@@ -1726,7 +1945,7 @@ export function AnalyzeContent() {
                     <span className="font-bold text-sm text-foreground font-mono">{matchingOpeningGames.length}</span>
                   </div>
                   <div>
-                    <span className="text-[11px] text-muted-foreground block">Điểm thực</span>
+                    <span className="text-[11px] text-muted-foreground block">Điểm</span>
                     <span className="font-bold text-sm text-emerald-700 font-mono">
                       {currentOpeningItem?.score_pct !== undefined
                         ? `${currentOpeningItem.score_pct.toFixed(1)}%`
@@ -1737,16 +1956,92 @@ export function AnalyzeContent() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-xs px-2 py-1.5 bg-card border border-border/50 rounded">
-                  <span className="text-muted-foreground">Kết quả:</span>
-                  <div className="flex items-center gap-2 font-mono text-[11px] font-bold">
-                    <span className="text-emerald-600">+{openingStats.wins} T</span>
-                    <span className="text-amber-600">={openingStats.draws} H</span>
-                    <span className="text-rose-600">-{openingStats.losses} B</span>
-                  </div>
-                </div>
+                <WdlSummaryBar
+                  wins={openingStats.wins}
+                  draws={openingStats.draws}
+                  losses={openingStats.losses}
+                />
               </div>
             )}
+
+            {/* Static WikiBook Theory Card for the selected opening */}
+            <div className="p-3 rounded bg-muted/30 border border-border/40 space-y-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-800 text-[11px] uppercase tracking-wide min-w-0">
+                  <Compass className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Thông tin Khai cuộc (WikiBook)</span>
+                </div>
+                {openingWikibook?.page_url && (
+                  <a
+                    href={openingWikibook.page_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] font-semibold text-emerald-700 hover:underline flex items-center gap-1 shrink-0"
+                    title="Mở trang Wikibooks Chess Opening Theory"
+                  >
+                    <span>Wikibooks</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+
+              {openingWikibookLoading ? (
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground py-1">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 shrink-0" />
+                  <span>Đang tải lý thuyết từ Wikibooks...</span>
+                </div>
+              ) : openingWikibook && openingWikibook.sections.length > 0 ? (
+                <div className="space-y-2 text-[11px] leading-relaxed">
+                  {(openingWikibook.eco || openingWikibook.title) && (
+                    <div className="text-foreground font-semibold">
+                      {openingWikibook.eco && (
+                        <span className="font-mono font-bold text-emerald-700 mr-1.5">
+                          [{openingWikibook.eco}]
+                        </span>
+                      )}
+                      <span>{openingWikibook.title}</span>
+                    </div>
+                  )}
+                  {openingWikibook.sections.slice(0, 3).map((sec, idx) => (
+                    <div
+                      key={`${sec.heading || "intro"}-${idx}`}
+                      className={idx > 0 || sec.heading ? "pt-1.5 border-t border-border/30 space-y-1" : "space-y-1"}
+                    >
+                      {sec.heading && (
+                        <div className="font-semibold text-foreground">{sec.heading}</div>
+                      )}
+                      {sec.paragraphs.slice(0, 2).map((para, pIdx) => (
+                        <p key={pIdx} className="text-muted-foreground">
+                          {para}
+                        </p>
+                      ))}
+                    </div>
+                  ))}
+                  {openingWikibook.page_title && (
+                    <div className="text-[10px] text-muted-foreground/80 italic pt-0.5">
+                      Nguồn: {openingWikibook.page_title}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Chưa tìm thấy bài viết lý thuyết chi tiết cho khai cuộc này trên Wikibooks.
+                  {activeExplorerOpening ? (
+                    <>
+                      {" "}
+                      <a
+                        href={`https://en.wikibooks.org/wiki/Special:Search?search=${encodeURIComponent(`Chess Opening Theory ${activeExplorerOpening}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-700 font-semibold hover:underline"
+                      >
+                        Tìm trên Wikibooks
+                      </a>
+                    </>
+                  ) : null}
+                </p>
+              )}
+            </div>
 
             {/* Opening Switcher */}
             {availableOpenings.length > 1 && (
@@ -1834,7 +2129,7 @@ export function AnalyzeContent() {
                     </span>
                   </div>
                   <div>
-                    <span className="text-[11px] text-muted-foreground block">Điểm thực</span>
+                    <span className="text-[11px] text-muted-foreground block">Điểm</span>
                     <span className="font-bold text-sm text-emerald-700 font-mono">
                       {selectedStructure.score_pct != null
                         ? `${selectedStructure.score_pct.toFixed(1)}%`
@@ -1842,6 +2137,12 @@ export function AnalyzeContent() {
                     </span>
                   </div>
                 </div>
+
+                <WdlSummaryBar
+                  wins={structureStats.wins}
+                  draws={structureStats.draws}
+                  losses={structureStats.losses}
+                />
 
                 <div className="text-[11px] text-muted-foreground px-2 py-1 bg-card border border-border/40 rounded">
                   Nước hình thành: ~<b>{selectedStructure.typical_formation_move || 12}</b>
@@ -2117,6 +2418,7 @@ export function AnalyzeContent() {
           continuations={continuations}
           totalGames={continuations.reduce((acc, c) => acc + c.games_count, 0)}
           currentFen={currentFen}
+          currentSanMoves={currentSanMoves}
           onSelectMove={handleSelectMove}
           onLoadGame={handleLoadSingleGame}
           playerName={currentPlayerObj?.canonical_name}
@@ -2324,6 +2626,7 @@ export function AnalyzeContent() {
                 continuations={continuations}
                 totalGames={continuations.reduce((acc, c) => acc + c.games_count, 0)}
                 currentFen={currentFen}
+                currentSanMoves={currentSanMoves}
                 onSelectMove={handleSelectMove}
                 onLoadGame={handleLoadSingleGame}
                 playerName={currentPlayerObj?.canonical_name}

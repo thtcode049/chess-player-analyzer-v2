@@ -504,7 +504,7 @@ def get_lichess_masters_stats(
 ):
     """
     Returns Lichess Masters Database statistics (GM/IM/FM OTB games) for a given FEN position.
-    Supports authenticated live requests to explorer.lichess.ovh/masters with high-speed in-memory caching
+    Supports authenticated live requests to explorer.lichess.org/masters with high-speed in-memory caching
     and fallback to authentic precomputed master book.
     """
     user_token = (x_lichess_token or token or "").strip() or None
@@ -530,7 +530,7 @@ def get_lichess_master_game_detail(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.get("/openings/canonical", response_model=BaseResponse[Dict[str, Any]])
+@router.get("/openings/canonical", response_model=BaseResponse[Optional[Dict[str, Any]]])
 def get_canonical_opening(
     name: Optional[str] = Query(None, description="Opening name to look up"),
     moves: Optional[str] = Query(None, description="Comma-separated or space-separated SAN moves")
@@ -551,6 +551,25 @@ def get_canonical_opening(
         if matched:
             return BaseResponse(success=True, data=matched)
 
-    raise HTTPException(status_code=404, detail="Opening not found in Lichess openings database")
+    return BaseResponse(success=True, data=None)
+
+
+@router.get("/openings/wikibook", response_model=BaseResponse[Optional[Dict[str, Any]]])
+def get_opening_wikibook_info(
+    opening: Optional[str] = Query(None, description="Opening name to look up"),
+    moves: Optional[str] = Query(None, description="Optional fallback comma/space-separated SAN moves")
+):
+    """
+    Tra cứu thông tin lý thuyết khai cuộc từ Wikibooks Chess Opening Theory cho khai cuộc được chọn.
+    """
+    from api.services.wikibook_service import WikibookService
+
+    moves_list = (
+        [m.strip() for m in moves.replace(",", " ").split() if m.strip()]
+        if moves
+        else None
+    )
+    info = WikibookService.get_opening_info(opening_name=opening, moves=moves_list)
+    return BaseResponse(success=True, data=info)
 
 

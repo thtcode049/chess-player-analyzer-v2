@@ -34,6 +34,7 @@ export default function WorkspaceContainer({
   } = useProfileWorkspaceStore();
 
   const mountedRef = React.useRef(false);
+  const lastRoutePlayerIdRef = React.useRef<string | undefined>(targetPlayerId);
 
   // Lazy mount tabs upon first visit, then keep them alive in DOM (prevents wasted workers and DND collisions on direct routes)
   const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>(() => {
@@ -67,7 +68,8 @@ export default function WorkspaceContainer({
         setActiveTab(initialTab);
       }
     } else {
-      if (targetPlayerId && targetPlayerId !== activePlayerId) {
+      if (targetPlayerId && targetPlayerId !== lastRoutePlayerIdRef.current) {
+        lastRoutePlayerIdRef.current = targetPlayerId;
         selectSingleProfile(targetPlayerId, activeTab);
       }
     }

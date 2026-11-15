@@ -4,8 +4,8 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { Chess, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { useStockfish } from "@/lib/stockfish/useStockfish";
-import { EngineEvaluation } from "@/lib/stockfish/engineWorker";
-import { normalizeFen } from "@/lib/chess/notation";
+import { EngineEvaluation, evaluationForFen } from "@/lib/stockfish/engineWorker";
+import { normalizeFen, replayPositionHistory, START_FEN } from "@/lib/chess/notation";
 
 function tryCreateChess(fen?: string): Chess {
   if (!fen) return new Chess();
@@ -125,7 +125,7 @@ interface ChessBoardProps {
 }
 
 export default function ChessBoard({
-  initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  initialFen = START_FEN,
   moves = [],
   currentPly: externalPly,
   orientation = "white",
@@ -140,34 +140,8 @@ export default function ChessBoard({
   onBoardWidthChange,
   fitParentHeight = false,
 }: ChessBoardProps) {
-  const cleanInitial = useMemo(
-    () => normalizeFen(initialFen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"),
-    [initialFen]
-  );
-
-  const historyFens = useMemo(() => {
-    const playable = checkPlayable(cleanInitial);
-    if (!playable) return [cleanInitial];
-
-    const newGame = new Chess();
-    if (cleanInitial && cleanInitial !== "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
-      try {
-        newGame.load(cleanInitial);
-      } catch {}
-    }
-    const fens = [newGame.fen()];
-    if (moves && moves.length > 0) {
-      for (const m of moves) {
-        try {
-          newGame.move(m);
-          fens.push(newGame.fen());
-        } catch {
-          break;
-        }
-      }
-    }
-    return fens;
-  }, [cleanInitial, moves]);
+  const cleanInitial = useMemo(() => normalizeFen(initialFen || START_FEN), [initialFen]);
+  const historyFens = useMemo(() => replayPositionHistory(cleanInitial, moves), [cleanInitial, moves]);
 
   const [internalPly, setInternalPly] = useState(0);
 
@@ -309,12 +283,13 @@ export default function ChessBoard({
   }, [height, fitParentHeight, hasPlayersBar, onBoardWidthChange]);
 
   // Stockfish WASM client hook
-  const { evaluation, isThinking, evaluateFen, stop } = useStockfish();
+  const { evaluation: engineEvaluation, isThinking, evaluateFen, stop } = useStockfish();
+  const evaluation = evaluationForFen(engineEvaluation, currentPositionFen);
 
-  // Forward evaluation updates to parent for MoveHistory display
+  // Forward only evaluations for the position currently on the board.
   useEffect(() => {
     if (onEvaluationChange) {
-      onEvaluationChange(isEngineEnabled ? evaluation : null, isEngineEnabled ? isThinking : false);
+      onEvaluationChange(isEngineEnabled ? evaluation ?? null : null, isEngineEnabled ? isThinking : false);
     }
   }, [evaluation, isThinking, isEngineEnabled, onEvaluationChange]);
 

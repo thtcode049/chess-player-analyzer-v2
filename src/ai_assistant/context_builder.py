@@ -13,6 +13,7 @@ from typing import Any, Dict, Iterable, List, Optional
 import chess
 
 from src.ai_assistant.briefing import format_game_reference, format_group_stats, format_profile_stats
+from src.ai_assistant.position_facts import PositionFacts
 from src.analysis.pawn_structure import CANONICAL_PAWN_SKELETONS
 
 
@@ -28,8 +29,8 @@ def format_pv_to_san(fen: str, pv_moves: List[str]) -> str:
         return ""
     try:
         board = chess.Board(fen)
-    except Exception:
-        return " ".join(pv_moves)
+    except ValueError:
+        return ""
 
     san_parts: List[str] = []
     for uci_move in pv_moves:
@@ -50,7 +51,7 @@ def format_pv_to_san(fen: str, pv_moves: List[str]) -> str:
         except Exception:
             break
 
-    return " ".join(san_parts) if san_parts else " ".join(pv_moves)
+    return " ".join(san_parts)
 
 
 def summarize_opening_tree(
@@ -120,13 +121,13 @@ def summarize_opening_tree(
     return "\n".join(lines)
 
 
-def format_moves_san(moves: Any) -> str:
+def format_moves_san(moves: Any, initial_fen: Optional[str] = None) -> str:
     """Chuyển danh sách moves hoặc chuỗi moves thành chuỗi SAN có số thứ tự nước đi chuẩn (1. c4 e5 2. Nc3 f5 ...)."""
     if not moves:
         return ""
     if isinstance(moves, str):
         s_moves = moves.strip()
-        if re.search(r"\b1\.", s_moves) or re.search(r"\b1\.\.\.", s_moves):
+        if re.match(r"\d+\.", s_moves):
             return s_moves
         tokens = [t.strip() for t in s_moves.split() if t.strip()]
     elif isinstance(moves, list):
@@ -134,16 +135,75 @@ def format_moves_san(moves: Any) -> str:
     else:
         return ""
 
+    try:
+        board = chess.Board(initial_fen) if initial_fen else chess.Board()
+    except (TypeError, ValueError):
+        board = chess.Board()
     parts = []
-    for i in range(0, len(tokens), 2):
-        move_num = (i // 2) + 1
-        w = tokens[i]
-        b = tokens[i + 1] if i + 1 < len(tokens) else ""
-        if b:
-            parts.append(f"{move_num}. {w} {b}")
+    for index, san in enumerate(tokens):
+        if board.turn == chess.WHITE:
+            parts.append(f"{board.fullmove_number}. {san}")
         else:
-            parts.append(f"{move_num}. {w}")
+            parts.append(f"{board.fullmove_number}... {san}" if index == 0 else san)
+            board.fullmove_number += 1
+        board.turn = not board.turn
     return " ".join(parts)
+
+
+def resolve_chat_position(
+    current_fen: Optional[str],
+    selected_game: Optional[Dict[str, Any]],
+    engine_eval: Optional[Dict[str, Any]],
+) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
+    """Resolve a consistent FEN and discard engine data for any other position."""
+    if not current_fen:
+        return None, None
+
+    try:
+        board = chess.Board(current_fen)
+    except ValueError:
+        return None, None
+
+    game = selected_game or {}
+    moves = game.get("board_moves")
+    ply = game.get("current_ply")
+    if isinstance(moves, list) and isinstance(ply, int) and 0 <= ply <= len(moves):
+        try:
+            replay = chess.Board(game.get("initial_fen") or chess.STARTING_FEN)
+            for san in moves[:ply]:
+                if not isinstance(san, str) or not replay.push_san(san):
+                    raise ValueError("Invalid board move")
+            board = replay
+        except (TypeError, ValueError):
+            pass
+
+    fen = board.fen()
+    engine_fen = engine_eval.get("fen") if engine_eval else None
+    if not isinstance(engine_fen, str):
+        return fen, None
+    try:
+        if chess.Board(engine_fen).fen().split()[:4] == fen.split()[:4]:
+            return fen, engine_eval
+    except ValueError:
+        pass
+    return fen, None
+
+
+def describe_board_move(game: Dict[str, Any], board: chess.Board) -> str:
+    ply = game.get("current_ply")
+    total = game.get("total_ply")
+    if not isinstance(ply, int) or not isinstance(total, int) or not 0 <= ply <= total:
+        return ""
+    if ply == 0:
+        return "Vị trí ban đầu"
+
+    previous_side = "Trắng" if board.turn == chess.BLACK else "Đen"
+    number = board.fullmove_number if board.turn == chess.BLACK else board.fullmove_number - 1
+    moves = game.get("board_moves")
+    if isinstance(moves, list) and ply <= len(moves) and isinstance(moves[ply - 1], str):
+        separator = "." if board.turn == chess.BLACK else "..."
+        return f"Sau {number}{separator}{moves[ply - 1]} ({previous_side})"
+    return f"Sau nước {number} của {previous_side}"
 
 
 def format_games_pgn_for_context(
@@ -223,7 +283,14 @@ def build_opponent_ai_context(
     Ván đấu đang chọn (selected_game), Thế cờ bàn cờ tương tác (current_fen) và Toàn bộ ván đấu PGN
     thành ngữ cảnh chuẩn xác (Ground Truth) cho Trợ lí AI.
     """
-    if not deep_profile and not stats and not games and not selected_game:
+    position_facts = None
+    if is_board_open and current_fen:
+        try:
+            position_facts = PositionFacts(current_fen, engine_eval=engine_eval)
+        except ValueError:
+            pass
+
+    if not any((deep_profile, stats, games, selected_game, position_facts)) and is_board_open:
         return "Hiện chưa có dữ liệu phân tích nào được nạp."
 
     deep_profile = deep_profile or {}
@@ -248,9 +315,10 @@ def build_opponent_ai_context(
         g_site = selected_game.get("site") or selected_game.get("site_url") or raw_h.get("Site") or raw_h.get("Link") or ""
         g_round = selected_game.get("round") or raw_h.get("Round") or ""
         g_tc = selected_game.get("time_control") or raw_h.get("TimeControl") or ""
-        g_moves = format_moves_san(selected_game.get("moves_san") or selected_game.get("moves", []))
-        curr_ply = selected_game.get("current_ply", 0)
-        tot_ply = selected_game.get("total_ply", 0)
+        g_moves = format_moves_san(
+            selected_game.get("moves_san") or selected_game.get("moves", []),
+            raw_h.get("FEN") or selected_game.get("initial_fen"),
+        )
 
         ctx_parts.append("## 🏆 VÁN ĐẤU ĐANG ĐƯỢC CHỌN TRÊN BÀN CỜ ĐỂ PHÂN TÍCH:")
         w_text = f"{g_white} ({g_w_elo})" if g_w_elo else g_white
@@ -268,8 +336,6 @@ def build_opponent_ai_context(
             ctx_parts.append(f"- **Vòng đấu**: {g_round}")
         if g_tc and g_tc != "?":
             ctx_parts.append(f"- **Kiểm soát thời gian**: {g_tc}")
-        if tot_ply > 0:
-            ctx_parts.append(f"- **Vị trí nước đi đang xem trên bàn cờ**: Nước {curr_ply}/{tot_ply}")
         if g_moves:
             ctx_parts.append(f"- **TOÀN BỘ BIÊN BẢN NƯỚC ĐI CỦA VÁN ĐẤU (PGN ĐẦY ĐỦ)**:\n  {g_moves}\n")
         ctx_parts.append(
@@ -280,12 +346,16 @@ def build_opponent_ai_context(
         )
 
     # 2. THẾ CỜ TRÊN BÀN CỜ TƯƠNG TÁC
-    if is_board_open and current_fen:
+    if position_facts is not None:
+        board = position_facts.board
         ctx_parts.append("## ♟️ THẾ CỜ HIỆN TẠI TRÊN BÀN CỜ TƯƠNG TÁC (BÀN CỜ ĐANG MỞ)")
-        ctx_parts.append(f"- **Chuỗi FEN**: `{current_fen}`")
-        fen_parts = current_fen.split(" ")
-        active_color = "Trắng (White)" if len(fen_parts) > 1 and fen_parts[1] == "w" else "Đen (Black)"
-        ctx_parts.append(f"- **Lượt đi**: Đến lượt **{active_color}** đi quân")
+        ctx_parts.append(f"- **Chuỗi FEN**: `{position_facts.fen}`")
+        ctx_parts.append("- Mã chèn liên kết tới đúng thế cờ hiện tại: `{{CURRENT_FEN}}`.")
+        move_description = describe_board_move(selected_game or {}, board)
+        if move_description:
+            ctx_parts.append(f"- **Vị trí đang xem trong biên bản**: {move_description}.")
+        active_color = "Trắng (White)" if board.turn == chess.WHITE else "Đen (Black)"
+        ctx_parts.append(f"- **Lượt đi**: Đến lượt **{active_color}** đi quân (nước {board.fullmove_number})")
         if engine_eval:
             score = engine_eval.get("score")
             score_type = engine_eval.get("scoreType", "cp")
@@ -295,58 +365,49 @@ def build_opponent_ai_context(
             if is_mate:
                 eval_str = f"Chiếu bí sau {mate_in or score} nước (#M{mate_in or score})"
             elif isinstance(score, (int, float)):
-                pawn_val = score / 100.0 if abs(score) >= 10 else float(score)
+                pawn_val = score / 100.0
                 adv = "Trắng ưu thế nhẹ" if pawn_val > 0.3 else "Đen ưu thế nhẹ" if pawn_val < -0.3 else "Thế cờ cân bằng"
                 eval_str = f"{pawn_val:+.2f} Tốt ({int(score)} centipawns - {adv})"
             else:
                 eval_str = str(score)
 
             ctx_parts.append(f"- **Đánh giá Stockfish**: `{eval_str}`")
-            best_move = engine_eval.get("bestMoveSan")
-            if not best_move and engine_eval.get("bestMove"):
-                raw_bm = str(engine_eval.get("bestMove")).strip()
-                try:
-                    b_test = chess.Board(current_fen)
-                    m_test = chess.Move.from_uci(raw_bm)
-                    if m_test in b_test.legal_moves:
-                        best_move = b_test.san(m_test)
-                    else:
-                        best_move = raw_bm
-                except Exception:
-                    best_move = raw_bm
+            best_move = None
+            try:
+                if engine_eval.get("bestMove"):
+                    move = board.parse_uci(engine_eval["bestMove"])
+                elif engine_eval.get("bestMoveSan"):
+                    move = board.parse_san(engine_eval["bestMoveSan"])
+                else:
+                    move = None
+                if move:
+                    best_move = board.san(move)
+            except (TypeError, ValueError):
+                pass
 
             if best_move:
-                try:
-                    b_bm = chess.Board(current_fen)
-                    move_pfx = f"{b_bm.fullmove_number}. " if b_bm.turn == chess.WHITE else f"{b_bm.fullmove_number}... "
-                except Exception:
-                    move_pfx = ""
+                suffix = "." if board.turn == chess.WHITE else "..."
+                move_pfx = f"{board.fullmove_number}{suffix} "
                 ctx_parts.append(f"- **Nước đi tối ưu Stockfish đề xuất**: **{move_pfx}{best_move}** (Ký hiệu SAN chuẩn)")
             if engine_eval.get("pv"):
-                pv_san = format_pv_to_san(current_fen, engine_eval.get("pv")[:8])
+                pv_san = format_pv_to_san(position_facts.fen, engine_eval.get("pv")[:8])
                 if pv_san:
                     ctx_parts.append(f"- **Biến thể dự tính chính (PV line chuẩn SAN)**: {pv_san}")
 
         if selected_game:
-            board_moves = format_moves_san(selected_game.get("moves_san") or selected_game.get("moves", []))
-            curr_ply = selected_game.get("current_ply", 0)
-            tot_ply = selected_game.get("total_ply", 0)
+            moves = selected_game.get("board_moves")
+            board_moves = (
+                format_moves_san(moves, selected_game.get("initial_fen"))
+                if moves is not None else g_moves
+            )
             if board_moves:
-                ctx_parts.append(f"- **Biên bản toàn bộ nước đi đã chơi trên bàn cờ (Move History / PGN)**: {board_moves} (Đang xem ở Nước {curr_ply}/{tot_ply})")
+                ctx_parts.append(f"- **Chuỗi nước đi trên bàn cờ tương tác**: {board_moves}")
                 ctx_parts.append(
-                    "> 💡 **HƯỚNG DẪN QUAN TRỌNG VỀ KHAI CUỘC & TIẾN TRÌNH**: Toàn bộ chuỗi nước đi đã chơi trên bàn cờ được cung cấp ở trên (bắt đầu từ nước 1...). "
-                    "Khi người dùng hỏi 'ván này dùng khai cuộc gì', 'khai cuộc gì', 'các nước đi tiếp theo', hoặc hỏi về kế hoạch ván đấu, "
-                    "bạn PHẢI tra cứu trực tiếp từ chuỗi nước đi trên bàn cờ ở trên (ví dụ: nước đầu 1. c4 là Khai cuộc Anh - English Opening, 1. e4 e5 là Khai cuộc Mở, v.v.) "
-                    "để trả lời chính xác tên khai cuộc, biến thể và phân tích kế hoạch. TUYỆT ĐỐI KHÔNG trả lời rằng bạn không có chuỗi nước đi PGN!"
+                    "> Để nhận diện khai cuộc, dùng các nước đầu của biên bản nếu có. "
+                    "Các nước nằm sau vị trí đang xem là diễn biến của biên bản, không phải đề xuất Stockfish cho vị trí hiện tại."
                 )
 
-        # Nạp Bảng sự thật thế cờ (Ground Truth Factsheet) tính toán chính xác 100% bằng python-chess
-        try:
-            from src.ai_assistant.position_facts import PositionFacts
-            facts = PositionFacts(current_fen, engine_eval=engine_eval)
-            ctx_parts.append("\n" + facts.generate_factsheet_markdown())
-        except Exception:
-            pass
+        ctx_parts.append("\n" + position_facts.generate_factsheet_markdown())
         ctx_parts.append("")
     elif not is_board_open:
         ctx_parts.append("## ♟️ TRẠNG THÁI BÀN CỜ TƯƠNG TÁC")

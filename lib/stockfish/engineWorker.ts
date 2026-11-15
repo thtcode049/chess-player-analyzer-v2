@@ -29,6 +29,35 @@ export interface EngineEvaluation {
 
 export type EvaluationCallback = (evalData: EngineEvaluation) => void;
 
+export function evaluationForFen(
+  evaluation: EngineEvaluation | null | undefined,
+  fen: string | undefined,
+): EngineEvaluation | undefined {
+  return evaluation && fen && normalizeFen(evaluation.fen) === normalizeFen(fen)
+    ? evaluation
+    : undefined;
+}
+
+export function buildChatEngineEvaluation(
+  evaluation: EngineEvaluation | null | undefined,
+  fen: string | undefined,
+) {
+  const matched = evaluationForFen(evaluation, fen);
+  if (!matched) return undefined;
+  return {
+    fen: matched.fen,
+    score: matched.score,
+    scoreType: matched.scoreType,
+    isMate: matched.isMate,
+    mateIn: matched.mateIn,
+    bestMove: matched.bestMove,
+    bestMoveSan: matched.bestMoveSan,
+    depth: matched.depth,
+    pv: matched.pv,
+    pvs: matched.pvs,
+  };
+}
+
 /**
  * Normalizes FEN string to ignore halfmove clock and fullmove number
  * for transposition deduplication (matching Lichess caching).
@@ -194,8 +223,9 @@ export class StockfishEngineController {
       if (this.onEvaluation) {
         this.onEvaluation(cached);
       }
-      // If cached is already a Cloud eval (depth 50+) or deep enough, no need to compute
       if (cached.isCloud || cached.depth >= targetDepth) {
+        this.pendingEval = null;
+        this.stopLocalSearch();
         return;
       }
     }
@@ -210,7 +240,8 @@ export class StockfishEngineController {
           if (this.onEvaluation) {
             this.onEvaluation(cloudData);
           }
-          // Stop local worker search since we already have superior cloud depth
+          // A queued request may still be waiting for the previous search to stop.
+          this.pendingEval = null;
           this.stopLocalSearch();
         }
       });
@@ -221,15 +252,10 @@ export class StockfishEngineController {
       this.init();
     }
 
-    // If currently searching this exact FEN for this request, let it continue
-    if (this.isSearching && normalizeFen(this.currentSearchingFen) === normKey) {
-      return;
-    }
-
-    // If searching a different position, stop search and queue this request
+    // Wait for the old search's bestmove before assigning new output to a FEN.
     if (this.isSearching) {
       this.pendingEval = { fen: cleanFen, depth: targetDepth, reqId };
-      this.sendCommand("stop");
+      this.stopLocalSearch();
       return;
     }
 
@@ -251,13 +277,12 @@ export class StockfishEngineController {
     this.sendCommand(`position fen ${fen}`);
     this.sendCommand(`go depth ${depth}`);
 
-    // Safety timeout: if engine takes > 5000ms without bestmove, unblock state
     this.searchTimeout = setTimeout(() => {
       if (this.isSearching && this.currentSearchingReqId === reqId) {
-        this.isSearching = false;
-        if (this.pendingEval) {
+        // Reset the worker so late output cannot be attributed to the queued position.
+        this.disposeWorker();
+        if (this.pendingEval && this.init()) {
           const next = this.pendingEval;
-          this.pendingEval = null;
           this.startSearch(next.fen, next.depth, next.reqId);
         }
       }
@@ -265,14 +290,22 @@ export class StockfishEngineController {
   }
 
   private stopLocalSearch() {
+    if (this.isSearching) this.sendCommand("stop");
+  }
+
+  private disposeWorker() {
     if (this.searchTimeout) {
       clearTimeout(this.searchTimeout);
       this.searchTimeout = null;
     }
-    if (this.isSearching) {
-      this.sendCommand("stop");
+    if (this.worker) {
+      this.worker.onmessage = null;
+      this.worker.terminate();
+      this.worker = null;
     }
     this.isSearching = false;
+    this.isReady = false;
+    this.currentSearchingFen = "";
   }
 
   public stop() {
@@ -284,26 +317,14 @@ export class StockfishEngineController {
       this.cloudAbortController.abort();
       this.cloudAbortController = null;
     }
-    if (this.searchTimeout) {
-      clearTimeout(this.searchTimeout);
-      this.searchTimeout = null;
-    }
+    ++this.currentReqId;
     this.pendingEval = null;
-    if (this.isSearching) {
-      this.sendCommand("stop");
-    }
-    this.isSearching = false;
-    this.currentSearchingFen = "";
+    this.stopLocalSearch();
   }
 
   public terminate() {
     this.stop();
-    if (this.worker) {
-      this.sendCommand("quit");
-      this.worker.terminate();
-      this.worker = null;
-      this.isReady = false;
-    }
+    this.disposeWorker();
   }
 
   private sendCommand(cmd: string) {
@@ -334,7 +355,7 @@ export class StockfishEngineController {
     }
 
     // Only process UCI info lines with score
-    if (line.startsWith("info") && line.includes("score")) {
+    if (this.isSearching && line.startsWith("info") && line.includes("score")) {
       // If pendingEval is set, Stockfish was stopped and is still outputting
       // lines from the PREVIOUS position. We MUST discard them!
       if (this.pendingEval !== null) {

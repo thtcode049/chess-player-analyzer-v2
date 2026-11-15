@@ -107,12 +107,7 @@ class PositionFacts:
     """Trích xuất và quản lý toàn bộ sự thật toán học/hình học của thế cờ."""
 
     def __init__(self, fen: str, engine_eval: Optional[Dict[str, Any]] = None):
-        clean_fen = fen.strip()
-        try:
-            self.board = chess.Board(clean_fen)
-        except Exception:
-            # Fallback nếu FEN lỗi hoặc thiếu
-            self.board = chess.Board()
+        self.board = chess.Board(fen.strip())
 
         self.fen = self.board.fen()
         self.engine_eval = engine_eval or {}
@@ -358,6 +353,9 @@ class PositionFacts:
                     move = board_clone.parse_san(move_str)
                 except Exception:
                     move = chess.Move.from_uci(move_str)
+
+                if move not in board_clone.legal_moves:
+                    return None
 
                 is_capture = board_clone.is_capture(move)
                 from_p = board_clone.piece_at(move.from_square)

@@ -57,6 +57,7 @@ export interface ActiveChatHandoffData {
   draftInput?: string;
   game?: Game | null;
   fen?: string;
+  initialFen?: string;
   moves?: string[];
   ply?: number;
   playerIds?: string[];

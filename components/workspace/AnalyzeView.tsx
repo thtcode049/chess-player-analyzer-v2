@@ -335,11 +335,11 @@ function WdlSummaryBar({ wins, draws, losses }: { wins: number; draws: number; l
   const lossPct = (losses / denom) * 100;
 
   return (
-    <div className="p-2.5 bg-card border border-border/50 rounded space-y-1.5">
+    <div className="space-y-1.5">
       <div className="flex items-center justify-between text-[11px]">
-        <span className="text-muted-foreground font-medium">Kết quả (T / H / B)</span>
+        <span className="text-muted-foreground font-medium">Tỉ lệ (W / D / L)</span>
         <span className="font-mono font-semibold text-foreground">
-          {wins}T · {draws}H · {losses}B
+          {wins}W · {draws}D · {losses}L
         </span>
       </div>
       {total > 0 ? (
@@ -348,23 +348,23 @@ function WdlSummaryBar({ wins, draws, losses }: { wins: number; draws: number; l
             <div
               className="bg-emerald-500 h-full transition-all"
               style={{ width: `${winPct}%` }}
-              title={`Thắng: ${wins} (${winPct.toFixed(1)}%)`}
+              title={`Thắng (W): ${wins} (${winPct.toFixed(1)}%)`}
             />
             <div
               className="bg-slate-400 h-full transition-all"
               style={{ width: `${drawPct}%` }}
-              title={`Hòa: ${draws} (${drawPct.toFixed(1)}%)`}
+              title={`Hòa (D): ${draws} (${drawPct.toFixed(1)}%)`}
             />
             <div
               className="bg-rose-500 h-full transition-all"
               style={{ width: `${lossPct}%` }}
-              title={`Thua: ${losses} (${lossPct.toFixed(1)}%)`}
+              title={`Thua (L): ${losses} (${lossPct.toFixed(1)}%)`}
             />
           </div>
           <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
-            <span className="text-emerald-700 font-semibold">{winPct.toFixed(0)}% T</span>
-            <span>{drawPct.toFixed(0)}% H</span>
-            <span className="text-rose-700 font-semibold">{lossPct.toFixed(0)}% B</span>
+            <span className="text-emerald-700 font-semibold">{winPct.toFixed(0)}% W</span>
+            <span>{drawPct.toFixed(0)}% D</span>
+            <span className="text-rose-700 font-semibold">{lossPct.toFixed(0)}% L</span>
           </div>
         </>
       ) : (
@@ -1933,8 +1933,8 @@ export function AnalyzeContent() {
                 <span>Đang tải thống kê khai cuộc...</span>
               </div>
             ) : (
-              <div className="space-y-2 text-xs">
-                <div className="grid grid-cols-2 gap-2 p-2.5 bg-muted/40 rounded border border-border/40">
+              <div className="space-y-3 text-xs">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <span className="text-[11px] text-muted-foreground block">Ván thực tế</span>
                     <span className="font-bold text-sm text-foreground font-mono">{matchingOpeningGames.length}</span>
@@ -1959,8 +1959,8 @@ export function AnalyzeContent() {
               </div>
             )}
 
-            {/* Static WikiBook Theory Card for the selected opening */}
-            <div className="p-3 rounded bg-muted/30 border border-border/40 space-y-2 text-xs">
+            {/* Static WikiBook Theory Section for the selected opening */}
+            <div className="space-y-2 text-xs pt-1">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 font-bold text-emerald-800 text-[11px] uppercase tracking-wide min-w-0">
                   <Compass className="w-3.5 h-3.5 shrink-0" />
@@ -2000,7 +2000,7 @@ export function AnalyzeContent() {
                   {openingWikibook.sections.slice(0, 3).map((sec, idx) => (
                     <div
                       key={`${sec.heading || "intro"}-${idx}`}
-                      className={idx > 0 || sec.heading ? "pt-1.5 border-t border-border/30 space-y-1" : "space-y-1"}
+                      className={idx > 0 || sec.heading ? "pt-1.5 space-y-1" : "space-y-1"}
                     >
                       {sec.heading && (
                         <div className="font-semibold text-foreground">{sec.heading}</div>
@@ -2057,18 +2057,6 @@ export function AnalyzeContent() {
                 </select>
               </div>
             )}
-
-            {/* Bottom Exit Button */}
-            <div className="pt-2 border-t border-border/40">
-              <button
-                type="button"
-                onClick={handleExitOpeningExplorer}
-                className="w-full py-2 px-3 rounded border border-border/70 hover:bg-secondary text-foreground text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer bg-card shadow-2xs"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Thoát chế độ Khai cuộc</span>
-              </button>
-            </div>
           </div>
         </div>
       );
@@ -2115,8 +2103,8 @@ export function AnalyzeContent() {
                 <span>Đang nạp hồ sơ cấu trúc tốt...</span>
               </div>
             ) : selectedStructure ? (
-              <div className="space-y-2 text-xs">
-                <div className="grid grid-cols-2 gap-2 p-2.5 bg-muted/40 rounded border border-border/40">
+              <div className="space-y-3 text-xs">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <span className="text-[11px] text-muted-foreground block">Ván thực tế</span>
                     <span className="font-bold text-sm text-foreground font-mono">
@@ -2139,7 +2127,7 @@ export function AnalyzeContent() {
                   losses={structureStats.losses}
                 />
 
-                <div className="text-[11px] text-muted-foreground px-2 py-1 bg-card border border-border/40 rounded">
+                <div className="text-[11px] text-muted-foreground">
                   Nước hình thành: ~<b>{selectedStructure.typical_formation_move || 12}</b>
                 </div>
               </div>
@@ -2151,7 +2139,7 @@ export function AnalyzeContent() {
 
             {/* Strategic Plan ideas & counter_ideas */}
             {selectedStructure?.strategic_plan && (
-              <div className="p-3 rounded bg-muted/30 border border-border/40 space-y-2 text-xs">
+              <div className="space-y-2 text-xs pt-1">
                 <div className="flex items-center gap-1.5 font-bold text-emerald-800 text-[11px] uppercase tracking-wide">
                   <Compass className="w-3.5 h-3.5" />
                   <span>Kế hoạch Chiến lược</span>
@@ -2238,18 +2226,6 @@ export function AnalyzeContent() {
                 </select>
               </div>
             )}
-
-            {/* Bottom Exit Button */}
-            <div className="pt-2 border-t border-border/40">
-              <button
-                type="button"
-                onClick={handleExitStructureExplorer}
-                className="w-full py-2 px-3 rounded border border-border/70 hover:bg-secondary text-foreground text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer bg-card shadow-2xs"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Thoát chế độ Cấu trúc</span>
-              </button>
-            </div>
           </div>
         </div>
       );

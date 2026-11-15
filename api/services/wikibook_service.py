@@ -258,16 +258,127 @@ class WikibookService:
             resolved_title = str(parse_data.get("title") or page_title.replace("_", " "))
             heading_title = extracted["title"] or clean_name or resolved_title.split("/")[-1]
             page_url = "https://en.wikibooks.org/wiki/" + urllib.parse.quote(resolved_title.replace(" ", "_"), safe="/:")
+            display_opening = clean_name or (matched_entry.get("name") if matched_entry else "") or heading_title
+
+            translated_title, translated_sections = _translate_wikibook_to_vi(
+                opening_name=display_opening,
+                title=heading_title,
+                sections=extracted["sections"],
+            )
 
             result = {
-                "opening_name": clean_name or (matched_entry.get("name") if matched_entry else "") or heading_title,
+                "opening_name": display_opening,
                 "eco": (matched_entry or {}).get("eco", ""),
-                "title": heading_title,
+                "title": translated_title,
                 "page_title": resolved_title,
                 "page_url": page_url,
-                "sections": extracted["sections"],
+                "sections": translated_sections,
             }
             break
 
         _WIKIBOOK_CACHE[cache_key] = (now, result)
         return result
+
+
+_TRANSLATION_MODELS = (
+    "gemini-3.5-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-3.5-flash",
+)
+
+
+def _translate_wikibook_to_vi(
+    opening_name: str,
+    title: str,
+    sections: List[Dict[str, Any]],
+) -> Tuple[str, List[Dict[str, Any]]]:
+    """Translate WikiBook opening theory title/sections into natural Vietnamese chess prose."""
+    if not sections:
+        return title, sections
+
+    try:
+        from src.ai_assistant.config import get_server_gemini_api_key
+        api_key = (get_server_gemini_api_key() or "").strip()
+    except Exception:
+        api_key = ""
+
+    if not api_key:
+        return title, sections
+
+    trimmed_sections = [
+        {
+            "heading": str(sec.get("heading") or ""),
+            "paragraphs": [str(p) for p in (sec.get("paragraphs") or [])[:2]],
+        }
+        for sec in sections[:3]
+    ]
+    payload_in = {
+        "title": title,
+        "sections": trimmed_sections,
+    }
+
+    prompt = (
+        "Dịch nội dung lý thuyết khai cuộc cờ vua sau từ tiếng Anh sang tiếng Việt tự nhiên, súc tích, chuẩn thuật ngữ cờ vua Việt Nam "
+        "(ví dụ: Tốt, Mã, Tượng, Xe, Hậu, Vua, nhập thành, trung tâm, ô yếu, phản công, chuyển thế/transposition). "
+        "Giữ nguyên các ký hiệu nước đi đại số (như 1. d4, 2...g6, Nf3, c4, e5) và giữ nguyên cấu trúc JSON đầu vào. "
+        "Không thêm lời giải thích ngoài JSON.\n"
+        f"Khai cuộc: {opening_name}\n"
+        f"Dữ liệu JSON:\n{json.dumps(payload_in, ensure_ascii=False)}"
+    )
+
+    body = json.dumps({
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.2,
+            "responseMimeType": "application/json",
+        },
+    }).encode("utf-8")
+
+    for model in _TRANSLATION_MODELS:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        req = urllib.request.Request(
+            url,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                if resp.status != 200:
+                    continue
+                raw_resp = json.loads(resp.read().decode("utf-8"))
+            text = (
+                raw_resp.get("candidates", [{}])[0]
+                .get("content", {})
+                .get("parts", [{}])[0]
+                .get("text", "")
+                .strip()
+            )
+            if not text:
+                continue
+            if text.startswith("```"):
+                text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text).strip()
+            parsed = json.loads(text)
+            vi_sections_raw = parsed.get("sections")
+            if not isinstance(vi_sections_raw, list) or len(vi_sections_raw) != len(trimmed_sections):
+                continue
+
+            vi_sections: List[Dict[str, Any]] = []
+            for orig_sec, vi_sec in zip(trimmed_sections, vi_sections_raw):
+                if not isinstance(vi_sec, dict):
+                    raise ValueError("Invalid translated section")
+                vi_paras = vi_sec.get("paragraphs")
+                if not isinstance(vi_paras, list) or not vi_paras:
+                    vi_paras = orig_sec["paragraphs"]
+                vi_sections.append({
+                    "heading": str(vi_sec.get("heading") if vi_sec.get("heading") is not None else orig_sec["heading"]),
+                    "paragraphs": [str(p) for p in vi_paras],
+                })
+
+            vi_title = str(parsed.get("title") or title)
+            return vi_title, vi_sections
+        except Exception as exc:
+            logger.debug(f"[Wikibook] Translation attempt failed on {model}: {exc}")
+            continue
+
+    return title, sections
